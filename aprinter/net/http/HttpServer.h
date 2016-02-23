@@ -179,7 +179,7 @@ private:
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
-            m_connection.copySendData(c, str, strlen(str));
+            m_connection.copySendData(c, MemRef(str));
         }
         
         void init (Context c)
@@ -1285,7 +1285,7 @@ private:
             AMBRO_ASSERT(receiving_request_body(c))
             AMBRO_ASSERT(m_user_accepting_request_body)
             
-            WrapBuffer data = WrapBuffer::Make(RxBufferSize - m_rx_buf_start, m_rx_buf + m_rx_buf_start, m_rx_buf);
+            WrapBuffer data = WrapBuffer(RxBufferSize - m_rx_buf_start, m_rx_buf + m_rx_buf_start, m_rx_buf);
             size_t data_len = get_request_body_avail(c);
             return RequestBodyBufferState{data, data_len, m_req_body_recevied};
         }
@@ -1349,12 +1349,12 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
             
-            WrapBuffer con_space_buffer;
-            size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
-            
+            size_t con_space_avail = m_connection.getSendBufferSpace(c);
             if (con_space_avail <= TxChunkOverhead) {
-                return ResponseBodyBufferState{WrapBuffer::Make(nullptr), 0};
+                return ResponseBodyBufferState{WrapBuffer(nullptr), 0};
             }
+            
+            WrapBuffer con_space_buffer = m_connection.getSendBufferPtr(c);
             return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkOverhead};
         }
         
@@ -1366,8 +1366,7 @@ private:
             AMBRO_ASSERT(length > 0)
             
             // Get the send buffer reference and sanity check the length / space.
-            WrapBuffer con_space_buffer;
-            size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
+            size_t con_space_avail = m_connection.getSendBufferSpace(c);
             AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
             AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
@@ -1383,11 +1382,12 @@ private:
             }
             
             // Write the chunk header and footer.
-            con_space_buffer.copyIn(0, TxChunkHeaderSize, m_chunk_header);
-            con_space_buffer.copyIn(TxChunkHeaderSize + length, 2, m_chunk_header+TxChunkHeaderDigits);
+            WrapBuffer con_space_buffer = m_connection.getSendBufferPtr(c);
+            con_space_buffer.copyIn(MemRef(m_chunk_header, TxChunkHeaderSize));
+            con_space_buffer.subFrom(TxChunkHeaderSize + length).copyIn(MemRef(m_chunk_header+TxChunkHeaderDigits, 2));
             
             // Submit data to the connection and poke sending.
-            m_connection.copySendData(c, nullptr, TxChunkOverhead + length);
+            m_connection.provideSendData(c, TxChunkOverhead + length);
             m_connection.pokeSending(c);
             
             // If we did not have any data in the send buffer, start the send timeout.

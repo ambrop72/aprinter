@@ -54,6 +54,8 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/Likely.h>
+#include <aprinter/base/OneOf.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/common/EthernetCommon.h>
@@ -741,7 +743,7 @@ public:
         
         void acceptReceivedData (Context c, size_t amount)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             AMBRO_ASSERT(amount <= m_recv_pending)
             
             m_recv_pending -= amount;
@@ -750,33 +752,44 @@ public:
             }
         }
         
-        size_t getSendBufferSpace (Context c, WrapBuffer *out_buffer=nullptr)
+        size_t getSendBufferSpace (Context c)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             // No assert !m_send_closed, so this can be used to see when data was acked.
             
-            if (out_buffer) {
-                *out_buffer = make_send_avail_wrap_buffer(c);
-            }
             return (ProvidedTxBufSize - m_send_buf_length);
         }
         
-        void copySendData (Context c, char const *data, size_t amount)
+        WrapBuffer getSendBufferPtr (Context c)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
-            AMBRO_ASSERT(amount <= ProvidedTxBufSize - m_send_buf_length)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             AMBRO_ASSERT(!m_send_closed)
             
-            if (data) {
-                WrapBuffer buffer = make_send_avail_wrap_buffer(c);
-                buffer.copyIn(0, amount, data);
-            }
+            return make_send_avail_wrap_buffer(c);
+        }
+        
+        void provideSendData (Context c, size_t amount)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
+            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(amount <= ProvidedTxBufSize - m_send_buf_length)
+            
             m_send_buf_length += amount;
+        }
+        
+        void copySendData (Context c, MemRef data)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
+            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(data.len <= ProvidedTxBufSize - m_send_buf_length)
+            
+            make_send_avail_wrap_buffer(c).copyIn(data);
+            m_send_buf_length += data.len;
         }
         
         void pokeSending (Context c)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             AMBRO_ASSERT(!m_send_closed)
             
             if (m_state == State::RUNNING && !m_write_event.isSet(c)) {
@@ -787,7 +800,7 @@ public:
         
         void closeSending (Context c)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             AMBRO_ASSERT(!m_send_closed)
             
             m_send_closed = true;
@@ -914,7 +927,7 @@ public:
         
         void closed_event_handler (Context c)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state == OneOf(State::RUNNING, State::ERRORING))
             AMBRO_ASSERT(m_state != State::RUNNING || m_recv_remote_closed)
             AMBRO_ASSERT(m_state != State::ERRORING || !m_pcb)
             
@@ -977,7 +990,7 @@ public:
         WrapBuffer make_send_avail_wrap_buffer (Context c)
         {
             size_t write_offset = send_buf_add(m_send_buf_start, m_send_buf_length);
-            return WrapBuffer::Make(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf);
+            return WrapBuffer(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf);
         }
         
         static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)

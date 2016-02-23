@@ -29,58 +29,45 @@
 #include <string.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/base/MemRef.h>
 
 #include <aprinter/BeginNamespace.h>
 
 struct WrapBuffer {
-    static WrapBuffer Make (size_t wrap, char *ptr1, char *ptr2)
-    {
-        return WrapBuffer{wrap, ptr1, ptr2};
-    }
+    WrapBuffer () = default;
     
-    static WrapBuffer Make (char *ptr)
-    {
-        return WrapBuffer{(size_t)-1, ptr, nullptr};
-    }
+    inline WrapBuffer (size_t wrap_arg, char *ptr1_arg, char *ptr2_arg)
+    : wrap(wrap_arg), ptr1(ptr1_arg), ptr2(ptr2_arg)
+    {}
     
-    inline void copyOut (size_t offset, size_t length, char *dst) const
+    inline WrapBuffer (char *ptr)
+    : wrap((size_t)-1), ptr1(ptr), ptr2(nullptr)
+    {}
+    
+    inline void copyIn (MemRef data) const
     {
-        if (length > 0) {
-            if (offset < wrap) {
-                size_t to_copy = MinValue(length, wrap - offset);
-                memcpy(dst, ptr1 + offset, to_copy);
-                offset += to_copy;
-                length -= to_copy;
-                dst += to_copy;
-            }
-            if (length > 0) {
-                memcpy(dst, ptr2 + (offset - wrap), length);
-            }
+        size_t first_length = MinValue(data.len, wrap);
+        memcpy(ptr1, data.ptr, first_length);
+        if (first_length < data.len) {
+            memcpy(ptr2, data.ptr + first_length, data.len - first_length);
         }
     }
     
-    inline void copyIn (size_t offset, size_t length, char const *src) const
+    inline void copyOut (MemRef data) const
     {
-        if (length > 0) {
-            if (offset < wrap) {
-                size_t to_copy = MinValue(length, wrap - offset);
-                memcpy(ptr1 + offset, src, to_copy);
-                offset += to_copy;
-                length -= to_copy;
-                src += to_copy;
-            }
-            if (length > 0) {
-                memcpy(ptr2 + (offset - wrap), src, length);
-            }
+        size_t first_length = MinValue(data.len, wrap);
+        memcpy((char *)data.ptr, ptr1, first_length);
+        if (first_length < data.len) {
+            memcpy((char *)data.ptr + first_length, ptr2, data.len - first_length);
         }
     }
     
     inline WrapBuffer subFrom (size_t offset) const
     {
         if (offset < wrap) {
-            return WrapBuffer::Make(wrap - offset, ptr1 + offset, ptr2);
+            return WrapBuffer(wrap - offset, ptr1 + offset, ptr2);
         } else {
-            return WrapBuffer::Make(ptr2 + (offset - wrap));
+            return WrapBuffer(ptr2 + (offset - wrap));
         }
     }
     

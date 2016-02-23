@@ -365,7 +365,7 @@ private:
                     m_disconnect_event.prependNowNotAlready(c);
                     return;
                 }
-                m_connection.copySendData(c, str, length);
+                m_connection.copySendData(c, MemRef(str, length));
             }
         }
         
