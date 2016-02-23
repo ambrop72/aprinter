@@ -53,6 +53,8 @@ private:
         64,    // MaxHeaderLineLength
         250,   // ExpectedResponseLength
         10000, // MaxRequestHeadLength
+        256,   // MaxChunkHeaderLength
+        1024,  // MaxTrailerLength
         4,     // TxChunkHeaderDigits
         4      // MaxQueryParams
     >;

@@ -79,6 +79,8 @@ private:
     static_assert(Params::ExpectedResponseLength >= 250, "");
     static_assert(Params::ExpectedResponseLength <= TxBufferSize, "");
     static_assert(Params::MaxRequestHeadLength >= 500, "");
+    static_assert(Params::MaxChunkHeaderLength >= 32, "");
+    static_assert(Params::MaxTrailerLength >= 128, "");
     static_assert(Params::TxChunkHeaderDigits >= 3, "");
     static_assert(Params::TxChunkHeaderDigits <= 8, "");
     
@@ -785,7 +787,7 @@ private:
                             if (value == 0) {
                                 // This is the final zero chunk, move on to receiving the trailing headers.
                                 m_recv_state = RecvState::RECV_TRAILER;
-                                m_rem_allowed_length = Params::MaxRequestHeadLength;
+                                m_rem_allowed_length = Params::MaxTrailerLength;
                             } else {
                                 // Remember the chunk length and continue in event_handler.
                                 m_recv_state = RecvState::RECV_CHUNK_DATA;
@@ -803,7 +805,7 @@ private:
                             
                             // Move on to the next chunk.
                             m_recv_state = RecvState::RECV_CHUNK_HEADER;
-                            m_rem_allowed_length = Params::MaxHeaderLineLength;
+                            m_rem_allowed_length = Params::MaxChunkHeaderLength;
                             m_recv_event.prependNow(c);
                         } break;
                         
@@ -1012,7 +1014,7 @@ private:
             // Start receiving the request body, chunked or known-length.
             if (m_have_chunked) {
                 m_recv_state = RecvState::RECV_CHUNK_HEADER;
-                m_rem_allowed_length = Params::MaxHeaderLineLength;
+                m_rem_allowed_length = Params::MaxChunkHeaderLength;
                 m_req_body_recevied = false;
             } else {
                 m_recv_state = RecvState::RECV_KNOWN_LENGTH;
@@ -1468,6 +1470,8 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
     APRINTER_AS_VALUE(size_t, MaxHeaderLineLength),
     APRINTER_AS_VALUE(size_t, ExpectedResponseLength),
     APRINTER_AS_VALUE(size_t, MaxRequestHeadLength),
+    APRINTER_AS_VALUE(size_t, MaxChunkHeaderLength),
+    APRINTER_AS_VALUE(size_t, MaxTrailerLength),
     APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits),
     APRINTER_AS_VALUE(int, MaxQueryParams)
 ), (
