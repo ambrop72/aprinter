@@ -1180,7 +1180,7 @@ private:
             size_t length;
         };
         
-        UserClientState * getUserClientState (Context c)
+        UserClientState * getUserState (Context c)
         {
             return &m_user_client_state;
         }

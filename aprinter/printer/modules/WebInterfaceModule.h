@@ -119,12 +119,12 @@ private:
             }
 #if APRINTER_ENABLE_HTTP_TEST
             if (path.equalTo("/downloadTest")) {
-                return request->getUserClientState(c)->acceptDownloadTestRequest(c, request);
+                return request->getUserState(c)->acceptDownloadTestRequest(c, request);
             }
 #endif
             if (path.ptr[0] == '/') {
                 char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
-                return request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
+                return request->getUserState(c)->acceptGetFileRequest(c, request, file_path);
             }
         }
         else if (!strcmp(method, "POST")) {
@@ -134,7 +134,7 @@ private:
             }
 #if APRINTER_ENABLE_HTTP_TEST
             if (path.equalTo("/uploadTest")) {
-                return request->getUserClientState(c)->acceptUploadTestRequest(c, request);
+                return request->getUserState(c)->acceptUploadTestRequest(c, request);
             }
 #endif
             if (path.equalTo("/rr_upload")) {
@@ -143,7 +143,7 @@ private:
                     request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
                     goto error;
                 }
-                return request->getUserClientState(c)->acceptUploadFileRequest(c, request, file_name.ptr);
+                return request->getUserState(c)->acceptUploadFileRequest(c, request, file_name.ptr);
             }
         }
         else {
