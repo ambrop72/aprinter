@@ -795,7 +795,7 @@ private:
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
                             
-                            // Now read the other trailer lines.
+                            // Move on to the next chunk.
                             m_recv_state = RecvState::RECV_CHUNK_HEADER;
                             m_rem_allowed_length = Params::MaxHeaderLineLength;
                             m_recv_event.prependNow(c);
@@ -1418,21 +1418,21 @@ private:
         State m_state;
         RecvState m_recv_state;
         SendState m_send_state;
-        bool m_line_overflow;
-        bool m_request_line_overflow;
-        bool m_bad_content_length;
-        bool m_have_content_length;
-        bool m_have_chunked;
-        bool m_bad_transfer_encoding;
-        bool m_expect_100_continue;
-        bool m_expectation_failed;
-        bool m_have_request_body;
-        bool m_close_connection;
-        bool m_req_body_recevied;
-        bool m_user_accepting_request_body;
-        bool m_rx_buf_eof;
-        bool m_send_timeout_expired;
-        bool m_recv_timeout_expired;
+        bool m_line_overflow : 1;
+        bool m_request_line_overflow : 1;
+        bool m_bad_content_length : 1;
+        bool m_have_content_length : 1;
+        bool m_have_chunked : 1;
+        bool m_bad_transfer_encoding : 1;
+        bool m_expect_100_continue : 1;
+        bool m_expectation_failed : 1;
+        bool m_have_request_body : 1;
+        bool m_close_connection : 1;
+        bool m_req_body_recevied : 1;
+        bool m_user_accepting_request_body : 1;
+        bool m_rx_buf_eof : 1;
+        bool m_send_timeout_expired : 1;
+        bool m_recv_timeout_expired : 1;
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];

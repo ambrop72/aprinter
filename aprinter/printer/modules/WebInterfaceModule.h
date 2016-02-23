@@ -50,7 +50,7 @@ private:
     using TheHttpServerService = HttpServerService<
         typename Params::HttpServerNetParams,
         128,   // MaxRequestLineLength
-        128,   // MaxHeaderLineLength
+        64,    // MaxHeaderLineLength
         250,   // ExpectedResponseLength
         10000, // MaxRequestHeadLength
         4,     // TxChunkHeaderDigits
