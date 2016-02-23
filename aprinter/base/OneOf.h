@@ -40,7 +40,7 @@ struct OneOfStruct<OptRefType, TailOptRefType...> {
     
     template <typename SelType>
     AMBRO_ALWAYS_INLINE
-    constexpr bool one_of (SelType const &sel)
+    constexpr bool one_of (SelType const &sel) const
     {
         return sel == opt_ref || tail_opt_ref.one_of(sel);
     }
@@ -56,7 +56,7 @@ struct OneOfStruct<> {
     
     template <typename SelType>
     AMBRO_ALWAYS_INLINE
-    constexpr bool one_of (SelType const &sel)
+    constexpr bool one_of (SelType const &sel) const
     {
         return false;
     }
