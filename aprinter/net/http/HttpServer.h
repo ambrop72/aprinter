@@ -763,15 +763,21 @@ private:
                     
                     switch (m_recv_state) {
                         case RecvState::RECV_CHUNK_HEADER: {
-                            // Check for errors in line parsing.
-                            if (overflow) {
+                            // Look for presence of chunk extensions and check for overflowed line buffer.
+                            MemRef chunk_size_str = MemRef(m_header_line, length);
+                            char *semicolon = strchr(m_header_line, ';');
+                            if (semicolon) {
+                                chunk_size_str = chunk_size_str.subTo(semicolon - m_header_line);
+                                // Line overflow is safely ignored when we find chunk extensions.
+                            }
+                            else if (overflow) {
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
                             
                             // Parse the chunk length.
                             uint64_t value;
-                            if (!StringParseHexadecimal(MemRef(m_header_line, length), &value)) {
+                            if (!StringParseHexadecimal(chunk_size_str, &value)) {
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
