@@ -242,9 +242,8 @@ private:
     
     struct SegmentAxesPart : public SegmentAxesHelper, public SegmentLasersHelper {
         typename TheLinearPlanner::SegmentData lp_seg;
-        FpType a_x_rec;
         FpType max_accel_rec;
-        FpType rel_max_speed_rec_by_a_x;
+        FpType rel_max_speed_rec;
     };
     
     struct Segment {
@@ -579,16 +578,15 @@ public:
         }
         
         template <typename TheMinTimeType>
-        static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0_ax, FpType frac_x2_ax, TheMinTimeType t0, TheMinTimeType t2, TheMinTimeType t1, FpType vdiff0_squared, FpType vdiff2_squared)
+        static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, TheMinTimeType t0, TheMinTimeType t2, TheMinTimeType t1, FpType vdiff0_squared, FpType vdiff2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             
-            FpType x_by_ax = entry->axes.a_x_rec * axis_entry->x.template fpValue<FpType>();
-            
+            FpType xfp = axis_entry->x.template fpValue<FpType>();
             StepperStepFixedType x1 = axis_entry->x;
-            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x0_ax * x_by_ax));
+            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x0 * xfp));
             x1.m_bits.m_int -= x0.bitsValue();
-            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x2_ax * x_by_ax));
+            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x2 * xfp));
             x1.m_bits.m_int -= x2.bitsValue();
             
             if (x0.bitsValue() == 0) {
@@ -608,15 +606,16 @@ public:
             }
             
             bool dir = entry->dir_and_type & TheAxisMask;
+            FpType accel_conversion = entry->axes.lp_seg.a_x_rec * xfp;
             
             if (x0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperStepFixedType::importFpSaturatedRound(x_by_ax * vdiff0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperStepFixedType::importFpSaturatedRound(accel_conversion * vdiff0_squared)));
             }
             if (!skip1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperStepFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperStepFixedType::importFpSaturatedRound(x_by_ax * vdiff2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperStepFixedType::importFpSaturatedRound(accel_conversion * vdiff2_squared)));
             }
         }
         
@@ -1232,7 +1231,6 @@ private:
 #endif
     }
     
-    APRINTER_NO_INLINE
     static bool plan (Context c)
     {
         auto *o = Object::self(c);
@@ -1275,7 +1273,7 @@ private:
                 MinTimeType t0 = MinTimeType::importFpSaturatedRound(t0_double);
                 FpType t2_double = vdiff2 * entry->axes.max_accel_rec;
                 MinTimeType t2 = MinTimeType::importFpSaturatedRound(t2_double);
-                FpType t1_double = (entry->axes.lp_seg.a_x - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec_by_a_x;
+                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec;
                 MinTimeType t1 = MinTimeType::importFpSaturatedRound(t1_double);
                 auto t_sum = t0 + t2 + t1;
                 if (AMBRO_UNLIKELY(t_sum > MinTimeType::maxValue())) {
@@ -1515,7 +1513,7 @@ private:
             FpType async_steps_time = 0.0f;
             ListForEachForward<AxisCommonList>(LForeach_compute_steps_time(), c, entry, &cst, &sync_steps_time, &async_steps_time);
             FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, FloatMax(sync_steps_time, async_steps_time));
-            FpType rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
             
             FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
             bool degenerate = (distance == 0.0f);
@@ -1527,10 +1525,8 @@ private:
             ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
             
             FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
-            
             entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
-            entry->axes.a_x_rec = FloatLdexp(entry->axes.max_accel_rec * distance_rec, -1);
-            entry->axes.rel_max_speed_rec_by_a_x = rel_max_speed_rec * entry->axes.a_x_rec;
+            FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
             
             FpType distance_rec_for_junction = AMBRO_UNLIKELY(degenerate) ? NAN : distance_rec;
             FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec_for_junction, &cst);
@@ -1538,9 +1534,8 @@ private:
             o->m_last_dir_and_type = entry->dir_and_type;
             
             FpType distance_squared = distance * distance;
-            FpType max_v = distance_squared / (rel_max_speed_rec * rel_max_speed_rec);
-            FpType a_x = FloatLdexp(distance_squared / rel_max_accel_rec, 1);
-            
+            FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
+            FpType a_x = FloatLdexp(half_rel_max_accel * distance_squared, 2);
             TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, junction_max_start_v, max_v, a_x);
             o->m_last_max_v = max_v;
             

@@ -36,6 +36,7 @@ struct LinearPlanner {
         FpType a_x;
         FpType max_v;
         FpType max_start_v;
+        FpType a_x_rec;
     };
 
     class SegmentState {
@@ -59,6 +60,7 @@ struct LinearPlanner {
         segment->max_v = max_v;
         segment->max_start_v = FloatMin(prev_max_v, FloatMin(max_start_v, max_v));
         segment->a_x = a_x;
+        segment->a_x_rec = 1.0f / a_x;
     }
     
     static FpType push (SegmentData *segment, SegmentState *s, FpType end_v)
@@ -86,18 +88,18 @@ struct LinearPlanner {
         FpType start_v_plus_a_x = start_v + segment->a_x;
         if (end_v > start_v_plus_a_x) {
             end_v = start_v_plus_a_x;
-            result->const_start = segment->a_x;
+            result->const_start = 1.0f;
             result->const_end = 0.0f;
             result->const_v = end_v;
         } else {
             FpType half_start_v_plus_a_x_plus_end_v = FloatLdexp(start_v_plus_a_x + end_v, -1);
             if (half_start_v_plus_a_x_plus_end_v > segment->max_v) {
-                result->const_start = segment->max_v - start_v;
-                result->const_end = segment->max_v - end_v;
+                result->const_start = (segment->max_v - start_v) * segment->a_x_rec;
+                result->const_end = (segment->max_v - end_v) * segment->a_x_rec;
                 result->const_v = segment->max_v;
             } else {
-                result->const_start = half_start_v_plus_a_x_plus_end_v - start_v;
-                result->const_end = segment->a_x - result->const_start;
+                result->const_start = (half_start_v_plus_a_x_plus_end_v - start_v) * segment->a_x_rec;
+                result->const_end = 1.0f - result->const_start;
                 result->const_v = half_start_v_plus_a_x_plus_end_v;
             }
         }
