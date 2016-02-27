@@ -200,6 +200,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_planner_underrun, planner_underrun)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -224,6 +225,7 @@ private:
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_m119_append_endstop, m119_append_endstop)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_prestep_callback, prestep_callback)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_move_interlocks, check_move_interlocks)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_planner_underrun, planner_underrun)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -973,6 +975,11 @@ private:
         static bool check_move_interlocks (Context c, TheOutputStream *err_output, ThePhysVirtAxisMaskType move_axes)
         {
             return CallIfExists_check_move_interlocks::template call_ret<TheModule, bool, true>(c, err_output, move_axes);
+        }
+        
+        static void planner_underrun (Context c)
+        {
+            CallIfExists_planner_underrun::template call_void<TheModule>(c);
         }
         
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
@@ -2180,7 +2187,6 @@ public:
         TransformFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
         ob->speed_ratio = 1.0f;
-        ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
         TheHookExecutor::init(c);
@@ -2305,22 +2311,19 @@ private:
                     }
                     return;
                 
-                case 17: { // enable steppers (all steppers if no args, or specific ones)
-                    if (!cmd->tryUnplannedCommand(c)) {
-                        return;
-                    }
-                    enable_disable_command_common(c, true, cmd);
-                    now_inactive(c);
-                    return cmd->finishCommand(c);
-                } break;
-                
+                case 17: // enable steppers (all steppers if no args, or specific ones)
                 case 18: // disable steppers (all steppers if no args, or specific ones)
-                case 84: {
+                case 84: { // same as 18
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
                     }
-                    enable_disable_command_common(c, false, cmd);
-                    ob->disable_timer.unset(c);
+                    bool is_enable = (cmd_number == 17);
+                    enable_disable_command_common(c, is_enable, cmd);
+                    if (is_enable) {
+                        now_inactive(c);
+                    } else {
+                        ob->disable_timer.unset(c);
+                    }
                     return cmd->finishCommand(c);
                 } break;
                 
@@ -2373,45 +2376,6 @@ private:
                         return;
                     }
                     return cmd->finishCommand(c);
-                } break;
-                
-#ifdef EVENTLOOP_BENCHMARK
-                case 916: { // reset benchmark time
-                    if (!cmd->tryUnplannedCommand(c)) {
-                        return;
-                    }
-                    Context::EventLoop::resetBenchTime(c);
-                    return cmd->finishCommand(c);
-                } break;
-                
-                case 917: { // print benchmark time
-                    if (!cmd->tryUnplannedCommand(c)) {
-                        return;
-                    }
-                    cmd->reply_append_uint32(c, Context::EventLoop::getBenchTime(c));
-                    cmd->reply_append_ch(c, '\n');
-                    return cmd->finishCommand(c);
-                } break;
-#endif
-                
-                case 918: { // test assertions
-                    uint32_t magic = cmd->get_command_param_uint32(c, 'M', 0);
-                    if (magic != UINT32_C(122345)) {
-                        cmd->reportError(c, AMBRO_PSTR("BadMagic"));
-                    } else {
-                        if (cmd->find_command_param(c, 'F', nullptr)) {
-                            AMBRO_ASSERT_FORCE(0)
-                        } else {
-                            AMBRO_ASSERT(0)
-                        }
-                    }
-                    cmd->finishCommand(c);
-                } break;
-                
-                case 920: { // get underrun count
-                    cmd->reply_append_uint32(c, ob->underrun_count);
-                    cmd->reply_append_ch(c, '\n');
-                    cmd->finishCommand(c);
                 } break;
                 
                 case 930: { // apply configuration
@@ -2729,17 +2693,7 @@ private:
     
     static void planner_underrun_callback (Context c)
     {
-        auto *ob = Object::self(c);
-        
-        ob->underrun_count++;
-        
-#ifdef AXISDRIVER_DETECT_OVERLOAD
-        if (ThePlanner::axisOverloadOccurred(c)) {
-            print_pgm_string(c, AMBRO_PSTR("//AxisOverload\n"));
-        } else {
-            print_pgm_string(c, AMBRO_PSTR("//NoOverload\n"));
-        }
-#endif
+        ListForEachForward<ModulesList>(LForeach_planner_underrun(), c);
     }
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
     
@@ -3041,7 +2995,6 @@ public:
         FpType time_freq_by_max_speed;
         FpType speed_ratio;
         FpType move_time_freq_by_max_speed;
-        uint32_t underrun_count;
         size_t msg_length;
         bool locked : 1;
         uint8_t planner_state : 3;

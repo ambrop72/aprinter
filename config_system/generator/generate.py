@@ -1443,6 +1443,13 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_aprinter_include('printer/modules/BulkOutputTestModule.h')
                         bulk_output_test_module = gen.add_module()
                         bulk_output_test_module.set_expr('BulkOutputTestModuleService')
+                    
+                    if development.get_bool('EnableBasicTestModule'):
+                        gen.add_aprinter_include('printer/modules/BasicTestModule.h')
+                        basic_test_module = gen.add_module()
+                        basic_test_module.set_expr('BasicTestModuleService')
+                    elif detect_overload_enabled:
+                        development.key_path('DetectOverloadEnabled').error('BasicTestModule is required for overload detection.')
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
