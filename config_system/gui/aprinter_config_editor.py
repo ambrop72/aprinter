@@ -863,6 +863,7 @@ def editor():
                 ce.Boolean(key='DebugSymbols', title='Build with debug symbols (need lots of RAM, use of Clang advised)', default=False),
                 ce.Boolean(key='EnableBulkOutputTest', title='Enable bulk output test commands (M942, M943)', default=False),
                 ce.Boolean(key='EnableBasicTestModule', title='Enable basic test features (see BasicTestModule)', default=True),
+                ce.Boolean(key='EnableStubCommandModule', title='Enable stub commands (see StubCommandModule)', default=True),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsable=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[

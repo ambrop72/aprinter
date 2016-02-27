@@ -2327,10 +2327,6 @@ private:
                     return cmd->finishCommand(c);
                 } break;
                 
-                case 80: // ATX power on
-                case 81: // ATX power off
-                    return cmd->finishCommand(c);
-                
                 case 82:   // extruders to absolute positioning
                 case 83: { // extruders to relative positioning
                     bool relative = (cmd_number == 83);
@@ -2342,11 +2338,6 @@ private:
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cmd);
                     cmd->reply_append_ch(c, '\n');
                     return cmd->finishCommand(c);
-                } break;
-                
-                case 115: {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("ok FIRMWARE_NAME:APrinter\n"));
-                    return cmd->finishCommand(c, true);
                 } break;
                 
                 case 119: {
@@ -2446,9 +2437,6 @@ private:
                     move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
                     return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, false);
                 } break;
-                
-                case 21: // set units to millimeters
-                    return cmd->finishCommand(c);
                 
                 case 28: { // home axes
                     if (!cmd->tryUnplannedCommand(c)) {

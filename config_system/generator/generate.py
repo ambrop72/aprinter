@@ -1450,6 +1450,11 @@ def generate(config_root_data, cfg_name, main_template):
                         basic_test_module.set_expr('BasicTestModuleService')
                     elif detect_overload_enabled:
                         development.key_path('DetectOverloadEnabled').error('BasicTestModule is required for overload detection.')
+                    
+                    if development.get_bool('EnableStubCommandModule'):
+                        gen.add_aprinter_include('printer/modules/StubCommandModule.h')
+                        stub_command_module = gen.add_module()
+                        stub_command_module.set_expr('StubCommandModuleService')
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
