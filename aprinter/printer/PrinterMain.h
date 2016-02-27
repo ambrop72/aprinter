@@ -2782,7 +2782,6 @@ public:
     
     static void move_set_nominal_time (Context c, FpType nominal_time_ticks)
     {
-        auto *o = Object::self(c);
         AMBRO_ASSERT(FloatIsPosOrPosZero(nominal_time_ticks))
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
