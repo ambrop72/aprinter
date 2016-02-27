@@ -2386,45 +2386,41 @@ private:
                     return;
                 
                 case 0:   // rapid move
-                case 1: { // linear move
-                    if (!cmd->tryPlannedCommand(c)) {
-                        return;
-                    }
-                    move_begin(c);
-                    auto num_parts = cmd->getNumParts(c);
-                    bool seen_t = false;
-                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
-                        CommandPartRef part = cmd->getPart(c, i);
-                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cmd, part) &&
-                            ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cmd, part)
-                        ) {
-                            if (cmd->getPartCode(c, part) == 'F') {
-                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / (FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * ob->speed_ratio));
-                            }
-                            else if (cmd->getPartCode(c, part) == 'T') {
-                                FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() / ob->speed_ratio);
-                                move_set_nominal_time(c, nominal_time_ticks);
-                                seen_t = true;
-                            }
-                        }
-                    }
-                    FpType time_freq_by_max_speed = AMBRO_UNLIKELY(seen_t) ? 0.0f : ob->time_freq_by_max_speed;
-                    move_set_max_speed_opt(c, time_freq_by_max_speed);
-                    bool is_positioning_move = (cmd_number == 0);
-                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
-                } break;
-                
+                case 1:   // linear move
                 case 4: { // dwell
                     if (!cmd->tryPlannedCommand(c)) {
                         return;
                     }
+                    
                     move_begin(c);
+                    
                     FpType dwell_time_ticks = 0.0f;
+                    bool seen_t = false;
+                    
                     auto num_parts = cmd->getNumParts(c);
                     for (decltype(num_parts) i = 0; i < num_parts; i++) {
                         CommandPartRef part = cmd->getPart(c, i);
-                        if (ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cmd, part)) {
-                            char code = cmd->getPartCode(c, part);
+                        
+                        if (cmd_number != 4 && !ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cmd, part)) {
+                            continue;
+                        }
+                        
+                        if (!ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cmd, part)) {
+                            continue;
+                        }
+                        
+                        char code = cmd->getPartCode(c, part);
+                        
+                        if (cmd_number != 4) {
+                            if (code == 'F') {
+                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / (FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * ob->speed_ratio));
+                            }
+                            else if (code == 'T') {
+                                FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() / ob->speed_ratio);
+                                move_set_nominal_time(c, nominal_time_ticks);
+                                seen_t = true;
+                            }
+                        } else {
                             if (code == 'P' || code == 'S') {
                                 FpType dwell_time = cmd->getPartFpValue(c, part);
                                 if (code == 'P') {
@@ -2434,8 +2430,16 @@ private:
                             }
                         }
                     }
-                    move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
-                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, false);
+                    
+                    if (cmd_number != 4) {
+                        FpType time_freq_by_max_speed = AMBRO_UNLIKELY(seen_t) ? 0.0f : ob->time_freq_by_max_speed;
+                        move_set_max_speed_opt(c, time_freq_by_max_speed);
+                    } else {
+                        move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
+                    }
+                    
+                    bool is_positioning_move = (cmd_number == 0);
+                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
                 case 28: { // home axes
