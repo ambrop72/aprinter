@@ -80,7 +80,6 @@ rec {
     /* This is used by the service deployment expression to ensure that the
      * build dependencies are already in the Nix store. */
     buildDeps = [
-        aprinterSource
         avrgcclibc
         gcc-arm-embedded-fromsrc
         clang-arm-embedded
