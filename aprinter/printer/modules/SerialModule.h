@@ -35,8 +35,8 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/printer/InputCommon.h>
-#include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/input/InputCommon.h>
+#include <aprinter/printer/utils/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 

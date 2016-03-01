@@ -1458,7 +1458,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
-                    gen.add_aprinter_include('printer/GcodeParser.h')
+                    gen.add_aprinter_include('printer/utils/GcodeParser.h')
                     
                     serial_module = gen.add_module()
                     serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module.index)
@@ -1490,14 +1490,14 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @gcode_parser_sel.option('TextGcodeParser')
                     def option(parser):
-                        gen.add_aprinter_include('printer/GcodeParser.h')
+                        gen.add_aprinter_include('printer/utils/GcodeParser.h')
                         return TemplateExpr('FileGcodeParserService', [
                             parser.get_int('MaxParts'),
                         ])
                     
                     @gcode_parser_sel.option('BinaryGcodeParser')
                     def option(parser):
-                        gen.add_aprinter_include('printer/BinaryGcodeParser.h')
+                        gen.add_aprinter_include('printer/utils/BinaryGcodeParser.h')
                         return TemplateExpr('BinaryGcodeParserService', [
                             parser.get_int('MaxParts'),
                         ])
@@ -1616,7 +1616,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
                             
                             gen.add_aprinter_include('printer/modules/TcpConsoleModule.h')
-                            gen.add_aprinter_include('printer/GcodeParser.h')
+                            gen.add_aprinter_include('printer/utils/GcodeParser.h')
                             
                             tcp_console_module = gen.add_module()
                             tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
@@ -1704,7 +1704,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @homing_sel.option('homing')
                 def option(homing):
-                    gen.add_aprinter_include('printer/AxisHomer.h')
+                    gen.add_aprinter_include('printer/utils/AxisHomer.h')
                     
                     return TemplateExpr('PrinterMainHomingParams', [
                         gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),
@@ -1867,7 +1867,7 @@ def generate(config_root_data, cfg_name, main_template):
                     ])
                 
                 for observer in heater.enter_config('observer'):
-                    gen.add_aprinter_include('printer/TemperatureObserver.h')
+                    gen.add_aprinter_include('printer/utils/TemperatureObserver.h')
                     observer_service = TemplateExpr('TemperatureObserverService', [
                         gen.add_float_config('{}HeaterObserverInterval'.format(name), observer.get_float('ObserverInterval')),
                         gen.add_float_config('{}HeaterObserverTolerance'.format(name), observer.get_float('ObserverTolerance')),

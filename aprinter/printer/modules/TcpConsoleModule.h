@@ -35,8 +35,8 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/printer/GcodeParser.h>
-#include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/utils/GcodeParser.h>
+#include <aprinter/printer/utils/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 

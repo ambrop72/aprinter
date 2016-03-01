@@ -34,7 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/utils/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 

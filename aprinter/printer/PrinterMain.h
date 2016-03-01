@@ -62,14 +62,14 @@
 #include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/printer/Blinker.h>
+#include <aprinter/printer/utils/Blinker.h>
 #include <aprinter/printer/actuators/Steppers.h>
 #include <aprinter/printer/actuators/StepperGroup.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
-#include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/utils/GcodeCommand.h>
 #include <aprinter/printer/OutputStream.h>
 #include <aprinter/printer/HookExecutor.h>
 

@@ -41,9 +41,9 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
-#include <aprinter/printer/InputCommon.h>
+#include <aprinter/printer/input/InputCommon.h>
 #include <aprinter/printer/ServiceList.h>
-#include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/utils/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
