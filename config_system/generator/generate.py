@@ -1673,6 +1673,7 @@ def generate(config_root_data, cfg_name, main_template):
                                     'WebInterfaceQueueTimeout',
                                     'WebInterfaceInactivityTimeout',
                                 ]),
+                                webif_config.get_int('JsonBufferSize'),
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)

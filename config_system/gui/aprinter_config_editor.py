@@ -833,6 +833,7 @@ def editor():
                                 ce.Float(key='QueueTimeout', title='Timeout for queued clients [s]', default=10),
                                 ce.Float(key='InactivityTimeout', title='Network inactivity timeout [s]', default=10),
                                 ce.Boolean(key='EnableDebug', title='Enable debug messages', default=False),
+                                ce.Integer(key='JsonBufferSize', title='Size of JSON response buffer', default=128),
                             ]),
                         ]),
                     ])

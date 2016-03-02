@@ -36,6 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/net/http/HttpServer.h>
 #include <aprinter/fs/BufferedFile.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
@@ -63,6 +64,10 @@ private:
     struct UserClientState;
     using TheHttpServer = typename TheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>;
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
+    
+    static_assert(TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent >= Params::JsonBufferSize, "");
+    
+    using TheJsonBuilder = JsonBuilder<Params::JsonBufferSize>;
     
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheBufferedFile = BufferedFile<Context, TheFsAccess>;
@@ -113,6 +118,7 @@ private:
     {
         char const *method = request->getMethod(c);
         MemRef path = request->getPath(c);
+        UserClientState *state = request->getUserState(c);
         
         if (!strcmp(method, "GET")) {
             if (request->hasRequestBody(c)) {
@@ -121,12 +127,15 @@ private:
             }
 #if APRINTER_ENABLE_HTTP_TEST
             if (path.equalTo("/downloadTest")) {
-                return request->getUserState(c)->acceptDownloadTestRequest(c, request);
+                return state->acceptDownloadTestRequest(c, request);
             }
 #endif
+            if (path.removePrefix("/rr_")) {
+                return state->acceptJsonResponseRequest(c, request, path);
+            }
             if (path.ptr[0] == '/') {
                 char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
-                return request->getUserState(c)->acceptGetFileRequest(c, request, file_path);
+                return state->acceptGetFileRequest(c, request, file_path);
             }
         }
         else if (!strcmp(method, "POST")) {
@@ -136,7 +145,7 @@ private:
             }
 #if APRINTER_ENABLE_HTTP_TEST
             if (path.equalTo("/uploadTest")) {
-                return request->getUserState(c)->acceptUploadTestRequest(c, request);
+                return state->acceptUploadTestRequest(c, request);
             }
 #endif
             if (path.equalTo("/rr_upload")) {
@@ -145,7 +154,7 @@ private:
                     request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
                     goto error;
                 }
-                return request->getUserState(c)->acceptUploadFileRequest(c, request, file_name.ptr);
+                return state->acceptUploadFileRequest(c, request, file_name.ptr);
             }
         }
         else {
@@ -159,11 +168,34 @@ private:
     }
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     
+    static bool process_json_resp_request (Context c, TheRequestInterface *request, MemRef req_type, MemRef *resp)
+    {
+        auto *o = Object::self(c);
+        
+        o->json_builder.startBuilding();
+        o->json_builder.startObject();
+        
+        // TBD real processing
+        o->json_builder.addSafeString("test");
+        o->json_builder.entryValue();
+        o->json_builder.addDouble(123.4);
+        
+        o->json_builder.endObject();
+        
+        if (o->json_builder.bufferWasOverrun()) {
+            return false;
+        }
+        
+        *resp = o->json_builder.terminateAndGetBuffer();
+        return true;
+    }
+    
     struct UserClientState : public TheRequestInterface::RequestUserCallback {
         enum class State {
             NO_CLIENT,
             READ_OPEN, READ_WAIT, READ_READ,
             WRITE_OPEN, WRITE_WAIT, WRITE_WRITE, WRITE_EOF,
+            JSONRESP_WAIT,
             DL_TEST, UL_TEST
         };
         
@@ -189,6 +221,7 @@ private:
         void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
         {
             accept_request_common(c, request);
+            
             m_file_path = file_path;
             m_state = State::READ_OPEN;
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
@@ -197,14 +230,26 @@ private:
         void acceptUploadFileRequest (Context c, TheRequestInterface *request, char const *file_path)
         {
             accept_request_common(c, request);
+            
             m_state = State::WRITE_OPEN;
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_WRITE, UploadBasePath());
+        }
+        
+        void acceptJsonResponseRequest (Context c, TheRequestInterface *request, MemRef req_type)
+        {
+            accept_request_common(c, request);
+            
+            // Start delayed response adoption to wait for sufficient space in the send buffer.
+            m_state = State::JSONRESP_WAIT;
+            m_json_req.req_type = req_type;
+            m_request->adoptResponseBody(c, true);
         }
         
 #if APRINTER_ENABLE_HTTP_TEST
         void acceptDownloadTestRequest (Context c, TheRequestInterface *request)
         {
             accept_request_common(c, request);
+            
             m_request->setResponseContentType(c, "application/octet-stream");
             m_request->adoptResponseBody(c);
             m_state = State::DL_TEST;
@@ -213,6 +258,7 @@ private:
         void acceptUploadTestRequest (Context c, TheRequestInterface *request)
         {
             accept_request_common(c, request);
+            
             m_request->adoptRequestBody(c);
             m_state = State::UL_TEST;
         }
@@ -279,6 +325,30 @@ private:
                 
                 case State::READ_READ:
                     break;
+                
+                case State::JSONRESP_WAIT: {
+                    if (m_request->getResponseBodyBufferAvailBeforeHeadSent(c) < Params::JsonBufferSize) {
+                        return;
+                    }
+                    
+                    MemRef resp;
+                    if (!process_json_resp_request(c, m_request, m_json_req.req_type, &resp)) {
+                        m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
+                    } else {
+                        AMBRO_ASSERT(resp.len <= Params::JsonBufferSize)
+                        
+                        m_request->setResponseContentType(c, "application/json");
+                        m_request->adoptResponseBody(c);
+                        
+                        auto buf_st = m_request->getResponseBodyBufferState(c);
+                        AMBRO_ASSERT(buf_st.length >= Params::JsonBufferSize)
+                        buf_st.data.copyIn(resp);
+                        m_request->provideResponseBodyData(c, resp.len);
+                    }
+                    
+                    m_request->completeHandling(c);
+                    return requestTerminated(c);
+                } break;
                 
 #if APRINTER_ENABLE_HTTP_TEST
                 case State::DL_TEST: {
@@ -377,19 +447,29 @@ private:
         
         TheBufferedFile m_buffered_file;
         TheRequestInterface *m_request;
-        char const *m_file_path;
-        size_t m_cur_chunk_size;
         State m_state;
+        union {
+            struct {
+                char const *m_file_path;
+                size_t m_cur_chunk_size;
+            };
+            struct {
+                MemRef req_type;
+            } m_json_req;
+        };
     };
     
 public:
     struct Object : public ObjBase<WebInterfaceModule, ParentObject, MakeTypeList<
         TheHttpServer
-    >> {};
+    >> {
+        TheJsonBuilder json_builder;
+    };
 };
 
 APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
-    APRINTER_AS_TYPE(HttpServerNetParams)
+    APRINTER_AS_TYPE(HttpServerNetParams),
+    APRINTER_AS_VALUE(int, JsonBufferSize)
 ), (
     APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
 ))

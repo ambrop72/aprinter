@@ -79,6 +79,19 @@ struct MemRef {
         
         return len == other.len && !memcmp(ptr, other.ptr, len);
     }
+    
+    bool removePrefix (char const *prefix)
+    {
+        size_t pos = 0;
+        while (prefix[pos] != '\0') {
+            if (pos == len || ptr[pos] != prefix[pos]) {
+                return false;
+            }
+            pos++;
+        }
+        *this = subFrom(pos);
+        return true;
+    }
 };
 
 #include <aprinter/EndNamespace.h>

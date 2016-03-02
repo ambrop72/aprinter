@@ -102,6 +102,7 @@ public:
     using TheRequestInterface = Client;
     
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
+    static size_t const MaxGuaranteedBufferAvailBeforeHeadSent = TxBufferSizeForChunkData - MinValue(TxBufferSizeForChunkData, Params::ExpectedResponseLength);
     
     static void init (Context c)
     {
@@ -165,7 +166,10 @@ private:
             RECV_TRAILER, COMPLETED
         };
         
-        enum class SendState : uint8_t {INVALID, HEAD_NOT_SENT, SEND_BODY, SEND_LAST_CHUNK, COMPLETED};
+        enum class SendState : uint8_t {
+            INVALID, HEAD_NOT_SENT, SEND_HEAD,
+            SEND_BODY, SEND_LAST_CHUNK, COMPLETED
+        };
         
         void accept_rx_data (Context c, size_t amount)
         {
@@ -394,6 +398,7 @@ private:
                 case State::HEAD_RECEIVED:
                 case State::USER_GONE: {
                     switch (m_send_state) {
+                        case SendState::SEND_HEAD:
                         case SendState::SEND_BODY: {
                             // If there is any data in the send buffer, start the send timeout, else clear it.
                             if (m_connection.getSendBufferSpace(c) < TxBufferSize) {
@@ -1002,7 +1007,7 @@ private:
             AMBRO_ASSERT(m_have_request_body)
             
             // Send 100-continue if needed.
-            if (m_expect_100_continue && m_send_state == SendState::HEAD_NOT_SENT) {
+            if (m_expect_100_continue && m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
                 send_string(c, "HTTP/1.1 100 Continue\r\n\r\n");
                 m_connection.pokeSending(c);
             }
@@ -1087,7 +1092,7 @@ private:
             terminate_user(c);
             
             // Send an error response if desired and possible.
-            if (resp_status && (m_send_state == OneOf(SendState::INVALID, SendState::HEAD_NOT_SENT))) {
+            if (resp_status && m_send_state == OneOf(SendState::INVALID, SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
                 send_response(c, resp_status, true, nullptr, true);
             }
             
@@ -1140,14 +1145,14 @@ private:
         
         bool sending_response (Context c)
         {
-            return (m_send_state == OneOf(SendState::SEND_BODY, SendState::SEND_LAST_CHUNK));
+            return (m_send_state == OneOf(SendState::SEND_HEAD, SendState::SEND_BODY, SendState::SEND_LAST_CHUNK));
         }
         
         void abandon_response_body (Context c)
         {
             AMBRO_ASSERT(m_send_state != SendState::INVALID)
             
-            if (m_send_state == SendState::HEAD_NOT_SENT) {
+            if (m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
                 send_response(c, m_resp_status, true, nullptr, m_close_connection);
@@ -1158,7 +1163,7 @@ private:
                 }
                 
                 // Make the state transition.
-                AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::SEND)) // was never started
+                clear_combined_timeout(c, CombinedTimeout::SEND);
                 m_send_state = SendState::COMPLETED;
             }
             else if (m_send_state == SendState::SEND_BODY) {
@@ -1312,7 +1317,7 @@ private:
         void setResponseStatus (Context c, char const *status)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
-            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD))
             AMBRO_ASSERT(status)
             
             m_resp_status = status;
@@ -1321,33 +1326,54 @@ private:
         void setResponseContentType (Context c, char const *content_type)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
-            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD))
             AMBRO_ASSERT(content_type)
             
             m_resp_content_type = content_type;
         }
         
-        void adoptResponseBody (Context c)
+        // If delay_response==true, this should be called once again
+        // with delay_response==false, to send the delayed response head.
+        // The provideResponseBodyData() must not be called before
+        // adoptResponseBody was called with delay_response==false.
+        void adoptResponseBody (Context c, bool delay_response=false)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
-            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD))
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || !delay_response)
             AMBRO_ASSERT(m_user)
             
-            // Send the response head.
-            send_response(c, m_resp_status, false, m_resp_content_type, m_close_connection);
+            // Send the response head, unless delay is requested.
+            if (!delay_response) {
+                send_response(c, m_resp_status, false, m_resp_content_type, m_close_connection);
+            }
             
-            // The user will now be producing the response body.
-            m_send_state = SendState::SEND_BODY;
+            // The user will now be producing the response body,
+            // or if delay was requested, waiting for buffer space.
+            m_send_state = delay_response ? SendState::SEND_HEAD : SendState::SEND_BODY;
             m_send_event.prependNow(c);
         }
         
         void abandonResponseBody (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
-            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_send_state == SendState::SEND_BODY)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD, SendState::SEND_BODY))
             AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_user)
             
             abandon_response_body(c);
+        }
+        
+        size_t getResponseBodyBufferAvailBeforeHeadSent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::SEND_HEAD)
+            AMBRO_ASSERT(m_user)
+            
+            // We want to give a worst case value for how much buffer will be available
+            // for data if the head is sent right now.
+            size_t con_space_avail = m_connection.getSendBufferSpace(c);
+            con_space_avail -= MinValue(con_space_avail, (size_t)(Params::ExpectedResponseLength+TxChunkOverhead));
+            return con_space_avail;
         }
         
         ResponseBodyBufferState getResponseBodyBufferState (Context c)
@@ -1357,10 +1383,13 @@ private:
             AMBRO_ASSERT(m_user)
             
             size_t con_space_avail = m_connection.getSendBufferSpace(c);
+            
+            // Check for space for chunk header.
             if (con_space_avail <= TxChunkOverhead) {
                 return ResponseBodyBufferState{WrapBuffer(nullptr), 0};
             }
             
+            // Return info about the available buffer space for data.
             WrapBuffer con_space_buffer = m_connection.getSendBufferPtr(c);
             return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkOverhead};
         }
