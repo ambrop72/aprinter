@@ -331,6 +331,7 @@ icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
   SMEMCPY((u8_t *)q->payload + sizeof(struct icmp_echo_hdr), (u8_t *)p->payload,
           IP_HLEN + ICMP_DEST_UNREACH_DATASIZE);
 
+  ip4_addr_copy(iphdr_src, iphdr->src);
   netif = ip4_route(&iphdr_src);
   if (netif != NULL) {
     /* calculate checksum */
@@ -345,7 +346,6 @@ icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
     MIB2_STATS_INC(mib2.icmpoutmsgs);
     /* increase number of destination unreachable messages attempted to send */
     MIB2_STATS_INC(mib2.icmpouttimeexcds);
-    ip4_addr_copy(iphdr_src, iphdr->src);
     ip4_output_if(q, NULL, &iphdr_src, ICMP_TTL, 0, IP_PROTO_ICMP, netif);
   }
   pbuf_free(q);
