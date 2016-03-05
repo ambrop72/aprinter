@@ -39,6 +39,32 @@
 
 #include <aprinter/BeginNamespace.h>
 
+struct JsonUint32 {
+    uint32_t val;
+};
+
+struct JsonDouble {
+    double val;
+};
+
+struct JsonBool {
+    bool val;
+};
+
+struct JsonNull {};
+
+struct JsonString {
+    MemRef val;
+};
+
+struct JsonSafeString {
+    char const *val;
+};
+
+struct JsonSafeChar {
+    char val;
+};
+
 template <int ReqBufferSize>
 class JsonBuilder {
     static_assert(ReqBufferSize >= 16, "");
@@ -67,54 +93,54 @@ public:
         return (m_length >= BufferSize);
     }
     
-    void addUint32 (uint32_t val)
+    void add (JsonUint32 val)
     {
         adding_element();
         
         char *end = get_end();
-        snprintf(end, get_rem()+1, "%" PRIu32, val);
+        snprintf(end, get_rem()+1, "%" PRIu32, val.val);
         m_length += strlen(end);
     }
     
-    void addDouble (double val)
+    void add (JsonDouble val)
     {
         adding_element();
         
-        if (AMBRO_UNLIKELY(val == INFINITY)) {
+        if (AMBRO_UNLIKELY(val.val == INFINITY)) {
             add_token("1e1024");
         }
-        else if (AMBRO_UNLIKELY(val == -INFINITY || FloatIsNan(val))) {
+        else if (AMBRO_UNLIKELY(val.val == -INFINITY || FloatIsNan(val.val))) {
             add_token("-1e1024");
         }
         else {
             char *end = get_end();
-            snprintf(end, get_rem()+1, "%.17g", val);
+            snprintf(end, get_rem()+1, "%.6g", val.val);
             m_length += strlen(end);
         }
     }
     
-    void addBoolean (bool val)
+    void add (JsonBool val)
     {
         adding_element();
         
-        add_token(val ? "true" : "false");
+        add_token(val.val ? "true" : "false");
     }
     
-    void addNull ()
+    void add (JsonNull)
     {
         adding_element();
         
         add_token("null");
     }
     
-    void addString (MemRef val)
+    void add (JsonString val)
     {
         adding_element();
         
         add_char('"');
         
-        for (size_t pos = 0; pos < val.len; pos++) {
-            char ch = val.ptr[pos];
+        for (size_t pos = 0; pos < val.val.len; pos++) {
+            char ch = val.val.ptr[pos];
             
             switch (ch) {
                 case '\\':
@@ -157,12 +183,21 @@ public:
         add_char('"');
     }
     
-    void addSafeString (char const *val)
+    void add (JsonSafeString val)
     {
         adding_element();
         
         add_char('"');
-        add_token(val);
+        add_token(val.val);
+        add_char('"');
+    }
+    
+    void add (JsonSafeChar val)
+    {
+        adding_element();
+        
+        add_char('"');
+        add_char(val.val);
         add_char('"');
     }
     
@@ -190,6 +225,28 @@ public:
     {
         add_char(':');
         m_inhibit_comma = true;
+    }
+    
+    template <typename TKey, typename TVal>
+    void addKeyVal (TKey key, TVal val)
+    {
+        add(key);
+        entryValue();
+        add(val);
+    }
+    
+    template <typename TVal>
+    void addSafeKeyVal (char const *key, TVal val)
+    {
+        addKeyVal(JsonSafeString{key}, val);
+    }
+    
+    template <typename TKey>
+    void addKeyObject (TKey key)
+    {
+        add(key);
+        entryValue();
+        startObject();
     }
     
 private:

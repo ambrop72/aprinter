@@ -52,6 +52,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/misc/ClockUtils.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -100,6 +101,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_cold_extrude, print_cold_extrude)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_cold_extrude, set_cold_extrude)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_json_status, get_json_status)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
 public:
@@ -167,6 +169,22 @@ public:
         return ListForEachForwardInterruptible<HeatersList>(LForeach_check_move_interlocks(), c, err_output, move_axes);
     }
     
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        if (NumHeaters > 0) {
+            json->addKeyObject(JsonSafeString{"heaters"});
+            ListForEachForward<HeatersList>(LForeach_get_json_status(), c, json);
+            json->endObject();
+        }
+        
+        if (NumFans > 0) {
+            json->addKeyObject(JsonSafeString{"fans"});
+            ListForEachForward<FansList>(LForeach_get_json_status(), c, json);
+            json->endObject();
+        }
+    }
+    
 private:
     template <typename Name>
     static void print_name (Context c, TheOutputStream *cmd)
@@ -177,12 +195,29 @@ private:
         }
     }
     
+    template <typename Name, typename TheJsonBuilder>
+    static void print_json_name (Context c, TheJsonBuilder *json)
+    {
+        if (Name::Number == 0) {
+            json->add(JsonSafeChar{Name::Letter});
+        } else {
+            char str[3] = {Name::Letter, '0' + Name::Number, '\0'};
+            json->add(JsonSafeString{str});
+        }
+    }
+    
     template <typename Name>
     static bool match_name (Context c, TheCommand *cmd)
     {
         typename TheCommand::PartRef part;
         return cmd->find_command_param(c, Name::Letter, &part) && cmd->getPartUint32Value(c, part) == Name::Number;
     }
+    
+    struct HeaterState {
+        FpType current;
+        FpType target;
+        bool error;
+    };
     
     template <int HeaterIndex>
     struct Heater {
@@ -284,25 +319,32 @@ private:
         }
         struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
         
-        static void append_value (Context c, TheOutputStream *cmd)
+        static HeaterState get_state (Context c)
         {
             auto *o = Object::self(c);
             
-            FpType value = get_temp(c);
-            FpType target;
+            HeaterState st;
+            st.current = get_temp(c);
             bool enabled;
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                target = o->m_target;
+                st.target = o->m_target;
                 enabled = o->m_enabled;
             }
+            st.error = (!FloatIsNan(st.target) && !enabled);
+            return st;
+        }
+        
+        static void append_value (Context c, TheOutputStream *cmd)
+        {
+            HeaterState st = get_state(c);
             
             cmd->reply_append_ch(c, ' ');
             print_name<typename HeaterSpec::Name>(c, cmd);
             cmd->reply_append_ch(c, ':');
-            cmd->reply_append_fp(c, value);
+            cmd->reply_append_fp(c, st.current);
             cmd->reply_append_pstr(c, AMBRO_PSTR(" /"));
-            cmd->reply_append_fp(c, target);
-            if (!FloatIsNan(target) && !enabled) {
+            cmd->reply_append_fp(c, st.target);
+            if (st.error) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR(",err"));
             }
         }
@@ -557,6 +599,20 @@ private:
             return ColdExtrusionFeature::check_move_interlocks(c, err_output, move_axes);
         }
         
+        template <typename TheJsonBuilder>
+        static void get_json_status (Context c, TheJsonBuilder *json)
+        {
+            HeaterState st = get_state(c);
+            
+            print_json_name<typename HeaterSpec::Name>(c, json);
+            json->entryValue();
+            json->startObject();
+            json->addSafeKeyVal("current", JsonDouble{st.current});
+            json->addSafeKeyVal("target", JsonDouble{st.target});
+            json->addSafeKeyVal("error", JsonBool{st.error});
+            json->endObject();
+        }
+        
         static void print_cold_extrude (Context c, TheOutputStream *output)
         {
             ColdExtrusionFeature::print_cold_extrude(c, output);
@@ -712,6 +768,18 @@ private:
             ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
             ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
             ThePrinterMain::submitted_planner_command(c);
+        }
+        
+        template <typename TheJsonBuilder>
+        static void get_json_status (Context c, TheJsonBuilder *json)
+        {
+            FpType target = ThePwm::template getCurrentDutyFp<FpType>(c);
+            
+            print_json_name<typename FanSpec::Name>(c, json);
+            json->entryValue();
+            json->startObject();
+            json->addSafeKeyVal("target", JsonDouble{target});
+            json->endObject();
         }
         
         static void emergency ()

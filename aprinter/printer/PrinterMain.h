@@ -60,6 +60,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/base/OneOf.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/utils/Blinker.h>
@@ -72,6 +73,7 @@
 #include <aprinter/printer/utils/GcodeCommand.h>
 #include <aprinter/printer/OutputStream.h>
 #include <aprinter/printer/HookExecutor.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -201,6 +203,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_planner_underrun, planner_underrun)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_json_status, get_json_status)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -226,6 +229,7 @@ private:
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_prestep_callback, prestep_callback)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_move_interlocks, check_move_interlocks)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_planner_underrun, planner_underrun)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_get_json_status, get_json_status)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -980,6 +984,12 @@ private:
         static void planner_underrun (Context c)
         {
             CallIfExists_planner_underrun::template call_void<TheModule>(c);
+        }
+        
+        template <typename TheJsonBuilder>
+        static void get_json_status (Context c, TheJsonBuilder *json)
+        {
+            CallIfExists_get_json_status::template call_void<TheModule>(c, json);
         }
         
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
@@ -2022,6 +2032,15 @@ public:
             cmd->reply_append_fp(c, axis->m_req_pos);
         }
         
+        template <typename TheJsonBuilder>
+        static void get_json_status (Context c, TheJsonBuilder *json)
+        {
+            auto *axis = TheAxis::Object::self(c);
+            json->addKeyObject(JsonSafeChar{TheAxis::AxisName});
+            json->addSafeKeyVal("pos", JsonDouble{axis->m_req_pos});
+            json->endObject();
+        }
+        
         static void g92_check_axis (Context c, TheCommand *cmd, CommandPartRef part)
         {
             if (cmd->getPartCode(c, part) == TheAxis::AxisName) {
@@ -2880,6 +2899,29 @@ public:
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
         ThePlanner::waitFinished(c);
+    }
+    
+public:
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        auto *o = Object::self(c);
+        
+        char status_code = 'I';
+        if (o->planner_state != OneOf(PLANNER_NONE, PLANNER_CUSTOM)) {
+            status_code = (o->planner_state == PLANNER_STOPPING) ? 'D' : ThePlanner::getStatusCode(c);
+        }
+        if (status_code == 'I' && o->locked) {
+            status_code = 'B';
+        }
+        
+        json->addSafeKeyVal("status", JsonSafeChar{status_code});
+        
+        json->addKeyObject(JsonSafeString{"axes"});
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_get_json_status(), c, json);
+        json->endObject();
+        
+        ListForEachForward<ModulesList>(LForeach_get_json_status(), c, json);
     }
     
 private:

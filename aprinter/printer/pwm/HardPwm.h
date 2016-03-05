@@ -42,17 +42,20 @@ public:
     using ThePwm = typename Params::PwmService::template Pwm<Context, Object>;
     
 private:
+    using DutyCycleType = typename ThePwm::DutyCycleType;
     using DutyFixedType = FixedPoint<BitsInInt<ThePwm::MaxDutyCycle>::Value, false, 0>;
     
 public:
     struct DutyCycleData {
-        typename ThePwm::DutyCycleType duty;
+        DutyCycleType duty;
     };
     
     template <typename TheTimeType>
     static void init (Context c, TheTimeType start_time)
     {
+        auto *o = Object::self(c);
         ThePwm::init(c);
+        o->duty = 0;
     }
     
     static void deinit (Context c)
@@ -74,7 +77,23 @@ public:
     template <typename ThisContext>
     static void setDutyCycle (ThisContext c, DutyCycleData duty)
     {
+        auto *o = Object::self(c);
+        
         ThePwm::setDutyCycle(c, duty.duty);
+        o->duty = duty.duty;
+    }
+    
+    template <typename FpType>
+    static FpType getCurrentDutyFp (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        DutyCycleType duty;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            duty = o->duty;
+        }
+        
+        return duty / (FpType)ThePwm::MaxDutyCycle;
     }
     
     static void emergency ()
@@ -85,7 +104,9 @@ public:
 public:
     struct Object : public ObjBase<HardPwm, ParentObject, MakeTypeList<
         ThePwm
-    >> {};
+    >> {
+        DutyCycleType duty;
+    };
 };
 
 APRINTER_ALIAS_STRUCT_EXT(HardPwmService, (

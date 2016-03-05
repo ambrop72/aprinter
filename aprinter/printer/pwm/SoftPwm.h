@@ -112,6 +112,21 @@ public:
         }
     }
     
+    template <typename FpType>
+    static FpType getCurrentDutyFp (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        DutyCycleData duty;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            duty = o->m_duty;
+        }
+        
+        return (duty.type == 0) ? 0.0f :
+               (duty.type == 2) ? 1.0f :
+               (duty.on_time / (FpType)Interval);
+    }
+    
     static void emergency ()
     {
         Context::Pins::template emergencySet<typename Params::Pin>(Params::Invert);

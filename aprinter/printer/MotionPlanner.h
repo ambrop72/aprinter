@@ -1190,6 +1190,25 @@ public:
         return Axis<AxisIndex>::template axis_count_aborted_rem_steps<StepsType>(c);
     }
     
+    static char getStatusCode (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->m_state == STATE_BUFFERING) {
+            return (o->m_segments_length > 0) ? 'R' : 'I';
+        }
+        else if (o->m_state == STATE_STEPPING) {
+            bool syncing;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                syncing = o->m_syncing;
+            }
+            return syncing ? 'P' : 'D';
+        }
+        else {
+            return 'D';
+        }
+    }
+    
 #ifdef AXISDRIVER_DETECT_OVERLOAD
     static bool axisOverloadOccurred (Context c)
     {

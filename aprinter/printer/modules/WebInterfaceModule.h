@@ -175,18 +175,34 @@ private:
         o->json_builder.startBuilding();
         o->json_builder.startObject();
         
-        // TBD real processing
-        o->json_builder.addSafeString("test");
-        o->json_builder.entryValue();
-        o->json_builder.addDouble(123.4);
+        if (!handle_json_resp_request(c, req_type, &o->json_builder)) {
+            request->setResponseStatus(c, HttpStatusCodes::NotFound());
+            return false;
+        }
         
         o->json_builder.endObject();
         
         if (o->json_builder.bufferWasOverrun()) {
+            request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
             return false;
         }
         
         *resp = o->json_builder.terminateAndGetBuffer();
+        return true;
+    }
+    
+    static bool handle_json_resp_request (Context c, MemRef req_type, TheJsonBuilder *json)
+    {
+        if (req_type.equalTo("connect") || req_type.equalTo("disconnect")) {
+            json->addSafeKeyVal("err", JsonUint32{0});
+        }
+        else if (req_type.equalTo("status")) {
+            ThePrinterMain::get_json_status(c, json);
+        }
+        else {
+            return false;
+        }
+        
         return true;
     }
     
@@ -332,9 +348,7 @@ private:
                     }
                     
                     MemRef resp;
-                    if (!process_json_resp_request(c, m_request, m_json_req.req_type, &resp)) {
-                        m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
-                    } else {
+                    if (process_json_resp_request(c, m_request, m_json_req.req_type, &resp)) {
                         AMBRO_ASSERT(resp.len <= Params::JsonBufferSize)
                         
                         m_request->setResponseContentType(c, "application/json");
