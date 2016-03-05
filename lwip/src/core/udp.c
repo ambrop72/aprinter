@@ -1103,7 +1103,9 @@ udp_new_ip6(void)
   struct udp_pcb *pcb;
   pcb = udp_new();
 #if LWIP_IPV4
-  ip_set_v6(pcb, 1);
+  if (pcb != NULL) {
+    ip_set_v6(pcb, 1);
+  }
 #endif /* LWIP_IPV4 */
   return pcb;
 }

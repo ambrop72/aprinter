@@ -437,7 +437,9 @@ raw_new_ip6(u8_t proto)
   struct raw_pcb *pcb;
   pcb = raw_new(proto);
 #if LWIP_IPV4
-  ip_set_v6(pcb, 1);
+  if (pcb != NULL) {
+    ip_set_v6(pcb, 1);
+  }
 #endif /* LWIP_IPV4 */
   return pcb;
 }
