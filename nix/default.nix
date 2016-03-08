@@ -77,6 +77,9 @@ rec {
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
+    /* Hosts the web interface locally while proxying API requests to a device. */
+    aprinterWebifTest = pkgs.callPackage ./webif-test.nix { inherit aprinterSource ncd; };
+    
     /* This is used by the service deployment expression to ensure that the
      * build dependencies are already in the Nix store. */
     buildDeps = [
