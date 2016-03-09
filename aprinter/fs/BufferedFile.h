@@ -334,7 +334,7 @@ private:
         return m_completion_handler(c, Error::NO_ERROR, m_read_pos);
     }
     
-public:
+private:
     CompletionHandler m_completion_handler;
     typename Context::EventLoop::QueuedEvent m_event;
     typename TheFsAccess::Client m_access_client;

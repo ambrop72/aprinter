@@ -56,6 +56,7 @@ public:
     struct Object;
     static bool const FsWritable = Params::Writable;
     static bool const EnableReadHinting = Params::EnableReadHinting;
+    static int const MaxFileNameSize = Params::MaxFileNameSize;
     
 private:
     static_assert(Params::NumCacheEntries >= 1, "");
@@ -243,7 +244,7 @@ public:
     };
     
     class Opener {
-        enum class State : uint8_t {INIT_ERROR, REQUESTING_ENTRY, COMPLETED};
+        enum class State : uint8_t {NO_NAMES, REQUESTING_ENTRY, COMPLETED};
         
     public:
         enum class OpenerStatus : uint8_t {SUCCESS, NOT_FOUND, ERROR};
@@ -265,9 +266,10 @@ public:
             find_name_component_length();
             
             if (m_path_comp_len == 0) {
-                m_state = State::INIT_ERROR;
-                m_init_error_event.init(c, APRINTER_CB_OBJFUNC_T(&Opener::init_error_event_handler, this));
-                m_init_error_event.prependNowNotAlready(c);
+                m_state = State::NO_NAMES;
+                m_no_names_event.init(c, APRINTER_CB_OBJFUNC_T(&Opener::no_names_event_handler, this));
+                m_no_names_event.prependNowNotAlready(c);
+                m_no_names_entry = dir_entry;
             } else {
                 m_state = State::REQUESTING_ENTRY;
                 m_dir_iter.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
@@ -279,8 +281,8 @@ public:
         {
             TheDebugObject::access(c);
             
-            if (m_state == State::INIT_ERROR) {
-                m_init_error_event.deinit(c);
+            if (m_state == State::NO_NAMES) {
+                m_no_names_event.deinit(c);
             }
             else if (m_state == State::REQUESTING_ENTRY) {
                 m_dir_iter.deinit(c);
@@ -304,14 +306,19 @@ public:
             return skipped_slashes;
         }
         
-        void init_error_event_handler (Context c)
+        void no_names_event_handler (Context c)
         {
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::INIT_ERROR)
+            AMBRO_ASSERT(m_state == State::NO_NAMES)
             
             m_state = State::COMPLETED;
-            m_init_error_event.deinit(c);
-            return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
+            m_no_names_event.deinit(c);
+            
+            if (m_no_names_entry.type == m_entry_type) {
+                return m_handler(c, OpenerStatus::SUCCESS, m_no_names_entry);
+            } else {
+                return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
+            }
         }
         
         void dir_iter_handler (Context c, bool is_error, char const *name, FsEntry entry)
@@ -365,7 +372,10 @@ public:
         size_t m_path_comp_len;
         OpenerHandler m_handler;
         union {
-            typename Context::EventLoop::QueuedEvent m_init_error_event;
+            struct {
+                typename Context::EventLoop::QueuedEvent m_no_names_event;
+                FsEntry m_no_names_entry;
+            };
             DirectoryIterator m_dir_iter;
         };
     };
