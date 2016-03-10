@@ -65,32 +65,26 @@ struct JsonSafeChar {
     char val;
 };
 
-template <int ReqBufferSize>
 class JsonBuilder {
-    static_assert(ReqBufferSize >= 16, "");
-    
-    // One more char gives us the ability to see if the buffer was
-    // overrun just by checking if the maximum length was reached.
-    static int const BufferSize = ReqBufferSize + 1;
-    
 public:
-    void startBuilding ()
+    void loadBuffer (char *buffer, size_t buffer_total_size)
     {
-        m_length = 0;
-        m_inhibit_comma = true;
-    }
-    
-    MemRef terminateAndGetBuffer ()
-    {
-        AMBRO_ASSERT(m_length <= BufferSize)
+        AMBRO_ASSERT(buffer_total_size > 0)
         
-        m_buffer[m_length] = '\0';
-        return MemRef(m_buffer, m_length);
+        m_buffer = buffer;
+        m_buffer_size = buffer_total_size - 1;
+        m_length = 0;
     }
     
-    bool bufferWasOverrun ()
+    size_t getLength ()
     {
-        return (m_length >= BufferSize);
+        AMBRO_ASSERT(m_length <= m_buffer_size)
+        return m_length;
+    }
+    
+    void start ()
+    {
+        m_inhibit_comma = true;
     }
     
     void add (JsonUint32 val)
@@ -133,72 +127,84 @@ public:
         add_token("null");
     }
     
-    void add (JsonString val)
+    void beginString ()
     {
         adding_element();
         
         add_char('"');
-        
-        for (size_t pos = 0; pos < val.val.len; pos++) {
-            char ch = val.val.ptr[pos];
+    }
+    
+    void addStringChar (char ch)
+    {
+        switch (ch) {
+            case '\\':
+            case '"': {
+                add_char('\\');
+                add_char(ch);
+            } break;
             
-            switch (ch) {
-                case '\\':
-                case '"': {
+            case '\t': {
+                add_char('\\');
+                add_char('t');
+            } break;
+            
+            case '\n': {
+                add_char('\\');
+                add_char('n');
+            } break;
+            
+            case '\r': {
+                add_char('\\');
+                add_char('r');
+            } break;
+            
+            default: {
+                if (AMBRO_UNLIKELY(ch < 0x20)) {
                     add_char('\\');
+                    add_char('u');
+                    add_char('0');
+                    add_char('0');
+                    int ich = ch;
+                    add_char(encode_hex_digit(ich>>4));
+                    add_char(encode_hex_digit(ich&0xF));
+                } else {
                     add_char(ch);
-                } break;
-                
-                case '\t': {
-                    add_char('\\');
-                    add_char('t');
-                } break;
-                
-                case '\n': {
-                    add_char('\\');
-                    add_char('n');
-                } break;
-                
-                case '\r': {
-                    add_char('\\');
-                    add_char('r');
-                } break;
-                
-                default: {
-                    if (AMBRO_UNLIKELY(ch < 0x20)) {
-                        add_char('\\');
-                        add_char('u');
-                        add_char('0');
-                        add_char('0');
-                        int ich = ch;
-                        add_char(encode_hex_digit(ich>>4));
-                        add_char(encode_hex_digit(ich&0xF));
-                    } else {
-                        add_char(ch);
-                    }
-                } break;
-            }
+                }
+            } break;
         }
-        
+    }
+    
+    void addStringMem (MemRef mem)
+    {
+        for (size_t pos = 0; pos < mem.len; pos++) {
+            addStringChar(mem.ptr[pos]);
+        }
+    }
+    
+    void endString ()
+    {
         add_char('"');
+    }
+    
+    void add (JsonString val)
+    {
+        beginString();
+        addStringMem(val.val);
+        endString();
     }
     
     void add (JsonSafeString val)
     {
-        adding_element();
-        
-        add_char('"');
+        beginString();
         add_token(val.val);
-        add_char('"');
+        endString();
     }
     
     void add (JsonSafeChar val)
     {
-        adding_element();
-        
-        add_char('"');
+        beginString();
         add_char(val.val);
-        add_char('"');
+        endString();
     }
     
     void startArray ()
@@ -249,6 +255,14 @@ public:
         startObject();
     }
     
+    template <typename TKey>
+    void addKeyArray (TKey key)
+    {
+        add(key);
+        entryValue();
+        startArray();
+    }
+    
 private:
     static char encode_hex_digit (int value)
     {
@@ -262,12 +276,12 @@ private:
     
     size_t get_rem ()
     {
-        return BufferSize - m_length;
+        return m_buffer_size - m_length;
     }
     
     void add_char (char ch)
     {
-        if (AMBRO_LIKELY(m_length < BufferSize)) {
+        if (AMBRO_LIKELY(m_length < m_buffer_size)) {
             m_buffer[m_length++] = ch;
         }
     }
@@ -302,9 +316,10 @@ private:
         }
     }
     
+    char *m_buffer;
+    size_t m_buffer_size;
     size_t m_length;
     bool m_inhibit_comma;
-    char m_buffer[BufferSize + 1];
 };
 
 #include <aprinter/EndNamespace.h>
