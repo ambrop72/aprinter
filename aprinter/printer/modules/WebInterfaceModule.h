@@ -96,26 +96,23 @@ public:
     }
     
 private:
-    static char const * get_content_type (char const *path)
+    static char const * get_content_type (MemRef path)
     {
-        size_t path_len = strlen(path);
-        
-        if (AsciiCaseInsensEndsWith(path, path_len, ".htm") || AsciiCaseInsensEndsWith(path, path_len, ".html")) {
+        if (AsciiCaseInsensEndsWith(path, ".htm") || AsciiCaseInsensEndsWith(path, ".html")) {
             return "text/html";
         }
-        if (AsciiCaseInsensEndsWith(path, path_len, ".css")) {
+        if (AsciiCaseInsensEndsWith(path, ".css")) {
             return "text/css";
         }
-        if (AsciiCaseInsensEndsWith(path, path_len, ".js")) {
+        if (AsciiCaseInsensEndsWith(path, ".js")) {
             return "application/javascript";
         }
-        if (AsciiCaseInsensEndsWith(path, path_len, ".png")) {
+        if (AsciiCaseInsensEndsWith(path, ".png")) {
             return "image/png";
         }
-        if (AsciiCaseInsensEndsWith(path, path_len, ".ico")) {
+        if (AsciiCaseInsensEndsWith(path, ".ico")) {
             return "image/x-icon";
         }
-        
         return "application/octet-stream";
     }
     
@@ -127,8 +124,7 @@ private:
         
         if (!strcmp(method, "GET")) {
             if (request->hasRequestBody(c)) {
-                request->setResponseStatus(c, HttpStatusCodes::BadRequest());
-                goto error;
+                goto bad_request;
             }
             
 #if APRINTER_ENABLE_HTTP_TEST
@@ -140,8 +136,7 @@ private:
             if (path.equalTo("/rr_files")) {
                 MemRef dir_path;
                 if (!request->getParam(c, "dir", &dir_path)) {
-                    request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
-                    goto error;
+                    goto bad_params;
                 }
                 
                 bool flag_dirs = false;
@@ -164,8 +159,7 @@ private:
         }
         else if (!strcmp(method, "POST")) {
             if (!request->hasRequestBody(c)) {
-                request->setResponseStatus(c, HttpStatusCodes::BadRequest());
-                goto error;
+                goto bad_request;
             }
             
 #if APRINTER_ENABLE_HTTP_TEST
@@ -177,8 +171,7 @@ private:
             if (path.equalTo("/rr_upload")) {
                 MemRef file_name;
                 if (!request->getParam(c, "name", &file_name)) {
-                    request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
-                    goto error;
+                    goto bad_params;
                 }
                 
                 return state->acceptUploadFileRequest(c, request, file_name.ptr);
@@ -190,7 +183,14 @@ private:
         }
         
         request->setResponseStatus(c, HttpStatusCodes::NotFound());
+        
     error:
+        if (false) bad_request: {
+            request->setResponseStatus(c, HttpStatusCodes::BadRequest());
+        }
+        if (false) bad_params: {
+            request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
+        }
         request->completeHandling(c);
     }
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};

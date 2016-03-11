@@ -53,13 +53,13 @@ static bool AsciiCaseInsensStringEqualToMem (char const *str1, char const *str2,
     return (str2_len == 0);
 }
 
-static bool AsciiCaseInsensEndsWith (char const *str1, size_t str1_len, char const *str2_low)
+static bool AsciiCaseInsensEndsWith (MemRef str1, char const *str2_low)
 {
     size_t str2_len = strlen(str2_low);
-    while (str1_len > 0 && str2_len > 0) {
-        str1_len--;
+    while (str1.len > 0 && str2_len > 0) {
+        str1.len--;
         str2_len--;
-        if (AsciiToLower(str1[str1_len]) != str2_low[str2_len]) {
+        if (AsciiToLower(str1.ptr[str1.len]) != str2_low[str2_len]) {
             return false;
         }
     }
