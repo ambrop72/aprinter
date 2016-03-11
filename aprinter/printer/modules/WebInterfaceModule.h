@@ -37,6 +37,7 @@
 #include <aprinter/net/http/HttpServer.h>
 #include <aprinter/fs/BufferedFile.h>
 #include <aprinter/fs/DirLister.h>
+#include <aprinter/misc/StringTools.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
@@ -210,7 +211,8 @@ private:
         return true;
     }
     
-    struct UserClientState : public TheRequestInterface::RequestUserCallback {
+    class UserClientState : public TheRequestInterface::RequestUserCallback {
+    private:
         enum class State : uint8_t {
             NO_CLIENT,
             READ_OPEN, READ_WAIT, READ_READ,
@@ -222,6 +224,7 @@ private:
         
         enum class ResourceState : uint8_t  {NONE, FILE, DIRLISTER};
         
+    private:
         void init (Context c)
         {
             m_state = State::NO_CLIENT;
@@ -274,6 +277,7 @@ private:
             m_resource_state = ResourceState::DIRLISTER;
         }
         
+    public:
         void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
         {
             accept_request_common(c, request);
@@ -333,6 +337,7 @@ private:
         }
 #endif
         
+    private:
         void requestTerminated (Context c)
         {
             AMBRO_ASSERT(m_state != State::NO_CLIENT)
@@ -625,6 +630,7 @@ private:
             return true;
         }
         
+    private:
         TheRequestInterface *m_request;
         State m_state;
         ResourceState m_resource_state;
