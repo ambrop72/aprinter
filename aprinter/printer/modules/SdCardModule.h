@@ -137,11 +137,6 @@ public:
     
 private:
     struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
-        bool start_command_impl (Context c)
-        {
-            return true;
-        }
-        
         void finish_command_impl (Context c, bool no_ok)
         {
             auto *o = Object::self(c);

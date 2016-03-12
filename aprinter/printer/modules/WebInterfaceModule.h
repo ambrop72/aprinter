@@ -26,6 +26,7 @@
 #define APRINTER_WEB_INTERFACE_MODULE_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
@@ -34,6 +35,9 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Callback.h>
+#include <aprinter/base/OneOf.h>
+#include <aprinter/base/MemRef.h>
 #include <aprinter/net/http/HttpServer.h>
 #include <aprinter/fs/BufferedFile.h>
 #include <aprinter/fs/DirLister.h>
@@ -73,6 +77,8 @@ private:
     using FsEntry   = typename TheFsAccess::TheFileSystem::FsEntry;
     using EntryType = typename TheFsAccess::TheFileSystem::EntryType;
     
+    using TheCommandStream = typename ThePrinterMain::CommandStream;
+    
     static size_t const JsonBufferSize = Params::JsonBufferSize;
     static_assert(JsonBufferSize <= TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent, "");
     static_assert(JsonBufferSize >= 128, "");
@@ -81,6 +87,18 @@ private:
     static size_t const GetSdChunkSize = 512;
     static_assert(GetSdChunkSize <= TheHttpServer::MaxTxChunkSize, "");
     
+    static int const NumGcodeSlots = Params::NumGcodeSlots;
+    static_assert(NumGcodeSlots > 0, "");
+    
+    static size_t const MaxGcodeCommandSize = Params::MaxGcodeCommandSize;
+    static_assert(MaxGcodeCommandSize >= 32, "");
+    
+    using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
+    
+    static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
+    
+    static size_t const GcodeParseChunkSize = 16;
+    
     static constexpr char const * WebRootPath() { return "www"; }
     static constexpr char const * IndexPage() { return "reprap.htm"; }
     static constexpr char const * UploadBasePath() { return nullptr; }
@@ -88,12 +106,26 @@ private:
 public:
     static void init (Context c)
     {
+        auto *o = Object::self(c);
+        
+        for (int i = 0; i < NumGcodeSlots; i++) {
+            o->gcode_slots[i].init(c);
+        }
+        
         TheHttpServer::init(c);
     }
     
     static void deinit (Context c)
     {
+        auto *o = Object::self(c);
+        
         TheHttpServer::deinit(c);
+        
+        // Note, do this after HttpServed deinit so that it has now detached
+        // from any slots it was using.
+        for (int i = 0; i < NumGcodeSlots; i++) {
+            o->gcode_slots[i].deinit(c);
+        }
     }
     
 private:
@@ -169,6 +201,16 @@ private:
             }
 #endif
             
+            if (path.equalTo("/rr_gcode")) {
+                GcodeSlot *gcode_slot = find_available_gcode_slot(c);
+                if (!gcode_slot) {
+                    request->setResponseStatus(c, HttpStatusCodes::ServiceUnavailable());
+                    goto error;
+                }
+                
+                return state->acceptGcodeRequest(c, request, gcode_slot);
+            }
+            
             if (path.equalTo("/rr_upload")) {
                 MemRef file_name;
                 if (!request->getParam(c, "name", &file_name)) {
@@ -211,7 +253,11 @@ private:
         return true;
     }
     
+    class GcodeSlot;
+    
     class UserClientState : public TheRequestInterface::RequestUserCallback {
+        friend class GcodeSlot;
+        
     private:
         enum class State : uint8_t {
             NO_CLIENT,
@@ -219,12 +265,13 @@ private:
             WRITE_OPEN, WRITE_WAIT, WRITE_WRITE, WRITE_EOF,
             JSONRESP_WAITBUF,
             FILES_OPEN, FILES_WAITBUF_HEAD, FILES_WAITBUF_ENTRY, FILES_REQUEST_ENTRY,
+            GCODE,
             DL_TEST, UL_TEST
         };
         
-        enum class ResourceState : uint8_t  {NONE, FILE, DIRLISTER};
+        enum class ResourceState : uint8_t {NONE, FILE, DIRLISTER, GCODE_SLOT};
         
-    private:
+    public:
         void init (Context c)
         {
             m_state = State::NO_CLIENT;
@@ -236,14 +283,16 @@ private:
             reset(c);
         }
         
+    private:
         void reset (Context c)
         {
-            if (m_resource_state == ResourceState::FILE) {
-                m_buffered_file.deinit(c);
+            switch (m_resource_state) {
+                case ResourceState::FILE:       m_buffered_file.deinit(c); break;
+                case ResourceState::DIRLISTER:  m_dirlister.deinit(c);     break;
+                case ResourceState::GCODE_SLOT: m_gcode_slot->detach(c);   break;
+                default: break;
             }
-            else if (m_resource_state == ResourceState::DIRLISTER) {
-                m_dirlister.deinit(c);
-            }
+            
             m_state = State::NO_CLIENT;
             m_resource_state = ResourceState::NONE;
         }
@@ -275,6 +324,13 @@ private:
         {
             m_dirlister.init(c, APRINTER_CB_OBJFUNC_T(&UserClientState::dirlister_handler, this));
             m_resource_state = ResourceState::DIRLISTER;
+        }
+        
+        void init_gcode_slot (Context c, GcodeSlot *gcode_slot)
+        {
+            m_gcode_slot = gcode_slot;
+            m_gcode_slot->attach(c, this);
+            m_resource_state = ResourceState::GCODE_SLOT;
         }
         
     public:
@@ -316,6 +372,14 @@ private:
             m_json_req.flag_dirs = flag_dirs;
             init_dirlister(c);
             m_dirlister.startOpen(c, dir_path, false, UploadBasePath());
+        }
+        
+        void acceptGcodeRequest (Context c, TheRequestInterface *request, GcodeSlot *gcode_slot)
+        {
+            accept_request_common(c, request);
+            
+            m_state = State::GCODE;
+            init_gcode_slot(c, gcode_slot);
         }
         
 #if APRINTER_ENABLE_HTTP_TEST
@@ -364,6 +428,9 @@ private:
                 case State::WRITE_WRITE:
                 case State::WRITE_EOF:
                     break;
+                
+                case State::GCODE:
+                    return m_gcode_slot->requestBufferEvent(c);
                 
 #if APRINTER_ENABLE_HTTP_TEST
                 case State::UL_TEST: {
@@ -455,6 +522,9 @@ private:
                 
                 case State::FILES_REQUEST_ENTRY:
                     break;
+                
+                case State::GCODE:
+                    return m_gcode_slot->responseBufferEvent(c);
                 
 #if APRINTER_ENABLE_HTTP_TEST
                 case State::DL_TEST: {
@@ -624,8 +694,10 @@ private:
             auto buf_st = m_request->getResponseBodyBufferState(c);
             AMBRO_ASSERT(buf_st.length >= JsonBufferSize)
             
-            buf_st.data.copyIn(MemRef(o->json_buffer, length));
-            m_request->provideResponseBodyData(c, length);
+            if (length > 0) {
+                buf_st.data.copyIn(MemRef(o->json_buffer, length));
+                m_request->provideResponseBodyData(c, length);
+            }
             
             return true;
         }
@@ -637,6 +709,7 @@ private:
         union {
             TheBufferedFile m_buffered_file;
             TheDirLister m_dirlister;
+            GcodeSlot *m_gcode_slot;
         };
         union {
             struct {
@@ -652,17 +725,276 @@ private:
         };
     };
     
+    static GcodeSlot * find_available_gcode_slot (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        for (int i = 0; i < NumGcodeSlots; i++) {
+            if (o->gcode_slots[i].isAvailable(c)) {
+                return &o->gcode_slots[i];
+            }
+        }
+        return nullptr;
+    }
+    
+    class GcodeSlot : private ThePrinterMain::CommandStreamCallback {
+    private:
+        enum class State : uint8_t {AVAILABLE, ATTACHED, FINISHING};
+        
+    public:
+        void init (Context c)
+        {
+            m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::next_event_handler, this));
+            m_send_buf_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_event_handler, this));
+            m_state = State::AVAILABLE;
+        }
+        
+        void deinit (Context c)
+        {
+            if (m_state != State::AVAILABLE) {
+                m_command_stream.deinit(c);
+                m_gcode_parser.deinit(c);
+            }
+            
+            m_send_buf_event.deinit(c);
+            m_next_event.deinit(c);
+        }
+        
+        bool isAvailable (Context c)
+        {
+            return (m_state == State::AVAILABLE);
+        }
+        
+        void attach (Context c, UserClientState *client)
+        {
+            AMBRO_ASSERT(m_state == State::AVAILABLE)
+            
+            m_gcode_parser.init(c);
+            m_command_stream.init(c, this);
+            
+            m_state = State::ATTACHED;
+            m_client = client;
+            m_buffer_pos = 0;
+            m_output_pos = 0;
+            m_send_buf_request = 0;
+            
+            m_client->m_request->adoptRequestBody(c);
+            m_client->m_request->adoptResponseBody(c);
+        }
+        
+        void detach (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::ATTACHED)
+            
+            if (m_command_stream.canCancelOrPause(c)) {
+                m_command_stream.maybeCancelCommand(c);
+            }
+            
+            if (m_command_stream.hasCommand(c)) {
+                m_state = State::FINISHING;
+                if (m_send_buf_request > 0) {
+                    m_send_buf_event.prependNow(c);
+                }
+            } else {
+                reset(c);
+            }
+        }
+        
+        void requestBufferEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::ATTACHED)
+            
+            if (!m_command_stream.hasCommand(c)) {
+                m_next_event.prependNow(c);
+            }
+        }
+        
+        void responseBufferEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::ATTACHED)
+            
+            if (m_send_buf_request > 0) {
+                m_send_buf_event.prependNow(c);
+            }
+        }
+        
+    private:
+        void reset (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            
+            m_command_stream.deinit(c);
+            m_gcode_parser.deinit(c);
+            
+            m_state = State::AVAILABLE;
+            m_next_event.unset(c);
+            m_send_buf_event.unset(c);
+        }
+        
+        void next_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            AMBRO_ASSERT(!m_command_stream.hasCommand(c))
+            
+            if (m_state == State::FINISHING) {
+                return reset(c);
+            }
+            
+            if (!m_gcode_parser.haveCommand(c)) {
+                m_gcode_parser.startCommand(c, m_buffer, 0);
+            }
+            
+            while (true) {
+                bool line_buffer_exhausted = (m_buffer_pos == MaxGcodeCommandSize);
+                
+                if (m_gcode_parser.extendCommand(c, m_buffer_pos, line_buffer_exhausted)) {
+                    return m_command_stream.startCommand(c, &m_gcode_parser);
+                }
+                
+                if (line_buffer_exhausted) {
+                    m_command_stream.setAcceptMsg(c, false);
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeLineTooLong\n"));
+                    return m_client->complete_request(c);
+                }
+                
+                auto buf_st = m_client->m_request->getRequestBodyBufferState(c);
+                if (buf_st.length == 0) {
+                    if (buf_st.eof) {
+                        return m_client->complete_request(c);
+                    }
+                    break;
+                }
+                
+                size_t to_copy = MinValue(GcodeParseChunkSize, MinValue(buf_st.length, (size_t)(MaxGcodeCommandSize - m_buffer_pos)));
+                buf_st.data.copyOut(MemRef(m_buffer + m_buffer_pos, to_copy));
+                m_buffer_pos += to_copy;
+                m_client->m_request->acceptRequestBodyData(c, to_copy);
+            }
+        }
+        
+        void send_buf_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            bool have = true;
+            if (m_state == State::ATTACHED) {
+                auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
+                AMBRO_ASSERT(buf_st.length >= m_output_pos)
+                have = (buf_st.length - m_output_pos >= m_send_buf_request);
+            }
+            
+            if (have) {
+                m_send_buf_request = 0;
+                return m_command_stream.reportSendBufEventDirectly(c);
+            }
+        }
+        
+        void finish_command_impl (Context c, bool no_ok)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            
+            if (m_state == State::ATTACHED) {
+                if (!no_ok) {
+                    m_command_stream.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
+                }
+                reply_poke_impl(c);
+                
+                size_t cmd_len = m_gcode_parser.getLength(c);
+                AMBRO_ASSERT(cmd_len <= m_buffer_pos)
+                m_buffer_pos -= cmd_len;
+                memmove(m_buffer, m_buffer + cmd_len, m_buffer_pos);
+            }
+            
+            m_next_event.prependNowNotAlready(c);
+        }
+        
+        void reply_poke_impl (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            
+            if (m_state == State::ATTACHED && m_output_pos > 0) {
+                m_client->m_request->provideResponseBodyData(c, m_output_pos);
+            }
+            m_output_pos = 0;
+        }
+        
+        void reply_append_buffer_impl (Context c, char const *str, size_t length)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            
+            if (m_state == State::ATTACHED && length > 0) {
+                auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
+                AMBRO_ASSERT(buf_st.length >= m_output_pos)
+                size_t to_copy = MinValue(buf_st.length - m_output_pos, length);
+                buf_st.data.subFrom(m_output_pos).copyIn(MemRef(str, to_copy));
+                m_output_pos += to_copy;
+            }
+        }
+        
+        bool have_send_buf_impl (Context c, size_t length)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            
+            if (m_state != State::ATTACHED) {
+                return true;
+            }
+            auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
+            AMBRO_ASSERT(buf_st.length >= m_output_pos)
+            return (buf_st.length - m_output_pos >= length);
+        }
+        
+        bool request_send_buf_event_impl (Context c, size_t length)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            AMBRO_ASSERT(m_send_buf_request == 0)
+            AMBRO_ASSERT(length > 0)
+            
+            if (length > TheHttpServer::MaxTxChunkSize - m_output_pos) {
+                return false;
+            }
+            m_send_buf_request = length;
+            m_send_buf_event.prependNowNotAlready(c);
+            return true;
+        }
+        
+        void cancel_send_buf_event_impl (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            m_send_buf_request = 0;
+            m_send_buf_event.unset(c);
+        }
+        
+    private:
+        UserClientState *m_client;
+        typename Context::EventLoop::QueuedEvent m_next_event;
+        typename Context::EventLoop::QueuedEvent m_send_buf_event;
+        TheGcodeParser m_gcode_parser;
+        TheCommandStream m_command_stream;
+        size_t m_buffer_pos;
+        size_t m_output_pos;
+        size_t m_send_buf_request;
+        State m_state;
+        char m_buffer[MaxGcodeCommandSize];
+    };
+    
 public:
     struct Object : public ObjBase<WebInterfaceModule, ParentObject, MakeTypeList<
         TheHttpServer
     >> {
+        GcodeSlot gcode_slots[NumGcodeSlots];
         char json_buffer[JsonBufferSize + 2];
     };
 };
 
 APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
     APRINTER_AS_TYPE(HttpServerNetParams),
-    APRINTER_AS_VALUE(int, JsonBufferSize)
+    APRINTER_AS_VALUE(size_t, JsonBufferSize),
+    APRINTER_AS_VALUE(int, NumGcodeSlots),
+    APRINTER_AS_TYPE(TheGcodeParserService),
+    APRINTER_AS_VALUE(size_t, MaxGcodeCommandSize)
 ), (
     APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
 ))

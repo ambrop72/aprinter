@@ -204,11 +204,9 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            {
-                typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
-                auto err = remote_closed ? AMBRO_PSTR("//TcpConsoleDisconnected\n") : AMBRO_PSTR("//TcpConsoleError\n");
-                ThePrinterMain::print_pgm_string(c, err);
-            }
+            m_command_stream.setAcceptMsg(c, false);
+            auto err = remote_closed ? AMBRO_PSTR("//TcpConsoleDisconnected\n") : AMBRO_PSTR("//TcpConsoleError\n");
+            ThePrinterMain::print_pgm_string(c, err);
             
             start_disconnect(c);
         }
@@ -277,10 +275,8 @@ private:
             }
             
             if (line_buffer_exhausted) {
-                {
-                    typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
-                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
-                }
+                m_command_stream.setAcceptMsg(c, false);
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
                 return disconnect(c);
             }
         }
@@ -309,17 +305,10 @@ private:
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             AMBRO_ASSERT(m_send_buf_request > 0)
             
-            {
-                typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendBufTimeout\n"));
-            }
+            m_command_stream.setAcceptMsg(c, false);
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendBufTimeout\n"));
             
             start_disconnect(c);
-        }
-        
-        bool start_command_impl (Context c)
-        {
-            return true;
         }
         
         void finish_command_impl (Context c, bool no_ok)
@@ -358,10 +347,8 @@ private:
             if (m_state == State::CONNECTED && !m_disconnect_event.isSet(c)) {
                 size_t avail = m_connection.getSendBufferSpace(c);
                 if (avail < length) {
-                    {
-                        typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
-                        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
-                    }
+                    m_command_stream.setAcceptMsg(c, false);
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
                     m_disconnect_event.prependNowNotAlready(c);
                     return;
                 }

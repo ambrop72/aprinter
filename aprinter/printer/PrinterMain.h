@@ -335,7 +335,7 @@ public:
 public:
     class CommandStreamCallback {
     public:
-        virtual bool start_command_impl (Context c) = 0;
+        virtual bool start_command_impl (Context c) { return true; }
         virtual void finish_command_impl (Context c, bool no_ok) = 0;
         virtual void reply_poke_impl (Context c) = 0;
         virtual void reply_append_buffer_impl (Context c, char const *str, size_t length) = 0;

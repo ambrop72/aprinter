@@ -1662,6 +1662,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 gen.add_define('APRINTER_DEBUG_HTTP_SERVER', 1)
                             
                             gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
+                            gen.add_aprinter_include('printer/utils/GcodeParser.h')
                             
                             webif_module = gen.add_module()
                             webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [
@@ -1674,6 +1675,11 @@ def generate(config_root_data, cfg_name, main_template):
                                     'WebInterfaceInactivityTimeout',
                                 ]),
                                 webif_config.get_int('JsonBufferSize'),
+                                webif_config.get_int('NumGcodeSlots'),
+                                TemplateExpr('SerialGcodeParserService', [
+                                    webif_config.get_int('MaxGcodeParts'),
+                                ]),
+                                webif_config.get_int('MaxGcodeCommandSize'),
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)

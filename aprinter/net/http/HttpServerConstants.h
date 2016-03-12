@@ -39,6 +39,7 @@ struct HttpStatusCodes {
     static constexpr char const * InternalServerError() { return "500 Internal Server Error"; }
     static constexpr char const * HttpVersionNotSupported() { return "505 HTTP Version Not Supported"; }
     static constexpr char const * UnprocessableEntity() { return "422 Unprocessable Entity"; }
+    static constexpr char const * ServiceUnavailable() { return "503 Service Unavailable"; }
 };
 
 struct HttpContentTypes {

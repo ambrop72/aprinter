@@ -834,6 +834,9 @@ def editor():
                                 ce.Float(key='InactivityTimeout', title='Network inactivity timeout [s]', default=10),
                                 ce.Boolean(key='EnableDebug', title='Enable debug messages', default=False),
                                 ce.Integer(key='JsonBufferSize', title='Size of JSON response buffer', default=128),
+                                ce.Integer(key='NumGcodeSlots', title='Maximum simultaneous g-code sessions', default=1),
+                                ce.Integer(key='MaxGcodeParts', title='Max parts in g-code command', default=16),
+                                ce.Integer(key='MaxGcodeCommandSize', title='Maximum g-code command size', default=128),
                             ]),
                         ]),
                     ])
