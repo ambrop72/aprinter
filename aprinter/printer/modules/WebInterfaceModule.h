@@ -890,16 +890,11 @@ private:
             }
         }
         
-        void finish_command_impl (Context c, bool no_ok)
+        void finish_command_impl (Context c)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
             if (m_state == State::ATTACHED) {
-                if (!no_ok) {
-                    m_command_stream.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
-                }
-                reply_poke_impl(c);
-                
                 size_t cmd_len = m_gcode_parser.getLength(c);
                 AMBRO_ASSERT(cmd_len <= m_buffer_pos)
                 m_buffer_pos -= cmd_len;

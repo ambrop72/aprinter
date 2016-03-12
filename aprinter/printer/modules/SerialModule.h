@@ -40,8 +40,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define SERIALMODULE_OK_STR "ok\n"
-
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class SerialModule {
 public:
@@ -112,15 +110,11 @@ private:
             return true;
         }
         
-        void finish_command_impl (Context c, bool no_ok)
+        void finish_command_impl (Context c)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->command_stream.hasCommand(c))
             
-            if (!no_ok) {
-                o->command_stream.reply_append_pstr(c, AMBRO_PSTR(SERIALMODULE_OK_STR));
-            }
-            TheSerial::sendPoke(c);
             TheSerial::recvConsume(c, RecvSizeType::import(o->gcode_parser.getLength(c)));
             TheSerial::recvForceEvent(c);
         }

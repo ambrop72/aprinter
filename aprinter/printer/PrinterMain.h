@@ -336,7 +336,7 @@ public:
     class CommandStreamCallback {
     public:
         virtual bool start_command_impl (Context c) { return true; }
-        virtual void finish_command_impl (Context c, bool no_ok) = 0;
+        virtual void finish_command_impl (Context c) = 0;
         virtual void reply_poke_impl (Context c) = 0;
         virtual void reply_append_buffer_impl (Context c, char const *str, size_t length) = 0;
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
@@ -363,6 +363,7 @@ public:
             m_accept_msg = true;
             m_error = false;
             m_refuse_on_error = false;
+            m_auto_ok_and_poke = true;
             m_send_buf_event_handler = nullptr;
             m_captured_command_handler = nullptr;
             mo->command_stream_list.prepend(this);
@@ -384,6 +385,11 @@ public:
         void setAcceptMsg (Context c, bool accept_msg)
         {
             m_accept_msg = accept_msg;
+        }
+        
+        void setAutoOkAndPoke (Context c, bool auto_ok_and_poke)
+        {
+            m_auto_ok_and_poke = auto_ok_and_poke;
         }
         
         bool hasCommand (Context c)
@@ -516,14 +522,21 @@ public:
         }
         
         APRINTER_NO_INLINE
-        void finishCommand (Context c, bool no_ok = false)
+        void finishCommand (Context c, bool no_ok=false)
         {
             auto *mo = Object::self(c);
             AMBRO_ASSERT(m_cmd)
             AMBRO_ASSERT(m_state == COMMAND_IDLE || m_state == COMMAND_LOCKED)
             AMBRO_ASSERT(!m_send_buf_event_handler)
             
-            m_callback->finish_command_impl(c, no_ok);
+            if (m_auto_ok_and_poke) {
+                if (!no_ok) {
+                    this->reply_append_pstr(c, AMBRO_PSTR("ok\n"));
+                }
+                m_callback->reply_poke_impl(c);
+            }
+            
+            m_callback->finish_command_impl(c);
             m_cmd = nullptr;
             if (m_state == COMMAND_LOCKED) {
                 AMBRO_ASSERT(mo->locked)
@@ -825,6 +838,7 @@ public:
         bool m_accept_msg : 1;
         bool m_error : 1;
         bool m_refuse_on_error : 1;
+        bool m_auto_ok_and_poke : 1;
         CommandStreamCallback *m_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;

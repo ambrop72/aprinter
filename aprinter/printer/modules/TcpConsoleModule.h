@@ -40,8 +40,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define TCPCONSOLE_OK_STR "ok\n"
-
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class TcpConsoleModule {
 public:
@@ -311,16 +309,11 @@ private:
             start_disconnect(c);
         }
         
-        void finish_command_impl (Context c, bool no_ok)
+        void finish_command_impl (Context c)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             
             if (m_state == State::CONNECTED) {
-                if (!no_ok) {
-                    m_command_stream.reply_append_pstr(c, AMBRO_PSTR(TCPCONSOLE_OK_STR));
-                }
-                m_connection.pokeSending(c);
-                
                 size_t cmd_len = m_gcode_parser.getLength(c);
                 AMBRO_ASSERT(cmd_len <= m_rx_buf_length)
                 m_rx_buf_start = buf_add(m_rx_buf_start, cmd_len);

@@ -93,6 +93,7 @@ public:
         TheInput::init(c);
         o->command_stream.init(c, &o->callback);
         o->command_stream.setAcceptMsg(c, false);
+        o->command_stream.setAutoOkAndPoke(c, false);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
         o->m_retry_timer.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::retry_timer_handler));
         o->m_state = SDCARD_PAUSED;
@@ -137,7 +138,7 @@ public:
     
 private:
     struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
-        void finish_command_impl (Context c, bool no_ok)
+        void finish_command_impl (Context c)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
