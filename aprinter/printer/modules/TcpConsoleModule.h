@@ -107,7 +107,7 @@ private:
         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
     }
     
-    struct Client : public ThePrinterMain::CommandStreamCallback
+    struct Client : public ThePrinterMain::CommandStreamCallback, ThePrinterMain::SendBufEventCallback
     {
         enum class State : uint8_t {NOT_CONNECTED, CONNECTED, DISCONNECTED_WAIT_CMD};
         
@@ -147,7 +147,7 @@ private:
             m_connection.acceptConnection(c, &o->listener);
             
             m_gcode_parser.init(c);
-            m_command_stream.init(c, this);
+            m_command_stream.init(c, this, this);
             
             m_state = State::CONNECTED;
             m_rx_buf_start = 0;
@@ -345,11 +345,11 @@ private:
             }
         }
         
-        bool have_send_buf_impl (Context c, size_t length)
+        size_t get_send_buf_avail_impl (Context c)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             
-            return (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= length);
+            return (m_state != State::CONNECTED) ? (size_t)-1 : m_connection.getSendBufferSpace(c);
         }
         
         bool request_send_buf_event_impl (Context c, size_t length)

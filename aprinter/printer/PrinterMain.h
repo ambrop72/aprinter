@@ -342,7 +342,11 @@ public:
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         virtual void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
 #endif
-        virtual bool have_send_buf_impl (Context c, size_t length) = 0;
+        virtual size_t get_send_buf_avail_impl (Context c) = 0;
+    };
+    
+    class SendBufEventCallback {
+    public:
         virtual bool request_send_buf_event_impl (Context c, size_t length) = 0;
         virtual void cancel_send_buf_event_impl (Context c) = 0;
     };
@@ -353,12 +357,15 @@ public:
     public:
         using TheGcodeCommand = GcodeCommand<Context, FpType>;
         
-        void init (Context c, CommandStreamCallback *callback)
+        void init (Context c, CommandStreamCallback *callback, SendBufEventCallback *buf_callback)
         {
             auto *mo = Object::self(c);
+            AMBRO_ASSERT(callback)
+            AMBRO_ASSERT(buf_callback)
             
             m_state = COMMAND_IDLE;
             m_callback = callback;
+            m_buf_callback = buf_callback;
             m_cmd = nullptr;
             m_accept_msg = true;
             m_error = false;
@@ -405,8 +412,8 @@ public:
             
             m_cmd = cmd;
             
-            if (!m_callback->have_send_buf_impl(c, CommandSendBufClearance)) {
-                if (m_callback->request_send_buf_event_impl(c, CommandSendBufClearance)) {
+            if (m_callback->get_send_buf_avail_impl(c) < CommandSendBufClearance) {
+                if (m_buf_callback->request_send_buf_event_impl(c, CommandSendBufClearance)) {
                     m_state = COMMAND_WAITBUF;
                     return;
                 }
@@ -428,7 +435,7 @@ public:
             
             if (m_cmd) {
                 if (m_state == COMMAND_WAITBUF) {
-                    m_callback->cancel_send_buf_event_impl(c);
+                    m_buf_callback->cancel_send_buf_event_impl(c);
                     m_state = COMMAND_WAITBUF_PAUSED;
                 }
                 else if (m_state == COMMAND_LOCKING) {
@@ -444,7 +451,7 @@ public:
             
             if (m_cmd) {
                 if (m_state == COMMAND_WAITBUF_PAUSED) {
-                    bool res = m_callback->request_send_buf_event_impl(c, CommandSendBufClearance);
+                    bool res = m_buf_callback->request_send_buf_event_impl(c, CommandSendBufClearance);
                     AMBRO_ASSERT(res)
                     m_state = COMMAND_WAITBUF;
                 } else {
@@ -464,7 +471,7 @@ public:
             
             if (m_cmd) {
                 if (m_state == COMMAND_WAITBUF) {
-                    m_callback->cancel_send_buf_event_impl(c);
+                    m_buf_callback->cancel_send_buf_event_impl(c);
                 }
                 m_state = COMMAND_IDLE;
                 m_cmd = nullptr;
@@ -510,6 +517,11 @@ public:
         TheGcodeCommand * getGcodeCommand (Context c)
         {
             return m_cmd;
+        }
+        
+        CommandStreamCallback * getCallback (Context c)
+        {
+            return m_callback;
         }
         
     public:
@@ -684,7 +696,7 @@ public:
             AMBRO_ASSERT(length > 0)
             AMBRO_ASSERT(handler)
             
-            if (!m_callback->request_send_buf_event_impl(c, length + CommandSendBufClearance)) {
+            if (!m_buf_callback->request_send_buf_event_impl(c, length + CommandSendBufClearance)) {
                 return false;
             }
             m_send_buf_event_handler = handler;
@@ -697,7 +709,7 @@ public:
             AMBRO_ASSERT(m_state == COMMAND_LOCKED)
             AMBRO_ASSERT(m_send_buf_event_handler)
             
-            m_callback->cancel_send_buf_event_impl(c);
+            m_buf_callback->cancel_send_buf_event_impl(c);
             m_send_buf_event_handler = nullptr;
         }
         
@@ -848,6 +860,7 @@ public:
         bool m_refuse_on_error : 1;
         bool m_auto_ok_and_poke : 1;
         CommandStreamCallback *m_callback;
+        SendBufEventCallback *m_buf_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;
         CapturedCommandHandler m_captured_command_handler;
@@ -907,7 +920,7 @@ private:
                     if (stream->m_cmd && (stream->m_state != COMMAND_WAITBUF && stream->m_state != COMMAND_WAITBUF_PAUSED)) {
                         need_space += ExpectedResponseLength;
                     }
-                    if (stream->m_callback->have_send_buf_impl(c, need_space)) {
+                    if (stream->m_callback->get_send_buf_avail_impl(c) >= need_space) {
                         stream->reply_append_buffer(c, o->msg_buffer, o->msg_length);
                         stream->reply_poke(c);
                     }

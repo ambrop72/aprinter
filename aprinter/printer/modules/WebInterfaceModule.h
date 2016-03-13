@@ -740,7 +740,7 @@ private:
         return nullptr;
     }
     
-    class GcodeSlot : private ThePrinterMain::CommandStreamCallback {
+    class GcodeSlot : private ThePrinterMain::CommandStreamCallback, ThePrinterMain::SendBufEventCallback {
     private:
         enum class State : uint8_t {AVAILABLE, ATTACHED, FINISHING};
         
@@ -775,7 +775,7 @@ private:
             AMBRO_ASSERT(m_state == State::AVAILABLE)
             
             m_gcode_parser.init(c);
-            m_command_stream.init(c, this);
+            m_command_stream.init(c, this, this);
             
             m_state = State::ATTACHED;
             m_client = client;
@@ -947,16 +947,16 @@ private:
             }
         }
         
-        bool have_send_buf_impl (Context c, size_t length)
+        size_t get_send_buf_avail_impl (Context c)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
             if (m_state != State::ATTACHED) {
-                return true;
+                return (size_t)-1;
             }
             auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
             AMBRO_ASSERT(buf_st.length >= m_output_pos)
-            return (buf_st.length - m_output_pos >= length);
+            return buf_st.length - m_output_pos;
         }
         
         bool request_send_buf_event_impl (Context c, size_t length)

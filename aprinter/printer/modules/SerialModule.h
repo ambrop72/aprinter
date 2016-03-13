@@ -61,7 +61,7 @@ public:
         auto *o = Object::self(c);
         TheSerial::init(c, Params::Baud);
         o->gcode_parser.init(c);
-        o->command_stream.init(c, &o->callback);
+        o->command_stream.init(c, &o->callback, &o->callback);
         o->m_recv_next_error = 0;
         o->m_line_number = 1;
     }
@@ -83,7 +83,7 @@ public:
     using GetSerial = TheSerial;
     
 private:
-    struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
+    struct StreamCallback : public ThePrinterMain::CommandStreamCallback, ThePrinterMain::SendBufEventCallback {
         bool start_command_impl (Context c)
         {
             auto *o = Object::self(c);
@@ -157,9 +157,9 @@ private:
             }
         }
 #endif
-        bool have_send_buf_impl (Context c, size_t length)
+        size_t get_send_buf_avail_impl (Context c)
         {
-            return (TheSerial::sendQuery(c).value() >= length);
+            return TheSerial::sendQuery(c).value();
         }
         
         bool request_send_buf_event_impl (Context c, size_t length)

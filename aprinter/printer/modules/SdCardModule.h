@@ -91,7 +91,7 @@ public:
     {
         auto *o = Object::self(c);
         TheInput::init(c);
-        o->command_stream.init(c, &o->callback);
+        o->command_stream.init(c, &o->callback, &o->callback);
         o->command_stream.setAcceptMsg(c, false);
         o->command_stream.setAutoOkAndPoke(c, false);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
@@ -137,7 +137,7 @@ public:
     using GetInput = TheInput;
     
 private:
-    struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
+    struct StreamCallback: public ThePrinterMain::CommandStreamCallback, ThePrinterMain::SendBufEventCallback {
         void finish_command_impl (Context c)
         {
             auto *o = Object::self(c);
@@ -241,9 +241,9 @@ private:
             }
         }
 #endif
-        bool have_send_buf_impl (Context c, size_t length)
+        size_t get_send_buf_avail_impl (Context c)
         {
-            return true;
+            return (size_t)-1;
         }
         
         bool request_send_buf_event_impl (Context c, size_t length)
