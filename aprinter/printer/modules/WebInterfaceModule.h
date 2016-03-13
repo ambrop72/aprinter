@@ -54,6 +54,9 @@ public:
     struct Object;
     
 private:
+    using TimeType = typename Context::Clock::TimeType;
+    using TheCommandStream = typename ThePrinterMain::CommandStream;
+    
     using TheHttpServerService = HttpServerService<
         typename Params::HttpServerNetParams,
         128,   // MaxRequestLineLength
@@ -77,8 +80,6 @@ private:
     using FsEntry   = typename TheFsAccess::TheFileSystem::FsEntry;
     using EntryType = typename TheFsAccess::TheFileSystem::EntryType;
     
-    using TheCommandStream = typename ThePrinterMain::CommandStream;
-    
     static size_t const JsonBufferSize = Params::JsonBufferSize;
     static_assert(JsonBufferSize <= TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent, "");
     static_assert(JsonBufferSize >= 128, "");
@@ -96,6 +97,8 @@ private:
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
     static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
+    
+    static TimeType const GcodeSendBufTimeoutTicks = Params::GcodeSendBufTimeout::value() * Context::Clock::time_freq;
     
     static size_t const GcodeParseChunkSize = 16;
     
@@ -745,7 +748,8 @@ private:
         void init (Context c)
         {
             m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::next_event_handler, this));
-            m_send_buf_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_event_handler, this));
+            m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_check_event_handler, this));
+            m_send_buf_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_timeout_event_handler, this));
             m_state = State::AVAILABLE;
         }
         
@@ -756,7 +760,8 @@ private:
                 m_gcode_parser.deinit(c);
             }
             
-            m_send_buf_event.deinit(c);
+            m_send_buf_timeout_event.deinit(c);
+            m_send_buf_check_event.deinit(c);
             m_next_event.deinit(c);
         }
         
@@ -793,7 +798,7 @@ private:
             if (m_command_stream.hasCommand(c)) {
                 m_state = State::FINISHING;
                 if (m_send_buf_request > 0) {
-                    m_send_buf_event.prependNow(c);
+                    m_send_buf_check_event.prependNow(c);
                 }
             } else {
                 reset(c);
@@ -814,7 +819,7 @@ private:
             AMBRO_ASSERT(m_state == State::ATTACHED)
             
             if (m_send_buf_request > 0) {
-                m_send_buf_event.prependNow(c);
+                m_send_buf_check_event.prependNow(c);
             }
         }
         
@@ -828,7 +833,8 @@ private:
             
             m_state = State::AVAILABLE;
             m_next_event.unset(c);
-            m_send_buf_event.unset(c);
+            m_send_buf_check_event.unset(c);
+            m_send_buf_timeout_event.unset(c);
         }
         
         void next_event_handler (Context c)
@@ -872,7 +878,7 @@ private:
             }
         }
         
-        void send_buf_event_handler (Context c)
+        void send_buf_check_event_handler (Context c)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             AMBRO_ASSERT(m_send_buf_request > 0)
@@ -886,7 +892,25 @@ private:
             
             if (have) {
                 m_send_buf_request = 0;
+                m_send_buf_timeout_event.unset(c);
                 return m_command_stream.reportSendBufEventDirectly(c);
+            }
+        }
+        
+        void send_buf_timeout_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            // This normally will not happen in FINISHING state because in that
+            // case we report send buffer to always be available. But there might
+            // still be a theoretical possibility to find ourselves in FINISHING
+            // here, so be robust.
+            if (m_state == State::ATTACHED) {
+                m_command_stream.setAcceptMsg(c, false);
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufTimeout\n"));
+                
+                return m_client->complete_request(c);
             }
         }
         
@@ -949,7 +973,8 @@ private:
                 return false;
             }
             m_send_buf_request = length;
-            m_send_buf_event.prependNowNotAlready(c);
+            m_send_buf_check_event.prependNowNotAlready(c);
+            m_send_buf_timeout_event.appendAfter(c, GcodeSendBufTimeoutTicks);
             return true;
         }
         
@@ -959,13 +984,15 @@ private:
             AMBRO_ASSERT(m_send_buf_request > 0)
             
             m_send_buf_request = 0;
-            m_send_buf_event.unset(c);
+            m_send_buf_check_event.unset(c);
+            m_send_buf_timeout_event.unset(c);
         }
         
     private:
         UserClientState *m_client;
         typename Context::EventLoop::QueuedEvent m_next_event;
-        typename Context::EventLoop::QueuedEvent m_send_buf_event;
+        typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
+        typename Context::EventLoop::TimedEvent m_send_buf_timeout_event;
         TheGcodeParser m_gcode_parser;
         TheCommandStream m_command_stream;
         size_t m_buffer_pos;
@@ -989,7 +1016,8 @@ APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
     APRINTER_AS_VALUE(size_t, JsonBufferSize),
     APRINTER_AS_VALUE(int, NumGcodeSlots),
     APRINTER_AS_TYPE(TheGcodeParserService),
-    APRINTER_AS_VALUE(size_t, MaxGcodeCommandSize)
+    APRINTER_AS_VALUE(size_t, MaxGcodeCommandSize),
+    APRINTER_AS_TYPE(GcodeSendBufTimeout)
 ), (
     APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
 ))

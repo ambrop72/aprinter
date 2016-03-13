@@ -820,7 +820,7 @@ def editor():
                                 ce.Integer(key='MaxClients', title='Maximum number of clients', default=2),
                                 ce.Integer(key='MaxParts', title='Max parts in GCode command', default=16),
                                 ce.Integer(key='MaxCommandSize', title='Maximum command size', default=64),
-                                ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space', default=5.0),
+                                ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space [s]', default=5.0),
                             ]),
                         ]),
                         ce.OneOf(key='webinterface', title='Web interface', choices=[
@@ -837,6 +837,7 @@ def editor():
                                 ce.Integer(key='NumGcodeSlots', title='Maximum simultaneous g-code sessions', default=1),
                                 ce.Integer(key='MaxGcodeParts', title='Max parts in g-code command', default=16),
                                 ce.Integer(key='MaxGcodeCommandSize', title='Maximum g-code command size', default=128),
+                                ce.Float(key='GcodeSendBufTimeout', title='Timeout when waiting for send buffer space for g-code commands [s]', default=5.0),
                             ]),
                         ]),
                     ])
