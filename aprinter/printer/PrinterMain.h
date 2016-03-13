@@ -471,6 +471,14 @@ public:
             }
         }
         
+        bool tryCancelCommand (Context c)
+        {
+            if (canCancelOrPause(c)) {
+                maybeCancelCommand(c);
+            }
+            return !hasCommand(c);
+        }
+        
         void reportSendBufEventDirectly (Context c)
         {
             AMBRO_ASSERT(m_state == COMMAND_WAITBUF || m_state == COMMAND_LOCKED)

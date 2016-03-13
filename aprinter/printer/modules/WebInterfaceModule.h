@@ -791,17 +791,13 @@ private:
         {
             AMBRO_ASSERT(m_state == State::ATTACHED)
             
-            if (m_command_stream.canCancelOrPause(c)) {
-                m_command_stream.maybeCancelCommand(c);
-            }
-            
-            if (m_command_stream.hasCommand(c)) {
+            if (m_command_stream.tryCancelCommand(c)) {
+                reset(c);
+            } else {
                 m_state = State::FINISHING;
                 if (m_send_buf_request > 0) {
                     m_send_buf_check_event.prependNow(c);
                 }
-            } else {
-                reset(c);
             }
         }
         
