@@ -43,6 +43,7 @@
 #include <aprinter/fs/DirLister.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
+#include <aprinter/printer/utils/ConvenientCommandStream.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
@@ -55,7 +56,6 @@ public:
     
 private:
     using TimeType = typename Context::Clock::TimeType;
-    using TheCommandStream = typename ThePrinterMain::CommandStream;
     
     using TheHttpServerService = HttpServerService<
         typename Params::HttpServerNetParams,
@@ -94,6 +94,8 @@ private:
     static size_t const MaxGcodeCommandSize = Params::MaxGcodeCommandSize;
     static_assert(MaxGcodeCommandSize >= 32, "");
     
+    using TheConvenientStream = ConvenientCommandStream<Context, ThePrinterMain>;
+    
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
     static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
@@ -124,7 +126,7 @@ public:
         
         TheHttpServer::deinit(c);
         
-        // Note, do this after HttpServed deinit so that it has now detached
+        // Note, do this after HttpServer deinit so that it has now detached
         // from any slots it was using.
         for (int i = 0; i < NumGcodeSlots; i++) {
             o->gcode_slots[i].deinit(c);
@@ -740,7 +742,7 @@ private:
         return nullptr;
     }
     
-    class GcodeSlot : private ThePrinterMain::CommandStreamCallback, ThePrinterMain::SendBufEventCallback {
+    class GcodeSlot : private TheConvenientStream::UserCallback {
     private:
         enum class State : uint8_t {AVAILABLE, ATTACHED, FINISHING};
         
@@ -748,8 +750,6 @@ private:
         void init (Context c)
         {
             m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::next_event_handler, this));
-            m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_check_event_handler, this));
-            m_send_buf_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::send_buf_timeout_event_handler, this));
             m_state = State::AVAILABLE;
         }
         
@@ -760,8 +760,6 @@ private:
                 m_gcode_parser.deinit(c);
             }
             
-            m_send_buf_timeout_event.deinit(c);
-            m_send_buf_check_event.deinit(c);
             m_next_event.deinit(c);
         }
         
@@ -775,13 +773,12 @@ private:
             AMBRO_ASSERT(m_state == State::AVAILABLE)
             
             m_gcode_parser.init(c);
-            m_command_stream.init(c, this, this);
+            m_command_stream.init(c, GcodeSendBufTimeoutTicks, this);
             
             m_state = State::ATTACHED;
             m_client = client;
             m_buffer_pos = 0;
             m_output_pos = 0;
-            m_send_buf_request = 0;
             
             m_client->m_request->adoptRequestBody(c);
             m_client->m_request->adoptResponseBody(c);
@@ -795,9 +792,7 @@ private:
                 reset(c);
             } else {
                 m_state = State::FINISHING;
-                if (m_send_buf_request > 0) {
-                    m_send_buf_check_event.prependNow(c);
-                }
+                m_command_stream.updateSendBufEvent(c);
             }
         }
         
@@ -814,9 +809,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::ATTACHED)
             
-            if (m_send_buf_request > 0) {
-                m_send_buf_check_event.prependNow(c);
-            }
+            m_command_stream.updateSendBufEvent(c);
         }
         
     private:
@@ -829,8 +822,6 @@ private:
             
             m_state = State::AVAILABLE;
             m_next_event.unset(c);
-            m_send_buf_check_event.unset(c);
-            m_send_buf_timeout_event.unset(c);
         }
         
         void next_event_handler (Context c)
@@ -874,52 +865,14 @@ private:
             }
         }
         
-        void send_buf_check_event_handler (Context c)
-        {
-            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
-            AMBRO_ASSERT(m_send_buf_request > 0)
-            
-            bool have = true;
-            if (m_state == State::ATTACHED) {
-                auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
-                AMBRO_ASSERT(buf_st.length >= m_output_pos)
-                have = (buf_st.length - m_output_pos >= m_send_buf_request);
-            }
-            
-            if (have) {
-                m_send_buf_request = 0;
-                m_send_buf_timeout_event.unset(c);
-                return m_command_stream.reportSendBufEventDirectly(c);
-            }
-        }
-        
-        void send_buf_timeout_event_handler (Context c)
-        {
-            AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
-            AMBRO_ASSERT(m_send_buf_request > 0)
-            
-            // This normally will not happen in FINISHING state because in that
-            // case we report send buffer to always be available. But there might
-            // still be a theoretical possibility to find ourselves in FINISHING
-            // here, so be robust.
-            if (m_state == State::ATTACHED) {
-                m_command_stream.setAcceptMsg(c, false);
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufTimeout\n"));
-                
-                return m_client->complete_request(c);
-            }
-        }
-        
         void finish_command_impl (Context c)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            if (m_state == State::ATTACHED) {
-                size_t cmd_len = m_gcode_parser.getLength(c);
-                AMBRO_ASSERT(cmd_len <= m_buffer_pos)
-                m_buffer_pos -= cmd_len;
-                memmove(m_buffer, m_buffer + cmd_len, m_buffer_pos);
-            }
+            size_t cmd_len = m_gcode_parser.getLength(c);
+            AMBRO_ASSERT(cmd_len <= m_buffer_pos)
+            m_buffer_pos -= cmd_len;
+            memmove(m_buffer, m_buffer + cmd_len, m_buffer_pos);
             
             m_next_event.prependNowNotAlready(c);
         }
@@ -930,20 +883,22 @@ private:
             
             if (m_state == State::ATTACHED && m_output_pos > 0) {
                 m_client->m_request->provideResponseBodyData(c, m_output_pos);
+                m_output_pos = 0;
             }
-            m_output_pos = 0;
         }
         
         void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            if (m_state == State::ATTACHED && length > 0) {
+            if (m_state == State::ATTACHED && !m_command_stream.isSendOverrunBeingRaised(c) && length > 0) {
                 auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
                 AMBRO_ASSERT(buf_st.length >= m_output_pos)
-                size_t to_copy = MinValue(buf_st.length - m_output_pos, length);
-                buf_st.data.subFrom(m_output_pos).copyIn(MemRef(str, to_copy));
-                m_output_pos += to_copy;
+                if (buf_st.length - m_output_pos < length) {
+                    return m_command_stream.raiseSendOverrun(c);
+                }
+                buf_st.data.subFrom(m_output_pos).copyIn(MemRef(str, length));
+                m_output_pos += length;
             }
         }
         
@@ -959,41 +914,41 @@ private:
             return buf_st.length - m_output_pos;
         }
         
-        bool request_send_buf_event_impl (Context c, size_t length)
+        void commandStreamError (Context c, typename TheConvenientStream::Error error)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
-            AMBRO_ASSERT(m_send_buf_request == 0)
-            AMBRO_ASSERT(length > 0)
             
-            if (length > TheHttpServer::MaxTxChunkSize - m_output_pos) {
-                return false;
+            // Ignore errors if we're detached already and waiting for command to finish.
+            if (m_state != State::ATTACHED) {
+                return;
             }
-            m_send_buf_request = length;
-            m_send_buf_check_event.prependNowNotAlready(c);
-            m_send_buf_timeout_event.appendAfter(c, GcodeSendBufTimeoutTicks);
-            return true;
+            
+            m_command_stream.setAcceptMsg(c, false);
+            
+            if (error == TheConvenientStream::Error::SENDBUF_TIMEOUT) {
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufTimeout\n"));
+            }
+            else if (error == TheConvenientStream::Error::SENDBUF_OVERRUN) {
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufOverrun\n"));
+            }
+            
+            return m_client->complete_request(c);
         }
         
-        void cancel_send_buf_event_impl (Context c)
+        bool mayWaitForSendBuf (Context c, size_t length)
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
-            AMBRO_ASSERT(m_send_buf_request > 0)
             
-            m_send_buf_request = 0;
-            m_send_buf_check_event.unset(c);
-            m_send_buf_timeout_event.unset(c);
+            return (m_state != State::ATTACHED || (m_output_pos <= TheHttpServer::MaxTxChunkSize && length <= TheHttpServer::MaxTxChunkSize - m_output_pos));
         }
         
     private:
         UserClientState *m_client;
         typename Context::EventLoop::QueuedEvent m_next_event;
-        typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
-        typename Context::EventLoop::TimedEvent m_send_buf_timeout_event;
         TheGcodeParser m_gcode_parser;
-        TheCommandStream m_command_stream;
+        TheConvenientStream m_command_stream;
         size_t m_buffer_pos;
         size_t m_output_pos;
-        size_t m_send_buf_request;
         State m_state;
         char m_buffer[MaxGcodeCommandSize];
     };
