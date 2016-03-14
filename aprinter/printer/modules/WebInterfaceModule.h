@@ -366,6 +366,7 @@ private:
             m_state = State::JSONRESP_WAITBUF;
             m_json_req.req_type = req_type;
             m_request->adoptResponseBody(c, true);
+            m_request->controlResponseBodyTimeout(c, true);
         }
         
         void acceptFilesRequest (Context c, TheRequestInterface *request, char const *dir_path, bool flag_dirs)
@@ -395,6 +396,7 @@ private:
             m_request->setResponseContentType(c, "application/octet-stream");
             m_request->adoptResponseBody(c);
             m_state = State::DL_TEST;
+            m_request->controlResponseBodyTimeout(c, true);
         }
         
         void acceptUploadTestRequest (Context c, TheRequestInterface *request)
@@ -403,6 +405,7 @@ private:
             
             m_request->adoptRequestBody(c);
             m_state = State::UL_TEST;
+            m_request->controlRequestBodyTimeout(c, true);
         }
 #endif
         
@@ -423,10 +426,12 @@ private:
                         m_cur_chunk_size = MinValue(buf_st.data.wrap, buf_st.length);
                         m_buffered_file.startWriteData(c, buf_st.data.ptr1, m_cur_chunk_size);
                         m_state = State::WRITE_WRITE;
+                        m_request->controlRequestBodyTimeout(c, false);
                     }
                     else if (buf_st.eof) {
                         m_buffered_file.startWriteEof(c);
                         m_state = State::WRITE_EOF;
+                        m_request->controlRequestBodyTimeout(c, false);
                     }
                 } break;
                 
@@ -442,6 +447,7 @@ private:
                     auto buf_st = m_request->getRequestBodyBufferState(c);
                     if (buf_st.length > 0) {
                         m_request->acceptRequestBodyData(c, buf_st.length);
+                        m_request->controlRequestBodyTimeout(c, true);
                     }
                     else if (buf_st.eof) {
                         return complete_request(c);
@@ -465,6 +471,7 @@ private:
                         auto dest_buf = buf_st.data.subFrom(m_cur_chunk_size);
                         m_buffered_file.startReadData(c, dest_buf.ptr1, MinValue(dest_buf.wrap, (size_t)(allowed_length - m_cur_chunk_size)));
                         m_state = State::READ_READ;
+                        m_request->controlResponseBodyTimeout(c, false);
                     }
                 } break;
                 
@@ -513,6 +520,8 @@ private:
                     }
                     
                     m_state = State::FILES_WAITBUF_ENTRY;
+                    m_request->controlResponseBodyTimeout(c, true);
+                    
                     goto again;
                 } break;
                 
@@ -523,6 +532,7 @@ private:
                     
                     m_state = State::FILES_REQUEST_ENTRY;
                     m_dirlister.requestEntry(c);
+                    m_request->controlResponseBodyTimeout(c, false);
                 } break;
                 
                 case State::FILES_REQUEST_ENTRY:
@@ -544,6 +554,7 @@ private:
                             memset(buf_st.data.ptr2, 'X', GetSdChunkSize-len1);
                         }
                         m_request->provideResponseBodyData(c, GetSdChunkSize);
+                        m_request->controlResponseBodyTimeout(c, true);
                     }
                 } break;
 #endif
@@ -572,10 +583,12 @@ private:
                         
                         m_state = State::READ_WAIT;
                         m_cur_chunk_size = 0;
+                        m_request->controlResponseBodyTimeout(c, true);
                     } else {
                         m_request->adoptRequestBody(c);
                         
                         m_state = State::WRITE_WAIT;
+                        m_request->controlRequestBodyTimeout(c, true);
                     }
                 } break;
                 
@@ -598,6 +611,8 @@ private:
                     }
                     
                     m_state = State::READ_WAIT;
+                    m_request->controlResponseBodyTimeout(c, true);
+                    
                     responseBufferEvent(c);
                 } break;
                 
@@ -616,6 +631,8 @@ private:
                     m_request->acceptRequestBodyData(c, m_cur_chunk_size);
                     
                     m_state = State::WRITE_WAIT;
+                    m_request->controlRequestBodyTimeout(c, true);
+                    
                     requestBufferEvent(c);
                 } break;
                 
@@ -637,6 +654,7 @@ private:
                     
                     m_request->adoptResponseBody(c, true);
                     m_state = State::FILES_WAITBUF_HEAD;
+                    m_request->controlResponseBodyTimeout(c, true);
                 } break;
                 
                 case State::FILES_REQUEST_ENTRY: {
@@ -668,6 +686,8 @@ private:
                     }
                     
                     m_state = State::FILES_WAITBUF_ENTRY;
+                    m_request->controlResponseBodyTimeout(c, true);
+                    
                     responseBufferEvent(c);
                 } break;
                 
@@ -782,6 +802,8 @@ private:
             
             m_client->m_request->adoptRequestBody(c);
             m_client->m_request->adoptResponseBody(c);
+            
+            m_client->m_request->controlRequestBodyTimeout(c, true);
         }
         
         void detach (Context c)
@@ -841,6 +863,7 @@ private:
                 bool line_buffer_exhausted = (m_buffer_pos == MaxGcodeCommandSize);
                 
                 if (m_gcode_parser.extendCommand(c, m_buffer_pos, line_buffer_exhausted)) {
+                    m_client->m_request->controlRequestBodyTimeout(c, false);
                     return m_command_stream.startCommand(c, &m_gcode_parser);
                 }
                 
@@ -873,6 +896,10 @@ private:
             AMBRO_ASSERT(cmd_len <= m_buffer_pos)
             m_buffer_pos -= cmd_len;
             memmove(m_buffer, m_buffer + cmd_len, m_buffer_pos);
+            
+            if (m_state == State::ATTACHED) {
+                m_client->m_request->controlRequestBodyTimeout(c, true);
+            }
             
             m_next_event.prependNowNotAlready(c);
         }
@@ -927,6 +954,9 @@ private:
             
             if (error == TheConvenientStream::Error::SENDBUF_TIMEOUT) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufTimeout\n"));
+                if (m_state == State::ATTACHED) {
+                    m_client->m_request->assumeTimeoutAtComplete(c);
+                }
             }
             else if (error == TheConvenientStream::Error::SENDBUF_OVERRUN) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufOverrun\n"));
