@@ -1146,7 +1146,7 @@ tcp_receive(struct tcp_pcb *pcb)
     might involve trimming the first edge of the data. The rcv_nxt
     variable and the advertised window are adjusted.
 
-    /* First, we check if we must trim the first edge. We have to do
+       First, we check if we must trim the first edge. We have to do
        this if the sequence number of the incoming segment is less
        than rcv_nxt, and the sequence number plus the length of the
        segment is larger than rcv_nxt. */
