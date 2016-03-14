@@ -954,9 +954,7 @@ private:
             
             if (error == TheConvenientStream::Error::SENDBUF_TIMEOUT) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufTimeout\n"));
-                if (m_state == State::ATTACHED) {
-                    m_client->m_request->assumeTimeoutAtComplete(c);
-                }
+                m_client->m_request->assumeTimeoutAtComplete(c);
             }
             else if (error == TheConvenientStream::Error::SENDBUF_OVERRUN) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpGcodeSendBufOverrun\n"));
