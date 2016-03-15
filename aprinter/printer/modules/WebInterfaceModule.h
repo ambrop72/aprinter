@@ -99,6 +99,7 @@ private:
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
     static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
+    static_assert(TheHttpServer::MaxTxChunkOverhead <= 255, "");
     
     static TimeType const GcodeSendBufTimeoutTicks = Params::GcodeSendBufTimeout::value() * Context::Clock::time_freq;
     
@@ -794,6 +795,7 @@ private:
             
             m_gcode_parser.init(c);
             m_command_stream.init(c, GcodeSendBufTimeoutTicks, this);
+            m_command_stream.setPokeOverhead(c, TheHttpServer::MaxTxChunkOverhead);
             
             m_state = State::ATTACHED;
             m_client = client;

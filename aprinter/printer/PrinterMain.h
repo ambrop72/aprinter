@@ -364,6 +364,7 @@ public:
             AMBRO_ASSERT(buf_callback)
             
             m_state = COMMAND_IDLE;
+            m_poke_overhead = 0;
             m_callback = callback;
             m_buf_callback = buf_callback;
             m_cmd = nullptr;
@@ -397,6 +398,11 @@ public:
         void setAutoOkAndPoke (Context c, bool auto_ok_and_poke)
         {
             m_auto_ok_and_poke = auto_ok_and_poke;
+        }
+        
+        void setPokeOverhead (Context c, uint8_t overhead_bytes)
+        {
+            m_poke_overhead = overhead_bytes;
         }
         
         bool hasCommand (Context c)
@@ -859,6 +865,7 @@ public:
         bool m_error : 1;
         bool m_refuse_on_error : 1;
         bool m_auto_ok_and_poke : 1;
+        uint8_t m_poke_overhead;
         CommandStreamCallback *m_callback;
         SendBufEventCallback *m_buf_callback;
         TheGcodeCommand *m_cmd;
@@ -916,9 +923,13 @@ private:
             
             for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
                 if (stream->m_accept_msg) {
+                    // Ensure that we only write a message to the stream if it has space to accept it
+                    // entirely, and additionally, if a command is active on the stream, that we do not
+                    // use up the reserved buffer space for its response. Take into account also any
+                    // overhead of performing a poke.
                     size_t need_space = o->msg_length;
                     if (stream->m_cmd && (stream->m_state != COMMAND_WAITBUF && stream->m_state != COMMAND_WAITBUF_PAUSED)) {
-                        need_space += ExpectedResponseLength;
+                        need_space += ExpectedResponseLength + stream->m_poke_overhead;
                     }
                     if (stream->m_callback->get_send_buf_avail_impl(c) >= need_space) {
                         stream->reply_append_buffer(c, o->msg_buffer, o->msg_length);

@@ -92,6 +92,7 @@ public:
     using CommandStream::setAcceptMsg;
     using CommandStream::hasCommand;
     using CommandStream::startCommand;
+    using CommandStream::setPokeOverhead;
     
     CommandStream * getCommandStream (Context c)
     {

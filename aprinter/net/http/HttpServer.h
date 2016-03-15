@@ -101,6 +101,7 @@ private:
 public:
     using TheRequestInterface = Client;
     
+    static size_t const MaxTxChunkOverhead = TxChunkOverhead;
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
     static size_t const MaxGuaranteedBufferAvailBeforeHeadSent = TxBufferSizeForChunkData - MinValue(TxBufferSizeForChunkData, Params::ExpectedResponseLength);
     
