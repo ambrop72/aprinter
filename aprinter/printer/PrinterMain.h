@@ -1078,7 +1078,6 @@ private:
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
-        static bool const ConsiderForHoming = HomingSpec::Enabled;
         static bool const IsExtruder = AxisSpec::IsExtruder;
         
         struct LazySteppersList;
@@ -1810,7 +1809,6 @@ public:
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
-            static bool const ConsiderForHoming = true;
             static bool const IsExtruder = false;
             
         public:
