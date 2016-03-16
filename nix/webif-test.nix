@@ -22,7 +22,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-{ writeText, writeScriptBin, lighttpd, haproxy, bash, ncd, aprinterSource
+{ writeText, writeScriptBin, lighttpd, haproxy, bash, ncd, aprinterWebif
 , testHost ? "127.0.0.1"
 , testPort ? 4012
 , staticHost ? "127.0.0.1"
@@ -32,7 +32,7 @@
 }:
 let
     lighttpd_config = writeText "aprinter-webif-test-lighttpd.cfg" ''
-        server.document-root = "${aprinterSource}/webif" 
+        server.document-root = "${aprinterWebif}" 
         server.bind = "${staticHost}"
         server.port = ${toString staticPort}
         mimetype.assign = (
