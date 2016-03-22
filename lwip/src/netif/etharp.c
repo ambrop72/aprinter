@@ -1354,6 +1354,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
     /* a packet with only an ethernet header (or less) is not valid for us */
     ETHARP_STATS_INC(etharp.proterr);
     ETHARP_STATS_INC(etharp.drop);
+    MIB2_STATS_NETIF_INC(netif, ifinerrors);
     goto free_and_return;
   }
 
@@ -1375,6 +1376,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
       /* a packet with only an ethernet/vlan header (or less) is not valid for us */
       ETHARP_STATS_INC(etharp.proterr);
       ETHARP_STATS_INC(etharp.drop);
+      MIB2_STATS_NETIF_INC(netif, ifinerrors);
       goto free_and_return;
     }
 #if defined(LWIP_HOOK_VLAN_CHECK) || defined(ETHARP_VLAN_CHECK) || defined(ETHARP_VLAN_CHECK_FN) /* if not, allow all VLANs */
@@ -1464,6 +1466,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
     default:
       ETHARP_STATS_INC(etharp.proterr);
       ETHARP_STATS_INC(etharp.drop);
+      MIB2_STATS_NETIF_INC(netif, ifinunknownprotos);
       goto free_and_return;
   }
 
