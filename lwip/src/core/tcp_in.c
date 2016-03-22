@@ -216,7 +216,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
      for an active connection. */
   prev = NULL;
 
-  
   for(pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_ASSERT("tcp_input: active pcb->state != CLOSED", pcb->state != CLOSED);
     LWIP_ASSERT("tcp_input: active pcb->state != TIME-WAIT", pcb->state != TIME_WAIT);
@@ -315,7 +314,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
       } else {
         TCP_STATS_INC(tcp.cachehit);
       }
-    
+
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for LISTENing connection.\n"));
       tcp_listen_input(lpcb);
       pbuf_free(p);
@@ -663,12 +662,12 @@ tcp_process(struct tcp_pcb *pcb)
     }
   }
 
-  if ((flags & TCP_SYN) && (pcb->state != SYN_SENT && pcb->state != SYN_RCVD)) { 
+  if ((flags & TCP_SYN) && (pcb->state != SYN_SENT && pcb->state != SYN_RCVD)) {
     /* Cope with new connection attempt after remote end crashed */
     tcp_ack_now(pcb);
     return ERR_OK;
   }
-  
+
   if ((pcb->flags & TF_RXCLOSED) == 0) {
     /* Update the PCB (in)activity timer unless rx is closed (see tcp_shutdown) */
     pcb->tmr = tcp_ticks;
@@ -886,11 +885,11 @@ tcp_receive(struct tcp_pcb *pcb)
     if (TCP_SEQ_LT(pcb->snd_wl1, seqno) ||
        (pcb->snd_wl1 == seqno && TCP_SEQ_LT(pcb->snd_wl2, ackno)) ||
        (pcb->snd_wl2 == ackno && (u32_t)SND_WND_SCALE(pcb, tcphdr->wnd) > pcb->snd_wnd)) {
-      pcb->snd_wnd = SND_WND_SCALE(pcb, tcphdr->wnd); 
+      pcb->snd_wnd = SND_WND_SCALE(pcb, tcphdr->wnd);
       /* keep track of the biggest window announced by the remote host to calculate
          the maximum segment size */
       if (pcb->snd_wnd_max < pcb->snd_wnd) {
-        pcb->snd_wnd_max = pcb->snd_wnd; 
+        pcb->snd_wnd_max = pcb->snd_wnd;
       }
       pcb->snd_wl1 = seqno;
       pcb->snd_wl2 = ackno;
@@ -918,17 +917,17 @@ tcp_receive(struct tcp_pcb *pcb)
 
     /* (From Stevens TCP/IP Illustrated Vol II, p970.) Its only a
      * duplicate ack if:
-     * 1) It doesn't ACK new data 
-     * 2) length of received packet is zero (i.e. no payload) 
-     * 3) the advertised window hasn't changed 
+     * 1) It doesn't ACK new data
+     * 2) length of received packet is zero (i.e. no payload)
+     * 3) the advertised window hasn't changed
      * 4) There is outstanding unacknowledged data (retransmission timer running)
      * 5) The ACK is == biggest ACK sequence number so far seen (snd_una)
-     * 
-     * If it passes all five, should process as a dupack: 
-     * a) dupacks < 3: do nothing 
-     * b) dupacks == 3: fast retransmit 
-     * c) dupacks > 3: increase cwnd 
-     * 
+     *
+     * If it passes all five, should process as a dupack:
+     * a) dupacks < 3: do nothing
+     * b) dupacks == 3: fast retransmit
+     * c) dupacks > 3: increase cwnd
+     *
      * If it only passes 1-3, should reset dupack counter (and add to
      * stats, which we don't do in lwIP)
      *
@@ -1079,7 +1078,7 @@ tcp_receive(struct tcp_pcb *pcb)
        ->unsent list after a retransmission, so these segments may
        in fact have been sent once. */
     while (pcb->unsent != NULL &&
-           TCP_SEQ_BETWEEN(ackno, ntohl(pcb->unsent->tcphdr->seqno) + 
+           TCP_SEQ_BETWEEN(ackno, ntohl(pcb->unsent->tcphdr->seqno) +
                            TCP_TCPLEN(pcb->unsent), pcb->snd_nxt)) {
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from pcb->unsent\n",
                                     ntohl(pcb->unsent->tcphdr->seqno), ntohl(pcb->unsent->tcphdr->seqno) +

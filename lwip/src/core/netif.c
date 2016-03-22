@@ -64,13 +64,13 @@
 #define NETIF_STATUS_CALLBACK(n) do{ if (n->status_callback) { (n->status_callback)(n); }}while(0)
 #else
 #define NETIF_STATUS_CALLBACK(n)
-#endif /* LWIP_NETIF_STATUS_CALLBACK */ 
+#endif /* LWIP_NETIF_STATUS_CALLBACK */
 
 #if LWIP_NETIF_LINK_CALLBACK
 #define NETIF_LINK_CALLBACK(n) do{ if (n->link_callback) { (n->link_callback)(n); }}while(0)
 #else
 #define NETIF_LINK_CALLBACK(n)
-#endif /* LWIP_NETIF_LINK_CALLBACK */ 
+#endif /* LWIP_NETIF_LINK_CALLBACK */
 
 struct netif *netif_list;
 struct netif *netif_default;
@@ -614,7 +614,8 @@ netif_set_remove_callback(struct netif *netif, netif_status_callback_fn remove_c
 /**
  * Called by a driver when its link goes up
  */
-void netif_set_link_up(struct netif *netif )
+void
+netif_set_link_up(struct netif *netif)
 {
   if (!(netif->flags & NETIF_FLAG_LINK_UP)) {
     netif->flags |= NETIF_FLAG_LINK_UP;

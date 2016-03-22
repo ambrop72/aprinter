@@ -142,7 +142,7 @@
 /**
  * MEMP_USE_CUSTOM_POOLS==1: whether to include a user file lwippools.h
  * that defines additional pools beyond the "standard" ones required
- * by lwIP. If you set this to 1, you must have lwippools.h in your 
+ * by lwIP. If you set this to 1, you must have lwippools.h in your
  * include path somewhere.
  */
 #ifndef MEMP_USE_CUSTOM_POOLS
@@ -261,7 +261,7 @@
 #endif
 
 /**
- * PBUF_POOL_SIZE: the number of buffers in the pbuf pool. 
+ * PBUF_POOL_SIZE: the number of buffers in the pbuf pool.
  */
 #ifndef PBUF_POOL_SIZE
 #define PBUF_POOL_SIZE                  16
@@ -316,7 +316,7 @@
 /** The maximum number of packets which may be queued for each
  *  unresolved address by other network layers. Defaults to 3, 0 means disabled.
  *  Old packets are dropped, new packets are queued.
- */ 
+ */
 #ifndef ARP_QUEUE_LEN
 #define ARP_QUEUE_LEN                   3
 #endif
@@ -779,12 +779,12 @@
 #endif
 
 /**
- * TCP_WND: The size of a TCP window.  This must be at least 
+ * TCP_WND: The size of a TCP window.  This must be at least
  * (2 * TCP_MSS) for things to work well
  */
 #ifndef TCP_WND
 #define TCP_WND                         (4 * TCP_MSS)
-#endif 
+#endif
 
 /**
  * TCP_MAXRTX: Maximum number of retransmissions of data segments.
@@ -1206,14 +1206,14 @@
 #ifndef CHECKSUM_GEN_IP
 #define CHECKSUM_GEN_IP                 1
 #endif
- 
+
 /**
  * CHECKSUM_GEN_UDP==1: Generate checksums in software for outgoing UDP packets.
  */
 #ifndef CHECKSUM_GEN_UDP
 #define CHECKSUM_GEN_UDP                1
 #endif
- 
+
 /**
  * CHECKSUM_GEN_TCP==1: Generate checksums in software for outgoing TCP packets.
  */
@@ -1227,21 +1227,21 @@
 #ifndef CHECKSUM_GEN_ICMP
 #define CHECKSUM_GEN_ICMP               1
 #endif
- 
+
 /**
  * CHECKSUM_GEN_ICMP6==1: Generate checksums in software for outgoing ICMP6 packets.
  */
 #ifndef CHECKSUM_GEN_ICMP6
 #define CHECKSUM_GEN_ICMP6              1
 #endif
- 
+
 /**
  * CHECKSUM_CHECK_IP==1: Check checksums in software for incoming IP packets.
  */
 #ifndef CHECKSUM_CHECK_IP
 #define CHECKSUM_CHECK_IP               1
 #endif
- 
+
 /**
  * CHECKSUM_CHECK_UDP==1: Check checksums in software for incoming UDP packets.
  */

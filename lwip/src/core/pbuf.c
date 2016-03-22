@@ -426,7 +426,7 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
   if ((header_size_increment == 0) || (p == NULL)) {
     return 0;
   }
- 
+
   if (header_size_increment < 0){
     increment_magnitude = -header_size_increment;
     /* Check that we aren't going to move off the end of the pbuf */

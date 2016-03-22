@@ -318,7 +318,7 @@ extern u8_t tcp_active_pcbs_changed;
 
 /* The TCP PCB lists. */
 union tcp_listen_pcbs_t { /* List of all TCP PCBs in LISTEN state. */
-  struct tcp_pcb_listen *listen_pcbs; 
+  struct tcp_pcb_listen *listen_pcbs;
   struct tcp_pcb *pcbs;
 };
 extern struct tcp_pcb *tcp_bound_pcbs;
@@ -330,7 +330,7 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
 
 extern struct tcp_pcb *tcp_tmp_pcb;      /* Only used for temporary storage. */
 
-/* Axioms about the above lists:   
+/* Axioms about the above lists:
    1) Every TCP PCB that is not CLOSED is in one of the lists.
    2) A PCB is only in one of the lists.
    3) All PCBs in the tcp_listen_pcbs list is in LISTEN state.

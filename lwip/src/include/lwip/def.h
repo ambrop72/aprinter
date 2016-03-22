@@ -54,7 +54,7 @@ extern "C" {
 #define LWIP_MAKE_U16(a, b) ((a << 8) | b)
 #else
 #define LWIP_MAKE_U16(a, b) ((b << 8) | a)
-#endif 
+#endif
 
 #ifndef LWIP_PLATFORM_BYTESWAP
 #define LWIP_PLATFORM_BYTESWAP 0

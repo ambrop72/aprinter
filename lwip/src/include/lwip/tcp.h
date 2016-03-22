@@ -182,7 +182,7 @@ struct tcp_pcb {
 
   /* ports are in host byte order */
   u16_t remote_port;
-  
+
   tcpflags_t flags;
 #define TF_ACK_DELAY   0x01U   /* Delayed ACK. */
 #define TF_ACK_NOW     0x02U   /* Immediate ACK. */
@@ -270,7 +270,7 @@ struct tcp_pcb {
   u32_t keep_intvl;
   u32_t keep_cnt;
 #endif /* LWIP_TCP_KEEPALIVE */
-  
+
   /* Persist timer counter */
   u8_t persist_cnt;
   /* Persist timer back-off */
