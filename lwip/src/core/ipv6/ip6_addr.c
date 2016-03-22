@@ -79,10 +79,11 @@ ip6addr_aton(const char *cp, ip6_addr_t *addr)
      zero_blocks may be 1 even if there are no :: sequences */
   zero_blocks = 8;
   for (s = cp; *s != 0; s++) {
-    if (*s == ':')
+    if (*s == ':') {
       zero_blocks--;
-    else if (!isxdigit(*s))
+    } else if (!isxdigit(*s)) {
       break;
+    }
   }
 
   /* parse each block */
@@ -106,14 +107,17 @@ ip6addr_aton(const char *cp, ip6_addr_t *addr)
         return 0;
       }
       if (s[1] == ':') {
+        if (s[2] == ':') {
+          /* invalid format: three successive colons */
+          return 0;
+        }
         s++;
         /* "::" found, set zeros */
         while (zero_blocks > 0) {
           zero_blocks--;
           if (current_block_index & 0x1) {
             addr_index++;
-          }
-          else {
+          } else {
             if (addr) {
               addr->addr[addr_index] = 0;
             }
@@ -299,18 +303,18 @@ ipaddr_aton(const char *cp, ip_addr_t *addr)
   if (cp != NULL) {
     const char* c;
     for (c = cp; *c != 0; c++) {
-      if (*c == '.') {
-        /* contains a dot: IPv4 address */
-        if (addr) {
-          IP_SET_TYPE_VAL(*addr, IPADDR_TYPE_V4);
-        }
-        return ip4addr_aton(cp, ip_2_ip4(addr));
-      } else if (*c == ':') {
+      if (*c == ':') {
         /* contains a colon: IPv6 address */
         if (addr) {
           IP_SET_TYPE_VAL(*addr, IPADDR_TYPE_V6);
         }
         return ip6addr_aton(cp, ip_2_ip6(addr));
+      } else if (*c == '.') {
+        /* contains a dot: IPv4 address */
+        if (addr) {
+          IP_SET_TYPE_VAL(*addr, IPADDR_TYPE_V4);
+        }
+        return ip4addr_aton(cp, ip_2_ip4(addr));
       }
     }
     /* nothing found, call ip4addr_aton as fallback */
