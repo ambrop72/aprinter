@@ -105,7 +105,7 @@ ip6_route(const ip6_addr_t *src, const ip6_addr_t *dest)
     }
 
     /* Try to find the netif for the source address, checking that link is up. */
-    for(netif = netif_list; netif != NULL; netif = netif->next) {
+    for (netif = netif_list; netif != NULL; netif = netif->next) {
       if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
         continue;
       }
@@ -133,7 +133,7 @@ ip6_route(const ip6_addr_t *src, const ip6_addr_t *dest)
 #endif
 
   /* See if the destination subnet matches a configured address. */
-  for(netif = netif_list; netif != NULL; netif = netif->next) {
+  for (netif = netif_list; netif != NULL; netif = netif->next) {
     if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
       continue;
     }
@@ -159,7 +159,7 @@ ip6_route(const ip6_addr_t *src, const ip6_addr_t *dest)
 
   /* try with the netif that matches the source address. */
   if (!ip6_addr_isany(src)) {
-    for(netif = netif_list; netif != NULL; netif = netif->next) {
+    for (netif = netif_list; netif != NULL; netif = netif->next) {
       if (!netif_is_up(netif) || !netif_is_link_up(netif)) {
         continue;
       }
@@ -530,7 +530,7 @@ ip6_input(struct pbuf *p, struct netif *inp)
       if (netif == inp) {
         netif = netif->next;
       }
-    } while(netif != NULL);
+    } while (netif != NULL);
 netif_found:
     LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet accepted on interface %c%c\n",
         netif ? netif->name[0] : 'X', netif? netif->name[1] : 'X'));

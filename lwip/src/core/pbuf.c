@@ -840,7 +840,7 @@ pbuf_copy_partial(struct pbuf *buf, void *dataptr, u16_t len, u16_t offset)
   }
 
   /* Note some systems use byte copy if dataptr or one of the pbuf payload pointers are unaligned. */
-  for(p = buf; len != 0 && p != NULL; p = p->next) {
+  for (p = buf; len != 0 && p != NULL; p = p->next) {
     if ((offset != 0) && (offset >= p->len)) {
       /* don't copy from this buffer -> on to the next */
       offset -= p->len;
@@ -912,7 +912,7 @@ pbuf_take(struct pbuf *buf, const void *dataptr, u16_t len)
   }
 
   /* Note some systems use byte copy if dataptr or one of the pbuf payload pointers are unaligned. */
-  for(p = buf; total_copy_len != 0; p = p->next) {
+  for (p = buf; total_copy_len != 0; p = p->next) {
     LWIP_ASSERT("pbuf_take: invalid pbuf", p != NULL);
     buf_copy_len = total_copy_len;
     if (buf_copy_len > p->len) {

@@ -245,7 +245,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
   if (pcb == NULL) {
     /* If it did not go to an active connection, we check the connections
        in the TIME-WAIT state. */
-    for(pcb = tcp_tw_pcbs; pcb != NULL; pcb = pcb->next) {
+    for (pcb = tcp_tw_pcbs; pcb != NULL; pcb = pcb->next) {
       LWIP_ASSERT("tcp_input: TIME-WAIT pcb->state == TIME-WAIT", pcb->state == TIME_WAIT);
       if (pcb->remote_port == tcphdr->src &&
           pcb->local_port == tcphdr->dest &&
@@ -264,7 +264,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* Finally, if we still did not get a match, we check all PCBs that
        are LISTENing for incoming connections. */
     prev = NULL;
-    for(lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
+    for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
       if (lpcb->local_port == tcphdr->dest) {
 #if LWIP_IPV4 && LWIP_IPV6
         if (lpcb->accept_any_ip_version) {
