@@ -622,6 +622,8 @@ ip4_reass(struct pbuf *p)
     /* and adjust the number of pbufs currently queued for reassembly. */
     ip_reass_pbufcount -= pbuf_clen(p);
 
+    MIB2_STATS_INC(mib2.ipreasmoks);
+
     /* Return the pbuf chain */
     return p;
   }
@@ -717,7 +719,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
   rambuf = pbuf_alloc(PBUF_LINK, 0, PBUF_REF);
   if (rambuf == NULL) {
     LWIP_DEBUGF(IP_REASS_DEBUG, ("ip_frag: pbuf_alloc(PBUF_LINK, 0, PBUF_REF) failed\n"));
-    return ERR_MEM;
+    goto memerr;
   }
   rambuf->tot_len = rambuf->len = mtu;
   rambuf->payload = LWIP_MEM_ALIGN((void *)buf);
@@ -761,7 +763,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
      */
     rambuf = pbuf_alloc(PBUF_LINK, IP_HLEN, PBUF_RAM);
     if (rambuf == NULL) {
-      return ERR_MEM;
+      goto memerr;
     }
     LWIP_ASSERT("this needs a pbuf in one piece!",
                 (p->len >= (IP_HLEN)));
@@ -839,7 +841,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
     } else {
       LWIP_DEBUGF(IP_REASS_DEBUG, ("ip_frag: pbuf_alloc() for header failed\n"));
       pbuf_free(rambuf);
-      return ERR_MEM;
+      goto memerr;
     }
 #else /* IP_FRAG_USES_STATIC_BUF */
     /* No need for separate header pbuf - we allowed room for it in rambuf
@@ -865,6 +867,9 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
 #endif /* IP_FRAG_USES_STATIC_BUF */
   MIB2_STATS_INC(mib2.ipfragoks);
   return ERR_OK;
+memerr:
+  MIB2_STATS_INC(mib2.ipfragfails);
+  return ERR_MEM;
 }
 #endif /* IP_FRAG */
 
