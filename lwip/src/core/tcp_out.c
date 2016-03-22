@@ -810,7 +810,7 @@ tcp_output(struct tcp_pcb *pcb)
      *   RST is no sent using tcp_write/tcp_output.
      */
     if((tcp_do_output_nagle(pcb) == 0) &&
-      ((pcb->flags & (TF_NAGLEMEMERR | TF_FIN)) == 0)){
+      ((pcb->flags & (TF_NAGLEMEMERR | TF_FIN)) == 0)) {
       break;
     }
 #if TCP_CWND_DEBUG
@@ -1003,8 +1003,8 @@ tcp_rst(u32_t seqno, u32_t ackno,
   struct netif *netif;
   p = pbuf_alloc_pool(PBUF_IP, TCP_HLEN, TCP_HLEN);
   if (p == NULL) {
-      LWIP_DEBUGF(TCP_DEBUG, ("tcp_rst: could not allocate memory for pbuf\n"));
-      return;
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_rst: could not allocate memory for pbuf\n"));
+    return;
   }
   LWIP_ASSERT("check that first pbuf can hold struct tcp_hdr",
               (p->len >= sizeof(struct tcp_hdr)));
@@ -1180,7 +1180,7 @@ tcp_keepalive(struct tcp_pcb *pcb)
                           tcp_ticks, pcb->tmr, pcb->keep_cnt_sent));
    
   p = tcp_output_alloc_header(pcb, 0, 0, htonl(pcb->snd_nxt - 1));
-  if(p == NULL) {
+  if (p == NULL) {
     LWIP_DEBUGF(TCP_DEBUG,
                 ("tcp_keepalive: could not allocate memory for pbuf\n"));
     return ERR_MEM;
@@ -1242,10 +1242,10 @@ tcp_zero_window_probe(struct tcp_pcb *pcb)
 
   seg = pcb->unacked;
 
-  if(seg == NULL) {
+  if (seg == NULL) {
     seg = pcb->unsent;
   }
-  if(seg == NULL) {
+  if (seg == NULL) {
     /* nothing to send, zero window probe not needed */
     return ERR_OK;
   }
@@ -1255,7 +1255,7 @@ tcp_zero_window_probe(struct tcp_pcb *pcb)
   len = is_fin ? 0 : 1;
 
   p = tcp_output_alloc_header(pcb, 0, len, seg->tcphdr->seqno);
-  if(p == NULL) {
+  if (p == NULL) {
     LWIP_DEBUGF(TCP_DEBUG, ("tcp_zero_window_probe: no memory for pbuf\n"));
     return ERR_MEM;
   }

@@ -715,9 +715,9 @@ tcp_process(struct tcp_pcb *pcb)
 
       /* If there's nothing left to acknowledge, stop the retransmit
          timer, otherwise reset it to start again */
-      if(pcb->unacked == NULL)
+      if (pcb->unacked == NULL) {
         pcb->rtime = -1;
-      else {
+      } else {
         pcb->rtime = 0;
         pcb->nrtx = 0;
       }
@@ -942,7 +942,7 @@ tcp_receive(struct tcp_pcb *pcb)
       /* Clause 2 */
       if (tcplen == 0) {
         /* Clause 3 */
-        if (pcb->snd_wl2 + pcb->snd_wnd == right_wnd_edge){
+        if (pcb->snd_wl2 + pcb->snd_wnd == right_wnd_edge) {
           /* Clause 4 */
           if (pcb->rtime >= 0) {
             /* Clause 5 */
@@ -970,7 +970,7 @@ tcp_receive(struct tcp_pcb *pcb)
       if (!found_dupack) {
         pcb->dupacks = 0;
       }
-    } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)){
+    } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
       /* We come here when the ACK acknowledges new data. */
 
       /* Reset the "IN Fast Retransmit" flag, since we are no longer
@@ -1150,9 +1150,9 @@ tcp_receive(struct tcp_pcb *pcb)
        this if the sequence number of the incoming segment is less
        than rcv_nxt, and the sequence number plus the length of the
        segment is larger than rcv_nxt. */
-    /*    if (TCP_SEQ_LT(seqno, pcb->rcv_nxt)){
+    /*    if (TCP_SEQ_LT(seqno, pcb->rcv_nxt)) {
           if (TCP_SEQ_LT(pcb->rcv_nxt, seqno + tcplen)) {*/
-    if (TCP_SEQ_BETWEEN(pcb->rcv_nxt, seqno + 1, seqno + tcplen - 1)){
+    if (TCP_SEQ_BETWEEN(pcb->rcv_nxt, seqno + 1, seqno + tcplen - 1)) {
       /* Trimming the first edge is done by pushing the payload
          pointer in the pbuf downwards. This is somewhat tricky since
          we do not want to discard the full contents of the pbuf up to
@@ -1189,12 +1189,12 @@ tcp_receive(struct tcp_pcb *pcb)
           p->len = 0;
           p = p->next;
         }
-        if(pbuf_header(p, (s16_t)-off)) {
+        if (pbuf_header(p, (s16_t)-off)) {
           /* Do we need to cope with this failing?  Assert for now */
           LWIP_ASSERT("pbuf_header failed", 0);
         }
       } else {
-        if(pbuf_header(inseg.p, (s16_t)-off)) {
+        if (pbuf_header(inseg.p, (s16_t)-off)) {
           /* Do we need to cope with this failing?  Assert for now */
           LWIP_ASSERT("pbuf_header failed", 0);
         }
@@ -1216,7 +1216,7 @@ tcp_receive(struct tcp_pcb *pcb)
        and below rcv_nxt + rcv_wnd) in order to be further
        processed. */
     if (TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt,
-                        pcb->rcv_nxt + pcb->rcv_wnd - 1)){
+                        pcb->rcv_nxt + pcb->rcv_wnd - 1)) {
       if (pcb->rcv_nxt == seqno) {
         /* The incoming segment is the next in sequence. We check if
            we have to trim the end of the segment and update rcv_nxt
@@ -1295,13 +1295,14 @@ tcp_receive(struct tcp_pcb *pcb)
   } else {
     /* Segments with length 0 is taken care of here. Segments that
        fall out of the window are ACKed. */
-    if(!TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt, pcb->rcv_nxt + pcb->rcv_wnd - 1)){
+    if (!TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt, pcb->rcv_nxt + pcb->rcv_wnd - 1)) {
       tcp_ack_now(pcb);
     }
   }
 }
 
-static u8_t tcp_getoptbyte(void)
+static u8_t
+tcp_getoptbyte(void)
 {
   if ((tcphdr_opt2 == NULL) || (tcp_optidx < tcphdr_opt1len)) {
     u8_t* opts = (u8_t *)tcphdr + TCP_HLEN;

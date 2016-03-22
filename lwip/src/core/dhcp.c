@@ -86,7 +86,7 @@
  * LWIP_RAND() (this overrides DHCP_GLOBAL_XID)
  */
 #ifndef DHCP_CREATE_RAND_XID
-#define DHCP_CREATE_RAND_XID 1
+#define DHCP_CREATE_RAND_XID        1
 #endif
 
 /** Default for DHCP_GLOBAL_XID is 0xABCD0000
@@ -105,7 +105,7 @@
 /** Minimum length for reply before packet is parsed */
 #define DHCP_MIN_REPLY_LEN             44
 
-#define REBOOT_TRIES 2
+#define REBOOT_TRIES                2
 
 /** Option handling: options are parsed in dhcp_parse_reply
  * and saved in an array where other functions can load them from.
@@ -932,7 +932,7 @@ dhcp_bind(struct netif *netif)
      /* set renewal period timer */
      LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t0 renewal timer %"U32_F" secs\n", dhcp->offered_t0_lease));
      timeout = (dhcp->offered_t0_lease + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
-     if(timeout > 0xffff) {
+     if (timeout > 0xffff) {
        timeout = 0xffff;
      }
      dhcp->t0_timeout = (u16_t)timeout;
@@ -947,7 +947,7 @@ dhcp_bind(struct netif *netif)
     /* set renewal period timer */
     LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t1 renewal timer %"U32_F" secs\n", dhcp->offered_t1_renew));
     timeout = (dhcp->offered_t1_renew + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
-    if(timeout > 0xffff) {
+    if (timeout > 0xffff) {
       timeout = 0xffff;
     }
     dhcp->t1_timeout = (u16_t)timeout;
@@ -961,7 +961,7 @@ dhcp_bind(struct netif *netif)
   if (dhcp->offered_t2_rebind != 0xffffffffUL) {
     LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_bind(): t2 rebind timer %"U32_F" secs\n", dhcp->offered_t2_rebind));
     timeout = (dhcp->offered_t2_rebind + DHCP_COARSE_TIMER_SECS / 2) / DHCP_COARSE_TIMER_SECS;
-    if(timeout > 0xffff) {
+    if (timeout > 0xffff) {
       timeout = 0xffff;
     }
     dhcp->t2_timeout = (u16_t)timeout;

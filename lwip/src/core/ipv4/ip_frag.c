@@ -381,11 +381,11 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
         ipr->p = new_p;
       }
       break;
-    } else if(iprh->start == iprh_tmp->start) {
+    } else if (iprh->start == iprh_tmp->start) {
       /* received the same datagram twice: no need to keep the datagram */
       goto freepbuf;
 #if IP_REASS_CHECK_OVERLAP
-    } else if(iprh->start < iprh_tmp->end) {
+    } else if (iprh->start < iprh_tmp->end) {
       /* overlap: no need to keep the new datagram */
       goto freepbuf;
 #endif /* IP_REASS_CHECK_OVERLAP */
@@ -541,7 +541,7 @@ ip4_reass(struct pbuf *p)
   /* Enqueue a new datagram into the datagram queue */
     ipr = ip_reass_enqueue_new_datagram(fraghdr, clen);
     /* Bail if unable to enqueue */
-    if(ipr == NULL) {
+    if (ipr == NULL) {
       goto nullreturn;
     }
   } else {
