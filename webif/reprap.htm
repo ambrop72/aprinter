@@ -2,13 +2,32 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Hello React!</title>
-    <script src="react/react.min.js"></script>
-    <script src="react/react-dom.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aprinter Web Interface</title>
+    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="reprap.css" rel="stylesheet">
+    <script src="react/react.js"></script>
+    <script src="react/react-dom.js"></script>
     <script src="jquery/jquery-1.12.1.min.js"></script>
   </head>
   <body>
-    <div id="content"></div>
+    <div class="container-fluid">
+        <div class="row">
+            <div>
+                <h2>Aprinter Control Screen</h2>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6" style="width: 430px;">
+                <div id="axes_div"></div>
+                <div id="heaters_div"></div>
+                <div id="fans_div"></div>
+            </div>
+            <div class="col-md-6">
+                Lorem ipsum dolor sit amet
+            </div>
+        </div>
+    </div>
     <script src="reprap.js"></script>
   </body>
 </html>
