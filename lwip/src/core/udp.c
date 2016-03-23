@@ -1054,6 +1054,7 @@ udp_remove(struct udp_pcb *pcb)
       if (pcb2->next != NULL && pcb2->next == pcb) {
         /* remove pcb from list */
         pcb2->next = pcb->next;
+        break;
       }
     }
   }
