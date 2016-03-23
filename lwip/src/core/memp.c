@@ -185,7 +185,7 @@ memp_sanity(void)
     t = memp_tab[i];
     if (t != NULL) {
       for (h = t->next; (t != NULL) && (h != NULL); t = t->next,
-        h = (((h->next != NULL) && (h->next->next != NULL)) ? h->next->next : NULL)) {
+        h = ((h->next != NULL) ? h->next->next : NULL)) {
         if (t == h) {
           return 0;
         }
