@@ -49,6 +49,9 @@ extern "C" {
 #define LWIP_MAX(x , y)  (((x) > (y)) ? (x) : (y))
 #define LWIP_MIN(x , y)  (((x) < (y)) ? (x) : (y))
 
+/* Get the number of entries in an array ('x' must NOT be a pointer!) */
+#define LWIP_ARRAYSIZE(x) (sizeof(x)/sizeof((x)[0]))
+
 /* Endianess-optimized shifting of two u8_t to create one u16_t */
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define LWIP_MAKE_U16(a, b) ((a << 8) | b)
