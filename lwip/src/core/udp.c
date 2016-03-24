@@ -118,24 +118,6 @@ again:
     }
   }
   return udp_port;
-#if 0
-  struct udp_pcb *ipcb = udp_pcbs;
-  while ((ipcb != NULL) && (udp_port != UDP_LOCAL_PORT_RANGE_END)) {
-    if (ipcb->local_port == udp_port) {
-      /* port is already used by another udp_pcb */
-      udp_port++;
-      /* restart scanning all udp pcbs */
-      ipcb = udp_pcbs;
-    } else {
-      /* go on with next udp pcb */
-      ipcb = ipcb->next;
-    }
-  }
-  if (ipcb != NULL) {
-    return 0;
-  }
-  return udp_port;
-#endif
 }
 
 /**
@@ -955,30 +937,6 @@ udp_connect(struct udp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
   ip_addr_set_ipaddr(&pcb->remote_ip, ipaddr);
   pcb->remote_port = port;
   pcb->flags |= UDP_FLAGS_CONNECTED;
-/** TODO: this functionality belongs in upper layers */
-#ifdef LWIP_UDP_TODO
-#if LWIP_IPV6
-  if (!PCB_ISIPV6(pcb))
-#endif /* LWIP_IPV6 */
-  {
-    /* Nail down local IP for netconn_addr()/getsockname() */
-    if (ip_addr_isany(&pcb->local_ip) && !ip_addr_isany(&pcb->remote_ip)) {
-      struct netif *netif;
-
-      if ((netif = ip_route(PCB_ISIPV6(pcb), (const ip_addr_t*)NULL, &pcb->remote_ip)) == NULL) {
-        LWIP_DEBUGF(UDP_DEBUG, ("udp_connect: No route to %s\n", ipaddr_ntoa(&pcb->remote_ip)));
-        UDP_STATS_INC(udp.rterr);
-        return ERR_RTE;
-      }
-      /** TODO: this will bind the udp pcb locally, to the interface which
-          is used to route output packets to the remote address. However, we
-          might want to accept incoming packets on any interface! */
-      ip_addr_set(&pcb->local_ip, ip_netif_get_local_ip(PCB_ISIPV6(pcb), netif, &pcb->remote_ip));
-    } else if (ip_addr_isany(&pcb->remote_ip)) {
-      ip_addr_set_any(PCB_ISIPV6(pcb), &pcb->local_ip);
-    }
-  }
-#endif
   LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("udp_connect: connected to "));
   ip_addr_debug_print(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE,
                       &pcb->remote_ip);

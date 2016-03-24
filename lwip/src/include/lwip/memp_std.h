@@ -1,21 +1,13 @@
 /*
  * SETUP: Make sure we define everything we will need.
  *
- * We have create three types of pools:
+ * We have create two types of pools:
  *   1) MEMPOOL - standard pools
- *   2) MALLOC_MEMPOOL - to be used by mem_malloc in mem.c
- *   3) PBUF_MEMPOOL - a mempool of pbuf's, so include space for the pbuf struct
+ *   2) PBUF_MEMPOOL - a mempool of pbuf's, so include space for the pbuf struct
  *
  * If the include'r doesn't require any special treatment of each of the types
  * above, then will declare #2 & #3 to be just standard mempools.
  */
-#ifndef LWIP_MALLOC_MEMPOOL
-/* This treats "malloc pools" just like any other pool.
-   The pools are a little bigger to provide 'size' as the amount of user data. */
-#define LWIP_MALLOC_MEMPOOL(num, size) LWIP_MEMPOOL(POOL_##size, num, (size + LWIP_MEM_ALIGN_SIZE(sizeof(struct memp_malloc_helper))), "MALLOC_"#size)
-#define LWIP_MALLOC_MEMPOOL_START
-#define LWIP_MALLOC_MEMPOOL_END
-#endif /* LWIP_MALLOC_MEMPOOL */
 
 #ifndef LWIP_PBUF_MEMPOOL
 /* This treats "pbuf pools" just like any other pool.
@@ -106,7 +98,4 @@ LWIP_PBUF_MEMPOOL(PBUF_TCP,  PBUF_TCP_SIZE,            PBUF_TCP_BUFSIZE,        
  * (#undef is ignored for something that is not defined)
  */
 #undef LWIP_MEMPOOL
-#undef LWIP_MALLOC_MEMPOOL
-#undef LWIP_MALLOC_MEMPOOL_START
-#undef LWIP_MALLOC_MEMPOOL_END
 #undef LWIP_PBUF_MEMPOOL
