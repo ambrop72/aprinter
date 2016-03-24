@@ -88,8 +88,8 @@ static err_t tcp_process(struct tcp_pcb *pcb);
 static void tcp_receive(struct tcp_pcb *pcb);
 static void tcp_parseopt(struct tcp_pcb *pcb);
 
-static err_t tcp_listen_input(struct tcp_pcb_listen *pcb);
-static err_t tcp_timewait_input(struct tcp_pcb *pcb);
+static void tcp_listen_input(struct tcp_pcb_listen *pcb);
+static void tcp_timewait_input(struct tcp_pcb *pcb);
 
 /**
  * The initial input processing of TCP. It verifies the TCP header, demultiplexes
@@ -479,7 +479,7 @@ dropped:
  * @note the segment which arrived is saved in global variables, therefore only the pcb
  *       involved is passed as a parameter to this function
  */
-static err_t
+static void
 tcp_listen_input(struct tcp_pcb_listen *pcb)
 {
   struct tcp_pcb *npcb;
@@ -487,7 +487,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
 
   if (flags & TCP_RST) {
     /* An incoming RST should be ignored. Return. */
-    return ERR_OK;
+    return;
   }
 
   /* In the LISTEN state, we check for incoming SYN segments,
@@ -505,7 +505,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: listen backlog exceeded for port %"U16_F"\n", tcphdr->dest));
       tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
-      return ERR_ABRT;
+      return;
     }
 #endif /* TCP_LISTEN_BACKLOG */
     npcb = tcp_alloc(pcb->prio);
@@ -515,7 +515,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     if (npcb == NULL) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: could not allocate PCB\n"));
       TCP_STATS_INC(tcp.memerr);
-      return ERR_MEM;
+      return;
     }
 #if TCP_LISTEN_BACKLOG
     pcb->accepts_pending++;
@@ -560,11 +560,11 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     rc = tcp_enqueue_flags(npcb, TCP_SYN | TCP_ACK);
     if (rc != ERR_OK) {
       tcp_abandon(npcb, 0);
-      return rc;
+      return;
     }
-    return tcp_output(npcb);
+    tcp_output(npcb);
   }
-  return ERR_OK;
+  return;
 }
 
 /**
@@ -576,7 +576,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
  * @note the segment which arrived is saved in global variables, therefore only the pcb
  *       involved is passed as a parameter to this function
  */
-static err_t
+static void
 tcp_timewait_input(struct tcp_pcb *pcb)
 {
   /* RFC 1337: in TIME_WAIT, ignore RST and ACK FINs + any 'acceptable' segments */
@@ -585,7 +585,7 @@ tcp_timewait_input(struct tcp_pcb *pcb)
    *   acceptable since we only send ACKs)
    * - second check the RST bit (... return) */
   if (flags & TCP_RST) {
-    return ERR_OK;
+    return;
   }
   /* - fourth, check the SYN bit, */
   if (flags & TCP_SYN) {
@@ -595,7 +595,7 @@ tcp_timewait_input(struct tcp_pcb *pcb)
       /* If the SYN is in the window it is an error, send a reset */
       tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
-      return ERR_OK;
+      return;
     }
   } else if (flags & TCP_FIN) {
     /* - eighth, check the FIN bit: Remain in the TIME-WAIT state.
@@ -606,9 +606,9 @@ tcp_timewait_input(struct tcp_pcb *pcb)
   if ((tcplen > 0)) {
     /* Acknowledge data, FIN or out-of-window SYN */
     pcb->flags |= TF_ACK_NOW;
-    return tcp_output(pcb);
+    tcp_output(pcb);
   }
-  return ERR_OK;
+  return;
 }
 
 /**
