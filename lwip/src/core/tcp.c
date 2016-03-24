@@ -1038,21 +1038,8 @@ tcp_slowtmr_start:
       prev = pcb;
       pcb = pcb->next;
 
-      /* We check if we should poll the connection. */
-      ++prev->polltmr;
-      if (prev->polltmr >= prev->pollinterval) {
-        prev->polltmr = 0;
-        LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: polling application\n"));
-        tcp_active_pcbs_changed = 0;
-        TCP_EVENT_POLL(prev, err);
-        if (tcp_active_pcbs_changed) {
-          goto tcp_slowtmr_start;
-        }
-        /* if err == ERR_ABRT, 'prev' is already deallocated */
-        if (err == ERR_OK) {
-          tcp_output(prev);
-        }
-      }
+      /* Try to output. */
+      tcp_output(prev);
     }
   }
 
@@ -1498,24 +1485,6 @@ tcp_accept(struct tcp_pcb *pcb, tcp_accept_fn accept)
 }
 #endif /* LWIP_CALLBACK_API */
 
-
-/**
- * Used to specify the function that should be called periodically
- * from TCP. The interval is specified in terms of the TCP coarse
- * timer interval, which is called twice a second.
- *
- */
-void
-tcp_poll(struct tcp_pcb *pcb, tcp_poll_fn poll, u8_t interval)
-{
-  LWIP_ASSERT("invalid socket state for poll", pcb->state != LISTEN);
-#if LWIP_CALLBACK_API
-  pcb->poll = poll;
-#else /* LWIP_CALLBACK_API */
-  LWIP_UNUSED_ARG(poll);
-#endif /* LWIP_CALLBACK_API */
-  pcb->pollinterval = interval;
-}
 
 /**
  * Purges a TCP PCB. Removes any buffered data and frees the buffer memory

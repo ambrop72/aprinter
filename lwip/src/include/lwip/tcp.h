@@ -88,17 +88,6 @@ typedef err_t (*tcp_recv_fn)(void *arg, struct tcp_pcb *tpcb,
 typedef err_t (*tcp_sent_fn)(void *arg, struct tcp_pcb *tpcb,
                               u16_t len);
 
-/** Function prototype for tcp poll callback functions. Called periodically as
- * specified by @see tcp_poll.
- *
- * @param arg Additional argument to pass to the callback function (@see tcp_arg())
- * @param tpcb tcp pcb
- * @return ERR_OK: try to send some data by calling tcp_output
- *            Only return ERR_ABRT if you have called tcp_abort from within the
- *            callback function!
- */
-typedef err_t (*tcp_poll_fn)(void *arg, struct tcp_pcb *tpcb);
-
 /** Function prototype for tcp error callback functions. Called when the pcb
  * receives a RST or is unexpectedly closed for any other reason.
  *
@@ -197,7 +186,6 @@ struct tcp_pcb {
      as we have to do some math with them */
 
   /* Timers */
-  u8_t polltmr, pollinterval;
   u8_t last_timer;
   u32_t tmr;
 
@@ -253,8 +241,6 @@ struct tcp_pcb {
   tcp_recv_fn recv;
   /* Function to be called when a connection has been set up. */
   tcp_connected_fn connected;
-  /* Function which is called periodically. */
-  tcp_poll_fn poll;
   /* Function to be called whenever a fatal error occurs. */
   tcp_err_fn errf;
 #endif /* LWIP_CALLBACK_API */
@@ -303,7 +289,6 @@ enum lwip_event {
   LWIP_EVENT_SENT,
   LWIP_EVENT_RECV,
   LWIP_EVENT_CONNECTED,
-  LWIP_EVENT_POLL,
   LWIP_EVENT_ERR
 };
 
@@ -322,7 +307,6 @@ void             tcp_arg     (struct tcp_pcb *pcb, void *arg);
 void             tcp_accept  (struct tcp_pcb *pcb, tcp_accept_fn accept);
 void             tcp_recv    (struct tcp_pcb *pcb, tcp_recv_fn recv);
 void             tcp_sent    (struct tcp_pcb *pcb, tcp_sent_fn sent);
-void             tcp_poll    (struct tcp_pcb *pcb, tcp_poll_fn poll, u8_t interval);
 void             tcp_err     (struct tcp_pcb *pcb, tcp_err_fn err);
 
 #define          tcp_mss(pcb)             (((pcb)->flags & TF_TIMESTAMP) ? ((pcb)->mss - 12)  : (pcb)->mss)

@@ -1055,8 +1055,6 @@ tcp_receive(struct tcp_pcb *pcb)
         pcb->rtime = 0;
       }
 
-      pcb->polltmr = 0;
-
 #if LWIP_IPV6 && LWIP_ND6_TCP_REACHABILITY_HINTS
       if (PCB_ISIPV6(pcb)) {
         /* Inform neighbor reachability of forward progress. */

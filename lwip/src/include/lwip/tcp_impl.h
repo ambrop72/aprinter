@@ -206,8 +206,6 @@ PACK_STRUCT_END
                 LWIP_EVENT_RECV, NULL, 0, ERR_OK)
 #define TCP_EVENT_CONNECTED(pcb,err,ret) ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
                 LWIP_EVENT_CONNECTED, NULL, 0, (err))
-#define TCP_EVENT_POLL(pcb,ret)       ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                LWIP_EVENT_POLL, NULL, 0, ERR_OK)
 #define TCP_EVENT_ERR(errf,arg,err)  lwip_tcp_event((arg), NULL, \
                 LWIP_EVENT_ERR, NULL, 0, (err))
 
@@ -250,13 +248,6 @@ PACK_STRUCT_END
     if((pcb)->connected != NULL)                                 \
       (ret) = (pcb)->connected((pcb)->callback_arg,(pcb),(err)); \
     else (ret) = ERR_OK;                                         \
-  } while (0)
-
-#define TCP_EVENT_POLL(pcb,ret)                                \
-  do {                                                         \
-    if((pcb)->poll != NULL)                                    \
-      (ret) = (pcb)->poll((pcb)->callback_arg,(pcb));          \
-    else (ret) = ERR_OK;                                       \
   } while (0)
 
 #define TCP_EVENT_ERR(errf,arg,err)                            \
