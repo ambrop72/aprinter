@@ -351,9 +351,7 @@ void
 tcp_abandon(struct tcp_pcb *pcb, int reset)
 {
   u32_t seqno, ackno;
-#if LWIP_CALLBACK_API
   tcp_err_fn errf;
-#endif /* LWIP_CALLBACK_API */
   void *errf_arg;
 
   /* pcb->state LISTEN not allowed here */
@@ -370,9 +368,7 @@ tcp_abandon(struct tcp_pcb *pcb, int reset)
     u16_t local_port = 0;
     seqno = pcb->snd_nxt;
     ackno = pcb->rcv_nxt;
-#if LWIP_CALLBACK_API
     errf = pcb->errf;
-#endif /* LWIP_CALLBACK_API */
     errf_arg = pcb->callback_arg;
     if ((pcb->state == CLOSED) && (pcb->local_port != 0)) {
       /* bound, not yet opened */
@@ -490,7 +486,7 @@ tcp_bind(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
   LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind: bind to port %"U16_F"\n", port));
   return ERR_OK;
 }
-#if LWIP_CALLBACK_API
+
 /**
  * Default accept callback if no accept callback is specified by the user.
  */
@@ -505,7 +501,6 @@ tcp_accept_null(void *arg, struct tcp_pcb *pcb, err_t err)
 
   return ERR_ABRT;
 }
-#endif /* LWIP_CALLBACK_API */
 
 /**
  * Set the state of the connection to be LISTEN, which means that it
@@ -569,9 +564,7 @@ tcp_listen_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
     TCP_RMV(&tcp_bound_pcbs, pcb);
   }
   memp_free(MEMP_TCP_PCB, pcb);
-#if LWIP_CALLBACK_API
   lpcb->accept = tcp_accept_null;
-#endif /* LWIP_CALLBACK_API */
 #if TCP_LISTEN_BACKLOG
   lpcb->accepts_pending = 0;
   tcp_backlog_set(lpcb, backlog);
@@ -819,11 +812,7 @@ tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
 #endif /* TCP_CALCULATE_EFF_SEND_MSS */
   pcb->cwnd = 1;
   pcb->ssthresh = TCP_WND;
-#if LWIP_CALLBACK_API
   pcb->connected = connected;
-#else /* LWIP_CALLBACK_API */
-  LWIP_UNUSED_ARG(connected);
-#endif /* LWIP_CALLBACK_API */
 
   /* Send a SYN together with the MSS option. */
   ret = tcp_enqueue_flags(pcb, TCP_SYN);
@@ -1164,7 +1153,6 @@ tcp_setprio(struct tcp_pcb *pcb, u8_t prio)
   pcb->prio = prio;
 }
 
-#if LWIP_CALLBACK_API
 /**
  * Default receive callback that is called if the user didn't register
  * a recv callback for the pcb.
@@ -1181,7 +1169,6 @@ tcp_recv_null(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
   }
   return ERR_OK;
 }
-#endif /* LWIP_CALLBACK_API */
 
 /**
  * Kills the oldest active connection that has the same or lower priority than
@@ -1355,10 +1342,7 @@ tcp_alloc(u8_t prio)
     pcb->tmr = tcp_ticks;
     pcb->last_timer = tcp_timer_ctr;
 
-
-#if LWIP_CALLBACK_API
     pcb->recv = tcp_recv_null;
-#endif /* LWIP_CALLBACK_API */
 
     /* Init KEEPALIVE timer */
     pcb->keep_idle  = TCP_KEEPIDLE_DEFAULT;
@@ -1423,7 +1407,6 @@ tcp_arg(struct tcp_pcb *pcb, void *arg)
      connection pcbs. */
   pcb->callback_arg = arg;
 }
-#if LWIP_CALLBACK_API
 
 /**
  * Used to specify the function that should be called when a TCP
@@ -1483,7 +1466,6 @@ tcp_accept(struct tcp_pcb *pcb, tcp_accept_fn accept)
      connection pcbs. */
   pcb->accept = accept;
 }
-#endif /* LWIP_CALLBACK_API */
 
 
 /**

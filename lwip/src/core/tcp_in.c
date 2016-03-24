@@ -533,9 +533,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     npcb->rcv_ann_right_edge = npcb->rcv_nxt;
     npcb->snd_wl1 = seqno - 1;/* initialise to seqno-1 to force window update */
     npcb->callback_arg = pcb->callback_arg;
-#if LWIP_CALLBACK_API
     npcb->accept = pcb->accept;
-#endif /* LWIP_CALLBACK_API */
     /* inherit socket options */
     npcb->so_options = pcb->so_options & SOF_INHERITED;
     npcb->rcv_wnd = npcb->rcv_ann_wnd = pcb->initial_rcv_wnd;
@@ -740,9 +738,7 @@ tcp_process(struct tcp_pcb *pcb)
       if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
         pcb->state = ESTABLISHED;
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
-#if LWIP_CALLBACK_API
         LWIP_ASSERT("pcb->accept != NULL", pcb->accept != NULL);
-#endif
         /* Call the accept function. */
         TCP_EVENT_ACCEPT(pcb, ERR_OK, err);
         if (err != ERR_OK) {

@@ -875,18 +875,6 @@
 #endif
 
 /**
- * LWIP_EVENT_API and LWIP_CALLBACK_API: Only one of these should be set to 1.
- *     LWIP_EVENT_API==1: The user defines lwip_tcp_event() to receive all
- *         events (accept, sent, etc) that happen in the system.
- *     LWIP_CALLBACK_API==1: The PCB callback function is called directly
- *         for the event. This is the default.
- */
-#if !defined(LWIP_EVENT_API) && !defined(LWIP_CALLBACK_API)
-#define LWIP_EVENT_API                  0
-#define LWIP_CALLBACK_API               1
-#endif
-
-/**
  * LWIP_TCP_KEEPALIVE==1: Enable TCP_KEEPIDLE, TCP_KEEPINTVL and TCP_KEEPCNT
  * options processing. Note that TCP_KEEPIDLE and TCP_KEEPINTVL have to be set
  * in seconds.

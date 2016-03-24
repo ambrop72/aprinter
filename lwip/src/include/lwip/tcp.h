@@ -135,27 +135,14 @@ enum tcp_state {
   TIME_WAIT   = 10
 };
 
-#if LWIP_CALLBACK_API
-  /* Function to call when a listener has been connected.
-   * @param arg user-supplied argument (tcp_pcb.callback_arg)
-   * @param pcb a new tcp_pcb that now is connected
-   * @param err an error argument (TODO: that is current always ERR_OK?)
-   * @return ERR_OK: accept the new connection,
-   *                 any other err_t aborts the new connection
-   */
-#define DEF_ACCEPT_CALLBACK  tcp_accept_fn accept;
-#else /* LWIP_CALLBACK_API */
-#define DEF_ACCEPT_CALLBACK
-#endif /* LWIP_CALLBACK_API */
-
 /**
  * members common to struct tcp_pcb and struct tcp_listen_pcb
  */
 #define TCP_PCB_COMMON(type) \
   type *next; /* for the linked list */ \
   void *callback_arg; \
-  /* the accept callback for listen- and normal pcbs, if LWIP_CALLBACK_API */ \
-  DEF_ACCEPT_CALLBACK \
+  /* the accept callback for listen- and normal pcbs */ \
+  tcp_accept_fn accept; \
   enum tcp_state state; /* TCP state */ \
   u8_t prio; \
   /* ports are in host byte order */ \
@@ -234,7 +221,6 @@ struct tcp_pcb {
   struct tcp_seg *unsent;   /* Unsent (queued) segments. */
   struct tcp_seg *unacked;  /* Sent but unacknowledged segments. */
 
-#if LWIP_CALLBACK_API
   /* Function to be called when more send buffer space is available. */
   tcp_sent_fn sent;
   /* Function to be called when (in-sequence) data has arrived. */
@@ -243,7 +229,6 @@ struct tcp_pcb {
   tcp_connected_fn connected;
   /* Function to be called whenever a fatal error occurs. */
   tcp_err_fn errf;
-#endif /* LWIP_CALLBACK_API */
 
 #if LWIP_TCP_TIMESTAMPS
   u32_t ts_lastacksent;
@@ -281,24 +266,6 @@ struct tcp_pcb_listen {
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
   tcpwnd_size_t initial_rcv_wnd;
 };
-
-#if LWIP_EVENT_API
-
-enum lwip_event {
-  LWIP_EVENT_ACCEPT,
-  LWIP_EVENT_SENT,
-  LWIP_EVENT_RECV,
-  LWIP_EVENT_CONNECTED,
-  LWIP_EVENT_ERR
-};
-
-err_t lwip_tcp_event(void *arg, struct tcp_pcb *pcb,
-         enum lwip_event,
-         struct pbuf *p,
-         u16_t size,
-         err_t err);
-
-#endif /* LWIP_EVENT_API */
 
 /* Application program's interface: */
 struct tcp_pcb * tcp_new     (void);

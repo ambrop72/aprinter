@@ -194,23 +194,6 @@ PACK_STRUCT_END
 #define TF_GOT_FIN   (u8_t)0x20U   /* Connection was closed by the remote end. */
 
 
-#if LWIP_EVENT_API
-
-#define TCP_EVENT_ACCEPT(pcb,err,ret)    ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                LWIP_EVENT_ACCEPT, NULL, 0, err)
-#define TCP_EVENT_SENT(pcb,space,ret) ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                   LWIP_EVENT_SENT, NULL, space, ERR_OK)
-#define TCP_EVENT_RECV(pcb,p,err,ret) ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                LWIP_EVENT_RECV, (p), 0, (err))
-#define TCP_EVENT_CLOSED(pcb,ret) ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                LWIP_EVENT_RECV, NULL, 0, ERR_OK)
-#define TCP_EVENT_CONNECTED(pcb,err,ret) ret = lwip_tcp_event((pcb)->callback_arg, (pcb),\
-                LWIP_EVENT_CONNECTED, NULL, 0, (err))
-#define TCP_EVENT_ERR(errf,arg,err)  lwip_tcp_event((arg), NULL, \
-                LWIP_EVENT_ERR, NULL, 0, (err))
-
-#else /* LWIP_EVENT_API */
-
 #define TCP_EVENT_ACCEPT(pcb,err,ret)                          \
   do {                                                         \
     if((pcb)->accept != NULL)                                  \
@@ -255,8 +238,6 @@ PACK_STRUCT_END
     if((errf) != NULL)                                         \
       (errf)((arg),(err));                                     \
   } while (0)
-
-#endif /* LWIP_EVENT_API */
 
 /* This structure represents a TCP segment on the unsent, unacked queues */
 struct tcp_seg {
@@ -471,9 +452,7 @@ u16_t tcp_eff_send_mss_impl(u16_t sendmss, const ip_addr_t *dest
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
 #endif /* TCP_CALCULATE_EFF_SEND_MSS */
 
-#if LWIP_CALLBACK_API
 err_t tcp_recv_null(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err);
-#endif /* LWIP_CALLBACK_API */
 
 #if TCP_DEBUG || TCP_INPUT_DEBUG || TCP_OUTPUT_DEBUG
 void tcp_debug_print(struct tcp_hdr *tcphdr);
