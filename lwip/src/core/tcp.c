@@ -1388,8 +1388,6 @@ tcp_alloc(u8_t prio)
     pcb->keep_intvl = TCP_KEEPINTVL_DEFAULT;
     pcb->keep_cnt   = TCP_KEEPCNT_DEFAULT;
 #endif /* LWIP_TCP_KEEPALIVE */
-
-    pcb->keep_cnt_sent = 0;
   }
   return pcb;
 }
