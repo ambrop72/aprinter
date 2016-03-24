@@ -1104,11 +1104,8 @@ tcp_fasttmr(void)
 
   ++tcp_timer_ctr;
 
-  pcb = tcp_active_pcbs;
-
-  while (pcb != NULL) {
+  for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     if (pcb->last_timer != tcp_timer_ctr) {
-      struct tcp_pcb *next;
       pcb->last_timer = tcp_timer_ctr;
       /* send delayed ACKs */
       if (pcb->flags & TF_ACK_DELAY) {
@@ -1117,11 +1114,6 @@ tcp_fasttmr(void)
         tcp_output(pcb);
         pcb->flags &= ~(TF_ACK_DELAY | TF_ACK_NOW);
       }
-
-      next = pcb->next;
-      pcb = next;
-    } else {
-      pcb = pcb->next;
     }
   }
 }
