@@ -33,8 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Likely.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
 #include <aprinter/hal/generic/SdioInterface.h>

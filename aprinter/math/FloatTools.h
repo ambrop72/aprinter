@@ -35,7 +35,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/IntTypeInfo.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/PrintInt.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -35,7 +35,7 @@
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/EnableIf.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

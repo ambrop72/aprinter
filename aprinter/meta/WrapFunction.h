@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_WRAP_FUNCTION_H
 #define AMBROLIB_WRAP_FUNCTION_H
 
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

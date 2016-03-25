@@ -34,7 +34,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/hal/avr/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>

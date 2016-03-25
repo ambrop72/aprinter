@@ -33,8 +33,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Inline.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/FloatTools.h>
 
 #ifdef AMBROLIB_AVR

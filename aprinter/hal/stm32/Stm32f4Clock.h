@@ -30,7 +30,7 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/base/JoinTokens.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>

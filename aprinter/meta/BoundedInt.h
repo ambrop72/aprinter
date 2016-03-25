@@ -32,7 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/IntSqrt.h>
 #include <aprinter/math/IntMultiply.h>
 #include <aprinter/math/IntDivide.h>

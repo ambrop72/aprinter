@@ -28,8 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/base/Inline.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

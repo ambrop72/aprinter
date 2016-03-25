@@ -25,7 +25,7 @@
 #ifndef APRINTER_CALL_IF_EXISTS_H
 #define APRINTER_CALL_IF_EXISTS_H
 
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

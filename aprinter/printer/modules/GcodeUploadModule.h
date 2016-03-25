@@ -34,7 +34,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/PrintInt.h>
 #include <aprinter/fs/BufferedFile.h>
 

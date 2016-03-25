@@ -25,7 +25,7 @@
 #ifndef APRINTER_ONE_OF_H
 #define APRINTER_ONE_OF_H
 
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

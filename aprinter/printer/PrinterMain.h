@@ -56,10 +56,9 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/Inline.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>

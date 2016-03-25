@@ -47,7 +47,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/MotionPlanner.h>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2016 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,10 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_LIKELY_H
-#define AMBROLIB_LIKELY_H
+#ifndef APRINTER_HINTS_H
+#define APRINTER_HINTS_H
 
 #define AMBRO_LIKELY(x) __builtin_expect((x), 1)
 #define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
+
+#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
+#define APRINTER_NO_INLINE __attribute__((noinline))
 
 #endif

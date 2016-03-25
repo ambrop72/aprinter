@@ -47,8 +47,7 @@
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Likely.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/actuators/AxisDriverConsumer.h>

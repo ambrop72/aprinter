@@ -39,7 +39,7 @@
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/printer/actuators/AxisDriverConsumer.h>
 

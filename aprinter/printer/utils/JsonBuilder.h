@@ -32,7 +32,7 @@
 #include <inttypes.h>
 #include <math.h>
 
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/MemRef.h>
 #include <aprinter/math/FloatTools.h>

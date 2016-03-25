@@ -32,7 +32,7 @@
 #include <stdio.h>
 
 #include <aprinter/base/ProgramMemory.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/math/PrintInt.h>
 

@@ -27,8 +27,7 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/WrapType.h>
-#include <aprinter/base/Inline.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 

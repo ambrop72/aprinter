@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/ProgramMemory.h>
 
 #include <aprinter/BeginNamespace.h>

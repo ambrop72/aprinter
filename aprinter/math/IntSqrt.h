@@ -32,7 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 
 #ifdef AMBROLIB_AVR
 #include <aprinter/avr-asm-ops/sqrt_26_large.h>

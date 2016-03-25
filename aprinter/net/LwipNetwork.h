@@ -54,7 +54,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/BinaryTools.h>
-#include <aprinter/base/Likely.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/misc/ClockUtils.h>

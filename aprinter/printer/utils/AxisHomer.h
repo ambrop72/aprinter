@@ -33,7 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ExprFixedPoint.h>

@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/base/Inline.h>
+#include <aprinter/base/Hints.h>
 
 AMBRO_ALWAYS_INLINE
 static uint32_t mul_24_16_r15 (__uint24 op1, uint16_t op2)
