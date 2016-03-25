@@ -357,36 +357,6 @@ netif_remove(struct netif *netif)
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
 }
 
-/**
- * Find a network interface by searching for its name
- *
- * @param name the name of the netif (like netif->name) plus concatenated number
- * in ascii representation (e.g. 'en0')
- */
-struct netif *
-netif_find(const char *name)
-{
-  struct netif *netif;
-  u8_t num;
-
-  if (name == NULL) {
-    return NULL;
-  }
-
-  num = name[2] - '0';
-
-  for (netif = netif_list; netif != NULL; netif = netif->next) {
-    if (num == netif->num &&
-       name[0] == netif->name[0] &&
-       name[1] == netif->name[1]) {
-      LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: found %c%c\n", name[0], name[1]));
-      return netif;
-    }
-  }
-  LWIP_DEBUGF(NETIF_DEBUG, ("netif_find: didn't find %c%c\n", name[0], name[1]));
-  return NULL;
-}
-
 #if LWIP_IPV4
 /**
  * Change the IP address of a network interface

@@ -316,12 +316,6 @@ void netif_set_addr(struct netif *netif, const ip4_addr_t *ipaddr, const ip4_add
 #endif /* LWIP_IPV4 */
 void netif_remove(struct netif * netif);
 
-/* Returns a network interface given its name. The name is of the form
-   "et0", where the first two letters are the "name" field in the
-   netif structure, and the digit is in the num field in the same
-   structure. */
-struct netif *netif_find(const char *name);
-
 void netif_set_default(struct netif *netif);
 
 #if LWIP_IPV4
