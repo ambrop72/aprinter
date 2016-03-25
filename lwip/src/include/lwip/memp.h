@@ -50,7 +50,7 @@ typedef enum {
   MEMP_MAX
 } memp_t;
 
-#if MEMP_MEM_MALLOC || MEMP_USE_CUSTOM_POOLS
+#if MEMP_MEM_MALLOC
 extern const u16_t memp_sizes[MEMP_MAX];
 #endif
 

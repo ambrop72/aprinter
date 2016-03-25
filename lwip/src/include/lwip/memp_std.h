@@ -86,14 +86,6 @@ LWIP_PBUF_MEMPOOL(PBUF_TCP,  PBUF_TCP_SIZE,            PBUF_TCP_BUFSIZE,        
 
 
 /*
- * Allow for user-defined pools; this must be explicitly set in lwipopts.h
- * since the default is to NOT look for lwippools.h
- */
-#if MEMP_USE_CUSTOM_POOLS
-#include "lwippools.h"
-#endif /* MEMP_USE_CUSTOM_POOLS */
-
-/*
  * REQUIRED CLEANUP: Clear up so we don't get "multiply defined" error later
  * (#undef is ignored for something that is not defined)
  */

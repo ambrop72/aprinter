@@ -139,16 +139,6 @@
 #define MEMP_SANITY_CHECK               0
 #endif
 
-/**
- * MEMP_USE_CUSTOM_POOLS==1: whether to include a user file lwippools.h
- * that defines additional pools beyond the "standard" ones required
- * by lwIP. If you set this to 1, you must have lwippools.h in your
- * include path somewhere.
- */
-#ifndef MEMP_USE_CUSTOM_POOLS
-#define MEMP_USE_CUSTOM_POOLS           0
-#endif
-
 /*
    ------------------------------------------------
    ---------- Internal Memory Pool Sizes ----------
