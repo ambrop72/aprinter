@@ -25,7 +25,7 @@
 #ifndef APRINTER_ALIAS_STRUCT_H
 #define APRINTER_ALIAS_STRUCT_H
 
-#include <aprinter/base/JoinTokens.h>
+#include <aprinter/base/Preprocessor.h>
 
 #define APRINTER_AS_NUM_MACRO_ARGS(...) APRINTER_AS_NUM_MACRO_ARGS_HELPER1(__VA_ARGS__, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define APRINTER_AS_NUM_MACRO_ARGS_HELPER1(...) APRINTER_AS_NUM_MACRO_ARGS_HELPER2(__VA_ARGS__)

@@ -25,7 +25,7 @@
 #include <errno.h>
 #include <sys/types.h>
 
-#include <aprinter/base/JoinTokens.h>
+#include <aprinter/base/Preprocessor.h>
 
 #include "stm32f4_support.h"
 

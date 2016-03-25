@@ -31,7 +31,7 @@
 #include <avr/pgmspace.h>
 #endif
 
-#include <aprinter/base/Stringify.h>
+#include <aprinter/base/Preprocessor.h>
 
 #ifdef AMBROLIB_EMERGENCY_ACTION
 #define AMBRO_ASSERT_EMERGENCY_ACTION AMBROLIB_EMERGENCY_ACTION

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2016 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,8 +22,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STRINGIFY_H
-#define AMBROLIB_STRINGIFY_H
+#ifndef APRINTER_PREPROCESSOR_H
+#define APRINTER_PREPROCESSOR_H
+
+#define APRINTER_JOIN_HELPER(x, y) x##y
+#define APRINTER_JOIN(x, y) APRINTER_JOIN_HELPER(x, y)
 
 #define AMBRO_STRINGIFY_HELPER(x) #x
 #define AMBRO_STRINGIFY(x) AMBRO_STRINGIFY_HELPER(x)

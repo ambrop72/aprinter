@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include <aprinter/base/Stringify.h>
+#include <aprinter/base/Preprocessor.h>
 
 typedef uint8_t u8_t;
 typedef int8_t s8_t;
