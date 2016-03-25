@@ -42,16 +42,6 @@
 
 #include "arch/cc.h"
 
-/** Temporary: define format string for size_t if not defined in cc.h */
-#ifndef SZT_F
-#define SZT_F U32_F
-#endif /* SZT_F */
-/** Temporary upgrade helper: define format string for u8_t as hex if not
-    defined in cc.h */
-#ifndef X8_F
-#define X8_F  "02x"
-#endif /* X8_F */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
