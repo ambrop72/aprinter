@@ -1,0 +1,58 @@
+
+# Run the configuration service.
+nix-build nix/ -A aprinterService -o ~/aprinter-service && ~/aprinter-service/bin/aprinter-service
+
+# Build firmware.
+python -B config_system/generator/generate.py --config ~/Downloads/aprinter_config.json | nix-build - -o ~/aprinter-build
+
+# Flash various boards.
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.bin -t duet
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.bin -t arduino_due
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.hex -t arduino_mega
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.elf -t stm32f4
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.hex -t teensy3
+python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.hex -t melzi_programmer
+
+# OpenOCD
+# Note, if using SWO, need to actually read it.
+# For SWO you first need this: "mkfifo ~/swo".
+# STM32F4-Discovery:
+openocd -f interface/stlink-v2.cfg -f target/stm32f4x_stlink.cfg -c 'tpiu config internal /home/ambro/swo uart off 168000000'
+# Teensy3 with Discovery:
+openocd -f interface/stlink-v2.cfg -f /home/ambro/k20.cfg -c 'tpiu config internal /home/ambro/swo uart off 96000000; init; reset halt'
+# Teensy3 with JTAG:
+openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; reset halt'
+
+# Read SWO output.
+while true; do swodec --dump-inst < ~/swo; sleep 5; done
+
+# GDB
+arm-none-eabi-gdb -ex 'target remote 127.0.0.1:3333' ~/aprinter-build/aprinter-nixbuild.elf
+
+# Teensy3 unsecure.
+openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; kinetis mdm mass_erase'
+
+# List data symbols sorted by size.
+arm-none-eabi-nm --print-size --size-sort -td ~/aprinter-build/aprinter-nixbuild.elf |egrep ' (b|B|d|D|g|G) '
+
+# Download network speed test.
+curl http://192.168.111.142/downloadTest >/dev/null
+
+# Upload network speed test.
+python -B upload.py -s 512 -l 100000000 | pv | nc 192.168.111.142 80
+
+# Download file from SD card.
+time curl http://192.168.111.142/dino.gcode >/dev/null
+
+# Upload file to SD card.
+time python -B upload.py -s 512 -l 100000000 -p /rr_upload?name=a.gcode | pv | nc 192.168.111.142 80
+
+# Test writing file to SD card.
+M935 F0.txt S10000000 D1111111111111122222222222222222333333
+M935 F0.txt S10000000 D123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF
+
+# Test reading file from SD card.
+M936 F0.txt
+
+# Run a local web interface forwarding API calls to machine.
+nix-build nix/ -A aprinterWebifTest -o ~/aprinter-webif-test && ~/aprinter-webif-test/bin/aprinter-webif-test
