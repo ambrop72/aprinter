@@ -2625,6 +2625,7 @@ public:
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
+private:
     static void set_force_timer (Context c)
     {
         auto *ob = Object::self(c);
@@ -2635,7 +2636,6 @@ public:
         ob->force_timer.appendAt(c, force_time);
     }
     
-private:
     static void unlocked_timer_handler (Context c)
     {
         auto *ob = Object::self(c);
@@ -3001,6 +3001,7 @@ private:
         }
     }
     
+private:
     struct PlannerUnion {
         struct Object : public ObjUnionBase<PlannerUnion, typename PrinterMain::Object, MakeTypeList<
             PlannerUnionPlanner,
