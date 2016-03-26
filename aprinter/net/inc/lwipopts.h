@@ -147,3 +147,7 @@
 // been changed to allocate PBUF_POOL instead of PBUF_RAM pbufs in many places.
 #define PBUF_POOL_SIZE 1
 #define PBUF_POOL_BUFSIZE 384
+
+// No need to specifically limit the TCP MSS against interface MTU,
+// because the MTU is standard Ethernet and consistent with our TCP_MSS.
+#define TCP_CALCULATE_EFF_SEND_MSS 0
