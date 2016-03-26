@@ -144,8 +144,6 @@ static const char *memp_desc[MEMP_MAX] = {
 };
 #endif /* LWIP_DEBUG */
 
-#if MEMP_SEPARATE_POOLS
-
 /** This creates each memory pool. These are named memp_memory_XXX_base (where
  * XXX is the name of the pool defined in memp_std.h).
  * To relocate a pool, declare it as extern in cc.h. Example for GCC:
@@ -160,16 +158,6 @@ static u8_t *const memp_bases[] = {
 #define LWIP_MEMPOOL(name,num,size,desc) memp_memory_ ## name ## _base,
 #include "lwip/memp_std.h"
 };
-
-#else /* MEMP_SEPARATE_POOLS */
-
-/** This is the actual memory used by the pools (all pools in one big block). */
-static u8_t memp_memory[MEM_ALIGNMENT - 1
-#define LWIP_MEMPOOL(name,num,size,desc) + ( (num) * (MEMP_SIZE + MEMP_ALIGN_SIZE(size) ) )
-#include "lwip/memp_std.h"
-];
-
-#endif /* MEMP_SEPARATE_POOLS */
 
 #if MEMP_SANITY_CHECK
 /**
@@ -280,25 +268,16 @@ memp_overflow_check_all(void)
   u16_t i, j;
   struct memp *p;
 
-#if !MEMP_SEPARATE_POOLS
-  p = (struct memp *)LWIP_MEM_ALIGN(memp_memory);
-#endif /* !MEMP_SEPARATE_POOLS */
   for (i = 0; i < MEMP_MAX; ++i) {
-#if MEMP_SEPARATE_POOLS
     p = (struct memp *)(memp_bases[i]);
-#endif /* MEMP_SEPARATE_POOLS */
     for (j = 0; j < memp_num[i]; ++j) {
       memp_overflow_check_element_overflow(p, i);
       p = (struct memp*)((u8_t*)p + MEMP_SIZE + memp_sizes[i] + MEMP_SANITY_REGION_AFTER_ALIGNED);
     }
   }
-#if !MEMP_SEPARATE_POOLS
-  p = (struct memp *)LWIP_MEM_ALIGN(memp_memory);
-#endif /* !MEMP_SEPARATE_POOLS */
+  
   for (i = 0; i < MEMP_MAX; ++i) {
-#if MEMP_SEPARATE_POOLS
     p = (struct memp *)(memp_bases[i]);
-#endif /* MEMP_SEPARATE_POOLS */
     for (j = 0; j < memp_num[i]; ++j) {
       memp_overflow_check_element_underflow(p, i);
       p = (struct memp*)((u8_t*)p + MEMP_SIZE + memp_sizes[i] + MEMP_SANITY_REGION_AFTER_ALIGNED);
@@ -316,13 +295,8 @@ memp_overflow_init(void)
   struct memp *p;
   u8_t *m;
 
-#if !MEMP_SEPARATE_POOLS
-  p = (struct memp *)LWIP_MEM_ALIGN(memp_memory);
-#endif /* !MEMP_SEPARATE_POOLS */
   for (i = 0; i < MEMP_MAX; ++i) {
-#if MEMP_SEPARATE_POOLS
     p = (struct memp *)(memp_bases[i]);
-#endif /* MEMP_SEPARATE_POOLS */
     for (j = 0; j < memp_num[i]; ++j) {
 #if MEMP_SANITY_REGION_BEFORE_ALIGNED > 0
       m = (u8_t*)p + MEMP_SIZE - MEMP_SANITY_REGION_BEFORE_ALIGNED;
@@ -356,15 +330,10 @@ memp_init(void)
     MEMP_STATS_AVAIL(avail, i, memp_num[i]);
   }
 
-#if !MEMP_SEPARATE_POOLS
-  memp = (struct memp *)LWIP_MEM_ALIGN(memp_memory);
-#endif /* !MEMP_SEPARATE_POOLS */
   /* for every pool: */
   for (i = 0; i < MEMP_MAX; ++i) {
     memp_tab[i] = NULL;
-#if MEMP_SEPARATE_POOLS
     memp = (struct memp*)LWIP_MEM_ALIGN(memp_bases[i]);
-#endif /* MEMP_SEPARATE_POOLS */
     /* create a linked list of memp elements */
     for (j = 0; j < memp_num[i]; ++j) {
       memp->next = memp_tab[i];
