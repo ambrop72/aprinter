@@ -286,6 +286,22 @@ M930
 
 The TCP console will be available on port 23. You tell Pronterface to connect to this TCP interface by entering `<ip_address>:23` into the Port box. By default, two concurrent connections are permitted.
 
+### Axes
+
+The standard gcodes for axis motion are implemented:
+- `G0`, `G1`: Linear move. Parameter F is the speed limit in mm/min, parameter T is the speed limit as nominal time (see Maximum speed section).
+  Axis coordinates are given by parameters (e.g. X10 Y20), and lasers can also be controlled (see Lasers section).
+  An optional R parameter specifies which coordinates are to be treated as relative. If R is given, the axes which are included in R will be
+  relative, others will be absolute. For example, a plain `R` will use absolute coordinates for all axes, while `RXY` will
+  use relative coordinates for X and Y, and absolute coordinates for other axes. This overrides but does not affect the absolute/relative state
+  controlled by e.g. G90, G91.
+- `G4`: Dwell. The time is specified by parameter P (milliseconds) or S (seconds). A dwell can include laser action (see Lasers section).
+- `G28`: Home axes. Specific axes may be specified to only home those. Without any (recognized) axis specified, all homable axes are homed,
+  except virtual axes that are configured to not home by default.
+- `G90`: Put all axes to absolute mode.
+- `G91`: Put all axes to relative mode.
+- `G92`: Assume specific axis positions. Note that this works with virtual axes too, by assuming corresponding positions of physical axes.
+
 ### Heaters
 
 Each heater is identified with a one-character name and a number. In the configuration editor, the number may be omitted, in which case it is assumed to be zero. On the other hand, the firmware will assume the number 0 if a heater is specified in a heater-related command with just a letter. Typical heater names are B (bed), T/T0 (first extruder) and T1 (second extruder).

@@ -169,7 +169,7 @@ public:
     struct Object;
     
 public:
-    using ReservedAxisNames = MakeTypeList<WrapInt<'F'>, WrapInt<'T'>, WrapInt<'P'>, WrapInt<'S'>>;
+    using ReservedAxisNames = MakeTypeList<WrapInt<'F'>, WrapInt<'T'>, WrapInt<'P'>, WrapInt<'S'>, WrapInt<'R'>>;
     
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
@@ -191,6 +191,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_g_command, check_g_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_axis_mask, collect_axis_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_g92_check_axis, g92_check_axis)
@@ -2024,14 +2025,20 @@ public:
             TheAxis::update_new_pos(c, req, ignore_limits);
         }
         
-        static bool collect_new_pos (Context c, TheCommand *cmd, CommandPartRef part)
+        static void collect_axis_mask (char axis_name, PhysVirtAxisMaskType *mask)
+        {
+            if (AMBRO_UNLIKELY(axis_name == TheAxis::AxisName)) {
+                *mask |= AxisMask;
+            }
+        }
+        
+        static bool collect_new_pos (Context c, TheCommand *cmd, CommandPartRef part, PhysVirtAxisMaskType axis_relative)
         {
             auto *axis = TheAxis::Object::self(c);
-            auto *mo = PrinterMain::Object::self(c);
             
             if (AMBRO_UNLIKELY(cmd->getPartCode(c, part) == TheAxis::AxisName)) {
                 FpType req = cmd->getPartFpValue(c, part);
-                if (mo->axis_relative & AxisMask) {
+                if ((axis_relative & AxisMask)) {
                     req += axis->m_old_pos;
                 }
                 move_add_axis<PhysVirtAxisIndex>(c, req);
@@ -2444,6 +2451,16 @@ private:
                     
                     move_begin(c);
                     
+                    PhysVirtAxisMaskType axis_relative = ob->axis_relative;
+                    char const *r_param = cmd->get_command_param_str(c, 'R', nullptr);
+                    if (r_param) {
+                        axis_relative = 0;
+                        while (*r_param) {
+                            ListForEachForward<PhysVirtAxisHelperList>(LForeach_collect_axis_mask(), *r_param, &axis_relative);
+                            r_param++;
+                        }
+                    }
+                    
                     FpType dwell_time_ticks = 0.0f;
                     bool seen_t = false;
                     
@@ -2451,7 +2468,7 @@ private:
                     for (decltype(num_parts) i = 0; i < num_parts; i++) {
                         CommandPartRef part = cmd->getPart(c, i);
                         
-                        if (cmd_number != 4 && !ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cmd, part)) {
+                        if (cmd_number != 4 && !ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cmd, part, axis_relative)) {
                             continue;
                         }
                         
