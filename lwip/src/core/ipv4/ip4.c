@@ -625,24 +625,6 @@ ip4_input(struct pbuf *p, struct netif *inp)
 #endif /* IP_REASSEMBLY */
   }
 
-#if IP_OPTIONS_ALLOWED == 0 /* no support for IP options in the IP header? */
-
-#if LWIP_IGMP
-  /* there is an extra "router alert" option in IGMP messages which we allow for but do not police */
-  if ((iphdr_hlen > IP_HLEN) &&  (IPH_PROTO(iphdr) != IP_PROTO_IGMP)) {
-#else
-  if (iphdr_hlen > IP_HLEN) {
-#endif /* LWIP_IGMP */
-    LWIP_DEBUGF(IP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("IP packet dropped since there were IP options (while IP_OPTIONS_ALLOWED == 0).\n"));
-    pbuf_free(p);
-    IP_STATS_INC(ip.opterr);
-    IP_STATS_INC(ip.drop);
-    /* unsupported protocol feature */
-    MIB2_STATS_INC(mib2.ipinunknownprotos);
-    return ERR_OK;
-  }
-#endif /* IP_OPTIONS_ALLOWED == 0 */
-
   /* send to upper layers */
   LWIP_DEBUGF(IP_DEBUG, ("ip_input: \n"));
   ip4_debug_print(p);

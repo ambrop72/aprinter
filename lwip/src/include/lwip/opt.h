@@ -423,15 +423,6 @@
 #endif /* !LWIP_IPV4 */
 
 /**
- * IP_OPTIONS_ALLOWED: Defines the behavior for IP options.
- *      IP_OPTIONS_ALLOWED==0: All packets with IP options are dropped.
- *      IP_OPTIONS_ALLOWED==1: IP options are allowed (but not parsed).
- */
-#ifndef IP_OPTIONS_ALLOWED
-#define IP_OPTIONS_ALLOWED              1
-#endif
-
-/**
  * IP_REASS_MAXAGE: Maximum time (in multiples of IP_TMR_INTERVAL - so seconds, normally)
  * a fragmented IP packet waits for all fragments to arrive. If not all fragments arrived
  * in this time, the whole packet is discarded.
