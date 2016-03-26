@@ -51,13 +51,6 @@
 
 #include <string.h>
 
-/** Small optimization: set to 0 if incoming PBUF_POOL pbuf always can be
- * used to modify and send a response packet (and to 1 if this is not the case,
- * e.g. when link header is stripped of when receiving) */
-#ifndef LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN
-#define LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN 1
-#endif /* LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN */
-
 /* The amount of data from the original packet to return in a dest-unreachable */
 #define ICMP_DEST_UNREACH_DATASIZE 8
 
@@ -143,46 +136,34 @@ icmp_input(struct pbuf *p, struct netif *inp)
       }
     }
 #endif
-#if LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN
-    if (pbuf_header(p, (PBUF_IP_HLEN + PBUF_LINK_HLEN + PBUF_LINK_ENCAPSULATION_HLEN))) {
-      /* p is not big enough to contain link headers
-       * allocate a new one and copy p into it
-       */
-      struct pbuf *r;
-      /* allocate new packet buffer with space for link headers */
-      r = pbuf_alloc_pool(PBUF_LINK, p->tot_len + hlen, hlen + sizeof(struct icmp_echo_hdr));
-      if (r == NULL) {
-        LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: allocating new pbuf failed\n"));
-        goto icmperr;
-      }
-      LWIP_ASSERT("check that first pbuf can hold struct the ICMP header",
-                  (r->len >= hlen + sizeof(struct icmp_echo_hdr)));
-      /* copy the ip header */
-      MEMCPY(r->payload, iphdr_in, hlen);
-      /* switch r->payload back to icmp header */
-      if (pbuf_header(r, -hlen)) {
-        LWIP_ASSERT("icmp_input: moving r->payload to icmp header failed\n", 0);
-        pbuf_free(r);
-        goto icmperr;
-      }
-      /* copy the rest of the packet without ip header */
-      if (pbuf_copy(r, p) != ERR_OK) {
-        LWIP_ASSERT("icmp_input: copying to new pbuf failed\n", 0);
-        pbuf_free(r);
-        goto icmperr;
-      }
-      /* free the original p */
-      pbuf_free(p);
-      /* we now have an identical copy of p that has room for link headers */
-      p = r;
-    } else {
-      /* restore p->payload to point to icmp header */
-      if (pbuf_header(p, -(s16_t)(PBUF_IP_HLEN + PBUF_LINK_HLEN + PBUF_LINK_ENCAPSULATION_HLEN))) {
-        LWIP_ASSERT("icmp_input: restoring original p->payload failed\n", 0);
-        goto icmperr;
-      }
+    /* allocate a new pbuf and copy p into it */
+    struct pbuf *r;
+    /* allocate new packet buffer with space for link headers */
+    r = pbuf_alloc_pool(PBUF_LINK, p->tot_len + hlen, hlen + sizeof(struct icmp_echo_hdr));
+    if (r == NULL) {
+      LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: allocating new pbuf failed\n"));
+      goto icmperr;
     }
-#endif /* LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN */
+    LWIP_ASSERT("check that first pbuf can hold struct the ICMP header",
+                (r->len >= hlen + sizeof(struct icmp_echo_hdr)));
+    /* copy the ip header */
+    MEMCPY(r->payload, iphdr_in, hlen);
+    /* switch r->payload back to icmp header */
+    if (pbuf_header(r, -hlen)) {
+      LWIP_ASSERT("icmp_input: moving r->payload to icmp header failed\n", 0);
+      pbuf_free(r);
+      goto icmperr;
+    }
+    /* copy the rest of the packet without ip header */
+    if (pbuf_copy(r, p) != ERR_OK) {
+      LWIP_ASSERT("icmp_input: copying to new pbuf failed\n", 0);
+      pbuf_free(r);
+      goto icmperr;
+    }
+    /* free the original p */
+    pbuf_free(p);
+    /* we now have an identical copy of p that has room for link headers */
+    p = r;
     /* At this point, all checks are OK. */
     /* We generate an answer by switching the dest and src ip addresses,
      * setting the icmp type to ECHO_RESPONSE and updating the checksum. */
@@ -268,13 +249,11 @@ lenerr:
   ICMP_STATS_INC(icmp.lenerr);
   MIB2_STATS_INC(mib2.icmpinerrors);
   return;
-#if LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN || !LWIP_MULTICAST_PING || !LWIP_BROADCAST_PING
 icmperr:
   pbuf_free(p);
   ICMP_STATS_INC(icmp.err);
   MIB2_STATS_INC(mib2.icmpinerrors);
   return;
-#endif /* LWIP_ICMP_ECHO_CHECK_INPUT_PBUF_LEN || !LWIP_MULTICAST_PING || !LWIP_BROADCAST_PING */
 }
 
 /**
