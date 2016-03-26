@@ -196,8 +196,7 @@
 /**
  * MEMP_NUM_FRAG_PBUF: the number of IP fragments simultaneously sent
  * (fragments, not whole packets!).
- * This is only used with IP_FRAG_USES_STATIC_BUF==0 and
- * only has to be > 1 with DMA-enabled MACs
+ * This is has to be > 1 with DMA-enabled MACs
  * where the packet is not yet sent when netif->output returns.
  */
 #ifndef MEMP_NUM_FRAG_PBUF
@@ -439,24 +438,6 @@
  */
 #ifndef IP_REASS_MAX_PBUFS
 #define IP_REASS_MAX_PBUFS              10
-#endif
-
-/**
- * IP_FRAG_USES_STATIC_BUF==1: Use a static MTU-sized buffer for IP
- * fragmentation. Otherwise pbufs are allocated and reference the original
- * packet data to be fragmented.
- * ATTENTION: IP_FRAG_USES_STATIC_BUF==1 may not be used for DMA-enabled MACs!
- */
-#ifndef IP_FRAG_USES_STATIC_BUF
-#define IP_FRAG_USES_STATIC_BUF         0
-#endif
-
-/**
- * IP_FRAG_MAX_MTU: Assumed max MTU on any interface for IP frag buffer
- * (requires IP_FRAG_USES_STATIC_BUF==1)
- */
-#if IP_FRAG_USES_STATIC_BUF && !defined(IP_FRAG_MAX_MTU)
-#define IP_FRAG_MAX_MTU                 1500
 #endif
 
 /**
