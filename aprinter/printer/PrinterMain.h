@@ -785,33 +785,6 @@ public:
         }
         
     public:
-        class InhibitMsg {
-        public:
-            InhibitMsg (CommandStream *command_stream)
-            {
-                m_command_stream = command_stream;
-                if (m_command_stream) {
-                    m_saved_accept_msg = m_command_stream->m_accept_msg;
-                    m_command_stream->m_accept_msg = false;
-                }
-            }
-            
-            ~InhibitMsg ()
-            {
-                if (m_command_stream) {
-                    m_command_stream->m_accept_msg = m_saved_accept_msg;
-                }
-            }
-            
-        private:
-            InhibitMsg (InhibitMsg const &) = delete;
-            InhibitMsg & operator= (InhibitMsg const &) = delete;
-            
-            CommandStream *m_command_stream;
-            bool m_saved_accept_msg;
-        };
-        
-    public:
         // NOTE: Null cmd means the stream is gone, do not stopCapture.
         // In this case this is an in-line callback from deinit(), so no funny business there.
         using CapturedCommandHandler = void (*) (Context c, CommandStream *cmd);
@@ -905,8 +878,7 @@ private:
             reply_poke(c);
         }
         
-    private:
-        void reply_poke (Context c)
+        void poke_with_inhibit (Context c, CommandStream *inhibit_stream)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->msg_length <= MaxMsgSize)
@@ -925,7 +897,7 @@ private:
             }
             
             for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
-                if (stream->m_accept_msg) {
+                if (stream != inhibit_stream && stream->m_accept_msg) {
                     // Ensure that we only write a message to the stream if it has space to accept it
                     // entirely, and additionally, if a command is active on the stream, that we do not
                     // use up the reserved buffer space for its response. Take into account also any
@@ -942,6 +914,12 @@ private:
             }
             
             o->msg_length = 0;
+        }
+        
+    private:
+        void reply_poke (Context c)
+        {
+            poke_with_inhibit(c, nullptr);
         }
         
         void reply_append_buffer (Context c, char const *str, size_t length)

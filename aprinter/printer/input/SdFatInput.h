@@ -403,10 +403,7 @@ private:
         } else {
             output->reply_append_pstr(c, AMBRO_PSTR("//SD mounted\n"));
         }
-        {
-            typename TheCommand::InhibitMsg inhibit(err_cmd);
-            output->reply_poke(c);
-        }
+        output->poke_with_inhibit(c, err_cmd);
         
         if (TheFs::FsWritable && !error_code && o->mount_writable) {
             AccessInterface::complete_mount_requests(c, false);
@@ -435,10 +432,7 @@ private:
             AMBRO_PGM_P msgstr = is_mount ? AMBRO_PSTR("//SD write-mounted\n") : AMBRO_PSTR("//SD write-unmounted\n");
             output->reply_append_pstr(c, msgstr);
         }
-        {
-            typename TheCommand::InhibitMsg inhibit(err_cmd);
-            output->reply_poke(c);
-        }
+        output->poke_with_inhibit(c, err_cmd);
         
         if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
             report_mount_result(c, is_mount);
