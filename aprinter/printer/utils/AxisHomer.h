@@ -38,7 +38,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ExprFixedPoint.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/printer/planning/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>

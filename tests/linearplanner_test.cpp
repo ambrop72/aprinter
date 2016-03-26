@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 #include <aprinter/base/Assert.h>
-#include <aprinter/printer/LinearPlanner.h>
+#include <aprinter/printer/planning/LinearPlanner.h>
 
 using namespace APrinter;
 

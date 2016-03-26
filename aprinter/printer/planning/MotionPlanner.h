@@ -51,7 +51,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/actuators/AxisDriverConsumer.h>
-#include <aprinter/printer/LinearPlanner.h>
+#include <aprinter/printer/planning/LinearPlanner.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>

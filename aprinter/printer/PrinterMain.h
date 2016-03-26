@@ -66,7 +66,7 @@
 #include <aprinter/printer/actuators/Steppers.h>
 #include <aprinter/printer/actuators/StepperGroup.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/printer/planning/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/GcodeCommand.h>

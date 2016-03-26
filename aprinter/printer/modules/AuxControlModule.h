@@ -50,7 +50,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/Configuration.h>
-#include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/printer/planning/MotionPlanner.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
