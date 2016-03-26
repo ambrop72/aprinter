@@ -1610,13 +1610,6 @@
 #endif
 
 /**
- * SYS_DEBUG: Enable debugging in sys.c.
- */
-#ifndef SYS_DEBUG
-#define SYS_DEBUG                       LWIP_DBG_OFF
-#endif
-
-/**
  * TIMERS_DEBUG: Enable debugging in timers.c.
  */
 #ifndef TIMERS_DEBUG
