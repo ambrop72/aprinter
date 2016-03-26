@@ -53,6 +53,7 @@
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -60,6 +61,9 @@ template <typename Context, typename ParentObject, typename TThePrinterMain, typ
 class AuxControlModule {
 public:
     struct Object;
+    
+public:
+    using ReservedHeaterFanNames = MakeTypeList<WrapInt<'S'>>;
     
 private:
     using ThePrinterMain = TThePrinterMain;
@@ -226,6 +230,8 @@ private:
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
+        static_assert(NameCharIsValid<HeaterSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Heater name not allowed");
+        
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
         using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
@@ -708,6 +714,8 @@ private:
         struct Object;
         
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
+        static_assert(NameCharIsValid<FanSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Fan name not allowed");
+        
         using ThePwm = typename FanSpec::PwmService::template Pwm<Context, Object>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         

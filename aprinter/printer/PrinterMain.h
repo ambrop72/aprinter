@@ -73,6 +73,7 @@
 #include <aprinter/printer/OutputStream.h>
 #include <aprinter/printer/HookExecutor.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -166,6 +167,9 @@ template <typename Context, typename ParentObject, typename Params>
 class PrinterMain {
 public:
     struct Object;
+    
+public:
+    using ReservedAxisNames = MakeTypeList<WrapInt<'F'>, WrapInt<'T'>, WrapInt<'P'>, WrapInt<'S'>>;
     
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
@@ -1075,6 +1079,7 @@ private:
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
         using SlaveSteppersList = typename AxisSpec::SlaveSteppersList;
         static const char AxisName = AxisSpec::Name;
+        static_assert(NameCharIsValid<AxisName, ReservedAxisNames>::Value, "Axis name not allowed");
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
         static bool const IsExtruder = AxisSpec::IsExtruder;
@@ -1415,7 +1420,11 @@ private:
     template <int LaserIndex>
     struct Laser {
         struct Object;
+        
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
+        static_assert(NameCharIsValid<LaserSpec::Name, ReservedAxisNames>::Value, "Laser name not allowed");
+        static_assert(NameCharIsValid<LaserSpec::DensityName, ReservedAxisNames>::Value, "Laser-density name not allowed");
+        
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
         using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
         
@@ -1804,6 +1813,7 @@ public:
         private:
             using VirtAxisParams = TypeListGet<ParamsVirtAxesList, VirtAxisIndex>;
             static char const AxisName = VirtAxisParams::Name;
+            static_assert(NameCharIsValid<AxisName, ReservedAxisNames>::Value, "Virt-axis name not allowed");
             static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::Value>::Value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
