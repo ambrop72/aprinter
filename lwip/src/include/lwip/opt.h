@@ -1104,8 +1104,16 @@
 #define ND6_STATS                       (LWIP_IPV6)
 #endif
 
+/**
+ * MIB2_STATS==1: Stats for SNMP MIB2.
+ */
+#ifndef MIB2_STATS
+#define MIB2_STATS                      0
+#endif
+
 #else
 
+#define LWIP_STATS_DISPLAY              0
 #define LINK_STATS                      0
 #define ETHARP_STATS                    0
 #define IP_STATS                        0
@@ -1115,8 +1123,6 @@
 #define UDP_STATS                       0
 #define TCP_STATS                       0
 #define MEMP_STATS                      0
-#define SYS_STATS                       0
-#define LWIP_STATS_DISPLAY              0
 #define IP6_STATS                       0
 #define ICMP6_STATS                     0
 #define IP6_FRAG_STATS                  0

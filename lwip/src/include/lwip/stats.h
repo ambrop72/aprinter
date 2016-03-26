@@ -98,18 +98,6 @@ struct stats_mem {
   STAT_COUNTER illegal;
 };
 
-struct stats_syselem {
-  STAT_COUNTER used;
-  STAT_COUNTER max;
-  STAT_COUNTER err;
-};
-
-struct stats_sys {
-  struct stats_syselem sem;
-  struct stats_syselem mutex;
-  struct stats_syselem mbox;
-};
-
 struct stats_mib2 {
   /* IP */
   u32_t ipinhdrerrors;
@@ -209,9 +197,6 @@ struct stats_ {
 #endif
 #if MEMP_STATS
   struct stats_mem memp[MEMP_MAX];
-#endif
-#if SYS_STATS
-  struct stats_sys sys;
 #endif
 #if IP6_STATS
   struct stats_proto ip6;
@@ -330,18 +315,6 @@ void stats_init(void);
 #define MEMP_STATS_DISPLAY(i)
 #endif
 
-#if SYS_STATS
-#define SYS_STATS_INC(x) STATS_INC(sys.x)
-#define SYS_STATS_DEC(x) STATS_DEC(sys.x)
-#define SYS_STATS_INC_USED(x) STATS_INC_USED(sys.x, 1)
-#define SYS_STATS_DISPLAY() stats_display_sys(&lwip_stats.sys)
-#else
-#define SYS_STATS_INC(x)
-#define SYS_STATS_DEC(x)
-#define SYS_STATS_INC_USED(x)
-#define SYS_STATS_DISPLAY()
-#endif
-
 #if IP6_STATS
 #define IP6_STATS_INC(x) STATS_INC(x)
 #define IP6_STATS_DISPLAY() stats_display_proto(&lwip_stats.ip6, "IPv6")
@@ -395,14 +368,12 @@ void stats_display_proto(struct stats_proto *proto, const char *name);
 void stats_display_igmp(struct stats_igmp *igmp, const char *name);
 void stats_display_mem(struct stats_mem *mem, const char *name);
 void stats_display_memp(struct stats_mem *mem, int index);
-void stats_display_sys(struct stats_sys *sys);
 #else /* LWIP_STATS_DISPLAY */
 #define stats_display()
 #define stats_display_proto(proto, name)
 #define stats_display_igmp(igmp, name)
 #define stats_display_mem(mem, name)
 #define stats_display_memp(mem, index)
-#define stats_display_sys(sys)
 #endif /* LWIP_STATS_DISPLAY */
 
 #ifdef __cplusplus
