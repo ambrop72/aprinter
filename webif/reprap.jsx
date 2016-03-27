@@ -1,6 +1,11 @@
 
+// Constants
+
 var statusTableWidth = "400px";
-var statusRefreshInterval = 5000;
+var statusRefreshInterval = 2000;
+
+
+// Utility functions
 
 function orderObject(obj) {
     var arr = $.map(obj, function(val, key) { return {key: key, val: val}; });
@@ -11,6 +16,16 @@ function orderObject(obj) {
 function getNumberInput(input) {
     return $.trim(input.value) - 0;
 }
+
+function showError(error_str) {
+    console.log('ERROR: '+error_str);
+}
+
+function $has(obj, prop) {
+    return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+// Main React classes
 
 var AxesTable = React.createClass({
     axisGo: function(axis_name) {
@@ -140,7 +155,7 @@ var FansTable = React.createClass({
                 {$.map(orderObject(this.props.fans), function(fan) { return (
                     <tr key={fan.key}>
                         <td><b>{fan.key}</b></td>
-                        <td>{(fan.val.target * 100).toPrecision(3)}</td>
+                        <td>{(fan.val.target === 0) ? "off" : (fan.val.target * 100).toPrecision(3)}</td>
                         <td></td>
                         <td>
                             <div className="input-group">
@@ -158,43 +173,74 @@ var FansTable = React.createClass({
     );}
 });
 
-var StateWrapper = React.createClass({
-    getInitialState: function() {
-        return this.props.initial_state;
-    },
+var Buttons1 = React.createClass({
+    render: function() { return (
+        <div>
+            <button type="button" className="btn btn-primary top-btn-margin" onClick={onBtnHomeAxes}>Home axes</button>
+            {this.props.probe_present &&
+            <button type="button" className="btn btn-primary top-btn-margin" onClick={onBtnBedProbing}>Bed probing</button>
+            }
+            <button type="button" className="btn btn-info top-btn-margin" onClick={onBtnMotorsOff}>Motors off</button>
+        </div>
+    );}
+});
+
+var Buttons2 = React.createClass({
+    render: function() { return (
+        <div>
+            <button type="button" className="btn btn-info top-btn-margin" onClick={onBtnRefresh}>Refresh</button>
+        </div>
+    );}
+});
+
+
+// Gluing of react classes into page
+
+var ComponentWrapper = React.createClass({
     render: function() {
-        return this.props.render(this.state);
+        return this.props.render();
     }
 });
 
-var initial_state = {
-    axes: {},
-    heaters: {},
-    fans: {}
+var state = {
+    machine_state: {
+        axes: {},
+        heaters: {},
+        fans: {}
+    }
 };
 
-function render_axes(state) {
-    return <AxesTable axes={state.axes} />;
+function render_axes() {
+    return <AxesTable axes={state.machine_state.axes} />;
 }
-function render_heaters(state) {
-    return <HeatersTable heaters={state.heaters} />;
+function render_heaters() {
+    return <HeatersTable heaters={state.machine_state.heaters} />;
 }
-function render_fans(state) {
-    return <FansTable fans={state.fans} />;
+function render_fans() {
+    return <FansTable fans={state.machine_state.fans} />;
+}
+function render_buttons1() {
+    return <Buttons1 probe_present={$has(state.machine_state, 'bedProbe')} />;
+}
+function render_buttons2() {
+    return <Buttons2 />;
 }
 
-var axes_wrapper = ReactDOM.render(
-    <StateWrapper initial_state={initial_state} render={render_axes} />,
-    document.getElementById('axes_div')
-);
-var heaters_wrapper = ReactDOM.render(
-    <StateWrapper initial_state={initial_state} render={render_heaters} />,
-    document.getElementById('heaters_div')
-);
-var fans_wrapper = ReactDOM.render(
-    <StateWrapper initial_state={initial_state} render={render_fans} />,
-    document.getElementById('fans_div')
-);
+var axes_wrapper     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
+var heaters_wrapper  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
+var fans_wrapper     = ReactDOM.render(<ComponentWrapper render={render_fans} />,     document.getElementById('fans_div'));
+var buttons1_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
+var buttons2_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
+
+function updateAll() {
+    axes_wrapper.forceUpdate();
+    heaters_wrapper.forceUpdate();
+    fans_wrapper.forceUpdate();
+    buttons1_wrapper.forceUpdate();
+    buttons2_wrapper.forceUpdate();
+}
+
+// Status updating
 
 var statusRequestInProgesss = false;
 var statusNeedsAnotherUpdate = false;
@@ -218,11 +264,10 @@ function requestStatus() {
         url: '/rr_status',
         dataType: 'json',
         cache: false,
-        success: function(status) {
+        success: function(machine_state) {
             statusRequestCompleted();
-            axes_wrapper.setState(status);
-            heaters_wrapper.setState(status);
-            fans_wrapper.setState(status);
+            state.machine_state = machine_state;
+            updateAll();
         },
         error: function(xhr, status, err) {
             console.error('/rr_status', status, err.toString());
@@ -247,9 +292,8 @@ function statusTimerHandler() {
     }
 }
 
-function showError(error_str) {
-    console.log('ERROR: '+error_str);
-}
+
+// Gcode execution
 
 var gcodeQueue = [];
 
@@ -287,5 +331,27 @@ function currentGcodeCompleted() {
         sendNextQueuedGcode();
     }
 }
+
+
+// Handlers for buttons.
+
+function onBtnHomeAxes() {
+    sendGcode('G28');
+}
+
+function onBtnBedProbing() {
+    sendGcode('G32');
+}
+
+function onBtnMotorsOff() {
+    sendGcode('M18');
+}
+
+function onBtnRefresh() {
+    accelerateStatusUpdate();
+}
+
+
+// Initial actions
 
 requestStatus();
