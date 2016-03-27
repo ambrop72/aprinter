@@ -63,7 +63,7 @@ public:
     struct Object;
     
 public:
-    using ReservedHeaterFanNames = MakeTypeList<WrapInt<'S'>>;
+    using ReservedHeaterFanNames = MakeTypeList<WrapInt<'F'>, WrapInt<'S'>>;
     
 private:
     using ThePrinterMain = TThePrinterMain;
@@ -410,10 +410,20 @@ private:
             }
         }
         
-        static bool check_set_command (Context c, TheCommand *cmd, bool use_default)
+        template <typename ThisContext>
+        static void set_or_unset (ThisContext c, FpType target)
+        {
+            if (AMBRO_LIKELY(!FloatIsNan(target))) {
+                set(c, target);
+            } else {
+                unset(c, true);
+            }
+        }
+        
+        static bool check_set_command (Context c, TheCommand *cmd, bool force, bool use_default)
         {
             if (!use_default ? match_name<typename HeaterSpec::Name>(c, cmd) : (HeaterSpec::SetMCommand != 0 && SetHeaterCommand == HeaterSpec::SetMCommand)) {
-                handle_set_command(c, cmd);
+                handle_set_command(c, cmd, force);
                 return false;
             }
             return true;
@@ -422,27 +432,34 @@ private:
         static bool check_command (Context c, TheCommand *cmd)
         {
             if (HeaterSpec::SetMCommand != 0 && HeaterSpec::SetMCommand != SetHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
-                if (cmd->tryPlannedCommand(c)) {
-                    handle_set_command(c, cmd);
+                bool force = cmd->find_command_param(c, 'F', nullptr);
+                if (force || cmd->tryPlannedCommand(c)) {
+                    handle_set_command(c, cmd, force);
                 }
                 return false;
             }
             return true;
         }
         
-        static void handle_set_command (Context c, TheCommand *cmd)
+        static void handle_set_command (Context c, TheCommand *cmd, bool force)
         {
             FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
-            cmd->finishCommand(c);
             if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
                 target = NAN;
             }
-            auto *planner_cmd = ThePlanner<>::getBuffer(c);
-            PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
-            payload->type = HeaterIndex;
-            UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
-            ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
-            ThePrinterMain::submitted_planner_command(c);
+            
+            cmd->finishCommand(c);
+            
+            if (force) {
+                set_or_unset(c, target);
+            } else {
+                auto *planner_cmd = ThePlanner<>::getBuffer(c);
+                PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
+                payload->type = HeaterIndex;
+                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
+                ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
+                ThePrinterMain::submitted_planner_command(c);
+            }
         }
         
         static void check_safety (Context c)
@@ -480,11 +497,7 @@ private:
         static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
-            if (AMBRO_LIKELY(!FloatIsNan(payload->target))) {
-                set(c, payload->target);
-            } else {
-                unset(c, true);
-            }
+            set_or_unset(c, payload->target);
         }
         
         static void control_event_handler (Context c)
@@ -734,14 +747,14 @@ private:
             ThePwm::deinit(c);
         }
         
-        static bool check_set_command (Context c, TheCommand *cmd, bool is_turn_off, bool use_default)
+        static bool check_set_command (Context c, TheCommand *cmd, bool force, bool is_turn_off, bool use_default)
         {
             if (!use_default ? match_name<typename FanSpec::Name>(c, cmd) : (
                 !is_turn_off ?
                 (FanSpec::SetMCommand != 0 && SetFanCommand == FanSpec::SetMCommand) :
                 (FanSpec::OffMCommand != 0 && OffFanCommand == FanSpec::OffMCommand)
             )) {
-                handle_set_command(c, cmd, is_turn_off);
+                handle_set_command(c, cmd, force, is_turn_off);
                 return false;
             }
             return true;
@@ -752,15 +765,17 @@ private:
             if ((FanSpec::SetMCommand != 0 && FanSpec::SetMCommand != SetFanCommand && cmd->getCmdNumber(c) == FanSpec::SetMCommand) ||
                 (FanSpec::OffMCommand != 0 && FanSpec::OffMCommand != OffFanCommand && cmd->getCmdNumber(c) == FanSpec::OffMCommand)
             ) {
-                if (cmd->tryPlannedCommand(c)) {
-                    handle_set_command(c, cmd, cmd->getCmdNumber(c) == FanSpec::OffMCommand);
+                bool force = cmd->find_command_param(c, 'F', nullptr);
+                if (force || cmd->tryPlannedCommand(c)) {
+                    bool is_turn_off = (cmd->getCmdNumber(c) == FanSpec::OffMCommand);
+                    handle_set_command(c, cmd, force, is_turn_off);
                 }
                 return false;
             }
             return true;
         }
         
-        static void handle_set_command (Context c, TheCommand *cmd, bool is_turn_off)
+        static void handle_set_command (Context c, TheCommand *cmd, bool force, bool is_turn_off)
         {
             FpType target = 0.0f;
             if (!is_turn_off) {
@@ -769,13 +784,22 @@ private:
                     target *= (FpType)FanSpec::SpeedMultiply::value();
                 }
             }
+            
             cmd->finishCommand(c);
-            auto *planner_cmd = ThePlanner<>::getBuffer(c);
-            PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
-            payload->type = NumHeaters + FanIndex;
-            ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
-            ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
-            ThePrinterMain::submitted_planner_command(c);
+            
+            PwmDutyCycleData duty;
+            ThePwm::computeDutyCycle(target, &duty);
+            
+            if (force) {
+                ThePwm::setDutyCycle(c, duty);
+            } else {
+                auto *planner_cmd = ThePlanner<>::getBuffer(c);
+                PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
+                payload->type = NumHeaters + FanIndex;
+                UnionGetElem<FanIndex>(&payload->fans)->duty = duty;
+                ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
+                ThePrinterMain::submitted_planner_command(c);
+            }
         }
         
         template <typename TheJsonBuilder>
@@ -835,11 +859,12 @@ private:
     
     static void handle_set_heater_command (Context c, TheCommand *cmd)
     {
-        if (!cmd->tryPlannedCommand(c)) {
+        bool force = cmd->find_command_param(c, 'F', nullptr);
+        if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, false) &&
-            ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, true)
+        if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, force, false) &&
+            ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, force, true)
         ) {
             if (NumHeaters > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
@@ -863,11 +888,12 @@ private:
     
     static void handle_set_fan_command (Context c, TheCommand *cmd, bool is_turn_off)
     {
-        if (!cmd->tryPlannedCommand(c)) {
+        bool force = cmd->find_command_param(c, 'F', nullptr);
+        if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, false) &&
-            ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, true)
+        if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, force, is_turn_off, false) &&
+            ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, force, is_turn_off, true)
         ) {
             if (NumFans > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
