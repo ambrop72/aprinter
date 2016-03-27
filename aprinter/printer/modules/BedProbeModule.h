@@ -45,6 +45,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/HookExecutor.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -390,6 +391,13 @@ public:
             return false;
         }
         return true;
+    }
+    
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        json->addKeyObject(JsonSafeString{"bedProbe"});
+        json->endObject();
     }
     
     static void m119_append_endstop (Context c, TheCommand *cmd)
