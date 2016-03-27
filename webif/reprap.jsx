@@ -1,9 +1,8 @@
 
 // Constants
 
-var statusTableWidth = "400px";
 var statusRefreshInterval = 2000;
-
+var controlTableClass = 'table table-condensed table-striped control-table';
 
 // Utility functions
 
@@ -37,7 +36,7 @@ var AxesTable = React.createClass({
         sendGcode('G0 R '+axis_name+target.toString());
     },
     render: function() { return (
-        <table className="table table-condensed" style={{tableLayout: 'fixed', width: statusTableWidth}}>
+        <table className={controlTableClass}>
             <colgroup>
                 <col span="1" style={{width: '55px'}} />
                 <col span="1" style={{width: '115px'}} />
@@ -46,10 +45,10 @@ var AxesTable = React.createClass({
             </colgroup>
             <thead>
                 <tr>
-                    <th className="nowrap">Axis</th>
-                    <th className="nowrap">Position (planned)</th>
+                    <th>Axis</th>
+                    <th>Position (planned)</th>
                     <th></th>
-                    <th className="nowrap">Go to</th>
+                    <th>Go to</th>
                 </tr>
             </thead>
             <tbody>
@@ -60,9 +59,9 @@ var AxesTable = React.createClass({
                         <td></td>
                         <td>
                             <div className="input-group">
-                                <input type="number" className="form-control" defaultValue="0" ref={'target_'+axis.key} />
+                                <input type="number" className="form-control control-input" defaultValue="0" ref={'target_'+axis.key} />
                                 <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning" onClick={this.axisGo.bind(this, axis.key)}>Go</button>
+                                    <button type="button" className="btn btn-warning control-button" onClick={this.axisGo.bind(this, axis.key)}>Go</button>
                                 </span>
                             </div>
                         </td>
@@ -86,7 +85,7 @@ var HeatersTable = React.createClass({
         sendGcode('M104 F '+heater_name+' Snan');
     },
     render: function() { return (
-        <table className="table table-condensed" style={{tableLayout: 'fixed', width: statusTableWidth}}>
+        <table className={controlTableClass}>
             <colgroup>
                 <col span="1" style={{width: '55px'}} />
                 <col span="1" style={{width: '78px'}} />
@@ -95,10 +94,10 @@ var HeatersTable = React.createClass({
             </colgroup>
             <thead>
                 <tr>
-                    <th className="nowrap">Heater</th>
-                    <th className="nowrap">Actual [C]</th>
-                    <th className="nowrap">Target [C]</th>
-                    <th className="nowrap">Control [C]</th>
+                    <th>Heater</th>
+                    <th>Actual [C]</th>
+                    <th>Target [C]</th>
+                    <th>Control [C]</th>
                 </tr>
             </thead>
             <tbody>
@@ -109,10 +108,10 @@ var HeatersTable = React.createClass({
                         <td>{((heater.val.target < -1000) ? "off" : heater.val.target.toPrecision(4)) + (heater.val.error ? " ERR" : "")}</td>
                         <td>
                             <div className="input-group">
-                                <input type="number" className="form-control" defaultValue="220" ref={'target_'+heater.key} />
+                                <input type="number" className="form-control control-input" defaultValue="220" ref={'target_'+heater.key} />
                                 <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning" onClick={this.heaterSet.bind(this, heater.key)}>Set</button>
-                                    <button type="button" className="btn btn-primary" onClick={this.heaterOff.bind(this, heater.key)}>Off</button>
+                                    <button type="button" className="btn btn-warning control-button" onClick={this.heaterSet.bind(this, heater.key)}>Set</button>
+                                    <button type="button" className="btn btn-primary control-button" onClick={this.heaterOff.bind(this, heater.key)}>Off</button>
                                 </span>
                             </div>
                         </td>
@@ -136,7 +135,7 @@ var FansTable = React.createClass({
         sendGcode('M106 F '+fan_name+' S0');
     },
     render: function() { return (
-        <table className="table table-condensed" style={{tableLayout: 'fixed', width: statusTableWidth}}>
+        <table className={controlTableClass}>
             <colgroup>
                 <col span="1" style={{width: '55px'}} />
                 <col span="1" style={{width: '83px'}} />
@@ -145,10 +144,10 @@ var FansTable = React.createClass({
             </colgroup>
             <thead>
                 <tr>
-                    <th className="nowrap">Fan</th>
-                    <th className="nowrap">Target [%]</th>
+                    <th>Fan</th>
+                    <th>Target [%]</th>
                     <th></th>
-                    <th className="nowrap">Control [%]</th>
+                    <th>Control [%]</th>
                 </tr>
             </thead>
             <tbody>
@@ -159,10 +158,10 @@ var FansTable = React.createClass({
                         <td></td>
                         <td>
                             <div className="input-group">
-                                <input type="number" className="form-control" defaultValue="100" ref={'target_'+fan.key} />
+                                <input type="number" className="form-control control-input" defaultValue="100" ref={'target_'+fan.key} />
                                 <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning" onClick={this.fanSet.bind(this, fan.key)}>Set</button>
-                                    <button type="button" className="btn btn-primary" onClick={this.fanOff.bind(this, fan.key)}>Off</button>
+                                    <button type="button" className="btn btn-warning control-button" onClick={this.fanSet.bind(this, fan.key)}>Set</button>
+                                    <button type="button" className="btn btn-primary control-button" onClick={this.fanOff.bind(this, fan.key)}>Off</button>
                                 </span>
                             </div>
                         </td>
