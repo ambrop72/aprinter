@@ -26,10 +26,6 @@ function orderObject(obj) {
     return arr;
 }
 
-function getNumberInput(input) {
-    return $.trim(input.value) - 0;
-}
-
 function showError(error_str) {
     console.log('ERROR: '+error_str);
 }
@@ -43,23 +39,27 @@ function $bind(obj, func) {
     return objfunc.bind.apply(objfunc, [obj].concat(Array.prototype.slice.call(arguments, 2)));
 }
 
+function $toNumber(val) {
+    return val - 0;
+}
+
 
 // Main React classes
 
 var AxesTable = React.createClass({
     componentWillMount: function() {
-        this.props.editController.setComponent(this);
+        this.props.controller.setComponent(this);
     },
     onInputEnter: function(axis_name) {
         this.axisGo(axis_name);
     },
     axisGo: function(axis_name) {
-        var target = getNumberInput(this.refs['target_'+axis_name]);
+        var target = $toNumber(this.props.controller.getValue(axis_name));
         if (isNaN(target)) {
             return showError('Target value for axis '+axis_name+' is incorrect');
         }
         sendGcode('G0 R '+axis_name+target.toString());
-        this.props.editController.cancel(axis_name);
+        this.props.controller.cancel(axis_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -80,7 +80,7 @@ var AxesTable = React.createClass({
             <tbody>
                 {$.map(orderObject(this.props.axes), function(axis) {
                     var dispPos = axis.val.pos.toPrecision(axisPrecision);
-                    var ecInputs = this.props.editController.getRenderInputs(axis.key, dispPos);
+                    var ecInputs = this.props.controller.getRenderInputs(axis.key, dispPos);
                     return (
                         <tr key={axis.key}>
                             <td><b>{axis.key}</b></td>
@@ -103,28 +103,28 @@ var AxesTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this.props.axes);
+        this.props.controller.componentDidUpdate(this.props.axes);
     }
 });
 
 var HeatersTable = React.createClass({
     componentWillMount: function() {
-        this.props.editController.setComponent(this);
+        this.props.controller.setComponent(this);
     },
     onInputEnter: function(heater_name) {
         this.heaterSet(heater_name);
     },
     heaterSet: function(heater_name) {
-        var target = getNumberInput(this.refs['target_'+heater_name]);
+        var target = $toNumber(this.props.controller.getValue(heater_name));
         if (isNaN(target)) {
             return showError('Target value for heater '+heater_name+' is incorrect');
         }
         sendGcode('M104 F '+heater_name+' S'+target.toString());
-        this.props.editController.cancel(heater_name);
+        this.props.controller.cancel(heater_name);
     },
     heaterOff: function(heater_name) {
         sendGcode('M104 F '+heater_name+' Snan');
-        this.props.editController.cancel(heater_name);
+        this.props.controller.cancel(heater_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -148,7 +148,7 @@ var HeatersTable = React.createClass({
                     var isOff = (heater.val.target === -Infinity);
                     var dispTarget = isOff ? 'off' : heater.val.target.toPrecision(heaterPrecision);
                     var editTarget = isOff ? '' : dispTarget;
-                    var ecInputs = this.props.editController.getRenderInputs(heater.key, editTarget);
+                    var ecInputs = this.props.controller.getRenderInputs(heater.key, editTarget);
                     return (
                         <tr key={heater.key}>
                             <td><b>{heater.key}</b>{(heater.val.error ? " ERR" : "")}</td>
@@ -172,28 +172,28 @@ var HeatersTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this.props.heaters);
+        this.props.controller.componentDidUpdate(this.props.heaters);
     }
 });
 
 var FansTable = React.createClass({
     componentWillMount: function() {
-        this.props.editController.setComponent(this);
+        this.props.controller.setComponent(this);
     },
     onInputEnter: function(fan_name) {
         this.fanSet(fan_name);
     },
     fanSet: function(fan_name) {
-        var target = getNumberInput(this.refs['target_'+fan_name]);
+        var target = $toNumber(this.props.controller.getValue(fan_name));
         if (isNaN(target)) {
             return showError('Target value for fan '+fan_name+' is incorrect');
         }
         sendGcode('M106 F '+fan_name+' S'+(target/100*255).toPrecision(fanPrecision+3));
-        this.props.editController.cancel(fan_name);
+        this.props.controller.cancel(fan_name);
     },
     fanOff: function(fan_name) {
         sendGcode('M106 F '+fan_name+' S0');
-        this.props.editController.cancel(fan_name);
+        this.props.controller.cancel(fan_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -216,7 +216,7 @@ var FansTable = React.createClass({
                     var isOff = (fan.val.target === 0);
                     var editTarget = (fan.val.target * 100).toPrecision(fanPrecision);
                     var dispTarget = isOff ? 'off' : editTarget;
-                    var ecInputs = this.props.editController.getRenderInputs(fan.key, editTarget);
+                    var ecInputs = this.props.controller.getRenderInputs(fan.key, editTarget);
                     return (
                         <tr key={fan.key}>
                             <td><b>{fan.key}</b></td>
@@ -241,32 +241,32 @@ var FansTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this.props.fans);
+        this.props.controller.componentDidUpdate(this.props.fans);
     }
 });
 
 var SpeedTable = React.createClass({
     componentWillMount: function() {
-        this.props.editController.setComponent(this);
+        this.props.controller.setComponent(this);
     },
     onInputEnter: function(id) {
         this.speedRatioSet();
     },
     speedRatioSet: function() {
-        var target = getNumberInput(this.refs.target_S);
+        var target = $toNumber(this.props.controller.getValue('S'));
         if (isNaN(target)) {
             return showError('Speed ratio value is incorrect');
         }
         sendGcode('M220 S'+target.toPrecision(speedPrecision+3));
-        this.props.editController.cancel('S');
+        this.props.controller.cancel('S');
     },
     speedRatioReset: function() {
         sendGcode('M220 S100');
-        this.props.editController.cancel('S');
+        this.props.controller.cancel('S');
     },
     render: function() {
         var dispRatio = (this.props.speedRatio*100).toPrecision(speedPrecision);
-        var ecInputs = this.props.editController.getRenderInputs('S', dispRatio);
+        var ecInputs = this.props.controller.getRenderInputs('S', dispRatio);
         return (
             <table className={controlTableClass}>
                 <colgroup>
@@ -303,7 +303,7 @@ var SpeedTable = React.createClass({
         );
     },
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate({'S': null});
+        this.props.controller.componentDidUpdate({'S': null});
     }
 });
 
@@ -345,12 +345,16 @@ EditController.prototype.setComponent = function(comp) {
     this._comp = comp;
 };
 
+EditController.prototype.getValue = function(id) {
+    return this._input(id).value;
+};
+
 EditController.prototype._input = function(id) {
     return this._comp.refs[this._input_ref_prefix+id];
 };
 
 EditController.prototype._onChange = function(id) {
-    var value = this._input(id).value;
+    var value = this.getValue(id);
     this._editing[id] = value;
     this._update_comp.forceUpdate();
 };
@@ -415,22 +419,22 @@ var machine_state = {
     fans: {}
 };
 
-var edit_controller_axes    = new EditController('target_');
-var edit_controller_heaters = new EditController('target_');
-var edit_controller_fans    = new EditController('target_');
-var edit_controller_speed   = new EditController('target_');
+var controller_axes    = new EditController('target_');
+var controller_heaters = new EditController('target_');
+var controller_fans    = new EditController('target_');
+var controller_speed   = new EditController('target_');
 
 function render_axes() {
-    return <AxesTable axes={machine_state.axes} editController={edit_controller_axes} />;
+    return <AxesTable axes={machine_state.axes} controller={controller_axes} />;
 }
 function render_heaters() {
-    return <HeatersTable heaters={machine_state.heaters} editController={edit_controller_heaters} />;
+    return <HeatersTable heaters={machine_state.heaters} controller={controller_heaters} />;
 }
 function render_fans() {
-    return <FansTable fans={machine_state.fans} editController={edit_controller_fans} />;
+    return <FansTable fans={machine_state.fans} controller={controller_fans} />;
 }
 function render_speed() {
-    return <SpeedTable speedRatio={machine_state.speedRatio} editController={edit_controller_speed} />;
+    return <SpeedTable speedRatio={machine_state.speedRatio} controller={controller_speed} />;
 }
 function render_buttons1() {
     return <Buttons1 probe_present={$has(machine_state, 'bedProbe')} />;
@@ -446,10 +450,10 @@ var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} /
 var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 
-edit_controller_axes.setUpdateComponent(wrapper_axes);
-edit_controller_heaters.setUpdateComponent(wrapper_heaters);
-edit_controller_fans.setUpdateComponent(wrapper_fans);
-edit_controller_speed.setUpdateComponent(wrapper_speed);
+controller_axes.setUpdateComponent(wrapper_axes);
+controller_heaters.setUpdateComponent(wrapper_heaters);
+controller_fans.setUpdateComponent(wrapper_fans);
+controller_speed.setUpdateComponent(wrapper_speed);
 
 function updateAll() {
     wrapper_axes.forceUpdate();
