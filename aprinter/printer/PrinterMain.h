@@ -171,6 +171,9 @@ public:
 public:
     using ReservedAxisNames = MakeTypeList<WrapInt<'F'>, WrapInt<'T'>, WrapInt<'P'>, WrapInt<'S'>, WrapInt<'R'>>;
     
+    static constexpr double SpeedRatioMin() { return 0.1; }
+    static constexpr double SpeedRatioMax() { return 10.0; }
+    
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
@@ -2243,7 +2246,7 @@ public:
         ListForEachForward<LasersList>(LForeach_init(), c);
         TransformFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
-        ob->speed_ratio = 1.0f;
+        ob->speed_ratio_rec = 1.0f;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
         TheHookExecutor::init(c);
@@ -2408,12 +2411,12 @@ private:
                 case 220: {
                     CommandPartRef part;
                     if (cmd->find_command_param(c, 'S', &part)) {
-                        FpType new_speed_ratio = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) / 100.0f);
-                        ob->time_freq_by_max_speed *= ob->speed_ratio / new_speed_ratio;
-                        ob->speed_ratio = new_speed_ratio;
+                        FpType ratio_rec = FloatMakePosOrPosZero(100.0f / cmd->getPartFpValue(c, part));
+                        ratio_rec = FloatMin((FpType)(1.0f/SpeedRatioMin()), FloatMax((FpType)(1.0f/SpeedRatioMax()), ratio_rec));
+                        ob->speed_ratio_rec = ratio_rec;
                     } else {
                         cmd->reply_append_pstr(c, AMBRO_PSTR("Speed factor override: "));
-                        cmd->reply_append_fp(c, ob->speed_ratio * 100.0f);
+                        cmd->reply_append_fp(c, 100.0f / ob->speed_ratio_rec);
                         cmd->reply_append_ch(c, '\n');
                     }
                     return cmd->finishCommand(c);
@@ -2480,10 +2483,10 @@ private:
                         
                         if (cmd_number != 4) {
                             if (code == 'F') {
-                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / (FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * ob->speed_ratio));
+                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
                             }
                             else if (code == 'T') {
-                                FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() / ob->speed_ratio);
+                                FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() * ob->speed_ratio_rec);
                                 move_set_nominal_time(c, nominal_time_ticks);
                                 seen_t = true;
                             }
@@ -2499,8 +2502,9 @@ private:
                     }
                     
                     if (cmd_number != 4) {
-                        FpType time_freq_by_max_speed = AMBRO_UNLIKELY(seen_t) ? 0.0f : ob->time_freq_by_max_speed;
-                        move_set_max_speed_opt(c, time_freq_by_max_speed);
+                        if (AMBRO_LIKELY(!seen_t)) {
+                            move_set_max_speed_opt(c, ob->time_freq_by_max_speed);
+                        }
                     } else {
                         move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
                     }
@@ -2801,15 +2805,11 @@ public:
         cmd->axes.rel_max_v_rec = nominal_time_ticks;
     }
     
-    static void move_set_max_speed (Context c, FpType max_speed, bool use_speed_ratio=true)
+    static void move_set_max_speed (Context c, FpType max_speed)
     {
         auto *o = Object::self(c);
         
-        max_speed = FloatMakePosOrPosZero(max_speed);
-        if (use_speed_ratio) {
-            max_speed *= o->speed_ratio;
-        }
-        o->move_time_freq_by_max_speed = (FpType)TimeConversion::value() / max_speed;
+        o->move_time_freq_by_max_speed = ((FpType)TimeConversion::value() / FloatMakePosOrPosZero(max_speed)) * o->speed_ratio_rec;
     }
     
     static void move_set_max_speed_opt (Context c, FpType time_freq_by_max_speed)
@@ -2817,7 +2817,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
-        o->move_time_freq_by_max_speed = time_freq_by_max_speed;
+        o->move_time_freq_by_max_speed = time_freq_by_max_speed * o->speed_ratio_rec;
     }
     
     static void move_end (Context c, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
@@ -2964,7 +2964,7 @@ public:
         }
         
         json->addSafeKeyVal("status", JsonSafeChar{status_code});
-        json->addSafeKeyVal("speedRatio", JsonDouble{o->speed_ratio});
+        json->addSafeKeyVal("speedRatio", JsonDouble{1.0f / o->speed_ratio_rec});
         
         json->addKeyObject(JsonSafeString{"axes"});
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_get_json_status(), c, json);
@@ -3077,7 +3077,7 @@ public:
         DoubleEndedList<CommandStream, &CommandStream::m_list_node, false> command_stream_list;
         MsgOutputStream msg_output_stream;
         FpType time_freq_by_max_speed;
-        FpType speed_ratio;
+        FpType speed_ratio_rec;
         FpType move_time_freq_by_max_speed;
         size_t msg_length;
         bool locked : 1;
