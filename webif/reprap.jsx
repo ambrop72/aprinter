@@ -47,6 +47,12 @@ function $bind(obj, func) {
 // Main React classes
 
 var AxesTable = React.createClass({
+    componentWillMount: function() {
+        this.props.editController.setComponent(this);
+    },
+    onInputEnter: function(axis_name) {
+        this.axisGo(axis_name);
+    },
     axisGo: function(axis_name) {
         var target = getNumberInput(this.refs['target_'+axis_name]);
         if (isNaN(target)) {
@@ -74,7 +80,7 @@ var AxesTable = React.createClass({
             <tbody>
                 {$.map(orderObject(this.props.axes), function(axis) {
                     var dispPos = axis.val.pos.toPrecision(axisPrecision);
-                    var ecInputs = this.props.editController.getRenderInputs(axis.key, dispPos, this);
+                    var ecInputs = this.props.editController.getRenderInputs(axis.key, dispPos);
                     return (
                         <tr key={axis.key}>
                             <td><b>{axis.key}</b></td>
@@ -82,7 +88,8 @@ var AxesTable = React.createClass({
                             <td></td>
                             <td>
                                 <div className="input-group">
-                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key} onChange={ecInputs.onChange} />
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
+                                           onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
@@ -96,11 +103,17 @@ var AxesTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this, this.props.axes);
+        this.props.editController.componentDidUpdate(this.props.axes);
     }
 });
 
 var HeatersTable = React.createClass({
+    componentWillMount: function() {
+        this.props.editController.setComponent(this);
+    },
+    onInputEnter: function(heater_name) {
+        this.heaterSet(heater_name);
+    },
     heaterSet: function(heater_name) {
         var target = getNumberInput(this.refs['target_'+heater_name]);
         if (isNaN(target)) {
@@ -135,7 +148,7 @@ var HeatersTable = React.createClass({
                     var isOff = (heater.val.target === -Infinity);
                     var dispTarget = isOff ? 'off' : heater.val.target.toPrecision(heaterPrecision);
                     var editTarget = isOff ? '' : dispTarget;
-                    var ecInputs = this.props.editController.getRenderInputs(heater.key, editTarget, this);
+                    var ecInputs = this.props.editController.getRenderInputs(heater.key, editTarget);
                     return (
                         <tr key={heater.key}>
                             <td><b>{heater.key}</b>{(heater.val.error ? " ERR" : "")}</td>
@@ -143,7 +156,8 @@ var HeatersTable = React.createClass({
                             <td>{dispTarget}</td>
                             <td>
                                 <div className="input-group">
-                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key} onChange={ecInputs.onChange} />
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key}
+                                           onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'heaterSet', heater.key)}>Set</button>
@@ -158,11 +172,17 @@ var HeatersTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this, this.props.heaters);
+        this.props.editController.componentDidUpdate(this.props.heaters);
     }
 });
 
 var FansTable = React.createClass({
+    componentWillMount: function() {
+        this.props.editController.setComponent(this);
+    },
+    onInputEnter: function(fan_name) {
+        this.fanSet(fan_name);
+    },
     fanSet: function(fan_name) {
         var target = getNumberInput(this.refs['target_'+fan_name]);
         if (isNaN(target)) {
@@ -196,7 +216,7 @@ var FansTable = React.createClass({
                     var isOff = (fan.val.target === 0);
                     var editTarget = (fan.val.target * 100).toPrecision(fanPrecision);
                     var dispTarget = isOff ? 'off' : editTarget;
-                    var ecInputs = this.props.editController.getRenderInputs(fan.key, editTarget, this);
+                    var ecInputs = this.props.editController.getRenderInputs(fan.key, editTarget);
                     return (
                         <tr key={fan.key}>
                             <td><b>{fan.key}</b></td>
@@ -205,7 +225,8 @@ var FansTable = React.createClass({
                             <td>
                                 <div className="input-group">
                                     <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+fan.key}
-                                           onChange={ecInputs.onChange} min="0" max="100" />
+                                           min="0" max="100"
+                                           onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'fanSet', fan.key)}>Set</button>
@@ -220,11 +241,17 @@ var FansTable = React.createClass({
         </table>
     );},
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this, this.props.fans);
+        this.props.editController.componentDidUpdate(this.props.fans);
     }
 });
 
 var SpeedTable = React.createClass({
+    componentWillMount: function() {
+        this.props.editController.setComponent(this);
+    },
+    onInputEnter: function(id) {
+        this.speedRatioSet();
+    },
     speedRatioSet: function() {
         var target = getNumberInput(this.refs.target_S);
         if (isNaN(target)) {
@@ -239,7 +266,7 @@ var SpeedTable = React.createClass({
     },
     render: function() {
         var dispRatio = (this.props.speedRatio*100).toPrecision(speedPrecision);
-        var ecInputs = this.props.editController.getRenderInputs('S', dispRatio, this);
+        var ecInputs = this.props.editController.getRenderInputs('S', dispRatio);
         return (
             <table className={controlTableClass}>
                 <colgroup>
@@ -261,7 +288,8 @@ var SpeedTable = React.createClass({
                         <td>
                             <div className="input-group">
                                 <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target_S"
-                                       onChange={ecInputs.onChange} min="10" max="1000" />
+                                       min="10" max="1000"
+                                       onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
                                 <span className="input-group-btn">
                                     <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                     <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
@@ -275,7 +303,7 @@ var SpeedTable = React.createClass({
         );
     },
     componentDidUpdate: function() {
-        this.props.editController.componentDidUpdate(this, {'S': null});
+        this.props.editController.componentDidUpdate({'S': null});
     }
 });
 
@@ -303,42 +331,68 @@ var Buttons2 = React.createClass({
 // Field editing logic
 
 function EditController(input_ref_prefix) {
-    this._component = null;
+    this._update_comp = null;
+    this._comp = null;
     this._input_ref_prefix = input_ref_prefix;
     this._editing = {};
 }
 
-EditController.prototype.setComponent = function(component) {
-    this._component = component;
+EditController.prototype.setUpdateComponent = function(update_component) {
+    this._update_comp = update_component;
 };
 
-EditController.prototype._onChange = function(id, comp) {
-    var value = comp.refs[this._input_ref_prefix+id].value;
+EditController.prototype.setComponent = function(comp) {
+    this._comp = comp;
+};
+
+EditController.prototype._input = function(id) {
+    return this._comp.refs[this._input_ref_prefix+id];
+};
+
+EditController.prototype._onChange = function(id) {
+    var value = this._input(id).value;
     this._editing[id] = value;
-    this._component.forceUpdate();
+    this._update_comp.forceUpdate();
+};
+
+EditController.prototype._onKeyDown = function(id, event) {
+    if (event.key === 'Escape') {
+        this._input(id).blur();
+        this.cancel(id);
+    }
+};
+
+EditController.prototype._onKeyPress = function(id, event) {
+    if (event.key === 'Enter') {
+        if ($has(this._comp, 'onInputEnter')) {
+            return this._comp.onInputEnter(id);
+        }
+    }
 };
 
 EditController.prototype.cancel = function(id) {
     if ($has(this._editing, id)) {
         delete this._editing[id];
-        this._component.forceUpdate();
+        this._update_comp.forceUpdate();
     }
 };
 
-EditController.prototype.getRenderInputs = function(id, live_value, comp) {
+EditController.prototype.getRenderInputs = function(id, live_value) {
     var editing = $has(this._editing, id);
     return {
-        editing:   editing,
-        class:     editing ? controlEditingClass : '',
-        value:     editing ? this._editing[id] : live_value,
-        onChange:  this._onChange.bind(this, id, comp),
-        onCancel:  this.cancel.bind(this, id)
+        editing:    editing,
+        class:      editing ? controlEditingClass : '',
+        value:      editing ? this._editing[id] : live_value,
+        onChange:   this._onChange.bind(this, id),
+        onCancel:   this.cancel.bind(this, id),
+        onKeyDown:  this._onKeyDown.bind(this, id),
+        onKeyPress: this._onKeyPress.bind(this, id)
     };
 };
 
-EditController.prototype.componentDidUpdate = function(comp, id_datas) {
+EditController.prototype.componentDidUpdate = function(id_datas) {
     $.each(id_datas, function(id, data) {
-        var input = comp.refs[this._input_ref_prefix+id];
+        var input = this._input(id);
         if (!$has(this._editing, id)) {
             input.defaultValue = input.value;
         }
@@ -392,10 +446,10 @@ var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} /
 var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 
-edit_controller_axes.setComponent(wrapper_axes);
-edit_controller_heaters.setComponent(wrapper_heaters);
-edit_controller_fans.setComponent(wrapper_fans);
-edit_controller_speed.setComponent(wrapper_speed);
+edit_controller_axes.setUpdateComponent(wrapper_axes);
+edit_controller_heaters.setUpdateComponent(wrapper_heaters);
+edit_controller_fans.setUpdateComponent(wrapper_fans);
+edit_controller_speed.setUpdateComponent(wrapper_speed);
 
 function updateAll() {
     wrapper_axes.forceUpdate();
