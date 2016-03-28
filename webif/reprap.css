@@ -19,6 +19,10 @@
     padding: 3px 12px;
 }
 
+.control-editing {
+    background-color: #ffcc00;
+}
+
 .control-table {
     table-layout: fixed;
     width: 400px;

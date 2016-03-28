@@ -3,6 +3,8 @@
 
 var statusRefreshInterval = 2000;
 var controlTableClass = 'table table-condensed table-striped control-table';
+var controlInputClass = 'form-control control-input';
+var controlButtonClass = function(type) { return 'btn btn-'+type+' control-button'; }
 
 // Utility functions
 
@@ -30,10 +32,18 @@ var AxesTable = React.createClass({
     axisGo: function(axis_name) {
         var target = getNumberInput(this.refs['target_'+axis_name]);
         if (isNaN(target)) {
-            showError('Target value for axis '+axis_name+' is incorrect');
-            return;
+            return showError('Target value for axis '+axis_name+' is incorrect');
         }
         sendGcode('G0 R '+axis_name+target.toString());
+        this.axisCancel(axis_name);
+    },
+    axisCancel: function(axis_name) {
+        delete goto_state[axis_name];
+        axes_wrapper.forceUpdate();
+    },
+    axisUpdateGoto: function(axis_name) {
+        goto_state[axis_name] = this.refs['target_'+axis_name].value;
+        axes_wrapper.forceUpdate();
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -41,7 +51,7 @@ var AxesTable = React.createClass({
                 <col span="1" style={{width: '55px'}} />
                 <col span="1" style={{width: '115px'}} />
                 <col span="1" />
-                <col span="1" style={{width: '150px'}} />
+                <col span="1" style={{width: '205px'}} />
             </colgroup>
             <thead>
                 <tr>
@@ -52,21 +62,33 @@ var AxesTable = React.createClass({
                 </tr>
             </thead>
             <tbody>
-                {$.map(orderObject(this.props.axes), function(axis) { return (
-                    <tr key={axis.key}>
-                        <td><b>{axis.key}</b></td>
-                        <td>{axis.val.pos.toPrecision(6)}</td>
-                        <td></td>
-                        <td>
-                            <div className="input-group">
-                                <input type="number" className="form-control control-input" defaultValue="0" ref={'target_'+axis.key} />
-                                <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning control-button" onClick={this.axisGo.bind(this, axis.key)}>Go</button>
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-                );}.bind(this))}
+                {$.map(orderObject(this.props.axes), function(axis) {
+                    var btnExtraStyle = '';
+                    var inputValue = axis.val.pos;
+                    if ($has(this.props.goto, axis.key)) {
+                        btnExtraStyle = ' control-editing';
+                        inputValue = this.props.goto[axis.key];
+                    }
+                    return (
+                        <tr key={axis.key}>
+                            <td><b>{axis.key}</b></td>
+                            <td>{axis.val.pos.toPrecision(6)}</td>
+                            <td></td>
+                            <td>
+                                <div className="input-group">
+                                    <input type="number" className={controlInputClass+btnExtraStyle} value={inputValue} ref={'target_'+axis.key}
+                                           onInput={this.axisUpdateGoto.bind(this, axis.key)} onChange={this.axisUpdateGoto.bind(this, axis.key)} />
+                                    <span className="input-group-btn">
+                                        <button type="button" className={controlButtonClass('warning')} onClick={this.axisGo.bind(this, axis.key)}>Go</button>
+                                        <button type="button" className={controlButtonClass('primary')} onClick={this.axisCancel.bind(this, axis.key)} aria-label="Cancel">
+                                            <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>
+                                        </button>
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    );
+                }.bind(this))}
             </tbody>
         </table>
     );}
@@ -76,8 +98,7 @@ var HeatersTable = React.createClass({
     heaterSet: function(heater_name) {
         var target = getNumberInput(this.refs['target_'+heater_name]);
         if (isNaN(target)) {
-            showError('Target value for heater '+heater_name+' is incorrect');
-            return;
+            return showError('Target value for heater '+heater_name+' is incorrect');
         }
         sendGcode('M104 F '+heater_name+' S'+target.toString());
     },
@@ -108,10 +129,10 @@ var HeatersTable = React.createClass({
                         <td>{((heater.val.target < -1000) ? "off" : heater.val.target.toPrecision(4)) + (heater.val.error ? " ERR" : "")}</td>
                         <td>
                             <div className="input-group">
-                                <input type="number" className="form-control control-input" defaultValue="220" ref={'target_'+heater.key} />
+                                <input type="number" className={controlInputClass} defaultValue="220" ref={'target_'+heater.key} />
                                 <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning control-button" onClick={this.heaterSet.bind(this, heater.key)}>Set</button>
-                                    <button type="button" className="btn btn-primary control-button" onClick={this.heaterOff.bind(this, heater.key)}>Off</button>
+                                    <button type="button" className={controlButtonClass('warning')} onClick={this.heaterSet.bind(this, heater.key)}>Set</button>
+                                    <button type="button" className={controlButtonClass('primary')} onClick={this.heaterOff.bind(this, heater.key)}>Off</button>
                                 </span>
                             </div>
                         </td>
@@ -126,8 +147,7 @@ var FansTable = React.createClass({
     fanSet: function(fan_name) {
         var target = getNumberInput(this.refs['target_'+fan_name]);
         if (isNaN(target)) {
-            showError('Target value for fan '+fan_name+' is incorrect');
-            return;
+            return showError('Target value for fan '+fan_name+' is incorrect');
         }
         sendGcode('M106 F '+fan_name+' S'+(target/100*255).toPrecision(6));
     },
@@ -158,15 +178,59 @@ var FansTable = React.createClass({
                         <td></td>
                         <td>
                             <div className="input-group">
-                                <input type="number" className="form-control control-input" defaultValue="100" ref={'target_'+fan.key} />
+                                <input type="number" className={controlInputClass} defaultValue="100" ref={'target_'+fan.key} />
                                 <span className="input-group-btn">
-                                    <button type="button" className="btn btn-warning control-button" onClick={this.fanSet.bind(this, fan.key)}>Set</button>
-                                    <button type="button" className="btn btn-primary control-button" onClick={this.fanOff.bind(this, fan.key)}>Off</button>
+                                    <button type="button" className={controlButtonClass('warning')} onClick={this.fanSet.bind(this, fan.key)}>Set</button>
+                                    <button type="button" className={controlButtonClass('primary')} onClick={this.fanOff.bind(this, fan.key)}>Off</button>
                                 </span>
                             </div>
                         </td>
                     </tr>
                 );}.bind(this))}
+            </tbody>
+        </table>
+    );}
+});
+
+var SpeedTable = React.createClass({
+    speedRatioSet: function() {
+        var target = getNumberInput(this.refs.target);
+        if (isNaN(target)) {
+            return showError('Speed ratio value is incorrect');
+        }
+        sendGcode('M220 S'+target.toPrecision(6));
+    },
+    speedRatioReset: function() {
+        sendGcode('M220 S100');
+    },
+    render: function() { return (
+        <table className={controlTableClass}>
+            <colgroup>
+                <col span="1" style={{width: '83px'}} />
+                <col span="1" />
+                <col span="1" style={{width: '190px'}} />
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>Speed ratio [%]</th>
+                    <th></th>
+                    <th>Control [%]</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{(this.props.speedRatio*100).toPrecision(3)}</td>
+                    <td></td>
+                    <td>
+                        <div className="input-group">
+                            <input type="number" className={controlInputClass} defaultValue="100" ref="target" />
+                            <span className="input-group-btn">
+                                <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
+                                <button type="button" className={controlButtonClass('primary')} onClick={this.speedRatioReset}>Reset</button>
+                            </span>
+                        </div>
+                    </td>
+                </tr>
             </tbody>
         </table>
     );}
@@ -201,25 +265,29 @@ var ComponentWrapper = React.createClass({
     }
 });
 
-var state = {
-    machine_state: {
-        axes: {},
-        heaters: {},
-        fans: {}
-    }
+var machine_state = {
+    speedRatio: 1,
+    axes: {},
+    heaters: {},
+    fans: {}
 };
 
+var goto_state = {};
+
 function render_axes() {
-    return <AxesTable axes={state.machine_state.axes} />;
+    return <AxesTable axes={machine_state.axes} goto={goto_state} />;
 }
 function render_heaters() {
-    return <HeatersTable heaters={state.machine_state.heaters} />;
+    return <HeatersTable heaters={machine_state.heaters} />;
 }
 function render_fans() {
-    return <FansTable fans={state.machine_state.fans} />;
+    return <FansTable fans={machine_state.fans} />;
+}
+function render_speed() {
+    return <SpeedTable speedRatio={machine_state.speedRatio} />;
 }
 function render_buttons1() {
-    return <Buttons1 probe_present={$has(state.machine_state, 'bedProbe')} />;
+    return <Buttons1 probe_present={$has(machine_state, 'bedProbe')} />;
 }
 function render_buttons2() {
     return <Buttons2 />;
@@ -228,6 +296,7 @@ function render_buttons2() {
 var axes_wrapper     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
 var heaters_wrapper  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
 var fans_wrapper     = ReactDOM.render(<ComponentWrapper render={render_fans} />,     document.getElementById('fans_div'));
+var speed_wrapper    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
 var buttons1_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
 var buttons2_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 
@@ -235,6 +304,7 @@ function updateAll() {
     axes_wrapper.forceUpdate();
     heaters_wrapper.forceUpdate();
     fans_wrapper.forceUpdate();
+    speed_wrapper.forceUpdate();
     buttons1_wrapper.forceUpdate();
     buttons2_wrapper.forceUpdate();
 }
@@ -263,9 +333,9 @@ function requestStatus() {
         url: '/rr_status',
         dataType: 'json',
         cache: false,
-        success: function(machine_state) {
+        success: function(new_machine_state) {
             statusRequestCompleted();
-            state.machine_state = machine_state;
+            machine_state = new_machine_state;
             updateAll();
         },
         error: function(xhr, status, err) {
