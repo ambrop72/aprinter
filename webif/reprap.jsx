@@ -1,10 +1,22 @@
 
-// Constants
+// Hardcoded constants
 
 var statusRefreshInterval = 2000;
+var axisPrecision = 6;
+var heaterPrecision = 4;
+var fanPrecision = 3;
+var speedPrecision = 4;
+
+
+// Commonly used styles/elements
+
 var controlTableClass = 'table table-condensed table-striped control-table';
 var controlInputClass = 'form-control control-input';
 var controlButtonClass = function(type) { return 'btn btn-'+type+' control-button'; }
+var controlEditingClass = 'control-editing';
+var controlCancelButtonClass = controlButtonClass('default')+' control-cancel-button';
+var removeIcon = <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>;
+
 
 // Utility functions
 
@@ -26,6 +38,12 @@ function $has(obj, prop) {
     return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
+function $bind(obj, func) {
+    var objfunc = obj[func];
+    return objfunc.bind.apply(objfunc, [obj].concat(Array.prototype.slice.call(arguments, 2)));
+}
+
+
 // Main React classes
 
 var AxesTable = React.createClass({
@@ -35,15 +53,7 @@ var AxesTable = React.createClass({
             return showError('Target value for axis '+axis_name+' is incorrect');
         }
         sendGcode('G0 R '+axis_name+target.toString());
-        this.axisCancel(axis_name);
-    },
-    axisCancel: function(axis_name) {
-        delete goto_state[axis_name];
-        axes_wrapper.forceUpdate();
-    },
-    axisUpdateGoto: function(axis_name) {
-        goto_state[axis_name] = this.refs['target_'+axis_name].value;
-        axes_wrapper.forceUpdate();
+        this.props.editController.cancel(axis_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -56,33 +66,26 @@ var AxesTable = React.createClass({
             <thead>
                 <tr>
                     <th>Axis</th>
-                    <th>Position (planned)</th>
+                    <th>Planned</th>
                     <th></th>
                     <th>Go to</th>
                 </tr>
             </thead>
             <tbody>
                 {$.map(orderObject(this.props.axes), function(axis) {
-                    var btnExtraStyle = '';
-                    var inputValue = axis.val.pos;
-                    if ($has(this.props.goto, axis.key)) {
-                        btnExtraStyle = ' control-editing';
-                        inputValue = this.props.goto[axis.key];
-                    }
+                    var dispPos = axis.val.pos.toPrecision(axisPrecision);
+                    var ecInputs = this.props.editController.getRenderInputs(axis.key, dispPos, this);
                     return (
                         <tr key={axis.key}>
                             <td><b>{axis.key}</b></td>
-                            <td>{axis.val.pos.toPrecision(6)}</td>
+                            <td>{dispPos}</td>
                             <td></td>
                             <td>
                                 <div className="input-group">
-                                    <input type="number" className={controlInputClass+btnExtraStyle} value={inputValue} ref={'target_'+axis.key}
-                                           onInput={this.axisUpdateGoto.bind(this, axis.key)} onChange={this.axisUpdateGoto.bind(this, axis.key)} />
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key} onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} />
                                     <span className="input-group-btn">
-                                        <button type="button" className={controlButtonClass('warning')} onClick={this.axisGo.bind(this, axis.key)}>Go</button>
-                                        <button type="button" className={controlButtonClass('primary')} onClick={this.axisCancel.bind(this, axis.key)} aria-label="Cancel">
-                                            <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>
-                                        </button>
+                                        <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                                        <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
                                     </span>
                                 </div>
                             </td>
@@ -101,43 +104,54 @@ var HeatersTable = React.createClass({
             return showError('Target value for heater '+heater_name+' is incorrect');
         }
         sendGcode('M104 F '+heater_name+' S'+target.toString());
+        this.props.editController.cancel(heater_name);
     },
     heaterOff: function(heater_name) {
         sendGcode('M104 F '+heater_name+' Snan');
+        this.props.editController.cancel(heater_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
             <colgroup>
-                <col span="1" style={{width: '55px'}} />
-                <col span="1" style={{width: '78px'}} />
+                <col span="1" style={{width: '60px'}} />
+                <col span="1" style={{width: '80px'}} />
                 <col span="1" />
-                <col span="1" style={{width: '183px'}} />
+                <col span="1" style={{width: '200px'}} />
             </colgroup>
             <thead>
                 <tr>
                     <th>Heater</th>
-                    <th>Actual [C]</th>
-                    <th>Target [C]</th>
-                    <th>Control [C]</th>
+                    <th>Actual <span className="notbold">[C]</span></th>
+                    <th>Target</th>
+                    <th>Control</th>
                 </tr>
             </thead>
             <tbody>
-                {$.map(orderObject(this.props.heaters), function(heater) { return (
-                    <tr key={heater.key}>
-                        <td><b>{heater.key}</b></td>
-                        <td>{heater.val.current.toPrecision(4)}</td>
-                        <td>{((heater.val.target < -1000) ? "off" : heater.val.target.toPrecision(4)) + (heater.val.error ? " ERR" : "")}</td>
-                        <td>
-                            <div className="input-group">
-                                <input type="number" className={controlInputClass} defaultValue="220" ref={'target_'+heater.key} />
-                                <span className="input-group-btn">
-                                    <button type="button" className={controlButtonClass('warning')} onClick={this.heaterSet.bind(this, heater.key)}>Set</button>
-                                    <button type="button" className={controlButtonClass('primary')} onClick={this.heaterOff.bind(this, heater.key)}>Off</button>
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-                );}.bind(this))}
+                {$.map(orderObject(this.props.heaters), function(heater) {
+                    var dispActual = heater.val.current.toPrecision(heaterPrecision);
+                    var isOff = (heater.val.target === -Infinity);
+                    var dispTarget = isOff ? 'off' : heater.val.target.toPrecision(heaterPrecision);
+                    var editTarget = isOff ? '' : dispTarget;
+                    var ecInputs = this.props.editController.getRenderInputs(heater.key, editTarget, this);
+                    return (
+                        <tr key={heater.key}>
+                            <td><b>{heater.key}</b>{(heater.val.error ? " ERR" : "")}</td>
+                            <td>{dispActual}</td>
+                            <td>{dispTarget}</td>
+                            <td>
+                                <div className="input-group">
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key}
+                                           onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} />
+                                    <span className="input-group-btn">
+                                        <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                                        <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'heaterSet', heater.key)}>Set</button>
+                                        <button type="button" className={controlButtonClass('primary')} onClick={$bind(this, 'heaterOff', heater.key)}>Off</button>
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    );
+                }.bind(this))}
             </tbody>
         </table>
     );}
@@ -149,10 +163,12 @@ var FansTable = React.createClass({
         if (isNaN(target)) {
             return showError('Target value for fan '+fan_name+' is incorrect');
         }
-        sendGcode('M106 F '+fan_name+' S'+(target/100*255).toPrecision(6));
+        sendGcode('M106 F '+fan_name+' S'+(target/100*255).toPrecision(fanPrecision+3));
+        this.props.editController.cancel(fan_name);
     },
     fanOff: function(fan_name) {
         sendGcode('M106 F '+fan_name+' S0');
+        this.props.editController.cancel(fan_name);
     },
     render: function() { return (
         <table className={controlTableClass}>
@@ -160,33 +176,41 @@ var FansTable = React.createClass({
                 <col span="1" style={{width: '55px'}} />
                 <col span="1" style={{width: '83px'}} />
                 <col span="1" />
-                <col span="1" style={{width: '183px'}} />
+                <col span="1" style={{width: '200px'}} />
             </colgroup>
             <thead>
                 <tr>
                     <th>Fan</th>
-                    <th>Target [%]</th>
+                    <th>Target <span className="notbold">[%]</span></th>
                     <th></th>
-                    <th>Control [%]</th>
+                    <th>Control</th>
                 </tr>
             </thead>
             <tbody>
-                {$.map(orderObject(this.props.fans), function(fan) { return (
-                    <tr key={fan.key}>
-                        <td><b>{fan.key}</b></td>
-                        <td>{(fan.val.target === 0) ? "off" : (fan.val.target * 100).toPrecision(3)}</td>
-                        <td></td>
-                        <td>
-                            <div className="input-group">
-                                <input type="number" className={controlInputClass} defaultValue="100" ref={'target_'+fan.key} />
-                                <span className="input-group-btn">
-                                    <button type="button" className={controlButtonClass('warning')} onClick={this.fanSet.bind(this, fan.key)}>Set</button>
-                                    <button type="button" className={controlButtonClass('primary')} onClick={this.fanOff.bind(this, fan.key)}>Off</button>
-                                </span>
-                            </div>
-                        </td>
-                    </tr>
-                );}.bind(this))}
+                {$.map(orderObject(this.props.fans), function(fan) {
+                    var isOff = (fan.val.target === 0);
+                    var editTarget = (fan.val.target * 100).toPrecision(fanPrecision);
+                    var dispTarget = isOff ? 'off' : editTarget;
+                    var ecInputs = this.props.editController.getRenderInputs(fan.key, editTarget, this);
+                    return (
+                        <tr key={fan.key}>
+                            <td><b>{fan.key}</b></td>
+                            <td>{dispTarget}</td>
+                            <td></td>
+                            <td>
+                                <div className="input-group">
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+fan.key}
+                                           onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} min="0" max="100" />
+                                    <span className="input-group-btn">
+                                        <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                                        <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'fanSet', fan.key)}>Set</button>
+                                        <button type="button" className={controlButtonClass('primary')} onClick={$bind(this, 'fanOff', fan.key)}>Off</button>
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    );
+                }.bind(this))}
             </tbody>
         </table>
     );}
@@ -194,46 +218,54 @@ var FansTable = React.createClass({
 
 var SpeedTable = React.createClass({
     speedRatioSet: function() {
-        var target = getNumberInput(this.refs.target);
+        var target = getNumberInput(this.refs.target_S);
         if (isNaN(target)) {
             return showError('Speed ratio value is incorrect');
         }
-        sendGcode('M220 S'+target.toPrecision(6));
+        sendGcode('M220 S'+target.toPrecision(speedPrecision+3));
+        this.props.editController.cancel('S');
     },
     speedRatioReset: function() {
         sendGcode('M220 S100');
+        this.props.editController.cancel('S');
     },
-    render: function() { return (
-        <table className={controlTableClass}>
-            <colgroup>
-                <col span="1" style={{width: '83px'}} />
-                <col span="1" />
-                <col span="1" style={{width: '190px'}} />
-            </colgroup>
-            <thead>
-                <tr>
-                    <th>Speed ratio [%]</th>
-                    <th></th>
-                    <th>Control [%]</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>{(this.props.speedRatio*100).toPrecision(3)}</td>
-                    <td></td>
-                    <td>
-                        <div className="input-group">
-                            <input type="number" className={controlInputClass} defaultValue="100" ref="target" />
-                            <span className="input-group-btn">
-                                <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
-                                <button type="button" className={controlButtonClass('primary')} onClick={this.speedRatioReset}>Reset</button>
-                            </span>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    );}
+    render: function() {
+        var dispRatio = (this.props.speedRatio*100).toPrecision(speedPrecision);
+        var ecInputs = this.props.editController.getRenderInputs('S', dispRatio, this);
+        return (
+            <table className={controlTableClass}>
+                <colgroup>
+                    <col span="1" style={{width: '83px'}} />
+                    <col span="1" />
+                    <col span="1" style={{width: '200px'}} />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Speed ratio <span className="notbold">[%]</span></th>
+                        <th></th>
+                        <th>Control</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{dispRatio}</td>
+                        <td></td>
+                        <td>
+                            <div className="input-group">
+                                <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target_S"
+                                       onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} min="10" max="1000" />
+                                <span className="input-group-btn">
+                                    <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                                    <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
+                                    <button type="button" className={controlButtonClass('primary')} onClick={this.speedRatioReset}>Off</button>
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        );
+    }
 });
 
 var Buttons1 = React.createClass({
@@ -257,6 +289,43 @@ var Buttons2 = React.createClass({
 });
 
 
+// Field editing logic
+
+function EditController(input_ref_prefix) {
+    this._component = null;
+    this._input_ref_prefix = input_ref_prefix;
+    this._editing = {};
+}
+
+EditController.prototype.setComponent = function(component) {
+    this._component = component;
+};
+
+EditController.prototype.editing = function(id, obj_with_refs) {
+    var value = obj_with_refs.refs[this._input_ref_prefix+id].value;
+    this._editing[id] = value;
+    this._component.forceUpdate();
+};
+
+EditController.prototype.cancel = function(id) {
+    if ($has(this._editing, id)) {
+        delete this._editing[id];
+        this._component.forceUpdate();
+    }
+};
+
+EditController.prototype.getRenderInputs = function(id, live_value, obj_with_refs) {
+    var editing = $has(this._editing, id);
+    return {
+        editing:   editing,
+        class:     editing ? controlEditingClass : '',
+        value:     editing ? this._editing[id] : live_value,
+        onEditing: this.editing.bind(this, id, obj_with_refs),
+        onCancel:  this.cancel.bind(this, id)
+    };
+};
+
+
 // Gluing of react classes into page
 
 var ComponentWrapper = React.createClass({
@@ -272,19 +341,22 @@ var machine_state = {
     fans: {}
 };
 
-var goto_state = {};
+var edit_controller_axes    = new EditController('target_');
+var edit_controller_heaters = new EditController('target_');
+var edit_controller_fans    = new EditController('target_');
+var edit_controller_speed   = new EditController('target_');
 
 function render_axes() {
-    return <AxesTable axes={machine_state.axes} goto={goto_state} />;
+    return <AxesTable axes={machine_state.axes} editController={edit_controller_axes} />;
 }
 function render_heaters() {
-    return <HeatersTable heaters={machine_state.heaters} />;
+    return <HeatersTable heaters={machine_state.heaters} editController={edit_controller_heaters} />;
 }
 function render_fans() {
-    return <FansTable fans={machine_state.fans} />;
+    return <FansTable fans={machine_state.fans} editController={edit_controller_fans} />;
 }
 function render_speed() {
-    return <SpeedTable speedRatio={machine_state.speedRatio} />;
+    return <SpeedTable speedRatio={machine_state.speedRatio} editController={edit_controller_speed} />;
 }
 function render_buttons1() {
     return <Buttons1 probe_present={$has(machine_state, 'bedProbe')} />;
@@ -293,21 +365,27 @@ function render_buttons2() {
     return <Buttons2 />;
 }
 
-var axes_wrapper     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
-var heaters_wrapper  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
-var fans_wrapper     = ReactDOM.render(<ComponentWrapper render={render_fans} />,     document.getElementById('fans_div'));
-var speed_wrapper    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
-var buttons1_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
-var buttons2_wrapper = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
+var wrapper_axes     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
+var wrapper_heaters  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
+var wrapper_fans     = ReactDOM.render(<ComponentWrapper render={render_fans} />,     document.getElementById('fans_div'));
+var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
+var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
+var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
+
+edit_controller_axes.setComponent(wrapper_axes);
+edit_controller_heaters.setComponent(wrapper_heaters);
+edit_controller_fans.setComponent(wrapper_fans);
+edit_controller_speed.setComponent(wrapper_speed);
 
 function updateAll() {
-    axes_wrapper.forceUpdate();
-    heaters_wrapper.forceUpdate();
-    fans_wrapper.forceUpdate();
-    speed_wrapper.forceUpdate();
-    buttons1_wrapper.forceUpdate();
-    buttons2_wrapper.forceUpdate();
+    wrapper_axes.forceUpdate();
+    wrapper_heaters.forceUpdate();
+    wrapper_fans.forceUpdate();
+    wrapper_speed.forceUpdate();
+    wrapper_buttons1.forceUpdate();
+    wrapper_buttons2.forceUpdate();
 }
+
 
 // Status updating
 

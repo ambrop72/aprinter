@@ -19,6 +19,20 @@
     padding: 3px 12px;
 }
 
+.control-input {
+    padding-left: 7px;
+    padding-right: 3px;
+}
+
+.control-cancel-button {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.control-cancel-button[disabled] {
+    cursor: default;
+}
+
 .control-editing {
     background-color: #ffcc00;
 }
@@ -35,4 +49,8 @@
 
 .control-table>thead>tr>th {
     white-space: nowrap;
+}
+
+.notbold {
+    font-weight: normal;
 }
