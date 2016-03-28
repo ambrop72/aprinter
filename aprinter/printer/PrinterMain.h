@@ -2964,6 +2964,7 @@ public:
         }
         
         json->addSafeKeyVal("status", JsonSafeChar{status_code});
+        json->addSafeKeyVal("speedRatio", JsonDouble{o->speed_ratio});
         
         json->addKeyObject(JsonSafeString{"axes"});
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_get_json_status(), c, json);
