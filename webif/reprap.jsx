@@ -82,7 +82,7 @@ var AxesTable = React.createClass({
                             <td></td>
                             <td>
                                 <div className="input-group">
-                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key} onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} />
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key} onChange={ecInputs.onChange} />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
@@ -143,8 +143,7 @@ var HeatersTable = React.createClass({
                             <td>{dispTarget}</td>
                             <td>
                                 <div className="input-group">
-                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key}
-                                           onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} />
+                                    <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key} onChange={ecInputs.onChange} />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'heaterSet', heater.key)}>Set</button>
@@ -206,7 +205,7 @@ var FansTable = React.createClass({
                             <td>
                                 <div className="input-group">
                                     <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+fan.key}
-                                           onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} min="0" max="100" />
+                                           onChange={ecInputs.onChange} min="0" max="100" />
                                     <span className="input-group-btn">
                                         <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                         <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'fanSet', fan.key)}>Set</button>
@@ -262,7 +261,7 @@ var SpeedTable = React.createClass({
                         <td>
                             <div className="input-group">
                                 <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target_S"
-                                       onInput={ecInputs.onEditing} onChange={ecInputs.onEditing} min="10" max="1000" />
+                                       onChange={ecInputs.onChange} min="10" max="1000" />
                                 <span className="input-group-btn">
                                     <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                     <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
@@ -313,7 +312,7 @@ EditController.prototype.setComponent = function(component) {
     this._component = component;
 };
 
-EditController.prototype.editing = function(id, comp) {
+EditController.prototype._onChange = function(id, comp) {
     var value = comp.refs[this._input_ref_prefix+id].value;
     this._editing[id] = value;
     this._component.forceUpdate();
@@ -332,7 +331,7 @@ EditController.prototype.getRenderInputs = function(id, live_value, comp) {
         editing:   editing,
         class:     editing ? controlEditingClass : '',
         value:     editing ? this._editing[id] : live_value,
-        onEditing: this.editing.bind(this, id, comp),
+        onChange:  this._onChange.bind(this, id, comp),
         onCancel:  this.cancel.bind(this, id)
     };
 };
