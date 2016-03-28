@@ -94,7 +94,10 @@ var AxesTable = React.createClass({
                 }.bind(this))}
             </tbody>
         </table>
-    );}
+    );},
+    componentDidUpdate: function() {
+        this.props.editController.componentDidUpdate(this, this.props.axes);
+    }
 });
 
 var HeatersTable = React.createClass({
@@ -154,7 +157,10 @@ var HeatersTable = React.createClass({
                 }.bind(this))}
             </tbody>
         </table>
-    );}
+    );},
+    componentDidUpdate: function() {
+        this.props.editController.componentDidUpdate(this, this.props.heaters);
+    }
 });
 
 var FansTable = React.createClass({
@@ -213,7 +219,10 @@ var FansTable = React.createClass({
                 }.bind(this))}
             </tbody>
         </table>
-    );}
+    );},
+    componentDidUpdate: function() {
+        this.props.editController.componentDidUpdate(this, this.props.fans);
+    }
 });
 
 var SpeedTable = React.createClass({
@@ -265,6 +274,9 @@ var SpeedTable = React.createClass({
                 </tbody>
             </table>
         );
+    },
+    componentDidUpdate: function() {
+        this.props.editController.componentDidUpdate(this, {'S': null});
     }
 });
 
@@ -301,8 +313,8 @@ EditController.prototype.setComponent = function(component) {
     this._component = component;
 };
 
-EditController.prototype.editing = function(id, obj_with_refs) {
-    var value = obj_with_refs.refs[this._input_ref_prefix+id].value;
+EditController.prototype.editing = function(id, comp) {
+    var value = comp.refs[this._input_ref_prefix+id].value;
     this._editing[id] = value;
     this._component.forceUpdate();
 };
@@ -314,15 +326,24 @@ EditController.prototype.cancel = function(id) {
     }
 };
 
-EditController.prototype.getRenderInputs = function(id, live_value, obj_with_refs) {
+EditController.prototype.getRenderInputs = function(id, live_value, comp) {
     var editing = $has(this._editing, id);
     return {
         editing:   editing,
         class:     editing ? controlEditingClass : '',
         value:     editing ? this._editing[id] : live_value,
-        onEditing: this.editing.bind(this, id, obj_with_refs),
+        onEditing: this.editing.bind(this, id, comp),
         onCancel:  this.cancel.bind(this, id)
     };
+};
+
+EditController.prototype.componentDidUpdate = function(comp, id_datas) {
+    $.each(id_datas, function(id, data) {
+        var input = comp.refs[this._input_ref_prefix+id];
+        if (!$has(this._editing, id)) {
+            input.defaultValue = input.value;
+        }
+    }.bind(this));
 };
 
 
