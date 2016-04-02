@@ -51,9 +51,6 @@ private:
     using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
     using Current = typename Params::CurrentService::template Current<Context, Object, Config, FpType, CurrentChannelsList>;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_apply_default, apply_default)
-    
 public:
     static void init (Context c)
     {
@@ -71,7 +68,7 @@ public:
         if (cmd->getCmdNumber(c) == 906) {
             for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                 auto part = cmd->getPart(c, i);
-                ListForEachForward<CurrentAxesList>(LForeach_check_current_axis(), c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part));
+                ListForEachForward<CurrentAxesList>([&] APRINTER_TL(axis, axis::check_current_axis(c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part))));
             }
             cmd->finishCommand(c);
             return false;
@@ -89,7 +86,7 @@ public:
 private:
     static void apply_default (Context c)
     {
-        ListForEachForward<CurrentAxesList>(LForeach_apply_default(), c);
+        ListForEachForward<CurrentAxesList>([&] APRINTER_TL(axis, axis::apply_default(c)));
     }
     
     template <int CurrentAxisIndex>

@@ -106,8 +106,6 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_update, update)
-    
     using TheDebugObject = DebugObject<Context, Object>;
     using MyExprsList = typename DelayedExprsList::List;
     template <typename TheExpr>
@@ -188,7 +186,7 @@ private:
 public:
     static void init (Context c)
     {
-        ListForEachForward<CachedExprStateList>(Foreach_update(), c);
+        ListForEachForward<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
         
         TheDebugObject::init(c);
     }
@@ -202,7 +200,7 @@ public:
     {
         TheDebugObject::access(c);
         
-        ListForEachForward<CachedExprStateList>(Foreach_update(), c);
+        ListForEachForward<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
     }
     
     template <typename TheExpr>

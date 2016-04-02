@@ -47,10 +47,6 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_read, read)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_write, write)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_block_number, get_block_number)
-    
     struct EepromHandler;
     using Loop = typename Context::EventLoop;
     using TheEeprom = typename Params::EepromService::template Eeprom<Context, Object, EepromHandler>;
@@ -128,7 +124,7 @@ private:
         
         static int write (Context c)
         {
-            ListForEachForward<OptionsForBlock<(WriteBlockNumber - 1)>>(Foreach_write(), c);
+            ListForEachForward<OptionsForBlock<(WriteBlockNumber - 1)>>([&] APRINTER_TL(block, block::write(c)));
             return Params::StartBlock + WriteBlockNumber;
         }
     };
@@ -166,7 +162,7 @@ private:
         
         static bool read (Context c)
         {
-            ListForEachForward<OptionsForBlock<(ReadBlockNumber - 1)>>(Foreach_read(), c);
+            ListForEachForward<OptionsForBlock<(ReadBlockNumber - 1)>>([&] APRINTER_TL(block, block::read(c)));
             return true;
         }
     };
@@ -246,7 +242,7 @@ private:
             return finish(c, true);
         }
         memset(o->buffer, 0, sizeof(o->buffer));
-        int block_number = ListForOne<BlockWriteHelperList, 0, int>(o->current_block, Foreach_write(), c);
+        int block_number = ListForOne<BlockWriteHelperList, 0, int>(o->current_block, [&] APRINTER_TL(helper, return helper::write(c)));
         TheEeprom::startWrite(c, block_number * TheEeprom::BlockSize, o->buffer, TheEeprom::BlockSize);
     }
     
@@ -258,7 +254,7 @@ private:
         if (o->current_block == NumReadBlocks) {
             return finish(c, true);
         }
-        int block_number = ListForOne<BlockReadHelperList, 0, int>(o->current_block, Foreach_get_block_number());
+        int block_number = ListForOne<BlockReadHelperList, 0, int>(o->current_block, [&] APRINTER_TL(helper, return helper::get_block_number()));
         TheEeprom::startRead(c, block_number * TheEeprom::BlockSize, o->buffer, TheEeprom::BlockSize);
     }
     
@@ -275,7 +271,7 @@ private:
             o->current_block++;
             return do_write(c);
         } else {
-            if (!ListForOne<BlockReadHelperList, 0, bool>(o->current_block, Foreach_read(), c)) {
+            if (!ListForOne<BlockReadHelperList, 0, bool>(o->current_block, [&] APRINTER_TL(helper, return helper::read(c)))) {
                 return finish(c, false);
             }
             o->current_block++;

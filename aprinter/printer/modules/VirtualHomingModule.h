@@ -53,19 +53,13 @@ private:
     
     enum class State {IDLE, RUNNING};
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_remove_nondefault_axes, remove_nondefault_axes)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
-    
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
         o->event.init(c, APRINTER_CB_STATFUNC_T(&VirtualHomingModule::event_handler));
         o->state = State::IDLE;
-        ListForEachForward<VirtHomingAxisList>(LForeach_init(), c);
+        ListForEachForward<VirtHomingAxisList>([&] APRINTER_TL(axis, axis::init(c)));
     }
     
     static void deinit (Context c)
@@ -76,14 +70,14 @@ public:
     
     static void m119_append_endstop (Context c, TheCommand *cmd)
     {
-        ListForEachForward<VirtHomingAxisList>(LForeach_m119_append_endstop(), c, cmd);
+        ListForEachForward<VirtHomingAxisList>([&] APRINTER_TL(axis, axis::m119_append_endstop(c, cmd)));
     }
     
     template <typename CallbackContext>
     AMBRO_ALWAYS_INLINE
     static bool prestep_callback (CallbackContext c)
     {
-        return !ListForEachForwardInterruptible<VirtHomingAxisList>(LForeach_prestep_callback(), c);
+        return !ListForEachForwardInterruptible<VirtHomingAxisList>([&] APRINTER_TL(axis, return axis::prestep_callback(c)));
     }
     
     static bool startHook (Context c, DummyServiceUserId, TheCommand *err_output)
@@ -95,7 +89,7 @@ public:
         ThePrinterMain::getHomingRequest(c, &o->homing_axes, &homing_default);
         
         if (homing_default) {
-            ListForEachForward<VirtHomingAxisList>(LForeach_remove_nondefault_axes(), c);
+            ListForEachForward<VirtHomingAxisList>([&] APRINTER_TL(axis, axis::remove_nondefault_axes(c)));
         }
         
         o->state = State::RUNNING;
@@ -113,7 +107,7 @@ private:
         AMBRO_ASSERT(o->state == State::RUNNING)
         
         if (o->homing_error ||
-            ListForEachForwardInterruptible<VirtHomingAxisList>(LForeach_start_virt_homing(), c) ||
+            ListForEachForwardInterruptible<VirtHomingAxisList>([&] APRINTER_TL(axis, return axis::start_virt_homing(c))) ||
             o->homing_error
         ) {
             o->state = State::IDLE;

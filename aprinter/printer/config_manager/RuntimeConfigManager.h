@@ -83,11 +83,6 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_set_cmd, get_set_cmd)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_dump_options_helper, dump_options_helper)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_by_strings, set_by_strings)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_string_helper, get_string_helper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
@@ -561,7 +556,7 @@ private:
     
     static void reset_all_config (Context c)
     {
-        ListForEachForward<TypeGeneralList>(Foreach_reset_config(), c);
+        ListForEachForward<TypeGeneralList>([&] APRINTER_TL(type, type::reset_config(c)));
     }
     
     static void work_dump (Context c)
@@ -588,7 +583,7 @@ private:
         
         TheCommand<> *cmd = ThePrinterMain::get_locked(c);
         cmd->reply_append_pstr(c, AMBRO_PSTR("M926 I"));
-        ListForEachForwardInterruptible<TypeGeneralList>(Foreach_dump_options_helper(), c, cmd, o->dump_current_option);
+        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::dump_options_helper(c, cmd, o->dump_current_option)));
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         o->dump_current_option++;
@@ -621,7 +616,7 @@ public:
             } else {
                 bool get_it = (cmd_num == GetConfigMCommand);
                 char const *name = cmd->get_command_param_str(c, 'I', "");
-                if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cmd, get_it, name)) {
+                if (ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_set_cmd(c, cmd, get_it, name)))) {
                     cmd->reportError(c, AMBRO_PSTR("UnknownOption"));
                 } else if (get_it) {
                     cmd->reply_append_ch(c, '\n');
@@ -659,7 +654,7 @@ public:
     
     static bool setOptionByStrings (Context c, char const *option_name, char const *option_value)
     {
-        return !ListForEachForwardInterruptible<TypeGeneralList>(Foreach_set_by_strings(), c, option_name, option_value);
+        return !ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::set_by_strings(c, option_name, option_value)));
     }
     
     static void getOptionString (Context c, int option_index, char *output, size_t output_avail)
@@ -668,7 +663,7 @@ public:
         AMBRO_ASSERT(option_index < NumRuntimeOptions)
         AMBRO_ASSERT(output_avail > 0)
         
-        ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_string_helper(), c, option_index, output, output_avail);
+        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_string_helper(c, option_index, output, output_avail)));
     }
     
     template <typename TheStoreFeature = StoreFeature>

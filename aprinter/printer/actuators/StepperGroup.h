@@ -33,51 +33,44 @@
 template <typename Context, typename LazySteppersList>
 class StepperGroup {
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_enable, enable)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_disable, disable)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_setDir, setDir)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_stepOn, stepOn)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_stepOff, stepOff)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_emergency, emergency)
-    
     template <typename TheLazySteppersList=LazySteppersList>
     using SteppersList = typename TheLazySteppersList::List;
     
 public:
     static void enable (Context c)
     {
-        ListForEachForward<SteppersList<>>(Foreach_enable(), c);
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::enable(c)));
     }
     
     static void disable (Context c)
     {
-        ListForEachForward<SteppersList<>>(Foreach_disable(), c);
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::disable(c)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void setDir (ThisContext c, bool dir)
     {
-        ListForEachForward<SteppersList<>>(Foreach_setDir(), c, dir);
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::setDir(c, dir)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void stepOn (ThisContext c)
     {
-        ListForEachForward<SteppersList<>>(Foreach_stepOn(), c);
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOn(c)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void stepOff (ThisContext c)
     {
-        ListForEachForward<SteppersList<>>(Foreach_stepOff(), c);
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOff(c)));
     }
     
     static void emergency ()
     {
-        ListForEachForward<SteppersList<>>(Foreach_emergency());
+        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::emergency()));
     }
 };
 

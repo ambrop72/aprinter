@@ -55,9 +55,6 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
-    
     static int const NumSteppers = TypeListLength<StepperDefsList>::Value;
     using MaskType = ChooseInt<NumSteppers, false>;
     using TheDebugObject = DebugObject<Context, Object>;
@@ -190,7 +187,7 @@ public:
     {
         auto *o = Object::self(c);
         o->mask = 0;
-        ListForEachForward<SteppersList>(Foreach_init(), c);
+        ListForEachForward<SteppersList>([&] APRINTER_TL(stepper, stepper::init(c)));
         TheDebugObject::init(c);
     }
     
@@ -198,7 +195,7 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
-        ListForEachForward<SteppersList>(Foreach_deinit(), c);
+        ListForEachForward<SteppersList>([&] APRINTER_TL(stepper, stepper::deinit(c)));
     }
     
 public:

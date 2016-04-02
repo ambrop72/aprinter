@@ -120,34 +120,6 @@ private:
     using TheLinearPlanner = LinearPlanner<FpType>;
     using Constants = MotionPlannerConstants<Context>;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_abort, abort)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_commandDone_assert, commandDone_assert)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_splitbuf, write_splitbuf)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_splitbuf_fits, splitbuf_fits)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split_count, compute_split_count)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_icmd_zero, check_icmd_zero)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry, write_segment_buffer_entry)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_compute_state, compute_compute_state)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_steps_time, compute_steps_time)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_junction_limit, do_junction_limit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_have_commit_space, have_commit_space)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_commands, start_commands)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_segment_stepper_commands, gen_segment_stepper_commands)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit, do_commit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit_cold, do_commit_cold)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit_hot, do_commit_hot)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_stepping, start_stepping)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_is_busy, is_busy)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_overload_occurred, overload_occurred)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheCommon, TheCommon)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ComputeState, ComputeState)
     
@@ -1095,8 +1067,8 @@ public:
         o->m_pulling = false;
         o->m_planned = false;
 #endif
-        ListForEachForward<AxisCommonList>(LForeach_init(), c, prestep_callback_enabled);
-        ListForEachForward<ChannelsList>(LForeach_init(), c);
+        ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::init(c, prestep_callback_enabled)));
+        ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::init(c)));
         Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
     }
     
@@ -1104,8 +1076,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        ListForEachReverse<ChannelsList>(LForeach_deinit(), c);
-        ListForEachReverse<AxisCommonList>(LForeach_deinit(), c);
+        ListForEachReverse<ChannelsList>([&] APRINTER_TL(channel, channel::deinit(c)));
+        ListForEachReverse<AxisCommonList>([&] APRINTER_TL(axis, axis::deinit(c)));
         Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
     }
@@ -1123,25 +1095,25 @@ public:
         auto *o = Object::self(c);
         assert_pulling(c);
         AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
-        ListForEachForward<AxisCommonList>(LForeach_commandDone_assert(), c);
+        ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::commandDone_assert(c)));
         
         stop_pulling(c);
         
-        if (AMBRO_UNLIKELY(ListForEachForwardAccRes<AxisCommonList>(true, LForeach_check_icmd_zero(), c) && o->m_split_buffer.axes.rel_max_v_rec == 0.0f)) {
+        if (AMBRO_UNLIKELY(ListForEachForwardAccRes<AxisCommonList>(true, [&] APRINTER_TLA(axis, (bool accum), return axis::check_icmd_zero(accum, c))) && o->m_split_buffer.axes.rel_max_v_rec == 0.0f)) {
             Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
             return;
         }
         
         o->m_split_buffer.type = 0;
-        ListForEachForward<AxesList>(LForeach_write_splitbuf(), c);
+        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::write_splitbuf(c)));
         o->m_split_buffer.axes.split_pos = 0;
-        if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, LForeach_splitbuf_fits(), c))) {
+        if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, [&] APRINTER_TLA(axis, (bool accum), return axis::splitbuf_fits(accum, c))))) {
             o->m_split_buffer.axes.split_count = 1;
         } else {
-            o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_split_count(), c));
+            o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(FloatIdentity(), [&] APRINTER_TLA(axis, (auto accum), return axis::compute_split_count(accum, c))));
             o->m_split_buffer.axes.split_frac = (FpType)1.0 / o->m_split_buffer.axes.split_count;
             o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
-            ListForEachForward<LasersList>(LForeach_fixup_split(), c);
+            ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::fixup_split(c)));
         }
         
         Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
@@ -1214,7 +1186,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
         
-        return ListForEachForwardAccRes<AxesList>(false, LForeach_overload_occurred(), c);
+        return ListForEachForwardAccRes<AxesList>(false, [&] APRINTER_TLA(axis, (bool accum), return axis::overload_occurred(accum, c)));
     }
 #endif
     
@@ -1271,8 +1243,8 @@ private:
         SegmentBufferSizeType commit_count = MinValue(o->m_segments_length, (SegmentBufferSizeType)LookaheadCommitCount);
         
         o->m_new_to_backup = false;
-        ListForEachForward<AxisCommonList>(LForeach_start_commands(), c);
-        ListForEachForward<ChannelsList>(LForeach_start_commands(), c);
+        ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::start_commands(c)));
+        ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::start_commands(c)));
         
         TimeType time = o->m_staging_time;
         v = o->m_staging_v_squared;
@@ -1303,14 +1275,14 @@ private:
                     t1.m_bits.m_int -= t2.bitsValue();
                 }
                 time += t_sum.bitsValue();
-                ListForEachForward<AxesList>(LForeach_gen_segment_stepper_commands(), c, entry,
+                ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::gen_segment_stepper_commands(c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
-                                    vdiff0 * vdiff0, vdiff2 * vdiff2);
-                ListForEachForward<LasersList>(LForeach_gen_segment_stepper_commands(), c, entry,
-                    t0, t2, t1, v_start, v_end, v_const);
+                                    vdiff0 * vdiff0, vdiff2 * vdiff2)));
+                ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::gen_segment_stepper_commands(c, entry,
+                    t0, t2, t1, v_start, v_end, v_const)));
                 v_start = v_end;
             } else {
-                ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_gen_command(), c, entry, time);
+                ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), [&] APRINTER_TL(channel, channel::gen_command(c, entry, time)));
             }
             i++;
             if (AMBRO_UNLIKELY(i == commit_count)) {
@@ -1327,15 +1299,15 @@ private:
         bool ok;
         if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
             ok = true;
-            ListForEachForward<AxisCommonList>(LForeach_do_commit(), c);
-            ListForEachForward<ChannelsList>(LForeach_do_commit_cold(), c);
+            ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::do_commit(c)));
+            ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::do_commit_cold(c)));
             o->m_current_backup = !o->m_current_backup;
         } else {
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 ok = o->m_syncing;
                 if (AMBRO_LIKELY(ok)) {
-                    ListForEachForward<AxisCommonList>(LForeach_do_commit(), c);
-                    ListForEachForward<ChannelsList>(LForeach_do_commit_hot(), lock_c);
+                    ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::do_commit(c)));
+                    ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::do_commit_hot(lock_c)));
                     o->m_current_backup = !o->m_current_backup;
                 }
             }
@@ -1362,8 +1334,8 @@ private:
         o->m_state = STATE_STEPPING;
         TimeType start_time = Clock::getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
-        ListForEachForward<AxisCommonList>(LForeach_start_stepping(), c, start_time);
-        ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);
+        ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::start_stepping(c, start_time)));
+        ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::start_stepping(c, start_time)));
     }
     
     static void callback_event_handler (Context c)
@@ -1393,15 +1365,15 @@ private:
     AMBRO_ALWAYS_INLINE static bool planner_have_commit_space (Context c)
     {
         return
-            ListForEachForwardAccRes<AxisCommonList>(true, LForeach_have_commit_space(), c) &&
-            ListForEachForwardAccRes<ChannelsList>(true, LForeach_have_commit_space(), c);
+            ListForEachForwardAccRes<AxisCommonList>(true, [&] APRINTER_TLA(axis, (bool accum), return axis::have_commit_space(accum, c))) &&
+            ListForEachForwardAccRes<ChannelsList>(true, [&] APRINTER_TLA(channel, (bool accum), return channel::have_commit_space(accum, c)));
     }
     
     AMBRO_ALWAYS_INLINE static bool planner_is_busy (Context c)
     {
         return
-            ListForEachForwardAccRes<AxisCommonList>(false, LForeach_is_busy(), c) ||
-            ListForEachForwardAccRes<ChannelsList>(false, LForeach_is_busy(), c);
+            ListForEachForwardAccRes<AxisCommonList>(false, [&] APRINTER_TLA(axis, (bool accum), return axis::is_busy(accum, c))) ||
+            ListForEachForwardAccRes<ChannelsList>(false, [&] APRINTER_TLA(channel, (bool accum), return channel::is_busy(accum, c)));
     }
     
     static void stepper_event_handler (Context c)
@@ -1483,8 +1455,8 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == STATE_STEPPING)
         
-        ListForEachForward<AxisCommonList>(LForeach_abort(), c);
-        ListForEachForward<ChannelsList>(LForeach_abort(), c);
+        ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::abort(c)));
+        ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::abort(c)));
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_state = STATE_ABORTED;
         Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
@@ -1522,32 +1494,32 @@ private:
         
         if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
             o->m_split_buffer.axes.split_pos++;
-            ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
+            ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::write_segment_buffer_entry(c, entry)));
             
             ComputeStateTuple cst;
-            ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
+            ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::compute_compute_state(c, entry, &cst)));
             
             FpType sync_steps_time = 0.0f;
             FpType async_steps_time = 0.0f;
-            ListForEachForward<AxisCommonList>(LForeach_compute_steps_time(), c, entry, &cst, &sync_steps_time, &async_steps_time);
+            ListForEachForward<AxisCommonList>([&] APRINTER_TL(axis, axis::compute_steps_time(c, entry, &cst, &sync_steps_time, &async_steps_time)));
             FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, FloatMax(sync_steps_time, async_steps_time));
-            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, [&] APRINTER_TLA(axis, (FpType accum), return axis::compute_segment_buffer_entry_speed(accum, c, entry, &cst)));
             
-            FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
+            FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), [&] APRINTER_TLA(axis, (auto accum), return axis::compute_segment_buffer_entry_distance(accum, c, &cst)));
             bool degenerate = (distance == 0.0f);
             if (degenerate) {
                 distance = 1.0f;
             }
             FpType distance_rec = 1.0f / distance;
             
-            ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
+            ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::write_segment_buffer_entry_extra(c, entry, distance_rec)));
             
-            FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
+            FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), [&] APRINTER_TLA(axis, (auto accum), return axis::compute_segment_buffer_entry_accel(accum, c, &cst)));
             entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
             FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
             
             FpType distance_rec_for_junction = AMBRO_UNLIKELY(degenerate) ? NAN : distance_rec;
-            FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec_for_junction, &cst);
+            FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), [&] APRINTER_TLA(axis, (auto accum), return axis::do_junction_limit(accum, c, entry, distance_rec_for_junction, &cst)));
             FpType junction_max_start_v = AMBRO_UNLIKELY(FloatIsNan(junction_max_v_rec)) ? 0.0f : (1.0f / junction_max_v_rec);
             o->m_last_dir_and_type = entry->dir_and_type;
             
@@ -1561,7 +1533,7 @@ private:
                 o->m_split_buffer.type = 0xFF;
             }
         } else {
-            ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
+            ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), [&] APRINTER_TL(channel, channel::write_segment(c, entry)));
             o->m_split_buffer.type = 0xFF;
         }
         

@@ -33,22 +33,20 @@
 
 template <typename Context, typename FpType, typename Params>
 class IdentityTransform {
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
-    
 public:
     static int const NumAxes = Params::NumAxes;
     
     template <typename Src, typename Dst>
     static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        ListForEachForward<HelperList>(Foreach_copy_coords(), virt, out_phys);
+        ListForEachForward<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(virt, out_phys)));
         return true;
     }
     
     template <typename Src, typename Dst>
     static void physToVirt (Context c, Src phys, Dst out_virt)
     {
-        ListForEachForward<HelperList>(Foreach_copy_coords(), phys, out_virt);
+        ListForEachForward<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(phys, out_virt)));
     }
     
 private:

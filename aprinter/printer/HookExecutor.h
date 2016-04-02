@@ -49,20 +49,17 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_dispatchHook, dispatchHook)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HookType, HookType)
     
 public:
     static void init (Context c)
     {
-        ListForEachForward<HookList>(Foreach_init(), c);
+        ListForEachForward<HookList>([&] APRINTER_TL(hook, hook::init(c)));
     }
     
     static void deinit (Context c)
     {
-        ListForEachForward<HookList>(Foreach_deinit(), c);
+        ListForEachForward<HookList>([&] APRINTER_TL(hook, hook::deinit(c)));
     }
     
     template <typename HookType>
@@ -158,7 +155,7 @@ private:
             
             if (!o->error) {
                 while (o->current_provider < NumHookProviders) {
-                    if (!ListForOne<ProviderHelperList, 0, bool>(o->current_provider, Foreach_dispatchHook(), c)) {
+                    if (!ListForOne<ProviderHelperList, 0, bool>(o->current_provider, [&] APRINTER_TL(helper, return helper::dispatchHook(c)))) {
                         return;
                     }
                     o->current_provider++;

@@ -74,9 +74,6 @@ class AxisDriver {
     using ConsumersList = TConsumersList;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
-    
     static const int step_bits = Params::PrecisionParams::step_bits;
     static const int time_bits = Params::PrecisionParams::time_bits;
     static const int time_mul_bits = Params::PrecisionParams::time_mul_bits;
@@ -378,7 +375,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, command);
+        bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, [&] APRINTER_TL(helper, return helper::call_command_callback(c, command)));
         if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
             o->m_running = false;
@@ -427,7 +424,7 @@ private:
         
         if (!PreloadCommands || AMBRO_LIKELY(o->m_notend)) {
             if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
-                bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
+                bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, [&] APRINTER_TL(helper, return helper::call_prestep_callback(c)));
                 if (AMBRO_UNLIKELY(res)) {
     #ifdef AMBROLIB_ASSERTIONS
                     o->m_running = false;

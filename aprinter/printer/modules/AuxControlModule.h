@@ -89,23 +89,6 @@ private:
     static int const SetFanCommand = 106;
     static int const OffFanCommand = 107;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clear_error, clear_error)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_value, append_value)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_set_command, check_set_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_cold_extrude, print_cold_extrude)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_cold_extrude, set_cold_extrude)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_json_status, get_json_status)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
 public:
@@ -113,14 +96,14 @@ public:
     {
         auto *o = Object::self(c);
         o->waiting_heaters = 0;
-        ListForEachForward<HeatersList>(LForeach_init(), c);
-        ListForEachForward<FansList>(LForeach_init(), c);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::init(c)));
+        ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::init(c)));
     }
     
     static void deinit (Context c)
     {
-        ListForEachReverse<FansList>(LForeach_deinit(), c);
-        ListForEachReverse<HeatersList>(LForeach_deinit(), c);
+        ListForEachReverse<FansList>([&] APRINTER_TL(fan, fan::deinit(c)));
+        ListForEachReverse<HeatersList>([&] APRINTER_TL(heater, heater::deinit(c)));
     }
     
     static bool check_command (Context c, TheCommand *cmd)
@@ -153,24 +136,24 @@ public:
             handle_cold_extrude_command(c, cmd);
             return false;
         }
-        return ListForEachForwardInterruptible<HeatersList>(LForeach_check_command(), c, cmd) &&
-               ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cmd);
+        return ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_command(c, cmd))) &&
+               ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_command(c, cmd)));
     }
     
     static void emergency ()
     {
-        ListForEachForward<HeatersList>(LForeach_emergency());
-        ListForEachForward<FansList>(LForeach_emergency());
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::emergency()));
+        ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::emergency()));
     }
     
     static void check_safety (Context c)
     {
-        ListForEachForward<HeatersList>(LForeach_check_safety(), c);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::check_safety(c)));
     }
     
     static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes)
     {
-        return ListForEachForwardInterruptible<HeatersList>(LForeach_check_move_interlocks(), c, err_output, move_axes);
+        return ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_move_interlocks(c, err_output, move_axes)));
     }
     
     template <typename TheJsonBuilder>
@@ -178,13 +161,13 @@ public:
     {
         if (NumHeaters > 0) {
             json->addKeyObject(JsonSafeString{"heaters"});
-            ListForEachForward<HeatersList>(LForeach_get_json_status(), c, json);
+            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::get_json_status(c, json)));
             json->endObject();
         }
         
         if (NumFans > 0) {
             json->addKeyObject(JsonSafeString{"fans"});
-            ListForEachForward<FansList>(LForeach_get_json_status(), c, json);
+            ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::get_json_status(c, json)));
             json->endObject();
         }
     }
@@ -863,8 +846,8 @@ private:
         if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, force, false) &&
-            ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, force, true)
+        if (ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, false))) &&
+            ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, true)))
         ) {
             if (NumHeaters > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
@@ -882,7 +865,7 @@ private:
     
     static void print_heaters (Context c, TheOutputStream *cmd)
     {
-        ListForEachForward<HeatersList>(LForeach_append_value(), c, cmd);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::append_value(c, cmd)));
         cmd->reply_append_ch(c, '\n');
     }
     
@@ -892,8 +875,8 @@ private:
         if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, force, is_turn_off, false) &&
-            ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, force, is_turn_off, true)
+        if (ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, false))) &&
+            ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, true)))
         ) {
             if (NumFans > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
@@ -910,14 +893,14 @@ private:
         }
         AMBRO_ASSERT(o->waiting_heaters == 0)
         HeatersMaskType heaters_mask = 0;
-        ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
         o->waiting_heaters = 0;
         o->inrange_heaters = 0;
         o->wait_started_time = Clock::getTime(c);
-        if (!ListForEachForwardInterruptible<HeatersList>(LForeach_start_wait(), c, cmd, heaters_mask)) {
+        if (!ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::start_wait(c, cmd, heaters_mask)))) {
             cmd->reportError(c, nullptr);
             cmd->finishCommand(c);
-            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
             o->waiting_heaters = 0;
             return;
         }
@@ -932,14 +915,14 @@ private:
     static void handle_print_adc_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
-        ListForEachForward<HeatersList>(LForeach_append_adc_value(), c, cmd);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::append_adc_value(c, cmd)));
         cmd->reply_append_ch(c, '\n');
         cmd->finishCommand(c, true);
     }
     
     static void handle_clear_error_command (Context c, TheCommand *cmd)
     {
-        ListForEachForward<HeatersList>(LForeach_clear_error(), c, cmd);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::clear_error(c, cmd)));
         cmd->finishCommand(c);
     }
     
@@ -947,16 +930,16 @@ private:
     {
         if (!cmd->find_command_param(c, 'P', nullptr)) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("ColdExtrude:"));
-            ListForEachForward<HeatersList>(LForeach_print_cold_extrude(), c, cmd);
+            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::print_cold_extrude(c, cmd)));
             cmd->reply_append_ch(c, '\n');
         } else {
             bool allow = (cmd->get_command_param_uint32(c, 'P', 0) > 0);
             HeatersMaskType heaters_mask = 0;
-            ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
+            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
             if (heaters_mask == 0) {
                 heaters_mask = AllHeatersMask;
             }
-            ListForEachForward<HeatersList>(LForeach_set_cold_extrude(), c, allow, heaters_mask);
+            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::set_cold_extrude(c, allow, heaters_mask)));
         }
         cmd->finishCommand(c);
     }
@@ -971,7 +954,7 @@ private:
             cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
-        ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
         o->waiting_heaters = 0;
         ThePrinterMain::now_inactive(c);
     }
@@ -1006,8 +989,8 @@ private:
     {
         auto *ob = Object::self(c);
         
-        ListForOneBool<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
-        ListForOneBool<FansList, NumHeaters>(payload->type, LForeach_channel_callback(), c, &payload->fans);
+        ListForOneBool<HeatersList, 0>(payload->type, [&] APRINTER_TL(heater, heater::channel_callback(c, &payload->heaters))) ||
+        ListForOneBool<FansList, NumHeaters>(payload->type, [&] APRINTER_TL(fan, fan::channel_callback(c, &payload->fans)));
     }
     template <typename This> struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&AuxControlModule::template planner_channel_callback<This>) {};
     

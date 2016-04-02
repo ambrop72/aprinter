@@ -39,13 +39,10 @@ class MicroStepConfigModule {
 public:
     struct Object;
     
-private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    
 public:
     static void init (Context c)
     {
-        ListForEachForward<MicroStepAxisList>(LForeach_init(), c);
+        ListForEachForward<MicroStepAxisList>([&] APRINTER_TL(axis, axis::init(c)));
     }
     
 private:

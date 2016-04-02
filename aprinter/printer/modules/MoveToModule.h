@@ -52,10 +52,6 @@ private:
     using MoveSpecList = typename Params::MoveSpecList;
     static int const NumMoves = TypeListLength<MoveSpecList>::Value;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_fill_move_command, fill_move_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_hook_completed, hook_completed)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_fill_coordinate, fill_coordinate)
-    
 public:
     static void init (Context c)
     {
@@ -111,7 +107,7 @@ private:
             o->command_sent = true;
             ThePrinterMain::move_begin(c);
             FpType speed;
-            ListForOne<MoveHelperList>(o->move_index, Foreach_fill_move_command(), c, &speed);
+            ListForOne<MoveHelperList>(o->move_index, [&] APRINTER_TL(helper, helper::fill_move_command(c, &speed)));
             ThePrinterMain::move_set_max_speed(c, speed);
             return ThePrinterMain::move_end(c, o->err_output, MoveToModule::move_end_callback);
         }
@@ -124,7 +120,7 @@ private:
             ThePrinterMain::custom_planner_deinit(c);
             int8_t move_index = o->move_index;
             o->move_index = -1;
-            return ListForOne<MoveHelperList>(move_index, Foreach_hook_completed(), c, o->move_error);
+            return ListForOne<MoveHelperList>(move_index, [&] APRINTER_TL(helper, helper::hook_completed(c, o->move_error)));
         }
     };
     
@@ -141,7 +137,7 @@ private:
         static void fill_move_command (Context c, FpType *speed)
         {
             *speed = APRINTER_CFG(Config, CSpeed, c);
-            ListForEachForward<CoordHelperList>(Foreach_fill_coordinate(), c);
+            ListForEachForward<CoordHelperList>([&] APRINTER_TL(helper, helper::fill_coordinate(c)));
         }
         
         static void hook_completed (Context c, bool error)
