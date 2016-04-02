@@ -50,11 +50,12 @@ public:
         virtual bool mayWaitForSendBuf (Context c, size_t length) = 0;
     };
     
-    void init (Context c, TimeType send_buf_timeout, UserCallback *user_callback)
+    void init (Context c, TimeType send_buf_timeout, UserCallback *user_callback, Callback<void(Context)> next_event_handler)
     {
         m_overrun_event.init(c, APRINTER_CB_OBJFUNC_T(&ConvenientCommandStream::overrun_event_handler, this));
         m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&ConvenientCommandStream::send_buf_check_event_handler, this));
         m_send_buf_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&ConvenientCommandStream::send_buf_timeout_event_handler, this));
+        m_next_event.init(c, next_event_handler);
         
         m_send_buf_timeout = send_buf_timeout;
         m_send_buf_request = 0;
@@ -66,6 +67,7 @@ public:
     {
         CommandStream::deinit(c);
         
+        m_next_event.deinit(c);
         m_send_buf_timeout_event.deinit(c);
         m_send_buf_check_event.deinit(c);
         m_overrun_event.deinit(c);
@@ -86,6 +88,18 @@ public:
     bool isSendOverrunBeingRaised (Context c)
     {
         return m_overrun_event.isSet(c);
+    }
+    
+    void setNextEventIfNoCommand (Context c)
+    {
+        if (!hasCommand(c)) {
+            m_next_event.prependNow(c);
+        }
+    }
+    
+    void setNextEventAfterCommandFinished (Context c)
+    {
+        m_next_event.prependNowNotAlready(c);
     }
     
     using CommandStream::tryCancelCommand;
@@ -154,6 +168,7 @@ private:
 private:
     typename Context::EventLoop::QueuedEvent m_overrun_event;
     typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
+    typename Context::EventLoop::QueuedEvent m_next_event;
     typename Context::EventLoop::TimedEvent m_send_buf_timeout_event;
     TimeType m_send_buf_timeout;
     size_t m_send_buf_request;

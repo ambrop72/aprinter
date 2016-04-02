@@ -769,7 +769,6 @@ private:
     public:
         void init (Context c)
         {
-            m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&GcodeSlot::next_event_handler, this));
             m_state = State::AVAILABLE;
         }
         
@@ -779,8 +778,6 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
-            
-            m_next_event.deinit(c);
         }
         
         bool isAvailable (Context c)
@@ -793,7 +790,7 @@ private:
             AMBRO_ASSERT(m_state == State::AVAILABLE)
             
             m_gcode_parser.init(c);
-            m_command_stream.init(c, GcodeSendBufTimeoutTicks, this);
+            m_command_stream.init(c, GcodeSendBufTimeoutTicks, this, APRINTER_CB_OBJFUNC_T(&GcodeSlot::next_event_handler, this));
             m_command_stream.setPokeOverhead(c, TheHttpServer::MaxTxChunkOverhead);
             
             m_state = State::ATTACHED;
@@ -823,9 +820,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::ATTACHED)
             
-            if (!m_command_stream.hasCommand(c)) {
-                m_next_event.prependNow(c);
-            }
+            m_command_stream.setNextEventIfNoCommand(c);
         }
         
         void responseBufferEvent (Context c)
@@ -844,7 +839,6 @@ private:
             m_gcode_parser.deinit(c);
             
             m_state = State::AVAILABLE;
-            m_next_event.unset(c);
         }
         
         void next_event_handler (Context c)
@@ -902,7 +896,7 @@ private:
                 m_client->m_request->controlRequestBodyTimeout(c, true);
             }
             
-            m_next_event.prependNowNotAlready(c);
+            m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
         void reply_poke_impl (Context c)
@@ -973,7 +967,6 @@ private:
         
     private:
         UserClientState *m_client;
-        typename Context::EventLoop::QueuedEvent m_next_event;
         TheGcodeParser m_gcode_parser;
         TheConvenientStream m_command_stream;
         size_t m_buffer_pos;

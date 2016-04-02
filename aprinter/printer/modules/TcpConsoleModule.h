@@ -114,7 +114,6 @@ private:
         
         void init (Context c)
         {
-            m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
             m_connection.init(c, this);
             m_state = State::NOT_CONNECTED;
         }
@@ -126,7 +125,6 @@ private:
                 m_gcode_parser.deinit(c);
             }
             m_connection.deinit(c);
-            m_next_event.deinit(c);
         }
         
         void accept_connection (Context c)
@@ -139,7 +137,7 @@ private:
             m_connection.acceptConnection(c, &o->listener);
             
             m_gcode_parser.init(c);
-            m_command_stream.init(c, SendBufTimeoutTicks, this);
+            m_command_stream.init(c, SendBufTimeoutTicks, this, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
             
             m_state = State::CONNECTED;
             m_rx_buf_start = 0;
@@ -153,7 +151,6 @@ private:
             m_command_stream.deinit(c);
             m_gcode_parser.deinit(c);
             
-            m_next_event.unset(c);
             m_connection.reset(c);
             
             m_state = State::NOT_CONNECTED;
@@ -205,9 +202,7 @@ private:
             
             m_rx_buf_length += bytes_read;
             
-            if (!m_command_stream.hasCommand(c) && !m_next_event.isSet(c)) {
-                m_next_event.prependNowNotAlready(c);
-            }
+            m_command_stream.setNextEventIfNoCommand(c);
         }
         
         void connectionSendHandler (Context c)
@@ -265,7 +260,7 @@ private:
                 m_connection.acceptReceivedData(c, cmd_len);
             }
             
-            m_next_event.prependNowNotAlready(c);
+            m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
         void reply_poke_impl (Context c)
@@ -326,7 +321,6 @@ private:
             return (m_state != State::CONNECTED || length <= TheTcpConnection::ProvidedTxBufSize);
         }
         
-        typename Context::EventLoop::QueuedEvent m_next_event;
         TheTcpConnection m_connection;
         TheGcodeParser m_gcode_parser;
         TheConvenientStream m_command_stream;
