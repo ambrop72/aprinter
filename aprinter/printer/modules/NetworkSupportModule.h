@@ -33,6 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -153,7 +154,7 @@ private:
     
     static void print_mac_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
     {
-        for (int i = 0; i < 6; i++) {
+        for (auto i : LoopRange<int>(6)) {
             if (i > 0) {
                 cmd->reply_append_ch(c, ':');
             }
@@ -165,7 +166,7 @@ private:
     
     static void print_ip_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
     {
-        for (int i = 0; i < 4; i++) {
+        for (auto i : LoopRange<int>(4)) {
             if (i > 0) {
                 cmd->reply_append_ch(c, '.');
             }

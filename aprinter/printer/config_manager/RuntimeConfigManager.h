@@ -50,6 +50,7 @@
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
@@ -212,7 +213,7 @@ private:
         
         static bool parse_mac_addr (char const *str, ConfigTypeMacAddress *out_value)
         {
-            for (size_t i = 0; i < ConfigTypeMacAddress::Size; i++) {
+            for (auto i : LoopRange<size_t>(ConfigTypeMacAddress::Size)) {
                 if (*str == '\0') {
                     return false;
                 }
@@ -281,7 +282,7 @@ private:
         
         static bool parse_ip_addr (char const *str, ConfigTypeIpAddress *out_value)
         {
-            for (size_t i = 0; i < ConfigTypeIpAddress::Size; i++) {
+            for (auto i : LoopRange<size_t>(ConfigTypeIpAddress::Size)) {
                 if (*str == '\0') {
                     return false;
                 }
@@ -339,7 +340,7 @@ private:
         
         static int find_option (char const *name)
         {
-            for (int i = 0; i < NumOptions; i++) {
+            for (auto i : LoopRange<int>(NumOptions)) {
                 if (RuntimeConfigManager__compare_option(name, NameTable::readAt(i))) {
                     return i;
                 }
@@ -350,7 +351,7 @@ private:
         static void reset_config (Context c)
         {
             auto *o = Object::self(c);
-            for (int i = 0; i < NumOptions; i++) {
+            for (auto i : LoopRange<int>(NumOptions)) {
                 o->values[i] = DefaultTable::readAt(i);
             }
         }

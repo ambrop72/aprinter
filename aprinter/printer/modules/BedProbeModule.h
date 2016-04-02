@@ -40,6 +40,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/math/Matrix.h>
 #include <aprinter/math/LinearLeastSquares.h>
 #include <aprinter/printer/Configuration.h>
@@ -224,7 +225,7 @@ public:
         static void probing_staring (Context c)
         {
             auto *o = Object::self(c);
-            for (PointIndexType i = 0; i < NumPoints; i++) {
+            for (auto i : LoopRange<PointIndexType>(NumPoints)) {
                 o->heights_matrix--(i, 0) = NAN;
             }
         }
@@ -247,7 +248,7 @@ public:
             
             PointIndexType num_valid_points = 0;
             
-            for (PointIndexType i = 0; i < NumPoints; i++) {
+            for (auto i : LoopRange<PointIndexType>(NumPoints)) {
                 if (isnan(o->heights_matrix--(i, 0))) {
                     continue;
                 }
@@ -279,7 +280,7 @@ public:
             print_corrections(c, cmd, &new_corrections, AMBRO_PSTR("RelativeCorrections"));
             
             bool bad_corrections = false;
-            for (int i = 0; i < MaxCorrectionFactors; i++) {
+            for (auto i : LoopRange<int>(MaxCorrectionFactors)) {
                 FpType x = new_corrections++(i, 0);
                 if (isnan(x) || isinf(x)) {
                     bad_corrections = true;
@@ -508,7 +509,7 @@ private:
         
         static void fill_point_coordinates (Context c, MatrixRange<FpType> matrix)
         {
-            for (PointIndexType i = 0; i < NumPoints; i++) {
+            for (auto i : LoopRange<PointIndexType>(NumPoints)) {
                 matrix(i, PlatformAxisIndex) = get_point_coord<PlatformAxisIndex>(c, i);
             }
         }

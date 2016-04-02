@@ -77,8 +77,8 @@ public:
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         }
         
-        for (int i = 0; i < MaxClients; i++) {
-            o->clients[i].init(c);
+        for (Client &client : o->clients) {
+            client.init(c);
         }
     }
     
@@ -86,8 +86,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < MaxClients; i++) {
-            o->clients[i].deinit(c);
+        for (Client &client : o->clients) {
+            client.deinit(c);
         }
         
         o->listener.deinit(c);
@@ -98,10 +98,9 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < MaxClients; i++) {
-            Client *cl = &o->clients[i];
-            if (cl->m_state == Client::State::NOT_CONNECTED) {
-                return cl->accept_connection(c);
+        for (Client &client : o->clients) {
+            if (client.m_state == Client::State::NOT_CONNECTED) {
+                return client.accept_connection(c);
             }
         }
         

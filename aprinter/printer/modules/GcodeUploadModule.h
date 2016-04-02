@@ -35,6 +35,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/math/PrintInt.h>
 #include <aprinter/fs/BufferedFile.h>
 
@@ -263,8 +264,7 @@ private:
         
         length += PrintNonnegativeIntDecimal(cmd->getCmdNumber(c), o->command_buf + length);
         
-        auto num_parts = cmd->getNumParts(c);
-        for (decltype(num_parts) i = 0; i < num_parts; i++) {
+        for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
             auto part = cmd->getPart(c, i);
             char code = cmd->getPartCode(c, part);
             char const *arg = cmd->getPartStringValue(c, part);

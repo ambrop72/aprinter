@@ -60,6 +60,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/utils/Blinker.h>
@@ -730,8 +731,7 @@ public:
         APRINTER_NO_INLINE
         bool find_command_param (Context c, char code, PartRef *out_part)
         {
-            PartsSizeType num_parts = getNumParts(c);
-            for (PartsSizeType i = 0; i < num_parts; i++) {
+            for (auto i : LoopRangeAuto(getNumParts(c))) {
                 PartRef part = getPart(c, i);
                 if (getPartCode(c, part) == code) {
                     if (out_part) {
@@ -2467,8 +2467,7 @@ private:
                     FpType dwell_time_ticks = 0.0f;
                     bool seen_t = false;
                     
-                    auto num_parts = cmd->getNumParts(c);
-                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                    for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         CommandPartRef part = cmd->getPart(c, i);
                         
                         if (cmd_number != 4 && !ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cmd, part, axis_relative)) {
@@ -2519,8 +2518,7 @@ private:
                     }
                     AMBRO_ASSERT(ob->axis_homing == 0)
                     PhysVirtAxisMaskType req_axes = 0;
-                    auto num_parts = cmd->getNumParts(c);
-                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                    for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         ListForEachForward<PhysVirtAxisHelperList>(LForeach_update_homing_mask(), c, cmd, &req_axes, cmd->getPart(c, i));
                     }
                     if (req_axes == 0) {
@@ -2552,8 +2550,7 @@ private:
                         return;
                     }
                     set_position_begin(c);
-                    auto num_parts = cmd->getNumParts(c);
-                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                    for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         ListForEachForward<PhysVirtAxisHelperList>(LForeach_g92_check_axis(), c, cmd, cmd->getPart(c, i));
                     }
                     if (!set_position_end(c, cmd)) {
@@ -3013,7 +3010,7 @@ private:
         if (num_parts == 0) {
             ListForEachForward<AxesList>(LForeach_enable_disable_stepper(), c, enable);
         } else {
-            for (decltype(num_parts) i = 0; i < num_parts; i++) {
+            for (auto i : LoopRangeAuto(num_parts)) {
                 ListForEachForward<AxesList>(LForeach_enable_disable_stepper_specific(), c, enable, cmd, cmd->getPart(c, i));
             }
         }

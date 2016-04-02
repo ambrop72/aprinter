@@ -40,6 +40,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/TransferVector.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -105,12 +106,12 @@ public:
         o->io_queue_event.init(c, APRINTER_CB_STATFUNC_T(&BlockCache::io_queue_event_handler));
         writable_init(c);
         
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            o->cache_entries[i].init(c);
+        for (CacheEntry &entry : o->cache_entries) {
+            entry.init(c);
         }
         
-        for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
-            o->io_units[i].init(c);
+        for (IoUnit &unit : o->io_units) {
+            unit.init(c);
         }
         
         TheDebugObject::init(c);
@@ -122,12 +123,12 @@ public:
         TheDebugObject::deinit(c);
         writable_deinit_assert(c);
         
-        for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
-            o->io_units[i].deinit(c);
+        for (IoUnit &unit : o->io_units) {
+            unit.deinit(c);
         }
         
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            o->cache_entries[i].deinit(c);
+        for (CacheEntry &entry : o->cache_entries) {
+            entry.deinit(c);
         }
         
         writable_deinit(c);
@@ -151,7 +152,7 @@ public:
         CacheEntryIndexType free_entries[NumCacheEntries];
         CacheEntryIndexType num_free_entries = 0;
         
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
+        for (auto i : LoopRange<CacheEntryIndexType>(NumCacheEntries)) {
             CacheEntry *e = &o->cache_entries[i];
             if (e->isAssigned(c)) {
                 BlockIndexType block = e->getBlock(c);
@@ -175,7 +176,7 @@ public:
         while (block < end_block && num_free_entries > 0) {
             // Skip this block if it is already in the cache.
             bool already = false;
-            for (CacheEntryIndexType i = 0; i < num_cached_blocks; i++) {
+            for (auto i : LoopRange<CacheEntryIndexType>(num_cached_blocks)) {
                 if (cached_blocks[i] == block) {
                     already = true;
                     break;
@@ -592,7 +593,7 @@ private:
         o->current_dirt_time = 0;
         o->waiting_flush_requests.init();
         o->pending_allocations.init();
-        for (BufferIndexType i = 0; i < NumBuffers; i++) {
+        for (auto i : LoopRange<BufferIndexType>(NumBuffers)) {
             o->buffer_usage[i] = false;
         }
     }
@@ -615,13 +616,12 @@ private:
         auto *o = Object::self(c);
         
         bool error = false;
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->cache_entries[i];
-            if (ce->isDirty(c)) {
-                if (!for_new_request && ce->hasFlushWriteFailed(c)) {
+        for (CacheEntry &ce : o->cache_entries) {
+            if (ce.isDirty(c)) {
+                if (!for_new_request && ce.hasFlushWriteFailed(c)) {
                     error = true;
                 } else {
-                    AMBRO_ASSERT(for_new_request || ce->isWriteScheduledOrActive(c))
+                    AMBRO_ASSERT(for_new_request || ce.isWriteScheduledOrActive(c))
                     return false;
                 }
             }
@@ -637,10 +637,9 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->cache_entries[i];
-            if (ce->canStartWrite(c)) {
-                ce->scheduleWriting(c);
+        for (CacheEntry &ce : o->cache_entries) {
+            if (ce.canStartWrite(c)) {
+                ce.scheduleWriting(c);
             }
         }
     }
@@ -680,7 +679,7 @@ private:
         CacheEntryIndexType evictable_entry = -1;
         CacheEntryIndexType releasing_entry = -1;
         
-        for (CacheEntryIndexType entry_index = 0; entry_index < NumCacheEntries; entry_index++) {
+        for (auto entry_index : LoopRange<CacheEntryIndexType>(NumCacheEntries)) {
             CacheEntry *ce = &o->cache_entries[entry_index];
             
             if (ce->isAssigned(c) && ce->getBlock(c) == block) {
@@ -784,10 +783,9 @@ private:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->cache_entries[i];
-            if (ce->isBeingReleased(c) && !ce->isAssigned(c)) {
-                ce->completeRelease(c);
+        for (CacheEntry &ce : o->cache_entries) {
+            if (ce.isBeingReleased(c) && !ce.isAssigned(c)) {
+                ce.completeRelease(c);
             }
         }
         
@@ -798,7 +796,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (BufferIndexType i = 0; i < NumBuffers; i++) {
+        for (auto i : LoopRange<BufferIndexType>(NumBuffers)) {
             if (!o->buffer_usage[i]) {
                 return i;
             }
@@ -1308,9 +1306,9 @@ private:
         {
             auto *o = Object::self(c);
             
-            for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
-                if (o->io_units[i].isIdle(c)) {
-                    return &o->io_units[i];
+            for (IoUnit &unit : o->io_units) {
+                if (unit.isIdle(c)) {
+                    return &unit;
                 }
             }
             return nullptr;
@@ -1364,7 +1362,7 @@ private:
             }
             
             // Build transfer descriptors.
-            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+            for (auto i : LoopRange<IoBlockIndexType>(m_num_blocks)) {
                 CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
                 m_descriptors[i] = TransferDescriptor<DataWordType>{this_e->get_buffer(c), BlockSizeInWords};
             }
@@ -1394,38 +1392,36 @@ private:
             }
             
             // Clear entry indices for the remainder of the block sequence (needed for next step).
-            for (IoBlockIndexType i = 1; i < MaxIoBlocks; i++) {
+            for (auto i : LoopRange<IoBlockIndexType>(1, MaxIoBlocks)) {
                 m_entry_indices[i] = -1;
             }
             
             // Find candidate blocks to add to the sequence.
-            for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-                CacheEntry *this_e = &o->cache_entries[i];
-                
+            for (CacheEntry &this_e : o->cache_entries) {
                 // Ignore unassigned entries (they do not have a block index).
-                if (!this_e->isAssigned(c)) {
+                if (!this_e.isAssigned(c)) {
                     continue;
                 }
                 
                 // Check if the entry has a place in the sequence.
-                BlockIndexType block_index = this_e->get_io_block_index();
+                BlockIndexType block_index = this_e.get_io_block_index();
                 if (!(block_index > start_block && block_index - start_block < MaxIoBlocks)) {
                     continue;
                 }
                 
                 // See above...
-                if (this_e->hasLastWriteFailed(c)) {
+                if (this_e.hasLastWriteFailed(c)) {
                     continue;
                 }
                 
-                if (this_e->isIoActive(c)) {
+                if (this_e.isIoActive(c)) {
                     // Active I/O - we can take the entry if the I/O direction matches and it is still in the queue.
-                    if (!((!Writable || first_e->m_state == this_e->m_state) && !CacheEntry::IoQueue::isRemoved(this_e))) {
+                    if (!((!Writable || first_e->m_state == this_e.m_state) && !CacheEntry::IoQueue::isRemoved(&this_e))) {
                         continue;
                     }
                 } else {
                     // Inactive I/O - we can take the entry if we are writing and the entry is ready for writing.
-                    if (!(Writable && first_e->m_state == CacheEntry::State::WRITING && this_e->canStartWrite(c))) {
+                    if (!(Writable && first_e->m_state == CacheEntry::State::WRITING && this_e.canStartWrite(c))) {
                         continue;
                     }
                 }
@@ -1435,7 +1431,7 @@ private:
                 // happen if the user caused a conflict with the write strides.
                 IoBlockIndexType io_index = block_index - start_block;
                 if (m_entry_indices[io_index] == -1) {
-                    m_entry_indices[io_index] = (this_e - o->cache_entries);
+                    m_entry_indices[io_index] = (&this_e - o->cache_entries);
                 }
             }
             
@@ -1463,7 +1459,7 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::WRITING)
             
-            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+            for (auto i : LoopRange<IoBlockIndexType>(m_num_blocks)) {
                 CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
                 this_e->block_user_locker(c, lock_else_unlock);
             }
@@ -1481,7 +1477,7 @@ private:
             
             // Dispatch the results while the unit still appears busy.
             // We wouldn't want jobs to be dispatched to this unit in this state.
-            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+            for (auto i : LoopRange<IoBlockIndexType>(m_num_blocks)) {
                 CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
                 this_e->block_user_handler(c, error);
             }

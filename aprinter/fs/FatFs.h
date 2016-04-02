@@ -42,6 +42,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/TransferVector.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/misc/Utf8Encoder.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
@@ -2026,7 +2027,7 @@ private:
         static uint8_t vfat_checksum (char const *data)
         {
             uint8_t csum = 0;
-            for (int i = 0; i < 11; i++) {
+            for (auto i : LoopRange<int>(11)) {
                 csum = (uint8_t)((uint8_t)((csum & 1) << 7) + (csum >> 1)) + (uint8_t)data[i];
             }
             return csum;
@@ -2038,7 +2039,7 @@ private:
                 length--;
             }
             if (lowercase) {
-                for (size_t i = 0; i < length; i++) {
+                for (auto i : LoopRange<size_t>(length)) {
                     if (data[i] >= 'A' && data[i] <= 'Z') {
                         data[i] += 32;
                     }

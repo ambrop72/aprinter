@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/fs/BlockRange.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -40,7 +41,7 @@ static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, B
         return false;
     }
     
-    for (int partNum = 0; partNum < 4; partNum++) {
+    for (auto partNum : LoopRange<int>(4)) {
         char const *part_entry_buf = mbr + (446 + partNum * 16);
         uint8_t part_type =           ReadBinaryInt<uint8_t,  BinaryLittleEndian>(part_entry_buf + 0x4);
         uint32_t part_start_blocks =  ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0x8);

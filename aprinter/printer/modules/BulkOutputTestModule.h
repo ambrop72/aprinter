@@ -34,6 +34,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/LoopUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -90,7 +91,7 @@ private:
         uint32_t msg_length = cmd->get_command_param_uint32(c, 'L', 32);
         uint32_t msg_count = cmd->get_command_param_uint32(c, 'C', 1);
         
-        for (uint32_t i = 0; i < msg_count; i++) {
+        for (auto i : LoopRange<uint32_t>(msg_count)) {
             auto *out = ThePrinterMain::get_msg_output(c);
             
             uint32_t remain = msg_length;

@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/utils/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -173,7 +174,7 @@ public:
                     BufferSizeType index_offset = m_length;
                     m_length += m_num_parts;
                     m_total_size = m_length;
-                    for (PartsSizeType i = 0; i < m_num_parts; i++) {
+                    for (auto i : LoopRange<PartsSizeType>(m_num_parts)) {
                         uint8_t index_byte = m_buffer[index_offset + i];
                         BufferSizeType data_size;
                         switch (index_byte >> 5) {
@@ -201,7 +202,7 @@ public:
                         return false;
                     }
                     BufferSizeType offset = m_length;
-                    for (PartsSizeType i = 0; i < m_num_parts; i++) {
+                    for (auto i : LoopRange<PartsSizeType>(m_num_parts)) {
                         m_parts[i].data = m_buffer + offset;
                         offset += m_parts[i].data_size;
                     }

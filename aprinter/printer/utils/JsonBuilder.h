@@ -35,6 +35,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/MemRef.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -176,8 +177,8 @@ public:
     
     void addStringMem (MemRef mem)
     {
-        for (size_t pos = 0; pos < mem.len; pos++) {
-            addStringChar(mem.ptr[pos]);
+        for (auto i : LoopRange<size_t>(mem.len)) {
+            addStringChar(mem.ptr[i]);
         }
     }
     

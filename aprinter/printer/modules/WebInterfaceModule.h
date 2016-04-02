@@ -114,8 +114,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < NumGcodeSlots; i++) {
-            o->gcode_slots[i].init(c);
+        for (GcodeSlot &slot : o->gcode_slots) {
+            slot.init(c);
         }
         
         TheHttpServer::init(c);
@@ -129,8 +129,8 @@ public:
         
         // Note, do this after HttpServer deinit so that it has now detached
         // from any slots it was using.
-        for (int i = 0; i < NumGcodeSlots; i++) {
-            o->gcode_slots[i].deinit(c);
+        for (GcodeSlot &slot : o->gcode_slots) {
+            slot.deinit(c);
         }
     }
     
@@ -699,7 +699,6 @@ private:
         void load_json_buffer (Context c)
         {
             auto *o = Object::self(c);
-            
             m_json_req.builder.loadBuffer(o->json_buffer, sizeof(o->json_buffer));
         }
         
@@ -755,9 +754,9 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < NumGcodeSlots; i++) {
-            if (o->gcode_slots[i].isAvailable(c)) {
-                return &o->gcode_slots[i];
+        for (GcodeSlot &slot : o->gcode_slots) {
+            if (slot.isAvailable(c)) {
+                return &slot;
             }
         }
         return nullptr;

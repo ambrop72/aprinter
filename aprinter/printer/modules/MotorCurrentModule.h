@@ -30,6 +30,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -68,8 +69,7 @@ public:
     static bool check_command (Context c, TheCommand *cmd)
     {
         if (cmd->getCmdNumber(c) == 906) {
-            auto num_parts = cmd->getNumParts(c);
-            for (decltype(num_parts) i = 0; i < num_parts; i++) {
+            for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                 auto part = cmd->getPart(c, i);
                 ListForEachForward<CurrentAxesList>(LForeach_check_current_axis(), c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part));
             }
