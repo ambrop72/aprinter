@@ -149,7 +149,7 @@ private:
         return x;
     }
     
-    class Client {
+    class Client : private TheNetwork::TcpConnectionCallback {
         friend HttpServer;
         
     private:
@@ -198,9 +198,7 @@ private:
             m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
             m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
             m_recv_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_timeout_event_handler, this));
-            m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
-                                 APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
-                                 APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
+            m_connection.init(c, this);
             m_user = nullptr;
             m_state = State::NOT_CONNECTED;
             m_recv_state = RecvState::INVALID;
@@ -336,7 +334,7 @@ private:
             }
         }
         
-        void connection_error_handler (Context c, bool remote_closed)
+        void connectionErrorHandler (Context c, bool remote_closed)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             AMBRO_ASSERT(!remote_closed || !m_rx_buf_eof)
@@ -354,7 +352,7 @@ private:
             disconnect(c);
         }
         
-        void connection_recv_handler (Context c, size_t bytes_read)
+        void connectionRecvHandler (Context c, size_t bytes_read)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             AMBRO_ASSERT(!m_rx_buf_eof)
@@ -373,7 +371,7 @@ private:
             m_recv_event.prependNow(c);
         }
         
-        void connection_send_handler (Context c)
+        void connectionSendHandler (Context c)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             

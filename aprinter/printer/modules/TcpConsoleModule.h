@@ -47,8 +47,9 @@ public:
     
 private:
     using TimeType = typename Context::Clock::TimeType;
-    using TheTcpListener = typename Context::Network::TcpListener;
-    using TheTcpConnection = typename Context::Network::TcpConnection;
+    using TheNetwork = typename Context::Network;
+    using TheTcpListener = typename TheNetwork::TcpListener;
+    using TheTcpConnection = typename TheNetwork::TcpConnection;
     
     using TheConvenientStream = ConvenientCommandStream<Context, ThePrinterMain>;
     
@@ -107,16 +108,14 @@ private:
         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
     }
     
-    struct Client : public TheConvenientStream::UserCallback
+    struct Client : private TheConvenientStream::UserCallback, TheNetwork::TcpConnectionCallback
     {
         enum class State : uint8_t {NOT_CONNECTED, CONNECTED, DISCONNECTED_WAIT_CMD};
         
         void init (Context c)
         {
             m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
-            m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
-                                 APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
-                                 APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
+            m_connection.init(c, this);
             m_state = State::NOT_CONNECTED;
         }
         
@@ -126,7 +125,6 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
-            
             m_connection.deinit(c);
             m_next_event.deinit(c);
         }
@@ -174,7 +172,7 @@ private:
             }
         }
         
-        void connection_error_handler (Context c, bool remote_closed)
+        void connectionErrorHandler (Context c, bool remote_closed)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
@@ -185,7 +183,7 @@ private:
             start_disconnect(c);
         }
         
-        void connection_recv_handler (Context c, size_t bytes_read)
+        void connectionRecvHandler (Context c, size_t bytes_read)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             AMBRO_ASSERT(bytes_read <= BufferBaseSize - m_rx_buf_length)
@@ -212,7 +210,7 @@ private:
             }
         }
         
-        void connection_send_handler (Context c)
+        void connectionSendHandler (Context c)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             

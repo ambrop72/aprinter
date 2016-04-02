@@ -625,9 +625,7 @@ public:
         bool m_newpcb_aborted;
     };
     
-    class TcpConnection {
-        enum class State : uint8_t {IDLE, RUNNING, ERRORING, ERRORED};
-        
+    class TcpConnectionCallback {
     public:
         // This callback is used for two events:
         // 1. remote_closed==true
@@ -641,7 +639,7 @@ public:
         //    reset() or deinit(). Any other functions must not be called.
         // This callback is safe (returns straight to event loop). So you are
         // free to e.g. reset() this connection object directly from it.
-        using ErrorHandler = Callback<void(Context, bool remote_closed)>;
+        virtual void connectionErrorHandler (Context c, bool remote_closed) = 0;
         
         // The user is supposed to call TcpConnection::copyReceivedData from within
         // RecvHandler, one or more times, with the sum of 'length' parameters
@@ -650,15 +648,20 @@ public:
         // It is specifically prohibited to close (deinit/reset) this connection.
         // Typically one will copy the data to a buffer and set a QueuedEvent to
         // process it later.
-        using RecvHandler = Callback<void(Context, size_t length)>;
+        virtual void connectionRecvHandler (Context c, size_t bytes_read) = 0;
         
         // This callback will be called when some data has been sent, i.e. there is
         // more space in the send buffer.
         // WARNING: Do not call any other network functions from this callback.
         // It is specifically prohibited to close (deinit/reset) this connection.
         // Typically one will set a QueuedEvent to possibly send data later.
-        using SendHandler = Callback<void(Context)>;
+        virtual void connectionSendHandler (Context c) = 0;
+    };
+    
+    class TcpConnection {
+        enum class State : uint8_t {IDLE, RUNNING, ERRORING, ERRORED};
         
+    public:
         // This is how much received data you are required to be able to buffer.
         // This refers to the amount of data that was passed to RecvHandler but
         // for which acceptReceivedData() has not yet been called.
@@ -667,13 +670,11 @@ public:
         // This is how large the send buffer of the connection is.
         static size_t const ProvidedTxBufSize = TCP_SND_BUF;
         
-        void init (Context c, ErrorHandler error_handler, RecvHandler recv_handler, SendHandler send_handler)
+        void init (Context c, TcpConnectionCallback *callback)
         {
             m_closed_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::closed_event_handler, this));
             m_write_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::write_event_handler, this));
-            m_error_handler = error_handler;
-            m_recv_handler = recv_handler;
-            m_send_handler = send_handler;
+            m_callback = callback;
             m_state = State::IDLE;
             m_pcb = nullptr;
             m_received_pbuf = nullptr;
@@ -887,7 +888,7 @@ public:
                     m_received_pbuf = p;
                     m_received_offset = 0;
                     
-                    m_recv_handler(c, p->tot_len);
+                    m_callback->connectionRecvHandler(c, p->tot_len);
                     
                     m_received_pbuf = nullptr;
                 }
@@ -920,7 +921,7 @@ public:
             }
             
             // No !m_send_closed check before callback, see comment in getSendBufferSpace.
-            m_send_handler(c);
+            m_callback->connectionSendHandler(c);
             
             return ERR_OK;
         }
@@ -935,7 +936,7 @@ public:
             if (!remote_closed) {
                 m_state = State::ERRORED;
             }
-            return m_error_handler(c, remote_closed);
+            return m_callback->connectionErrorHandler(c, remote_closed);
         }
         
         void write_event_handler (Context c)
@@ -1021,9 +1022,7 @@ public:
         
         typename Context::EventLoop::QueuedEvent m_closed_event;
         typename Context::EventLoop::TimedEvent m_write_event;
-        ErrorHandler m_error_handler;
-        RecvHandler m_recv_handler;
-        SendHandler m_send_handler;
+        TcpConnectionCallback *m_callback;
         State m_state;
         bool m_recv_remote_closed;
         bool m_send_closed;
