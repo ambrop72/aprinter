@@ -28,6 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/WrapType.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/Preprocessor.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -175,6 +176,10 @@ struct helper_name { \
         return ListForEachElem::func_name(list_for_each_args...); \
     } \
 };
+
+#define APRINTER_TL(TypeAlias, code) (auto aprinter__type_lambda_arg) { using TypeAlias = typename decltype(aprinter__type_lambda_arg)::Type; code; }
+
+#define APRINTER_TLA(TypeAlias, args, code) (auto aprinter__type_lambda_arg, APRINTER_REMOVE_PARENS args) { using TypeAlias = typename decltype(aprinter__type_lambda_arg)::Type; code; }
 
 #include <aprinter/EndNamespace.h>
 
