@@ -44,7 +44,7 @@ configure_avr() {
 
     FLAGS_OPT=( -O$( [[ $OPTIMIZE_FOR_SIZE = "1" ]] && echo s || echo 2 ) )
     CXXFLAGS=(
-        -std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG "${FLAGS_OPT[@]}" -fwhole-program \
+        -std=c++14 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG "${FLAGS_OPT[@]}" -fwhole-program \
         -fno-math-errno -fno-trapping-math
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -fno-access-control \
