@@ -1,6 +1,6 @@
 { stdenv, fetchurl, gcc-arm-embedded, python27Packages }:
 let
-    version = "3.7.0";
+    version = "3.8.0";
 in
 stdenv.mkDerivation {
     name = "clang-arm-embedded-${version}";
@@ -8,11 +8,11 @@ stdenv.mkDerivation {
     srcs = [
         (fetchurl {
             url = "http://llvm.org/releases/${version}/llvm-${version}.src.tar.xz";
-            sha256 = "ab45895f9dcdad1e140a3a79fd709f64b05ad7364e308c0e582c5b02e9cc3153";
+            sha256 = "0ikfq0gxac8xpvxj23l4hk8f12ydx48fljgrz1gl9xp0ks704nsm";
         })
         (fetchurl {
             url = "http://llvm.org/releases/${version}/cfe-${version}.src.tar.xz";
-            sha256 = "4ed740c5a91df1c90a4118c5154851d6a475f39a91346bdf268c1c29c13aa1cc";
+            sha256 = "1ybcac8hlr9vl3wg8s4v6cp0c0qgqnwprsv85lihbkq3vqv94504";
         })
     ];
     

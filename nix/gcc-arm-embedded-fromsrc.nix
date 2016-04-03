@@ -1,13 +1,14 @@
 # This was written partly based on https://github.com/EliasOenal/TNT,
 # and the patches were also taken from there.
 
-{ stdenv, fetchurl, fetchgit, gmp, mpfr, libmpc, isl_0_11, cloog_0_18_0
-, zlib, libelf, texinfo, bison, flex, automake111x, autoconf
+{ stdenv, fetchurl, gmp, mpfr, libmpc, isl_0_11, cloog_0_18_0
+, zlib, libelf, texinfo, bison, flex
 , optimizeForSize ? false
 }:
 let
     gcc_version = "5.3.0";
-    binutils_version = "2.25.1";
+    binutils_version = "2.26";
+    newlib_version = "2.4.0";
     
     target = "arm-none-eabi";
     
@@ -102,22 +103,21 @@ stdenv.mkDerivation {
     srcs = [
         (fetchurl {
             url = "mirror://gnu/binutils/binutils-${binutils_version}.tar.bz2";
-            sha256 = "b5b14added7d78a8d1ca70b5cb75fef57ce2197264f4f5835326b0df22ac9f22";
+            sha256 = "c2ace41809542f5237afc7e3b8f32bb92bc7bc53c6232a84463c423b0714ecd9";
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2";
             sha256 = "b84f5592e9218b73dbae612b5253035a7b34a9a1f7688d2e1bfaaf7267d5c4db";
         })
-        (fetchgit {
-            url = "git://sourceware.org/git/newlib-cygwin.git";
-            rev = "ad7b3cde9c157f2c34a6a1296e0bda1ad0975bda"; # 2.3.0
-            sha256 = "047f7a5y4hazhy5gqghvi38ny5s7v36z7f4l1qyg0cz0s3fwfikr";
+        (fetchurl {
+            url = "ftp://sourceware.org/pub/newlib/newlib-2.4.0.tar.gz";
+            sha256 = "545b3d235e350d2c61491df8b9f775b1b972f191380db8f52ec0b1c829c52706";
         })
     ];
     
     sourceRoot = ".";
     
-    nativeBuildInputs = [ texinfo bison flex automake111x autoconf ];
+    nativeBuildInputs = [ texinfo bison flex ];
     buildInputs = [ gmp mpfr libmpc isl_0_11 cloog_0_18_0 zlib libelf ];
     
     # Limit stripping to these directories so we don't strip target libraries.
@@ -138,13 +138,6 @@ stdenv.mkDerivation {
         # This seems to fix some inline assembly to work if it is included multiple times,
         # which supposedly happens when LTO is used.
         patch -N newlib*/newlib/libc/machine/arm/arm_asm.h ${ ../patches/newlib-lto.patch }
-        
-        # Regenerate some configure script which was incorrectly generated.
-        # See: http://comments.gmane.org/gmane.comp.lib.newlib/10644
-        pushd newlib*/newlib/libc
-        aclocal -I .. -I ../..
-        autoconf
-        popd
     '';
     
     installPhase = ''
