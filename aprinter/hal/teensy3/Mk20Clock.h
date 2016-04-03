@@ -136,10 +136,6 @@ class Mk20Clock {
     template <typename, typename, typename, int, typename>
     friend class Mk20ClockPwm;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Ftm, Ftm)
     
 public:
@@ -196,7 +192,7 @@ private:
                     }
                 }
                 TimeType irq_time = getTime(c);
-                ListForEachForward<ChannelsList>(Foreach_irq_helper(), c, irq_time);
+                ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::irq_helper(c, irq_time)));
             }
             
             static uint16_t make_target_time (TimeType time)
@@ -270,10 +266,10 @@ public:
         
         memory_barrier();
         
-        ListForEachForward<MyFtmsList>(Foreach_init(), c);
+        ListForEachForward<MyFtmsList>([&] APRINTER_TL(tc, tc::init(c)));
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
+            ListForEachForward<MyFtmsList>([&] APRINTER_TL(tc, tc::init_start(c)));
         }
         
         TheDebugObject::init(c);
@@ -284,7 +280,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        ListForEachReverse<MyFtmsList>(Foreach_deinit(), c);
+        ListForEachReverse<MyFtmsList>([&] APRINTER_TL(tc, tc::deinit(c)));
         
         memory_barrier();
     }

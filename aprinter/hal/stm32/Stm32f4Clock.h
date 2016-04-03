@@ -111,10 +111,6 @@ class Stm32f4Clock {
     static_assert(TypeListGet<ParamsTcsList, 0>::Is32Bit, "First timer must be 32-bit.");
     static_assert(TypeListGet<ParamsTcsList, 0>::ClockType == 1, "First timer must be APB1-clocked");
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_start, init_start)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
-    
 public:
     struct Object;
     using TimeType = uint32_t;
@@ -187,10 +183,10 @@ private:
 public:
     static void init (Context c)
     {
-        ListForEachForward<MyTcsList>(LForeach_init(), c);
+        ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init(c)));
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ListForEachForward<MyTcsList>(LForeach_init_start(), c);
+            ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init_start(c)));
         }
         
         TheDebugObject::init(c);
@@ -200,7 +196,7 @@ public:
     {
         TheDebugObject::deinit(c);
         
-        ListForEachReverse<MyTcsList>(LForeach_deinit(), c);
+        ListForEachReverse<MyTcsList>([&] APRINTER_TL(tc, tc::deinit(c)));
     }
     
     template <typename ThisContext>

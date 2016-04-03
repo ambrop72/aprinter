@@ -46,8 +46,6 @@ class Mk20Adc {
     
 private:
     static const int NumPins = TypeListLength<ParamsPinsList>::Value;
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
     
     using AdcList = MakeTypeList<
         Mk20AdcUnsupportedInput,
@@ -109,7 +107,7 @@ public:
     
     static void adc_isr (InterruptContext<Context> c)
     {
-        ListForEachForwardInterruptible<PinsList>(LForeach_handle_isr(), c);
+        ListForEachForwardInterruptible<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
     }
     
 private:
@@ -122,7 +120,7 @@ private:
             o->m_current_pin = 0;
             o->m_finished = false;
             
-            ListForEachForward<PinsList>(LForeach_init(), c);
+            ListForEachForward<PinsList>([&] APRINTER_TL(pin, pin::init(c)));
             
             memory_barrier();
             

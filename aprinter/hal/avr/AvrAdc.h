@@ -56,9 +56,6 @@ private:
     static const int NumSamplesPerPin = 1 << (AdcOverSamplingBits * 2);
     static const int NumValueBits = 10 + AdcOverSamplingBits;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_make_pin_mask, make_pin_mask)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
-    
     using MaskType = uint16_t;
     
     template <typename AdcPin>
@@ -239,7 +236,7 @@ public:
     
     static void adc_isr (AtomicContext<Context> c)
     {
-        ListForEachForwardInterruptible<PinsList>(LForeach_handle_isr(), c);
+        ListForEachForwardInterruptible<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
     }
     
 private:
@@ -261,7 +258,7 @@ private:
             
             memory_barrier();
             
-            MaskType mask = ListForEachForwardAccRes<PinsList>(0, LForeach_make_pin_mask());
+            MaskType mask = ListForEachForwardAccRes<PinsList>(0, [&] APRINTER_TLA(pin, (MaskType accum), return pin::make_pin_mask(accum)));
             DIDR0 = mask;
 #ifdef DIDR2
             DIDR2 = mask >> 8;

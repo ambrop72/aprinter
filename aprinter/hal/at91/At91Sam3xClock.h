@@ -87,10 +87,6 @@ class At91Sam3xClock {
     template <typename, typename, typename, typename, typename, typename>
     friend class At91Sam3xClockInterruptTimer;
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
-    
 public:
     struct Object;
     using TimeType = uint32_t;
@@ -158,10 +154,10 @@ public:
     {
         memory_barrier();
         
-        ListForEachForward<MyTcsList>(Foreach_init(), c);
+        ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init(c)));
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ListForEachForward<MyTcsList>(Foreach_init_start(), c);
+            ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init_start(c)));
         }
         
         TheDebugObject::init(c);
@@ -171,7 +167,7 @@ public:
     {
         TheDebugObject::deinit(c);
         
-        ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
+        ListForEachReverse<MyTcsList>([&] APRINTER_TL(tc, tc::deinit(c)));
         
         memory_barrier();
     }

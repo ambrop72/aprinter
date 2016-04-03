@@ -57,10 +57,6 @@ class Stm32f4Adc {
     static_assert(ClockDivider == 2 || ClockDivider == 4 || ClockDivider == 6 || ClockDivider == 8, "");
     static_assert(SampleTimeSelection >= 0 && SampleTimeSelection <= 7, "");
     
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start, start)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_irq, handle_irq)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Number, Number)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_NumAdcPinsWrapped, NumAdcPinsWrapped)
     
@@ -195,7 +191,7 @@ private:
             AdcDef::adc()->SQR3 = 0;
             AdcDef::adc()->JSQR = 0;
             
-            ListForEachForward<AdcPinList>(LForeach_init(), c);
+            ListForEachForward<AdcPinList>([&] APRINTER_TL(pin, pin::init(c)));
             
             AdcDef::adc()->CR2 |= ADC_CR2_ADON;
         }
@@ -294,12 +290,12 @@ public:
     {
         ADC->CCR = ((uint32_t)AdcPrescalerCode << 16);
         
-        ListForEachForward<UsedAdcList>(LForeach_init(), c);
+        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::init(c)));
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
         NVIC_SetPriority(ADC_IRQn, INTERRUPT_PRIORITY);
         
-        ListForEachForward<UsedAdcList>(LForeach_start(), c);
+        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::start(c)));
         
         memory_barrier();
         NVIC_EnableIRQ(ADC_IRQn);
@@ -314,7 +310,7 @@ public:
         NVIC_DisableIRQ(ADC_IRQn);
         memory_barrier();
         
-        ListForEachForward<UsedAdcList>(LForeach_deinit(), c);
+        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::deinit(c)));
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
     }
@@ -334,7 +330,7 @@ public:
     
     static void handle_irq (InterruptContext<Context> c)
     {
-        ListForEachForward<UsedAdcList>(LForeach_handle_irq(), c);
+        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::handle_irq(c)));
     }
     
 public:
