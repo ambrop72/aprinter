@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_BINARY_CONTROL_H
 #define AMBROLIB_BINARY_CONTROL_H
 
-#include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Object.h>
 
 #include <aprinter/BeginNamespace.h>

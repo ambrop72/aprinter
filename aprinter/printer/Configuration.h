@@ -28,13 +28,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/base/DebugObject.h>

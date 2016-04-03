@@ -27,9 +27,8 @@
 
 #include <stddef.h>
 
-#include <aprinter/meta/InheritConst.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/Tuple.h>
 
 #include <aprinter/BeginNamespace.h>

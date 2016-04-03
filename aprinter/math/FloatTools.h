@@ -31,8 +31,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/base/Hints.h>

@@ -26,9 +26,7 @@
 #define APRINTER_EXPR_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/If.h>
-#include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/RemoveReference.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/TestConstexpr.h>
 #include <aprinter/meta/FuncUtils.h>

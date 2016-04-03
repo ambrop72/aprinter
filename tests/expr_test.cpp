@@ -27,8 +27,7 @@
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/ExprFixedPoint.h>
-#include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 using namespace APrinter;
 

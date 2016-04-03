@@ -33,8 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/If.h>
-#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>

@@ -28,7 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/EnableIf.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>

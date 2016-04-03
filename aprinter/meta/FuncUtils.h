@@ -25,9 +25,7 @@
 #ifndef APRINTER_FUNC_UTILS_H
 #define APRINTER_FUNC_UTILS_H
 
-#include <aprinter/meta/If.h>
-#include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

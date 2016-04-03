@@ -27,8 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
 

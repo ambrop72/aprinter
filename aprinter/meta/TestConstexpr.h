@@ -25,7 +25,7 @@
 #ifndef APRINTER_TEST_CONSTEXPR_H
 #define APRINTER_TEST_CONSTEXPR_H
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

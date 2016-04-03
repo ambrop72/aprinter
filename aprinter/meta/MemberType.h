@@ -25,7 +25,7 @@
 #ifndef APRINTER_MEMBER_TYPE_H
 #define APRINTER_MEMBER_TYPE_H
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #define AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(ClassName, TypeMemberName) \
 struct ClassName { \

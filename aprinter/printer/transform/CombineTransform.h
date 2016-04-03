@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/DedummyIndexTemplate.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 

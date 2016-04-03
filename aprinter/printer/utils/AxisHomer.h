@@ -35,7 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ExprFixedPoint.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/printer/planning/MotionPlanner.h>

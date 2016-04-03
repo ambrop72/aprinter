@@ -34,7 +34,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

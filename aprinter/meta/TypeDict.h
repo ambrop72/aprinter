@@ -26,8 +26,7 @@
 #define AMBROLIB_TYPE_DICT_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

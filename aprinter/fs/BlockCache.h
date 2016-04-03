@@ -33,8 +33,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
-#include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>

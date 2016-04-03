@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

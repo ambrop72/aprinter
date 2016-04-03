@@ -25,7 +25,7 @@
 #ifndef APRINTER_MODULE_UTILS_H
 #define APRINTER_MODULE_UTILS_H
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>

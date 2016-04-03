@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

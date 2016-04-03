@@ -30,7 +30,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>

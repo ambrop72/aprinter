@@ -31,8 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/meta/WrapFunction.h>

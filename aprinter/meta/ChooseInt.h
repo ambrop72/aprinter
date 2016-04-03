@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/If.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/BitsInInt.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -37,11 +37,9 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/meta/ConstexprHash.h>
 #include <aprinter/meta/ConstexprCrc32.h>
 #include <aprinter/meta/ConstexprString.h>

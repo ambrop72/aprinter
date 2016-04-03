@@ -31,7 +31,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Hints.h>
 
 #ifdef AMBROLIB_AVR

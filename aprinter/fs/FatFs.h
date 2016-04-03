@@ -31,10 +31,9 @@
 
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/EnableIf.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>

@@ -26,7 +26,7 @@
 #define AMBROLIB_LIST_FOR_EACH_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Preprocessor.h>
 

@@ -34,7 +34,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/hal/at91/At91SamPins.h>

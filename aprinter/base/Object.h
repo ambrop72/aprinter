@@ -32,7 +32,7 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/IsEmpty.h>
 #include <aprinter/meta/TypeListUtils.h>
 

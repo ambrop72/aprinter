@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_TYPE_SEQUENCE_MAKE_INT_H
 #define AMBROLIB_TYPE_SEQUENCE_MAKE_INT_H
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeSequence.h>
 
 #include <aprinter/BeginNamespace.h>

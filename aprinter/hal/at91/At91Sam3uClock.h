@@ -33,9 +33,8 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>

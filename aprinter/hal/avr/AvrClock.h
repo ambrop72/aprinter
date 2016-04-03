@@ -36,12 +36,11 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

@@ -31,7 +31,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>

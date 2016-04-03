@@ -41,12 +41,11 @@
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/CallIfExists.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/ListCollect.h>

@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_FUNCTION_IF_H
 #define AMBROLIB_FUNCTION_IF_H
 
-#include <aprinter/meta/EnableIf.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

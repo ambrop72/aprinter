@@ -31,9 +31,8 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/TypeDict.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MemberType.h>
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>

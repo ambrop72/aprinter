@@ -28,8 +28,7 @@
 #include <stddef.h>
 
 #include <aprinter/base/Assert.h>
-#include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/RemoveConst.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

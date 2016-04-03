@@ -38,7 +38,7 @@ static void emergency (void);
 #define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
 #define AMBROLIB_ABORT_ACTION { while (1); }
 
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/base/Object.h>
