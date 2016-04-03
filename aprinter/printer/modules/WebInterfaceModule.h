@@ -32,6 +32,8 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/CallIfExists.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -44,6 +46,7 @@
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
+#include <aprinter/printer/utils/WebRequest.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
@@ -53,6 +56,9 @@ template <typename Context, typename ParentObject, typename ThePrinterMain, type
 class WebInterfaceModule {
 public:
     struct Object;
+    
+private:
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_handle_web_request, handle_web_request)
     
 private:
     using TimeType = typename Context::Clock::TimeType;
@@ -79,6 +85,9 @@ private:
     using TheDirLister = DirLister<Context, TheFsAccess>;
     using FsEntry   = typename TheFsAccess::TheFileSystem::FsEntry;
     using EntryType = typename TheFsAccess::TheFileSystem::EntryType;
+    
+    using TheWebRequest = WebRequest<Context>;
+    using TheWebRequestCallback = WebRequestCallback<Context>;
     
     static size_t const JsonBufferSize = Params::JsonBufferSize;
     static_assert(JsonBufferSize <= TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent, "");
@@ -261,7 +270,10 @@ private:
     
     class GcodeSlot;
     
-    class UserClientState : public TheRequestInterface::RequestUserCallback {
+    class UserClientState
+    : private TheRequestInterface::RequestUserCallback,
+      private TheWebRequest
+    {
         friend class GcodeSlot;
         
     private:
@@ -269,13 +281,13 @@ private:
             NO_CLIENT,
             READ_OPEN, READ_WAIT, READ_READ,
             WRITE_OPEN, WRITE_WAIT, WRITE_WRITE, WRITE_EOF,
-            JSONRESP_WAITBUF,
+            JSONRESP_WAITBUF, JSONRESP_CUSTOM_TRY, JSONRESP_CUSTOM,
             FILES_OPEN, FILES_WAITBUF_HEAD, FILES_WAITBUF_ENTRY, FILES_REQUEST_ENTRY,
             GCODE,
             DL_TEST, UL_TEST
         };
         
-        enum class ResourceState : uint8_t {NONE, FILE, DIRLISTER, GCODE_SLOT};
+        enum class ResourceState : uint8_t {NONE, FILE, DIRLISTER, GCODE_SLOT, CUSTOM_REQ};
         
     public:
         void init (Context c)
@@ -293,9 +305,10 @@ private:
         void reset (Context c)
         {
             switch (m_resource_state) {
-                case ResourceState::FILE:       m_buffered_file.deinit(c); break;
-                case ResourceState::DIRLISTER:  m_dirlister.deinit(c);     break;
-                case ResourceState::GCODE_SLOT: m_gcode_slot->detach(c);   break;
+                case ResourceState::FILE:       m_buffered_file.deinit(c);                     break;
+                case ResourceState::DIRLISTER:  m_dirlister.deinit(c);                         break;
+                case ResourceState::GCODE_SLOT: m_gcode_slot->detach(c);                       break;
+                case ResourceState::CUSTOM_REQ: m_custom_req.callback->cbRequestTerminated(c); break;
                 default: break;
             }
             
@@ -366,6 +379,7 @@ private:
             // Start delayed response adoption to wait for sufficient space in the send buffer.
             m_state = State::JSONRESP_WAITBUF;
             m_json_req.req_type = req_type;
+            m_json_req.resp_body_pending = true;
             m_request->adoptResponseBody(c, true);
             m_request->controlResponseBodyTimeout(c, true);
         }
@@ -377,6 +391,7 @@ private:
             m_state = State::FILES_OPEN;
             m_json_req.dir_path = dir_path;
             m_json_req.flag_dirs = flag_dirs;
+            m_json_req.resp_body_pending = true;
             init_dirlister(c);
             m_dirlister.startOpen(c, dir_path, false, UploadBasePath());
         }
@@ -489,18 +504,37 @@ private:
                     m_json_req.builder.start();
                     m_json_req.builder.startObject();
                     
-                    if (!handle_simple_json_resp_request(c, m_json_req.req_type, &m_json_req.builder)) {
+                    if (handle_simple_json_resp_request(c, m_json_req.req_type, &m_json_req.builder)) {
+                        m_json_req.builder.endObject();
+                        if (!send_json_buffer(c)) {
+                            m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
+                        }
+                        return complete_request(c);
+                    }
+                    
+                    AMBRO_ASSERT(m_resource_state == ResourceState::NONE)
+                    m_state = State::JSONRESP_CUSTOM_TRY;
+                    m_custom_req.callback = nullptr;
+                    
+                    bool not_handled = ListForEachForwardInterruptible<typename ThePrinterMain::ModuleClassesList>([&] (auto module_arg) {
+                        using module = typename decltype(module_arg)::Type;
+                        return CallIfExists_handle_web_request::template call_ret<module, bool, true>(c, m_json_req.req_type, static_cast<TheWebRequest *>(this));
+                    });
+                    
+                    if (not_handled) {
                         m_request->setResponseStatus(c, HttpStatusCodes::NotFound());
                         return complete_request(c);
                     }
                     
-                    m_json_req.builder.endObject();
-                    
-                    if (!send_json_buffer(c, true)) {
-                        m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
+                    return;
+                } break;
+                
+                case State::JSONRESP_CUSTOM: {
+                    if (m_json_req.custom_waiting && m_request->getResponseBodyBufferAvailBeforeHeadSent(c) >= JsonBufferSize) {
+                        m_json_req.custom_waiting = false;
+                        m_request->controlResponseBodyTimeout(c, false);
+                        return m_custom_req.callback->cbJsonBufferAvailable(c);
                     }
-                    
-                    return complete_request(c);
                 } break;
                 
                 case State::FILES_WAITBUF_HEAD: {
@@ -515,7 +549,7 @@ private:
                     m_json_req.builder.addSafeKeyVal("dir", JsonString{m_json_req.dir_path});
                     m_json_req.builder.addKeyArray(JsonSafeString{"files"});
                     
-                    if (!send_json_buffer(c, true)) {
+                    if (!send_json_buffer(c)) {
                         m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
                         return complete_request(c);
                     }
@@ -682,7 +716,7 @@ private:
                         m_json_req.builder.endObject();
                     }
                     
-                    if (!send_json_buffer(c, false) || !name) {
+                    if (!send_json_buffer(c) || !name) {
                         return complete_request(c);
                     }
                     
@@ -702,7 +736,7 @@ private:
             m_json_req.builder.loadBuffer(o->json_buffer, sizeof(o->json_buffer));
         }
         
-        bool send_json_buffer (Context c, bool initial)
+        bool send_json_buffer (Context c)
         {
             auto *o = Object::self(c);
             
@@ -711,13 +745,16 @@ private:
                 return false;
             }
             
-            if (initial) {
+            if (m_json_req.resp_body_pending) {
+                m_json_req.resp_body_pending = false;
                 m_request->setResponseContentType(c, "application/json");
                 m_request->adoptResponseBody(c);
             }
             
             auto buf_st = m_request->getResponseBodyBufferState(c);
-            AMBRO_ASSERT(buf_st.length >= JsonBufferSize)
+            if (buf_st.length < length) {
+                return false;
+            }
             
             if (length > 0) {
                 buf_st.data.copyIn(MemRef(o->json_buffer, length));
@@ -728,6 +765,79 @@ private:
         }
         
     private:
+        MemRef getPath (Context c) override
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::JSONRESP_CUSTOM_TRY, State::JSONRESP_CUSTOM))
+            return m_request->getPath(c);
+        }
+        
+        bool getParam (Context c, MemRef name, MemRef *value=nullptr) override
+        {
+            AMBRO_ASSERT(m_state == OneOf(State::JSONRESP_CUSTOM_TRY, State::JSONRESP_CUSTOM))
+            return m_request->getParam(c, name, value);
+        }
+        
+        void * doAcceptRequest (Context c, size_t state_size, size_t state_align) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM_TRY)
+            AMBRO_ASSERT(m_resource_state == ResourceState::NONE)
+            AMBRO_ASSERT(state_size <= sizeof(m_custom_req.state))
+            AMBRO_ASSERT(alignof(m_custom_req.state) % state_align == 0)
+            
+            m_resource_state = ResourceState::CUSTOM_REQ;
+            return m_custom_req.state;
+        }
+        
+        void doSetCallback (Context c, WebRequestCallback<Context> *callback) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM_TRY)
+            AMBRO_ASSERT(m_resource_state == ResourceState::CUSTOM_REQ)
+            AMBRO_ASSERT(!m_custom_req.callback)
+            AMBRO_ASSERT(callback)
+            
+            m_state = State::JSONRESP_CUSTOM;
+            m_custom_req.callback = callback;
+            m_json_req.custom_waiting = false;
+            m_json_req.builder.start();
+            m_request->controlResponseBodyTimeout(c, false);
+        }
+        
+        void doCompleteHandling (Context c, char const *http_status) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM)
+            
+            if (http_status && m_json_req.resp_body_pending) {
+                m_request->setResponseStatus(c, http_status);
+            }
+            return complete_request(c);
+        }
+        
+        void doWaitForJsonBuffer (Context c) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM)
+            AMBRO_ASSERT(!m_json_req.custom_waiting)
+            
+            m_json_req.custom_waiting = true;
+            m_request->controlResponseBodyTimeout(c, true);
+            m_request->pokeResponseBodyBufferEvent(c);
+        }
+        
+        JsonBuilder * doStartJson (Context c) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM)
+            
+            load_json_buffer(c);
+            return &m_json_req.builder;
+        }
+        
+        bool doEndJson (Context c) override
+        {
+            AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM)
+            
+            return send_json_buffer(c);
+        }
+        
+    private:
         TheRequestInterface *m_request;
         State m_state;
         ResourceState m_resource_state;
@@ -735,6 +845,10 @@ private:
             TheBufferedFile m_buffered_file;
             TheDirLister m_dirlister;
             GcodeSlot *m_gcode_slot;
+            struct {
+                TheWebRequestCallback *callback;
+                alignas(4) char state[128];
+            } m_custom_req;
         };
         union {
             struct {
@@ -746,6 +860,8 @@ private:
                 JsonBuilder builder;
                 char const *dir_path;
                 bool flag_dirs;
+                bool resp_body_pending;
+                bool custom_waiting;
             } m_json_req;
         };
     };

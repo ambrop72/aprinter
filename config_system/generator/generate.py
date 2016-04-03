@@ -1577,6 +1577,8 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
+                config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
+                
                 have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
                 if have_network:
                     for network_config in board_data.get_config('network_config').enter_config('network'):
@@ -1684,10 +1686,13 @@ def generate(config_root_data, cfg_name, main_template):
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
-                        
+                            
+                            if config_manager_expr != 'ConstantConfigManagerService':
+                                gen.add_aprinter_include('printer/modules/ConfigWebApiModule.h')
+                                config_web_api_module = gen.add_module()
+                                config_web_api_module.set_expr('ConfigWebApiModuleService')
+                            
                         network_config.do_selection('webinterface', webif_sel)
-                
-                config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 
                 current_config = board_data.get_config('current_config')
             

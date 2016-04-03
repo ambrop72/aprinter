@@ -1228,6 +1228,14 @@ private:
             }
         }
         
+        void pokeRequestBodyBufferEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(user_receiving_request_body(c))
+            
+            m_recv_event.prependNow(c);
+        }
+        
         void controlRequestBodyTimeout (Context c, bool start_else_stop)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
@@ -1351,6 +1359,15 @@ private:
             // Submit data to the connection and poke sending.
             m_connection.provideSendData(c, TxChunkOverhead + length);
             m_connection.pokeSending(c);
+        }
+        
+        void pokeResponseBodyBufferEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::SEND_HEAD, SendState::SEND_BODY))
+            AMBRO_ASSERT(m_user)
+            
+            m_send_event.prependNow(c);
         }
         
         void controlResponseBodyTimeout (Context c, bool start_else_stop)
