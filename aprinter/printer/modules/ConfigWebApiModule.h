@@ -47,7 +47,7 @@ public:
     }
     
 private:
-    class ConfigRequest : public WebRequestState<Context, ConfigRequest> {
+    class ConfigRequest : public WebRequestHandler<Context, ConfigRequest> {
     public:
         void init (Context c)
         {

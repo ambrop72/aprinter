@@ -43,12 +43,12 @@ public:
 };
 
 template <typename Context, typename StateType>
-class WebRequestState;
+class WebRequestHandler;
 
 template <typename Context>
 class WebRequest {
     template <typename, typename >
-    friend class WebRequestState;
+    friend class WebRequestHandler;
     
 public:
     virtual MemRef getPath (Context c) = 0;
@@ -60,7 +60,7 @@ public:
         void *ptr = doAcceptRequest(c, sizeof(StateType), alignof(StateType));
         StateType *state = (StateType *)ptr;
         new(state) StateType();
-        static_cast<WebRequestState<Context, StateType> *>(state)->initRequest(c, this);
+        static_cast<WebRequestHandler<Context, StateType> *>(state)->initRequest(c, this);
     }
     
 private:
@@ -73,7 +73,7 @@ private:
 };
 
 template <typename Context, typename StateType>
-class WebRequestState : private WebRequestCallback<Context> {
+class WebRequestHandler : private WebRequestCallback<Context> {
     template <typename>
     friend class WebRequest;
     
