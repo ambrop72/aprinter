@@ -35,6 +35,7 @@ namespace ServiceList {
     struct VirtualHomingHookService {};
     struct AfterDefaultHomingHookService {};
     struct AfterBedProbingHookService {};
+    struct WebApiHandlerService {};
 }
 
 struct DummyServiceUserId {};

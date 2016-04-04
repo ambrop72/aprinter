@@ -276,6 +276,7 @@ private:
     
     using ServicesDict = MapTypeList<ServicesDictUnsorted, TemplateFunc<SortServiceGroup>>;
     
+public:
     template <typename ServiceType>
     using GetServiceProviders = TypeDictGetOrDefault<ServicesDict, ServiceType, EmptyTypeList>;
     
@@ -993,8 +994,6 @@ private:
     using ModulesList = IndexElemList<ParamsModulesList, Module>;
     
 public:
-    using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
-    
     template <int ModuleIndex>
     using GetModule = typename Module<ModuleIndex>::TheModule;
     
@@ -1003,6 +1002,8 @@ public:
     
     template <typename This=PrinterMain>
     using GetFsAccess = typename This::template GetServiceProviderModule<ServiceList::FsAccessService>::template GetFsAccess<>;
+    
+    using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
     
 private:
     template <typename DefaultService, typename ServiceProviderId, typename ServiceProviderMember>

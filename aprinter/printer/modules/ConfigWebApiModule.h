@@ -26,7 +26,9 @@
 #define APRINTER_CONFIG_WEB_API_MODULE_H
 
 #include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/MemRef.h>
+#include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/WebRequest.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
@@ -38,13 +40,14 @@ public:
     static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
     {
         if (req_type.equalTo("config")) {
-            request->template acceptRequest<JsonRequestState>(c);
+            request->template acceptRequest<ConfigRequest>(c);
             return false;
         }
         return true;
     }
     
-    class JsonRequestState : public WebRequestState<Context, JsonRequestState> {
+private:
+    class ConfigRequest : public WebRequestState<Context, ConfigRequest> {
     public:
         void init (Context c)
         {
@@ -62,11 +65,16 @@ public:
     };
     
 public:
+    using WebApiRequestHandlers = MakeTypeList<ConfigRequest>;
+    
+public:
     struct Object {};
 };
 
 struct ConfigWebApiModuleService {
     APRINTER_MODULE_TEMPLATE(ConfigWebApiModuleService, ConfigWebApiModule)
+    
+    using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::WebApiHandlerService>>;
 };
 
 #include <aprinter/EndNamespace.h>

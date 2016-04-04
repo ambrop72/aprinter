@@ -34,6 +34,9 @@
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/CallIfExists.h>
+#include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -44,6 +47,7 @@
 #include <aprinter/fs/BufferedFile.h>
 #include <aprinter/fs/DirLister.h>
 #include <aprinter/misc/StringTools.h>
+#include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/WebRequest.h>
@@ -74,6 +78,27 @@ private:
         4,     // TxChunkHeaderDigits
         4      // MaxQueryParams
     >;
+    
+    // Find all modules claiming to provide request handlers.
+    // The result is a list of TypeDictEntry<WrapInt<ModuleIndex>, ServiceDefinition<...>>.
+    using WebApiHandlerProviders = typename ThePrinterMain::template GetServiceProviders<ServiceList::WebApiHandlerService>;
+    
+    // Create a list of all request handler classes, by joining the lists
+    // of request handlers for different providers.
+    template <typename Provider>
+    using GetProviderHandlers = typename ThePrinterMain::template GetModule<Provider::Key::Value>::WebApiRequestHandlers;
+    using WebApiHandlers = JoinTypeListList<MapTypeList<WebApiHandlerProviders, TemplateFunc<GetProviderHandlers>>>;
+    
+    // Calculate the maximum handler size.
+    // template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
+    template <typename RequestHandler, typename AccumValue>
+    using MaxSizeFoldFunc = WrapValue<size_t, MaxValue(sizeof(RequestHandler), AccumValue::Value)>;
+    static size_t const CustomHandlerMaxSize = TypeListFold<WebApiHandlers, WrapValue<size_t, 1>, MaxSizeFoldFunc>::Value;
+    
+    // Calculate the maximum handler alignment.
+    template <typename RequestHandler, typename AccumValue>
+    using MaxAlignFoldFunc = WrapValue<size_t, MaxValue(alignof(RequestHandler), AccumValue::Value)>;
+    static size_t const CustomHandlerMaxAlign = TypeListFold<WebApiHandlers, WrapValue<size_t, 1>, MaxAlignFoldFunc>::Value;
     
     struct HttpRequestHandler;
     struct UserClientState;
@@ -847,7 +872,7 @@ private:
             GcodeSlot *m_gcode_slot;
             struct {
                 TheWebRequestCallback *callback;
-                alignas(4) char state[128];
+                alignas(CustomHandlerMaxAlign) char state[CustomHandlerMaxSize];
             } m_custom_req;
         };
         union {
