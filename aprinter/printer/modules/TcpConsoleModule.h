@@ -169,7 +169,7 @@ private:
             }
         }
         
-        void connectionErrorHandler (Context c, bool remote_closed)
+        void connectionErrorHandler (Context c, bool remote_closed) override
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
@@ -180,7 +180,7 @@ private:
             start_disconnect(c);
         }
         
-        void connectionRecvHandler (Context c, size_t bytes_read)
+        void connectionRecvHandler (Context c, size_t bytes_read) override
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             AMBRO_ASSERT(bytes_read <= BufferBaseSize - m_rx_buf_length)
@@ -205,7 +205,7 @@ private:
             m_command_stream.setNextEventIfNoCommand(c);
         }
         
-        void connectionSendHandler (Context c)
+        void connectionSendHandler (Context c) override
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
