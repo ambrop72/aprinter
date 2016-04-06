@@ -997,6 +997,9 @@ public:
     template <int ModuleIndex>
     using GetModule = typename Module<ModuleIndex>::TheModule;
     
+    template <typename Provider>
+    using GetProviderModule = GetModule<Provider::Key::Value>;
+    
     template <typename ServiceType>
     using GetServiceProviderModule = GetModule<FindServiceProvider<ServiceType>::ModuleIndex>;
     

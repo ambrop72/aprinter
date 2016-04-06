@@ -86,7 +86,7 @@ private:
     // Create a list of all request handler classes, by joining the lists
     // of request handlers for different providers.
     template <typename Provider>
-    using GetProviderHandlers = typename ThePrinterMain::template GetModule<Provider::Key::Value>::WebApiRequestHandlers;
+    using GetProviderHandlers = typename ThePrinterMain::template GetProviderModule<Provider>::WebApiRequestHandlers;
     using WebApiHandlers = JoinTypeListList<MapTypeList<WebApiHandlerProviders, TemplateFunc<GetProviderHandlers>>>;
     
     // Calculate the maximum handler size.
@@ -323,12 +323,6 @@ private:
         
         void deinit (Context c)
         {
-            reset(c);
-        }
-        
-    private:
-        void reset (Context c)
-        {
             switch (m_resource_state) {
                 case ResourceState::FILE:       m_buffered_file.deinit(c);                     break;
                 case ResourceState::DIRLISTER:  m_dirlister.deinit(c);                         break;
@@ -336,9 +330,13 @@ private:
                 case ResourceState::CUSTOM_REQ: m_custom_req.callback->cbRequestTerminated(c); break;
                 default: break;
             }
-            
-            m_state = State::NO_CLIENT;
-            m_resource_state = ResourceState::NONE;
+        }
+        
+    private:
+        void reset (Context c)
+        {
+            deinit(c);
+            init(c);
         }
         
         void complete_request (Context c)
@@ -451,14 +449,14 @@ private:
 #endif
         
     private:
-        void requestTerminated (Context c)
+        void requestTerminated (Context c) override
         {
             AMBRO_ASSERT(m_state != State::NO_CLIENT)
             
             reset(c);
         }
         
-        void requestBufferEvent (Context c)
+        void requestBufferEvent (Context c) override
         {
             switch (m_state) {
                 case State::WRITE_WAIT: {
@@ -501,9 +499,8 @@ private:
             }
         }
         
-        void responseBufferEvent (Context c)
+        void responseBufferEvent (Context c) override
         {
-        again:
             switch (m_state) {
                 case State::READ_WAIT: {
                     auto buf_st = m_request->getResponseBodyBufferState(c);
@@ -524,8 +521,9 @@ private:
                         return;
                     }
                     
-                    load_json_buffer(c);
+                    m_request->controlResponseBodyTimeout(c, false);
                     
+                    load_json_buffer(c);
                     m_json_req.builder.start();
                     m_json_req.builder.startObject();
                     
@@ -543,22 +541,33 @@ private:
                     
                     bool not_handled = ListForEachForwardInterruptible<typename ThePrinterMain::ModuleClassesList>([&] (auto module_arg) {
                         using module = typename decltype(module_arg)::Type;
-                        return CallIfExists_handle_web_request::template call_ret<module, bool, true>(c, m_json_req.req_type, static_cast<TheWebRequest *>(this));
+                        if (!CallIfExists_handle_web_request::template call_ret<module, bool, true>(c, m_json_req.req_type, static_cast<TheWebRequest *>(this))) {
+                            // Request was accepted, stop trying to dispatch.
+                            return false;
+                        }
+                        AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM_TRY)
+                        return true;
                     });
                     
-                    if (not_handled) {
-                        m_request->setResponseStatus(c, HttpStatusCodes::NotFound());
-                        return complete_request(c);
+                    if (!not_handled) {
+                        // One of the modules claimed to have accepted the request.
+                        // Let's trust it and not perform checks/asserts here, considering that
+                        // the request might have been completed already.
+                        return;
                     }
                     
-                    return;
+                    m_request->setResponseStatus(c, HttpStatusCodes::NotFound());
+                    return complete_request(c);
                 } break;
                 
                 case State::JSONRESP_CUSTOM: {
-                    if (m_json_req.custom_waiting && m_request->getResponseBodyBufferAvailBeforeHeadSent(c) >= JsonBufferSize) {
-                        m_json_req.custom_waiting = false;
-                        m_request->controlResponseBodyTimeout(c, false);
-                        return m_custom_req.callback->cbJsonBufferAvailable(c);
+                    if (m_json_req.custom_waiting) {
+                        size_t avail = m_json_req.resp_body_pending ? m_request->getResponseBodyBufferAvailBeforeHeadSent(c) : m_request->getResponseBodyBufferState(c).length;
+                        if (avail >= JsonBufferSize) {
+                            m_json_req.custom_waiting = false;
+                            m_request->controlResponseBodyTimeout(c, false);
+                            return m_custom_req.callback->cbJsonBufferAvailable(c);
+                        }
                     }
                 } break;
                 
@@ -581,8 +590,7 @@ private:
                     
                     m_state = State::FILES_WAITBUF_ENTRY;
                     m_request->controlResponseBodyTimeout(c, true);
-                    
-                    goto again;
+                    m_request->pokeResponseBodyBufferEvent(c);
                 } break;
                 
                 case State::FILES_WAITBUF_ENTRY: {
@@ -672,8 +680,7 @@ private:
                     
                     m_state = State::READ_WAIT;
                     m_request->controlResponseBodyTimeout(c, true);
-                    
-                    responseBufferEvent(c);
+                    m_request->pokeResponseBodyBufferEvent(c);
                 } break;
                 
                 case State::WRITE_WRITE:
@@ -692,8 +699,7 @@ private:
                     
                     m_state = State::WRITE_WAIT;
                     m_request->controlRequestBodyTimeout(c, true);
-                    
-                    requestBufferEvent(c);
+                    m_request->pokeRequestBodyBufferEvent(c);
                 } break;
                 
                 default: AMBRO_ASSERT(false);
@@ -747,8 +753,7 @@ private:
                     
                     m_state = State::FILES_WAITBUF_ENTRY;
                     m_request->controlResponseBodyTimeout(c, true);
-                    
-                    responseBufferEvent(c);
+                    m_request->pokeResponseBodyBufferEvent(c);
                 } break;
                 
                 default: AMBRO_ASSERT(false);
@@ -767,6 +772,7 @@ private:
             
             size_t length = m_json_req.builder.getLength();
             if (length > JsonBufferSize) {
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpJsonBufOverrun\n"));
                 return false;
             }
             
@@ -778,6 +784,7 @@ private:
             
             auto buf_st = m_request->getResponseBodyBufferState(c);
             if (buf_st.length < length) {
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpJsonTxOverrun\n"));
                 return false;
             }
             
@@ -813,7 +820,7 @@ private:
             return m_custom_req.state;
         }
         
-        void doSetCallback (Context c, WebRequestCallback<Context> *callback) override
+        void doSetCallback (Context c, TheWebRequestCallback *callback) override
         {
             AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM_TRY)
             AMBRO_ASSERT(m_resource_state == ResourceState::CUSTOM_REQ)
@@ -824,7 +831,6 @@ private:
             m_custom_req.callback = callback;
             m_json_req.custom_waiting = false;
             m_json_req.builder.start();
-            m_request->controlResponseBodyTimeout(c, false);
         }
         
         void doCompleteHandling (Context c, char const *http_status) override

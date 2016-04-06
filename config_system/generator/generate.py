@@ -1666,6 +1666,14 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
                             gen.add_aprinter_include('printer/utils/GcodeParser.h')
                             
+                            # Add modules with request handlers before the WebInterfaceModule
+                            # so we have a clean deinit path - first active requests in a module
+                            # are deinited, then the associated module is deinited.
+                            if config_manager_expr != 'ConstantConfigManagerService':
+                                gen.add_aprinter_include('printer/modules/ConfigWebApiModule.h')
+                                config_web_api_module = gen.add_module()
+                                config_web_api_module.set_expr('ConfigWebApiModuleService')
+                            
                             webif_module = gen.add_module()
                             webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [
                                 TemplateExpr('HttpServerNetParams', [
@@ -1686,11 +1694,6 @@ def generate(config_root_data, cfg_name, main_template):
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
-                            
-                            if config_manager_expr != 'ConstantConfigManagerService':
-                                gen.add_aprinter_include('printer/modules/ConfigWebApiModule.h')
-                                config_web_api_module = gen.add_module()
-                                config_web_api_module.set_expr('ConfigWebApiModuleService')
                             
                         network_config.do_selection('webinterface', webif_sel)
                 

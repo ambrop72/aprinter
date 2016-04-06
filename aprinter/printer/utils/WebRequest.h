@@ -42,7 +42,7 @@ public:
     virtual void cbJsonBufferAvailable (Context c) = 0;
 };
 
-template <typename Context, typename StateType>
+template <typename, typename>
 class WebRequestHandler;
 
 template <typename Context>
@@ -54,13 +54,13 @@ public:
     virtual MemRef getPath (Context c) = 0;
     virtual bool getParam (Context c, MemRef name, MemRef *value=nullptr) = 0;
     
-    template <typename StateType>
+    template <typename HandlerType>
     void acceptRequest (Context c)
     {
-        void *ptr = doAcceptRequest(c, sizeof(StateType), alignof(StateType));
-        StateType *state = (StateType *)ptr;
-        new(state) StateType();
-        static_cast<WebRequestHandler<Context, StateType> *>(state)->initRequest(c, this);
+        void *ptr = doAcceptRequest(c, sizeof(HandlerType), alignof(HandlerType));
+        HandlerType *state = (HandlerType *)ptr;
+        new(state) HandlerType();
+        static_cast<WebRequestHandler<Context, HandlerType> *>(state)->initRequest(c, this);
     }
     
 private:
@@ -72,7 +72,7 @@ private:
     virtual bool doEndJson (Context c) = 0;
 };
 
-template <typename Context, typename StateType>
+template <typename Context, typename HandlerType>
 class WebRequestHandler : private WebRequestCallback<Context> {
     template <typename>
     friend class WebRequest;
@@ -113,7 +113,10 @@ public:
     }
     
 private:
-    StateType * user () { return static_cast<StateType *>(this); }
+    HandlerType * user ()
+    {
+        return static_cast<HandlerType *>(this);
+    }
     
     void initRequest (Context c, WebRequest<Context> *request)
     {
@@ -125,17 +128,16 @@ private:
     void cbRequestTerminated (Context c) override
     {
         user()->deinit(c);
-        user()->~StateType();
+        user()->~HandlerType();
     }
     
     void cbJsonBufferAvailable (Context c) override
     {
-        user()->jsonBufferAvailable(c);
+        return user()->jsonBufferAvailable(c);
     }
     
 private:
     WebRequest<Context> *m_request;
-    JsonBuilder m_json_builder;
 };
 
 #include <aprinter/EndNamespace.h>
