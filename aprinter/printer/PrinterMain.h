@@ -222,9 +222,11 @@ private:
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
-    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
+    
+public:
+    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
     
 public:
     using FpType = typename Params::FpType;

@@ -118,6 +118,7 @@ private:
     template <typename Dummy>
     struct TypeSpecific<double, Dummy> {
         static size_t const MaxStringValueLength = 30;
+        static constexpr char const * TypeName() { return "double"; }
         
         static void get_value_cmd (Context c, TheCommand<> *cmd, double value)
         {
@@ -143,6 +144,7 @@ private:
     template <typename Dummy>
     struct TypeSpecific<bool, Dummy> {
         static size_t const MaxStringValueLength = 1;
+        static constexpr char const * TypeName() { return "bool"; }
         
         static void get_value_cmd (Context c, TheCommand<> *cmd, bool value)
         {
@@ -168,6 +170,7 @@ private:
     template <typename Dummy>
     struct TypeSpecific<ConfigTypeMacAddress, Dummy> {
         static size_t const MaxStringValueLength = 17;
+        static constexpr char const * TypeName() { return "mac_addr"; }
         
         static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeMacAddress value)
         {
@@ -238,6 +241,7 @@ private:
     template <typename Dummy>
     struct TypeSpecific<ConfigTypeIpAddress, Dummy> {
         static size_t const MaxStringValueLength = 15;
+        static constexpr char const * TypeName() { return "ip_addr"; }
         
         static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeIpAddress value)
         {
@@ -408,6 +412,18 @@ private:
                     *output++ = '=';
                     TheTypeSpecific::get_value_str(o->values[index], output);
                 }
+                return false;
+            }
+            return true;
+        }
+        
+        static bool get_type_helper (Context c, int global_option_index, char const **option_type)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
+            
+            if (global_option_index < OptionCounter) {
+                *option_type = TheTypeSpecific::TypeName();
                 return false;
             }
             return true;
@@ -662,6 +678,14 @@ public:
         AMBRO_ASSERT(output_avail > 0)
         
         ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_string_helper(c, option_index, output, output_avail)));
+    }
+    
+    static void getOptionType (Context c, int option_index, char const **option_type)
+    {
+        AMBRO_ASSERT(option_index >= 0)
+        AMBRO_ASSERT(option_index < NumRuntimeOptions)
+        
+        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_type_helper(c, option_index, option_type)));
     }
     
     template <typename TheStoreFeature = StoreFeature>

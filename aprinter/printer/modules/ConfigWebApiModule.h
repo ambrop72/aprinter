@@ -25,6 +25,8 @@
 #ifndef APRINTER_CONFIG_WEB_API_MODULE_H
 #define APRINTER_CONFIG_WEB_API_MODULE_H
 
+#include <stddef.h>
+
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/MemRef.h>
@@ -36,6 +38,10 @@
 
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class ConfigWebApiModule {
+private:
+    using TheConfigManager = typename ThePrinterMain::TheConfigManager;
+    static size_t const OptionNameValBufferSize = 128;
+    
 public:
     static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
     {
@@ -53,15 +59,42 @@ private:
         {
             JsonBuilder *json = this->startJson(c);
             json->startObject();
-            json->addSafeKeyVal("test", JsonString{"LALALA"});
+            json->addKeyArray(JsonString{"options"});
+            this->endJson(c);
+            
+            m_option_index = 0;
+            this->waitForJsonBuffer(c);
+        }
+        
+        void jsonBufferAvailable (Context c)
+        {
+            JsonBuilder *json = this->startJson(c);
+            
+            if (m_option_index >= TheConfigManager::NumRuntimeOptions) {
+                json->endArray();
+                json->endObject();
+                this->endJson(c);
+                return this->completeHandling(c);
+            }
+            
+            char option_nameval_buf[OptionNameValBufferSize];
+            TheConfigManager::getOptionString(c, m_option_index, option_nameval_buf, sizeof(option_nameval_buf));
+            
+            char const *option_type;
+            TheConfigManager::getOptionType(c, m_option_index, &option_type);
+            
+            json->startObject();
+            json->addSafeKeyVal("nameval", JsonString{option_nameval_buf});
+            json->addSafeKeyVal("type", JsonSafeString{option_type});
             json->endObject();
             this->endJson(c);
             
-            return this->completeHandling(c);
+            m_option_index++;
+            this->waitForJsonBuffer(c);
         }
         
-        //void deinit (Context c) {}
-        //void jsonBufferAvailable (Context c) {}
+    private:
+        int m_option_index;
     };
     
 public:
