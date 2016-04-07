@@ -894,7 +894,7 @@ private:
             output->reply_append_pstr(c, AMBRO_PSTR("//HttpRequest "));
             output->reply_append_str(c, getMethod(c));
             output->reply_append_ch(c, ' ');
-            output->reply_append_str(c, getPath(c));
+            output->reply_append_str(c, getPath(c).ptr);
             output->reply_append_pstr(c, AMBRO_PSTR(" body="));
             output->reply_append_ch(c, hasRequestBody(c) ? '1' : '0');
             output->reply_append_ch(c, '\n');
