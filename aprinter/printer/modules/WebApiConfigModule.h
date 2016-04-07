@@ -44,8 +44,7 @@ public:
     static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
     {
         if (req_type.equalTo("config")) {
-            request->template acceptRequest<ConfigRequest>(c);
-            return false;
+            return request->template acceptRequest<ConfigRequest>(c);
         }
         return true;
     }

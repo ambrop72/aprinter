@@ -55,12 +55,13 @@ public:
     virtual bool getParam (Context c, MemRef name, MemRef *value=nullptr) = 0;
     
     template <typename HandlerType>
-    void acceptRequest (Context c)
+    bool acceptRequest (Context c)
     {
         void *ptr = doAcceptRequest(c, sizeof(HandlerType), alignof(HandlerType));
         HandlerType *state = (HandlerType *)ptr;
         new(state) HandlerType();
         static_cast<WebRequestHandler<Context, HandlerType> *>(state)->initRequest(c, this);
+        return false;
     }
     
 private:
