@@ -1670,9 +1670,9 @@ def generate(config_root_data, cfg_name, main_template):
                             # so we have a clean deinit path - first active requests in a module
                             # are deinited, then the associated module is deinited.
                             if config_manager_expr != 'ConstantConfigManagerService':
-                                gen.add_aprinter_include('printer/modules/ConfigWebApiModule.h')
+                                gen.add_aprinter_include('printer/modules/WebApiConfigModule.h')
                                 config_web_api_module = gen.add_module()
-                                config_web_api_module.set_expr('ConfigWebApiModuleService')
+                                config_web_api_module.set_expr('WebApiConfigModuleService')
                             
                             webif_module = gen.add_module()
                             webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [

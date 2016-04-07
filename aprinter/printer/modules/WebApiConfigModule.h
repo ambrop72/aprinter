@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_CONFIG_WEB_API_MODULE_H
-#define APRINTER_CONFIG_WEB_API_MODULE_H
+#ifndef APRINTER_WEB_API_CONFIG_MODULE_H
+#define APRINTER_WEB_API_CONFIG_MODULE_H
 
 #include <stddef.h>
 
@@ -37,7 +37,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
-class ConfigWebApiModule {
+class WebApiConfigModule {
 private:
     using TheConfigManager = typename ThePrinterMain::TheConfigManager;
     static size_t const OptionNameValBufferSize = 128;
@@ -104,8 +104,8 @@ public:
     struct Object {};
 };
 
-struct ConfigWebApiModuleService {
-    APRINTER_MODULE_TEMPLATE(ConfigWebApiModuleService, ConfigWebApiModule)
+struct WebApiConfigModuleService {
+    APRINTER_MODULE_TEMPLATE(WebApiConfigModuleService, WebApiConfigModule)
     
     using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::WebApiHandlerService>>;
 };
