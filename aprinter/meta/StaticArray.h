@@ -33,29 +33,39 @@
 
 #include <aprinter/BeginNamespace.h>
 
+template <typename ElemType, int Size>
+struct StaticArrayStruct {
+    ElemType arr[Size];
+};
+
 template <typename, template<int> class, typename>
 struct StaticArrayHelper;
 
 template <typename ElemType, template<int> class ElemValue, typename... Indices>
-class StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>
+struct StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>
 {
+    static constexpr StaticArrayStruct<ElemType, sizeof...(Indices)> getHelperStruct()
+    {
+        return StaticArrayStruct<ElemType, sizeof...(Indices)>{{ElemValue<Indices::Value>::value()...}};
+    }
+};
+
+template <typename ElemType, int Size, template<int> class ElemValue>
+class StaticArray {
 public:
-    static size_t const Length = sizeof...(Indices);
+    static size_t const Length = Size;
     
     static ElemType readAt (size_t index)
     {
-        return ProgPtr<ElemType>::Make(data)[index];
+        return ProgPtr<ElemType>::Make(data.arr)[index];
     }
     
 private:
-    static ElemType AMBRO_PROGMEM const data[Length];
+    static StaticArrayStruct<ElemType, Size> AMBRO_PROGMEM const data;
 };
 
-template <typename ElemType, template<int> class ElemValue, typename... Indices>
-ElemType AMBRO_PROGMEM const StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>::data[] = {ElemValue<Indices::Value>::value()...};
-
 template <typename ElemType, int Size, template<int> class ElemValue>
-using StaticArray = StaticArrayHelper<ElemType, ElemValue, TypeSequenceMakeInt<Size>>;
+StaticArrayStruct<ElemType, Size> AMBRO_PROGMEM const StaticArray<ElemType, Size, ElemValue>::data = StaticArrayHelper<ElemType, ElemValue, TypeSequenceMakeInt<Size>>::getHelperStruct();
 
 #include <aprinter/EndNamespace.h>
 
