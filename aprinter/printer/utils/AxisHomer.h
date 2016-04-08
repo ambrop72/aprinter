@@ -66,18 +66,25 @@ public:
     using ConfigExprs = MakeTypeList<CSwitchInvert>;
 };
 
-template <typename InstanceParams, typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler, typename Params>
+template <typename Arg>
 class AxisHomer {
-    using Context          = typename InstanceParams::Context;
-    using ThePrinterMain   = typename InstanceParams::ThePrinterMain;
-    using MaxStepsPerCycle = typename InstanceParams::MaxStepsPerCycle;
-    using MaxAccel         = typename InstanceParams::MaxAccel;
-    using DistConversion   = typename InstanceParams::DistConversion;
-    using TimeConversion   = typename InstanceParams::TimeConversion;
-    using HomeDir          = typename InstanceParams::HomeDir;
-    static int const PlannerStepBits          = InstanceParams::PlannerStepBits;
-    static int const StepperSegmentBufferSize = InstanceParams::StepperSegmentBufferSize;
-    static int const MaxLookaheadBufferSize   = InstanceParams::MaxLookaheadBufferSize;
+    using ParentObject    = typename Arg::ParentObject;
+    using TheGlobal       = typename Arg::TheGlobal;
+    using TheAxisDriver   = typename Arg::TheAxisDriver;
+    using FinishedHandler = typename Arg::FinishedHandler;
+    using Params          = typename Arg::Params;
+    using InstParams      = typename Arg::InstParams;
+    
+    using Context          = typename InstParams::Context;
+    using ThePrinterMain   = typename InstParams::ThePrinterMain;
+    using MaxStepsPerCycle = typename InstParams::MaxStepsPerCycle;
+    using MaxAccel         = typename InstParams::MaxAccel;
+    using DistConversion   = typename InstParams::DistConversion;
+    using TimeConversion   = typename InstParams::TimeConversion;
+    using HomeDir          = typename InstParams::HomeDir;
+    static int const PlannerStepBits          = InstParams::PlannerStepBits;
+    static int const StepperSegmentBufferSize = InstParams::StepperSegmentBufferSize;
+    static int const MaxLookaheadBufferSize   = InstParams::MaxLookaheadBufferSize;
     
 public:
     struct Object;
@@ -302,8 +309,18 @@ APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
         template <typename ParentObject>
         using HomerGlobal = AxisHomerGlobal<typename InstanceParams::Context, typename InstanceParams::ThePrinterMain, AxisHomerService>;
         
-        template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
-        using Homer = AxisHomer<InstanceParams, ParentObject, TheGlobal, TheAxisDriver, FinishedHandler, AxisHomerService>;
+        APRINTER_ALIAS_STRUCT_EXT(Homer, (
+            APRINTER_AS_TYPE(ParentObject),
+            APRINTER_AS_TYPE(TheGlobal),
+            APRINTER_AS_TYPE(TheAxisDriver),
+            APRINTER_AS_TYPE(FinishedHandler)
+        ), (
+            using Params = AxisHomerService;
+            using InstParams = InstanceParams;
+            
+            template <typename Self=Homer>
+            using Instance = AxisHomer<Self>;
+        ))
     };
 ))
 

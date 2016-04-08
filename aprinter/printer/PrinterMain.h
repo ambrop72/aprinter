@@ -1100,7 +1100,8 @@ private:
                 struct Object;
                 struct HomerFinishedHandler;
                 
-                using Homer = typename HomerInstance::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler>;
+                struct HomerArg : public HomerInstance::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler> {};
+                using Homer = typename HomerArg::template Instance<HomerArg>;
                 
                 static void homer_finished_handler (Context c, bool success)
                 {
