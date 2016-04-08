@@ -25,6 +25,8 @@ stdenv.mkDerivation {
         
         mv ../cfe-${version}.src tools/clang
         
+        patch -p1 < ${ ../patches/llvm-replace-all-uses-with.patch }
+        
         ( cd tools/clang && patch -p1 < ${ ../patches/clang-constexpr-math.patch } )
         
         ( cd tools/clang && patch -p1 < ${ ../patches/clang-custom-program-path.patch } )
