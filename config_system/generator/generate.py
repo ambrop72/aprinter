@@ -1669,6 +1669,12 @@ def generate(config_root_data, cfg_name, main_template):
                             # Add modules with request handlers before the WebInterfaceModule
                             # so we have a clean deinit path - first active requests in a module
                             # are deinited, then the associated module is deinited.
+                            
+                            if True:
+                                gen.add_aprinter_include('printer/modules/WebApiFilesModule.h')
+                                config_web_api_module = gen.add_module()
+                                config_web_api_module.set_expr('WebApiFilesModuleService')
+                            
                             if config_manager_expr != 'ConstantConfigManagerService':
                                 gen.add_aprinter_include('printer/modules/WebApiConfigModule.h')
                                 config_web_api_module = gen.add_module()

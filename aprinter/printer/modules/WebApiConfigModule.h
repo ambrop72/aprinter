@@ -84,7 +84,9 @@ private:
             json->addSafeKeyVal("nameval", JsonString{option_nameval_buf});
             json->addSafeKeyVal("type", JsonSafeString{option_type});
             json->endObject();
-            this->endJson(c);
+            if (!this->endJson(c)) {
+                return this->completeHandling(c);
+            }
             
             m_option_index++;
             this->waitForJsonBuffer(c);

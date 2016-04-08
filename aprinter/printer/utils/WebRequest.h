@@ -54,13 +54,24 @@ public:
     virtual MemRef getPath (Context c) = 0;
     virtual bool getParam (Context c, MemRef name, MemRef *value=nullptr) = 0;
     
-    template <typename HandlerType>
-    bool acceptRequest (Context c)
+    bool completeHandling (Context c, char const *http_status=nullptr)
+    {
+        doCompleteHandling(c, http_status);
+        return false;
+    }
+    
+    bool badParams (Context c)
+    {
+        return completeHandling(c, HttpStatusCodes::UnprocessableEntity());
+    }
+    
+    template <typename HandlerType, typename... Args>
+    bool acceptRequest (Context c, Args... args)
     {
         void *ptr = doAcceptRequest(c, sizeof(HandlerType), alignof(HandlerType));
         HandlerType *state = (HandlerType *)ptr;
         new(state) HandlerType();
-        static_cast<WebRequestHandler<Context, HandlerType> *>(state)->initRequest(c, this);
+        static_cast<WebRequestHandler<Context, HandlerType> *>(state)->initRequest(c, this, args...);
         return false;
     }
     
@@ -119,11 +130,12 @@ private:
         return static_cast<HandlerType *>(this);
     }
     
-    void initRequest (Context c, WebRequest<Context> *request)
+    template <typename... Args>
+    void initRequest (Context c, WebRequest<Context> *request, Args... args)
     {
         m_request = request;
         m_request->doSetCallback(c, this);
-        user()->init(c);
+        user()->init(c, args...);
     }
     
     void cbRequestTerminated (Context c) override
