@@ -230,15 +230,17 @@ private:
     using ParamsLasersList = typename Params::LasersList;
     using TransformParams = typename Params::TransformParams;
     using ParamsModulesList = typename Params::ModulesList;
-    struct ConfigOptionsListWrapped : public WrapType<typename Params::ConfigList> {};
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
+private:
+    struct ConfigManagerArg : public Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler> {};
+    
 public:
-    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, ConfigOptionsListWrapped, PrinterMain, ConfigManagerHandler>;
+    using TheConfigManager = typename ConfigManagerArg::template Instance<ConfigManagerArg>;
     
 public:
     using FpType = typename Params::FpType;

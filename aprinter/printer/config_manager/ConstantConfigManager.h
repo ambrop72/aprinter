@@ -26,14 +26,17 @@
 #define APRINTER_CONSTANT_CONFIG_MANAGER_H
 
 #include <aprinter/meta/Expr.h>
-#include <aprinter/base/Object.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/base/Object.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped>
+template <typename Arg>
 class ConstantConfigManager {
-    using ConfigOptionsList = typename ConfigOptionsListWrapped::Type;
+    using Context           = typename Arg::Context;
+    using ParentObject      = typename Arg::ParentObject;
+    using ConfigOptionsList = typename Arg::ConfigOptionsList;
     
 public:
     struct Object;
@@ -67,8 +70,16 @@ public:
 };
 
 struct ConstantConfigManagerService {
-    template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped, typename ThePrinterMain, typename Handler>
-    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigOptionsListWrapped>;
+    APRINTER_ALIAS_STRUCT_EXT(ConfigManager, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ConfigOptionsList),
+        APRINTER_AS_TYPE(ThePrinterMain),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        template <typename Self=ConfigManager>
+        using Instance = ConstantConfigManager<Self>;
+    ))
 };
 
 #include <aprinter/EndNamespace.h>
