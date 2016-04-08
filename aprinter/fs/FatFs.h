@@ -50,8 +50,15 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler, typename Params>
+template <typename Arg>
 class FatFs {
+    using Context           = typename Arg::Context;
+    using ParentObject      = typename Arg::ParentObject;
+    using TheBlockAccess    = typename Arg::TheBlockAccess;
+    using InitHandler       = typename Arg::InitHandler;
+    using WriteMountHandler = typename Arg::WriteMountHandler;
+    using Params            = typename Arg::Params;
+    
 public:
     struct Object;
     static bool const FsWritable = Params::Writable;
@@ -2142,6 +2149,18 @@ public:
     };
 };
 
+APRINTER_ALIAS_STRUCT_EXT(FatFsArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(TheBlockAccess),
+    APRINTER_AS_TYPE(InitHandler),
+    APRINTER_AS_TYPE(WriteMountHandler),
+    APRINTER_AS_TYPE(Params)
+), (
+    template <typename Self=FatFsArg>
+    using Instance = FatFs<Self>;
+))
+
 APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     APRINTER_AS_VALUE(int, MaxFileNameSize),
     APRINTER_AS_VALUE(int, NumCacheEntries),
@@ -2152,7 +2171,7 @@ APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     APRINTER_AS_VALUE(bool, EnableReadHinting)
 ), (
     template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>
-    using Fs = FatFs<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;
+    using Fs = FatFsArg<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;
 ))
 
 #include <aprinter/EndNamespace.h>

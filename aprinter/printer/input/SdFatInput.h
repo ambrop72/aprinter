@@ -63,7 +63,8 @@ private:
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
     struct FsWriteMountHandler;
-    using TheFs = typename Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler>;
+    struct FsArg : public Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler> {};
+    using TheFs = typename FsArg::template Instance<FsArg>;
     
     static size_t const BlockSize = TheBlockAccess::BlockSize;
     static size_t const DirListReplyRequestExtra = 24;
