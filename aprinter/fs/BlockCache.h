@@ -34,6 +34,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -52,8 +53,16 @@
 #define APRINTER_BLOCKCACHE_MSG(...)
 #endif
 
-template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries, int TNumIoUnits, int TMaxIoBlocks, bool TWritable>
+template <typename Arg>
 class BlockCache {
+    using Context                     = typename Arg::Context;
+    using ParentObject                = typename Arg::ParentObject;
+    using TTheBlockAccess             = typename Arg::TTheBlockAccess;
+    static int const TNumCacheEntries = Arg::TNumCacheEntries;
+    static int const TNumIoUnits      = Arg::TNumIoUnits;
+    static int const TMaxIoBlocks     = Arg::TMaxIoBlocks;
+    static bool const TWritable       = Arg::TWritable;
+    
 public:
     struct Object;
     using TheBlockAccess = TTheBlockAccess;
@@ -1514,6 +1523,19 @@ public:
         DataWordType buffers[NumBuffers][BlockSizeInWords];
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(BlockCacheArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(TTheBlockAccess),
+    APRINTER_AS_VALUE(int, TNumCacheEntries),
+    APRINTER_AS_VALUE(int, TNumIoUnits),
+    APRINTER_AS_VALUE(int, TMaxIoBlocks),
+    APRINTER_AS_VALUE(bool, TWritable)
+), (
+    template <typename Self=BlockCacheArg>
+    using Instance = BlockCache<Self>;
+))
 
 #include <aprinter/EndNamespace.h>
 

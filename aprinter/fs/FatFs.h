@@ -70,7 +70,8 @@ private:
     static_assert(Params::MaxFileNameSize >= 12, "");
     
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries, Params::NumIoUnits, Params::MaxIoBlocks, FsWritable>;
+    struct CacheArg : public BlockCacheArg<Context, Object, TheBlockAccess, Params::NumCacheEntries, Params::NumIoUnits, Params::MaxIoBlocks, FsWritable> {};
+    using TheBlockCache = typename CacheArg::template Instance<CacheArg>;
     
     using BlockAccessUser = typename TheBlockAccess::User;
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
