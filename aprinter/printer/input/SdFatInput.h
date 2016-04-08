@@ -65,7 +65,8 @@ private:
     using TheCommand = typename ThePrinterMain::TheCommand;
     using TheDebugObject = DebugObject<Context, Object>;
     struct BlockAccessActivateHandler;
-    using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
+    struct BlockAccessArg : public BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler> {};
+    using TheBlockAccess = typename BlockAccessArg::template Instance<BlockAccessArg>;
     struct FsInitHandler;
     struct FsWriteMountHandler;
     struct FsArg : public Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler> {};

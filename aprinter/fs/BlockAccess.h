@@ -39,8 +39,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ActivateHandler, typename Params>
+template <typename Arg>
 class BlockAccess {
+    using Context         = typename Arg::Context;
+    using ParentObject    = typename Arg::ParentObject;
+    using ActivateHandler = typename Arg::ActivateHandler;
+    using Params          = typename Arg::Params;
+    
 public:
     struct Object;
     class User;
@@ -284,8 +289,16 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(BlockAccessService, (
     APRINTER_AS_TYPE(SdService)
 ), (
-    template <typename Context, typename ParentObject, typename ActivateHandler>
-    using Access = BlockAccess<Context, ParentObject, ActivateHandler, BlockAccessService>;
+    APRINTER_ALIAS_STRUCT_EXT(Access, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ActivateHandler)
+    ), (
+        using Params = BlockAccessService;
+        
+        template <typename Self=Access>
+        using Instance = BlockAccess<Self>;
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>
