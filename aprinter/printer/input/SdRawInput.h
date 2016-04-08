@@ -53,7 +53,8 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     struct SdCardInitHandler;
     struct SdCardCommandHandler;
-    using TheSdCard = typename Params::SdCardService::template SdCard<Context, Object, SdCardInitHandler, SdCardCommandHandler>;
+    struct SdArg : public Params::SdCardService::template SdCard<Context, Object, SdCardInitHandler, SdCardCommandHandler> {};
+    using TheSdCard = typename SdArg::template Instance<SdArg>;
     static size_t const BlockSize = 512;
     enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_PAUSED, STATE_READY, STATE_READING};
     

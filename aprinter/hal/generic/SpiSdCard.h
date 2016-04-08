@@ -43,8 +43,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler, typename Params>
+template <typename Arg>
 class SpiSdCard {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using InitHandler    = typename Arg::InitHandler;
+    using CommandHandler = typename Arg::CommandHandler;
+    using Params         = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -505,12 +511,23 @@ public:
     };
 };
 
+
+
 APRINTER_ALIAS_STRUCT_EXT(SpiSdCardService, (
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (
-    template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler>
-    using SdCard = SpiSdCard<Context, ParentObject, InitHandler, CommandHandler, SpiSdCardService>;
+    APRINTER_ALIAS_STRUCT_EXT(SdCard, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(InitHandler),
+        APRINTER_AS_TYPE(CommandHandler)
+    ), (
+        using Params = SpiSdCardService;
+        
+        template <typename Self=SdCard>
+        using Instance = SpiSdCard<Self>;
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

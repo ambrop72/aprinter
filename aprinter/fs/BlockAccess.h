@@ -50,7 +50,8 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     struct SdInitHandler;
     struct SdCommandHandler;
-    using TheSd = typename Params::SdService::template SdCard<Context, Object, SdInitHandler, SdCommandHandler>;
+    struct SdArg : public Params::SdService::template SdCard<Context, Object, SdInitHandler, SdCommandHandler> {};
+    using TheSd = typename SdArg::template Instance<SdArg>;
     
     enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_READY, STATE_BUSY};
     
