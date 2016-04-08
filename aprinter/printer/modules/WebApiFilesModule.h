@@ -41,128 +41,126 @@
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class WebApiFilesModule {
 private:
-    static constexpr char const * UploadBasePath() { return nullptr; } // TODO
-    
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheDirLister = DirLister<Context, TheFsAccess>;
     using FsEntry   = typename TheFsAccess::TheFileSystem::FsEntry;
     using EntryType = typename TheFsAccess::TheFileSystem::EntryType;
     
 public:
-    static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
-    {
-        if (req_type.equalTo("files")) {
-            MemRef dir_path;
-            if (!request->getParam(c, "dir", &dir_path)) {
-                return request->badParams(c);
+    template <typename WebApiConfig>
+    struct WebApi {
+        static_assert(WebApiConfig::JsonBufferSize >= TheFsAccess::TheFileSystem::MaxFileNameSize + 6, "");
+        
+        static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
+        {
+            if (req_type.equalTo("files")) {
+                MemRef dir_path;
+                if (!request->getParam(c, "dir", &dir_path)) {
+                    return request->badParams(c);
+                }
+                bool flag_dirs = false;
+                MemRef flag_dirs_param;
+                if (request->getParam(c, "flagDirs", &flag_dirs_param)) {
+                    flag_dirs = flag_dirs_param.equalTo("1");
+                }
+                return request->template acceptRequest<FilesRequest>(c, dir_path.ptr, flag_dirs);
+            }
+            return true;
+        }
+        
+        class FilesRequest : public WebRequestHandler<Context, FilesRequest> {
+        private:
+            enum class State : uint8_t {STATE_OPEN, STATE_WAITBUF_ENTRY, STATE_REQUEST_ENTRY};
+            
+        public:
+            void init (Context c, char const *dir_path, bool flag_dirs)
+            {
+                m_dir_path = dir_path;
+                m_flag_dirs = flag_dirs;
+                m_state = State::STATE_OPEN;
+                m_dirlister.init(c, APRINTER_CB_OBJFUNC_T(&FilesRequest::dirlister_handler, this));
+                m_dirlister.startOpen(c, dir_path, false, WebApiConfig::UploadBasePath());
             }
             
-            bool flag_dirs = false;
-            MemRef flag_dirs_param;
-            if (request->getParam(c, "flagDirs", &flag_dirs_param)) {
-                flag_dirs = flag_dirs_param.equalTo("1");
+            void deinit (Context c)
+            {
+                m_dirlister.deinit(c);
             }
             
-            return request->template acceptRequest<FilesRequest>(c, dir_path.ptr, flag_dirs);
-        }
-        
-        return true;
-    }
-    
-private:
-    class FilesRequest : public WebRequestHandler<Context, FilesRequest> {
-    private:
-        enum class State : uint8_t {STATE_OPEN, STATE_WAITBUF_ENTRY, STATE_REQUEST_ENTRY};
-        
-    public:
-        void init (Context c, char const *dir_path, bool flag_dirs)
-        {
-            m_dir_path = dir_path;
-            m_flag_dirs = flag_dirs;
-            m_state = State::STATE_OPEN;
-            m_dirlister.init(c, APRINTER_CB_OBJFUNC_T(&FilesRequest::dirlister_handler, this));
-            m_dirlister.startOpen(c, dir_path, false, UploadBasePath());
-        }
-        
-        void deinit (Context c)
-        {
-            m_dirlister.deinit(c);
-        }
-        
-        void jsonBufferAvailable (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::STATE_WAITBUF_ENTRY)
-            
-            m_state = State::STATE_REQUEST_ENTRY;
-            m_dirlister.requestEntry(c);
-        }
-        
-        void dirlister_handler (Context c, typename TheDirLister::Error error, char const *name, FsEntry entry)
-        {
-            switch (m_state) {
-                case State::STATE_OPEN: {
-                    if (error != TheDirLister::Error::NO_ERROR) {
-                        auto status = (error == TheDirLister::Error::NOT_FOUND) ? HttpStatusCodes::NotFound() : HttpStatusCodes::InternalServerError();
-                        return this->completeHandling(c, status);
-                    }
-                    
-                    JsonBuilder *json = this->startJson(c);
-                    json->startObject();
-                    json->addSafeKeyVal("dir", JsonString{m_dir_path});
-                    json->addKeyArray(JsonSafeString{"files"});
-                    if (!this->endJson(c)) {
-                        return this->completeHandling(c, HttpStatusCodes::InternalServerError());
-                    }
-                    
-                    m_state = State::STATE_WAITBUF_ENTRY;
-                    this->waitForJsonBuffer(c);
-                } break;
+            void jsonBufferAvailable (Context c)
+            {
+                AMBRO_ASSERT(m_state == State::STATE_WAITBUF_ENTRY)
                 
-                case State::STATE_REQUEST_ENTRY: {
-                    if (error != TheDirLister::Error::NO_ERROR) {
-                        return this->completeHandling(c);
-                    }
-                    
-                    if (name && name[0] == '.') {
-                        m_dirlister.requestEntry(c);
-                        return;
-                    }
-                    
-                    JsonBuilder *json = this->startJson(c);
-                    
-                    if (name) {
-                        json->beginString();
-                        if (m_flag_dirs && entry.getType() == EntryType::DIR_TYPE) {
-                            json->addStringChar('*');
+                m_state = State::STATE_REQUEST_ENTRY;
+                m_dirlister.requestEntry(c);
+            }
+            
+            void dirlister_handler (Context c, typename TheDirLister::Error error, char const *name, FsEntry entry)
+            {
+                switch (m_state) {
+                    case State::STATE_OPEN: {
+                        if (error != TheDirLister::Error::NO_ERROR) {
+                            auto status = (error == TheDirLister::Error::NOT_FOUND) ? HttpStatusCodes::NotFound() : HttpStatusCodes::InternalServerError();
+                            return this->completeHandling(c, status);
                         }
-                        json->addStringMem(name);
-                        json->endString();
-                    } else {
-                        json->endArray();
-                        json->endObject();
-                    }
+                        
+                        JsonBuilder *json = this->startJson(c);
+                        json->startObject();
+                        json->addSafeKeyVal("dir", JsonString{m_dir_path});
+                        json->addKeyArray(JsonSafeString{"files"});
+                        if (!this->endJson(c)) {
+                            return this->completeHandling(c, HttpStatusCodes::InternalServerError());
+                        }
+                        
+                        m_state = State::STATE_WAITBUF_ENTRY;
+                        this->waitForJsonBuffer(c);
+                    } break;
                     
-                    if (!this->endJson(c) || !name) {
-                        return this->completeHandling(c);
-                    }
+                    case State::STATE_REQUEST_ENTRY: {
+                        if (error != TheDirLister::Error::NO_ERROR) {
+                            return this->completeHandling(c);
+                        }
+                        
+                        if (name && name[0] == '.') {
+                            m_dirlister.requestEntry(c);
+                            return;
+                        }
+                        
+                        JsonBuilder *json = this->startJson(c);
+                        
+                        if (name) {
+                            json->beginString();
+                            if (m_flag_dirs && entry.getType() == EntryType::DIR_TYPE) {
+                                json->addStringChar('*');
+                            }
+                            json->addStringMem(name);
+                            json->endString();
+                        } else {
+                            json->endArray();
+                            json->endObject();
+                        }
+                        
+                        if (!this->endJson(c) || !name) {
+                            return this->completeHandling(c);
+                        }
+                        
+                        m_state = State::STATE_WAITBUF_ENTRY;
+                        this->waitForJsonBuffer(c);
+                    } break;
                     
-                    m_state = State::STATE_WAITBUF_ENTRY;
-                    this->waitForJsonBuffer(c);
-                } break;
-                
-                default: AMBRO_ASSERT(false);
+                    default: AMBRO_ASSERT(false);
+                }
             }
-        }
+            
+        private:
+            TheDirLister m_dirlister;
+            char const *m_dir_path;
+            bool m_flag_dirs;
+            State m_state;
+        };
         
-    private:
-        TheDirLister m_dirlister;
-        char const *m_dir_path;
-        bool m_flag_dirs;
-        State m_state;
+        using WebApiRequestHandlers = MakeTypeList<FilesRequest>;
     };
-    
-public:
-    using WebApiRequestHandlers = MakeTypeList<FilesRequest>;
     
 public:
     struct Object {};
@@ -170,7 +168,6 @@ public:
 
 struct WebApiFilesModuleService {
     APRINTER_MODULE_TEMPLATE(WebApiFilesModuleService, WebApiFilesModule)
-    
     using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::WebApiHandlerService>>;
 };
 

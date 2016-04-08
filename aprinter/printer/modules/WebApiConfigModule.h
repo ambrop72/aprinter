@@ -41,63 +41,64 @@ private:
     static size_t const OptionNameValBufferSize = 128;
     
 public:
-    static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
-    {
-        if (req_type.equalTo("config")) {
-            return request->template acceptRequest<ConfigRequest>(c);
-        }
-        return true;
-    }
-    
-private:
-    class ConfigRequest : public WebRequestHandler<Context, ConfigRequest> {
-    public:
-        void init (Context c)
+    template <typename WebApiConfig>
+    struct WebApi {
+        static bool handle_web_request (Context c, MemRef req_type, WebRequest<Context> *request)
         {
-            JsonBuilder *json = this->startJson(c);
-            json->startObject();
-            json->addKeyArray(JsonString{"options"});
-            this->endJson(c);
-            
-            m_option_index = 0;
-            this->waitForJsonBuffer(c);
+            if (req_type.equalTo("config")) {
+                return request->template acceptRequest<ConfigRequest>(c);
+            }
+            return true;
         }
         
-        void jsonBufferAvailable (Context c)
-        {
-            JsonBuilder *json = this->startJson(c);
-            
-            if (m_option_index >= TheConfigManager::NumRuntimeOptions) {
-                json->endArray();
-                json->endObject();
+        class ConfigRequest : public WebRequestHandler<Context, ConfigRequest> {
+        public:
+            void init (Context c)
+            {
+                JsonBuilder *json = this->startJson(c);
+                json->startObject();
+                json->addKeyArray(JsonString{"options"});
                 this->endJson(c);
-                return this->completeHandling(c);
+                
+                m_option_index = 0;
+                this->waitForJsonBuffer(c);
             }
             
-            char option_nameval_buf[OptionNameValBufferSize];
-            TheConfigManager::getOptionString(c, m_option_index, option_nameval_buf, sizeof(option_nameval_buf));
-            
-            char const *option_type;
-            TheConfigManager::getOptionType(c, m_option_index, &option_type);
-            
-            json->startObject();
-            json->addSafeKeyVal("nameval", JsonString{option_nameval_buf});
-            json->addSafeKeyVal("type", JsonSafeString{option_type});
-            json->endObject();
-            if (!this->endJson(c)) {
-                return this->completeHandling(c);
+            void jsonBufferAvailable (Context c)
+            {
+                JsonBuilder *json = this->startJson(c);
+                
+                if (m_option_index >= TheConfigManager::NumRuntimeOptions) {
+                    json->endArray();
+                    json->endObject();
+                    this->endJson(c);
+                    return this->completeHandling(c);
+                }
+                
+                char option_nameval_buf[OptionNameValBufferSize];
+                TheConfigManager::getOptionString(c, m_option_index, option_nameval_buf, sizeof(option_nameval_buf));
+                
+                char const *option_type;
+                TheConfigManager::getOptionType(c, m_option_index, &option_type);
+                
+                json->startObject();
+                json->addSafeKeyVal("nameval", JsonString{option_nameval_buf});
+                json->addSafeKeyVal("type", JsonSafeString{option_type});
+                json->endObject();
+                if (!this->endJson(c)) {
+                    return this->completeHandling(c);
+                }
+                
+                m_option_index++;
+                this->waitForJsonBuffer(c);
             }
             
-            m_option_index++;
-            this->waitForJsonBuffer(c);
-        }
+        private:
+            int m_option_index;
+        };
         
-    private:
-        int m_option_index;
+        using WebApiRequestHandlers = MakeTypeList<ConfigRequest>;
     };
-    
-public:
-    using WebApiRequestHandlers = MakeTypeList<ConfigRequest>;
     
 public:
     struct Object {};
@@ -105,7 +106,6 @@ public:
 
 struct WebApiConfigModuleService {
     APRINTER_MODULE_TEMPLATE(WebApiConfigModuleService, WebApiConfigModule)
-    
     using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::WebApiHandlerService>>;
 };
 

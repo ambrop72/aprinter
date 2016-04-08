@@ -33,10 +33,10 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/CallIfExists.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -61,10 +61,12 @@ public:
     struct Object;
     
 private:
-    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_handle_web_request, handle_web_request)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WebApiRequestHandlers, WebApiRequestHandlers)
     
 private:
-    using TimeType = typename Context::Clock::TimeType;
+    static constexpr char const * WebRootPath() { return "www"; }
+    static constexpr char const * IndexPage() { return "reprap.htm"; }
+    static constexpr char const * UploadBasePath() { return nullptr; }
     
     using TheHttpServerService = HttpServerService<
         typename Params::HttpServerNetParams,
@@ -78,15 +80,33 @@ private:
         4      // MaxQueryParams
     >;
     
+    static size_t const GetSdChunkSize = 512;
+    static size_t const GcodeParseChunkSize = 16;
+    
+private:
+    using TimeType = typename Context::Clock::TimeType;
+    
+    static size_t const JsonBufferSize = Params::JsonBufferSize;
+    static_assert(JsonBufferSize >= 128, "");
+    
+    // Make these settings available to WebRequest handlers.
+    struct WebApiConfig {
+        static size_t const JsonBufferSize = WebInterfaceModule::JsonBufferSize;
+        static constexpr char const * UploadBasePath() { return WebInterfaceModule::UploadBasePath(); }
+    };
+    
     // Find all modules claiming to provide request handlers.
     // The result is a list of TypeDictEntry<WrapInt<ModuleIndex>, ServiceDefinition<...>>.
     using WebApiHandlerProviders = typename ThePrinterMain::template GetServiceProviders<ServiceList::WebApiHandlerService>;
     
-    // Create a list of all request handler classes, by joining the lists
-    // of request handlers for different providers.
+    // Make a list of all the WebApi template classes in the modules that implement request handlers.
     template <typename Provider>
-    using GetProviderHandlers = typename ThePrinterMain::template GetProviderModule<Provider>::WebApiRequestHandlers;
-    using WebApiHandlers = JoinTypeListList<MapTypeList<WebApiHandlerProviders, TemplateFunc<GetProviderHandlers>>>;
+    using GetProviderWebApi = typename ThePrinterMain::template GetProviderModule<Provider>::template WebApi<WebApiConfig>;
+    using WebApis = MapTypeList<WebApiHandlerProviders, TemplateFunc<GetProviderWebApi>>;
+    
+    // Make a list of all request handler classes, by joining the lists
+    // of request handlers for different providers.
+    using WebApiHandlers = JoinTypeListList<MapTypeList<WebApis, GetMemberType_WebApiRequestHandlers>>;
     
     // Calculate the maximum handler size.
     // template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
@@ -110,14 +130,6 @@ private:
     using TheWebRequest = WebRequest<Context>;
     using TheWebRequestCallback = WebRequestCallback<Context>;
     
-    static size_t const JsonBufferSize = Params::JsonBufferSize;
-    static_assert(JsonBufferSize <= TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent, "");
-    static_assert(JsonBufferSize >= 128, "");
-    // TODO static_assert(JsonBufferSize >= TheFsAccess::TheFileSystem::MaxFileNameSize + 6, "");
-    
-    static size_t const GetSdChunkSize = 512;
-    static_assert(GetSdChunkSize <= TheHttpServer::MaxTxChunkSize, "");
-    
     static int const NumGcodeSlots = Params::NumGcodeSlots;
     static_assert(NumGcodeSlots > 0, "");
     
@@ -130,14 +142,10 @@ private:
     
     static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
     static_assert(TheHttpServer::MaxTxChunkOverhead <= 255, "");
+    static_assert(TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent >= JsonBufferSize, "");
+    static_assert(TheHttpServer::MaxTxChunkSize >= GetSdChunkSize, "");
     
     static TimeType const GcodeSendBufTimeoutTicks = Params::GcodeSendBufTimeout::value() * Context::Clock::time_freq;
-    
-    static size_t const GcodeParseChunkSize = 16;
-    
-    static constexpr char const * WebRootPath() { return "www"; }
-    static constexpr char const * IndexPage() { return "reprap.htm"; }
-    static constexpr char const * UploadBasePath() { return nullptr; }
     
 public:
     static void init (Context c)
@@ -496,9 +504,9 @@ private:
                     m_state = State::JSONRESP_CUSTOM_TRY;
                     m_custom_req.callback = nullptr;
                     
-                    bool not_handled = ListForEachForwardInterruptible<typename ThePrinterMain::ModuleClassesList>([&] (auto module_arg) {
-                        using module = typename decltype(module_arg)::Type;
-                        if (!CallIfExists_handle_web_request::template call_ret<module, bool, true>(c, m_json_req.req_type, static_cast<TheWebRequest *>(this))) {
+                    bool not_handled = ListForEachForwardInterruptible<WebApis>([&] (auto webapi_arg) {
+                        using webapi = typename decltype(webapi_arg)::Type;
+                        if (!webapi::handle_web_request(c, m_json_req.req_type, static_cast<TheWebRequest *>(this))) {
                             // Request was accepted, stop trying to dispatch.
                             return false;
                         }
