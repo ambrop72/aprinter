@@ -48,8 +48,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ClientParams, typename Params>
+template <typename Arg>
 class SdFatInput {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using ClientParams = typename Arg::ClientParams;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -1000,6 +1005,16 @@ public:
     };
 };
 
+APRINTER_ALIAS_STRUCT_EXT(SdFatInputArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(ClientParams),
+    APRINTER_AS_TYPE(Params)
+), (
+    template <typename Self=SdFatInputArg>
+    using Instance = SdFatInput<Self>;
+))
+
 APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
     APRINTER_AS_TYPE(SdCardService),
     APRINTER_AS_TYPE(FsService),
@@ -1008,7 +1023,7 @@ APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
     static bool const ProvidesFsAccess = HaveAccessInterface;
     
     template <typename Context, typename ParentObject, typename ClientParams>
-    using Input = SdFatInput<Context, ParentObject, ClientParams, SdFatInputService>;
+    using Input = SdFatInputArg<Context, ParentObject, ClientParams, SdFatInputService>;
 ))
 
 #include <aprinter/EndNamespace.h>

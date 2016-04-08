@@ -62,7 +62,8 @@ private:
     struct InputReadHandler;
     struct InputClearBufferHandler;
     struct InputStartHandler;
-    using TheInput = typename Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler, InputStartHandler>>;
+    struct InputArg : public Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler, InputStartHandler>> {};
+    using TheInput = typename InputArg::template Instance<InputArg>;
     
     using DataWordType = typename TheInput::DataWordType;
     

@@ -38,8 +38,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ClientParams, typename Params>
+template <typename Arg>
 class SdRawInput {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using ClientParams = typename Arg::ClientParams;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -260,13 +265,23 @@ public:
     };
 };
 
+APRINTER_ALIAS_STRUCT_EXT(SdRawInputArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(ClientParams),
+    APRINTER_AS_TYPE(Params)
+), (
+    template <typename Self=SdRawInputArg>
+    using Instance = SdRawInput<Self>;
+))
+
 APRINTER_ALIAS_STRUCT_EXT(SdRawInputService, (
     APRINTER_AS_TYPE(SdCardService)
 ), (
     static bool const ProvidesFsAccess = false;
     
     template <typename Context, typename ParentObject, typename ClientParams>
-    using Input = SdRawInput<Context, ParentObject, ClientParams, SdRawInputService>;
+    using Input = SdRawInputArg<Context, ParentObject, ClientParams, SdRawInputService>;
 ))
 
 #include <aprinter/EndNamespace.h>
