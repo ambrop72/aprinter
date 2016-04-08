@@ -34,6 +34,7 @@
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -43,8 +44,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Params>
+template <typename Arg>
 class AvrSpi {
+    using Context                      = typename Arg::Context;
+    using ParentObject                 = typename Arg::ParentObject;
+    using Handler                      = typename Arg::Handler;
+    static int const CommandBufferBits = Arg::CommandBufferBits;
+    using Params                       = typename Arg::Params;
+    
     template <bool TSpi2x, bool TSpr1, bool TSpr0>
     struct SpiSpeed {
         static bool const Spi2x = TSpi2x;
@@ -362,8 +369,17 @@ template <
 struct AvrSpiService {
     static uint16_t const SpiSpeedDiv = TSpiSpeedDiv;
     
-    template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-    using Spi = AvrSpi<Context, ParentObject, Handler, CommandBufferBits, AvrSpiService>;
+    APRINTER_ALIAS_STRUCT_EXT(Spi, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler),
+        APRINTER_AS_VALUE(int, CommandBufferBits)
+    ), (
+        using Params = AvrSpiService;
+        
+        template <typename Self=Spi>
+        using Instance = AvrSpi<Self>;
+    ))
 };
 
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \

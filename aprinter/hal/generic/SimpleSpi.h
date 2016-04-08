@@ -32,6 +32,7 @@
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -40,8 +41,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Params>
+template <typename Arg>
 class SimpleSpi {
+    using Context                      = typename Arg::Context;
+    using ParentObject                 = typename Arg::ParentObject;
+    using Handler                      = typename Arg::Handler;
+    static int const CommandBufferBits = Arg::CommandBufferBits;
+    using Params                       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -315,8 +322,17 @@ template <
 struct SimpleSpiService {
     using Driver = TDriver;
     
-    template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-    using Spi = SimpleSpi<Context, ParentObject, Handler, CommandBufferBits, SimpleSpiService>;
+    APRINTER_ALIAS_STRUCT_EXT(Spi, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler),
+        APRINTER_AS_VALUE(int, CommandBufferBits)
+    ), (
+        using Params = SimpleSpiService;
+        
+        template <typename Self=Spi>
+        using Instance = SimpleSpi<Self>;
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

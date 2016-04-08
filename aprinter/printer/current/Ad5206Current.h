@@ -56,7 +56,8 @@ private:
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
+    struct SpiArg : public Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits> {};
+    using TheSpi = typename SpiArg::template Instance<SpiArg>;
     
     template <int ChannelIndex>
     struct ChannelHelper {

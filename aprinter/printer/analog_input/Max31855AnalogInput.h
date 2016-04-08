@@ -51,7 +51,8 @@ private:
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     struct SpiHandler;
-    using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
+    struct SpiArg : public Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits> {};
+    using TheSpi = typename SpiArg::template Instance<SpiArg>;
     
     static TimeType const ReadDelayTicks = 0.05 * Context::Clock::time_freq;
     static TimeType const SafetyDeadlineTicks = 0.5 * Context::Clock::time_freq;
