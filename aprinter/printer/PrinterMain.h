@@ -2180,7 +2180,8 @@ private:
     
     using ModulesHooks = TypeDictValues<ListCollect<ModuleClassesList, MemberType_HookDefinitionList>>;
     
-    using TheHookExecutor = HookExecutor<Context, typename PrinterMain::Object, JoinTypeLists<MyHooks, ModulesHooks>>;
+    struct ExecutorArg : public HookExecutorArg<Context, typename PrinterMain::Object, JoinTypeLists<MyHooks, ModulesHooks>> {};
+    using TheHookExecutor = typename ExecutorArg::template Instance<ExecutorArg>;
     
 public:
     template <typename HookType>

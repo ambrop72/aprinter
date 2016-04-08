@@ -43,8 +43,12 @@ APRINTER_ALIAS_STRUCT(HookDefinition, (
     APRINTER_AS_TYPE(CompletedHandler)
 ))
 
-template <typename Context, typename ParentObject, typename HookDefinitionList>
+template <typename Arg>
 class HookExecutor {
+    using Context            = typename Arg::Context;
+    using ParentObject       = typename Arg::ParentObject;
+    using HookDefinitionList = typename Arg::HookDefinitionList;
+    
 public:
     struct Object;
     
@@ -208,6 +212,15 @@ private:
 public:
     struct Object : public ObjBase<HookExecutor, ParentObject, HookList> {};
 };
+
+APRINTER_ALIAS_STRUCT_EXT(HookExecutorArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(HookDefinitionList)
+), (
+    template <typename Self=HookExecutorArg>
+    using Instance = HookExecutor<Self>;
+))
 
 #include <aprinter/EndNamespace.h>
 
