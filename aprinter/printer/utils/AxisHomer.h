@@ -110,7 +110,8 @@ private:
     
     struct PlannerAxisSpec : public MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback> {};
     using PlannerAxes = MakeTypeList<PlannerAxisSpec>;
-    using Planner = MotionPlanner<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    struct PlannerArg : public MotionPlannerArg<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, EmptyTypeList, EmptyTypeList> {};
+    using Planner = MotionPlanner<PlannerArg>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
     using TheDebugObject = DebugObject<Context, Object>;

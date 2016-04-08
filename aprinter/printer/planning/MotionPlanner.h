@@ -86,13 +86,42 @@ struct MotionPlannerConstants {
     using TimeConversion = APRINTER_FP_CONST_EXPR(Context::Clock::time_freq);
 };
 
-template <
-    typename Context, typename ParentObject, typename Config, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
-    int LookaheadCommitCount, typename FpType, typename MaxStepsPerCycle,
-    typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
-    typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
->
+APRINTER_ALIAS_STRUCT(MotionPlannerArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Config),
+    APRINTER_AS_TYPE(ParamsAxesList),
+    APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadCommitCount),
+    APRINTER_AS_TYPE(FpType),
+    APRINTER_AS_TYPE(MaxStepsPerCycle),
+    APRINTER_AS_TYPE(PullHandler),
+    APRINTER_AS_TYPE(FinishedHandler),
+    APRINTER_AS_TYPE(AbortedHandler),
+    APRINTER_AS_TYPE(UnderrunCallback),
+    APRINTER_AS_TYPE(ParamsChannelsList),
+    APRINTER_AS_TYPE(ParamsLasersList)
+))
+
+template <typename Arg>
 class MotionPlanner {
+    using Context                             = typename Arg::Context;
+    using ParentObject                        = typename Arg::ParentObject;
+    using Config                              = typename Arg::Config;
+    using ParamsAxesList                      = typename Arg::ParamsAxesList;
+    static int const StepperSegmentBufferSize = Arg::StepperSegmentBufferSize;
+    static int const LookaheadBufferSize      = Arg::LookaheadBufferSize;
+    static int const LookaheadCommitCount     = Arg::LookaheadCommitCount;
+    using FpType                              = typename Arg::FpType;
+    using MaxStepsPerCycle                    = typename Arg::MaxStepsPerCycle;
+    using PullHandler                         = typename Arg::PullHandler;
+    using FinishedHandler                     = typename Arg::FinishedHandler;
+    using AbortedHandler                      = typename Arg::AbortedHandler;
+    using UnderrunCallback                    = typename Arg::UnderrunCallback;
+    using ParamsChannelsList                  = typename Arg::ParamsChannelsList;
+    using ParamsLasersList                    = typename Arg::ParamsLasersList;
+    
 public:
     struct Object;
     

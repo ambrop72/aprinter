@@ -2103,12 +2103,13 @@ private:
     using MotionPlannerLasers = MapTypeList<LasersList, GetMemberType_PlannerLaserSpec>;
     
 public:
-    using ThePlanner = MotionPlanner<
+    struct PlannerArg : public MotionPlannerArg<
         Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize,
         Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, MaxStepsPerCycle,
         PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback,
         MotionPlannerChannels, MotionPlannerLasers
-    >;
+    > {};
+    using ThePlanner = MotionPlanner<PlannerArg>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <typename PlannerChannelSpec>
