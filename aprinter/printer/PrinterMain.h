@@ -74,6 +74,7 @@
 #include <aprinter/printer/HookExecutor.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
+#include <aprinter/printer/utils/AxisHomer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -219,6 +220,7 @@ private:
     using ParamsLasersList = typename Params::LasersList;
     using TransformParams = typename Params::TransformParams;
     using ParamsModulesList = typename Params::ModulesList;
+    struct ConfigOptionsListWrapped : public WrapType<typename Params::ConfigList> {};
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
@@ -226,7 +228,7 @@ private:
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
 public:
-    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
+    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, ConfigOptionsListWrapped, PrinterMain, ConfigManagerHandler>;
     
 public:
     using FpType = typename Params::FpType;
@@ -1061,7 +1063,7 @@ private:
         static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << AxisIndex; }
         
         struct PlannerPrestepCallback;
-        using PlannerAxisSpec = MotionPlannerAxisSpec<
+        struct PlannerAxisSpec : public MotionPlannerAxisSpec<
             TheAxisDriver,
             AxisSpec::StepBits,
             decltype(Config::e(AxisSpec::DefaultDistanceFactor::i())),
@@ -1069,16 +1071,17 @@ private:
             PlannerMaxSpeedRec,
             PlannerMaxAccelRec,
             PlannerPrestepCallback
-        >;
+        > {};
         
         AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
             
-            using HomerInstance = typename HomingSpec::HomerService::template Instance<
+            struct InstanceParams : public AxisHomerInstanceParams<
                 Context, PrinterMain, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, MaxStepsPerCycle, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
                 DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
-            >;
+            > {};
+            using HomerInstance = typename HomingSpec::HomerService::template Instance<InstanceParams>;
             
             using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
             
@@ -1384,7 +1387,7 @@ private:
         using PlannerMaxSpeedRec = decltype(TimeConversion() / (MaxPower() / LaserPower()));
         
         struct PowerInterface;
-        using PlannerLaserSpec = MotionPlannerLaserSpec<typename LaserSpec::TheLaserDriverService, PowerInterface, PlannerMaxSpeedRec>;
+        struct PlannerLaserSpec : public MotionPlannerLaserSpec<typename LaserSpec::TheLaserDriverService, PowerInterface, PlannerMaxSpeedRec> {};
         
         static void init (Context c)
         {

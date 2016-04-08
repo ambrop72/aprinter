@@ -73,9 +73,10 @@ static bool RuntimeConfigManager__compare_option (char const *name, ProgPtr<char
 
 struct RuntimeConfigManagerNoStoreService {};
 
-template <typename Context, typename ParentObject, typename ConfigOptionsList, typename TThePrinterMain, typename Handler, typename Params>
+template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped, typename TThePrinterMain, typename Handler, typename Params>
 class RuntimeConfigManager {
     using ThePrinterMain = TThePrinterMain;
+    using ConfigOptionsList = typename ConfigOptionsListWrapped::Type;
     
 public:
     struct Object;
@@ -714,8 +715,8 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(RuntimeConfigManagerService, (
     APRINTER_AS_TYPE(StoreService)
 ), (
-    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
-    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, ThePrinterMain, Handler, RuntimeConfigManagerService>;
+    template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped, typename ThePrinterMain, typename Handler>
+    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsListWrapped, ThePrinterMain, Handler, RuntimeConfigManagerService>;
 ))
 
 #include <aprinter/EndNamespace.h>

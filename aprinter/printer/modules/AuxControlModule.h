@@ -831,7 +831,7 @@ private:
     };
     
     template <typename This=AuxControlModule> struct PlannerChannelCallback;
-    using PlannerChannelSpec = MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback<>, Params::EventChannelBufferSize, typename Params::EventChannelTimerService>;
+    struct PlannerChannelSpec : public MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback<AuxControlModule>, Params::EventChannelBufferSize, typename Params::EventChannelTimerService> {};
     
     template <typename This=AuxControlModule>
     using ThePlanner = typename This::ThePrinterMain::ThePlanner;

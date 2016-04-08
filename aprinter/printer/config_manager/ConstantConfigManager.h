@@ -31,8 +31,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigOptionsList>
+template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped>
 class ConstantConfigManager {
+    using ConfigOptionsList = typename ConfigOptionsListWrapped::Type;
+    
 public:
     struct Object;
     
@@ -65,8 +67,8 @@ public:
 };
 
 struct ConstantConfigManagerService {
-    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
-    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigOptionsList>;
+    template <typename Context, typename ParentObject, typename ConfigOptionsListWrapped, typename ThePrinterMain, typename Handler>
+    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigOptionsListWrapped>;
 };
 
 #include <aprinter/EndNamespace.h>
