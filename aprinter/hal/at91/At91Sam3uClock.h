@@ -57,9 +57,9 @@ struct At91Sam3uClockTC {
     static const enum IRQn Irq = TIrq;
 };
 
-using At91Sam3uClockTC0 = At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[0]), ID_TC0, TC0_IRQn>;
-using At91Sam3uClockTC1 = At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[1]), ID_TC1, TC1_IRQn>;
-using At91Sam3uClockTC2 = At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[2]), ID_TC2, TC2_IRQn>;
+struct At91Sam3uClockTC0 : public At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[0]), ID_TC0, TC0_IRQn> {};
+struct At91Sam3uClockTC1 : public At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[1]), ID_TC1, TC1_IRQn> {};
+struct At91Sam3uClockTC2 : public At91Sam3uClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[2]), ID_TC2, TC2_IRQn> {};
 
 template <size_t TCpRegOffset, uint32_t TCpMask>
 struct At91Sam3uClockComp {
@@ -67,9 +67,9 @@ struct At91Sam3uClockComp {
     static const uint32_t CpMask = TCpMask;
 };
 
-using At91Sam3uClockCompA = At91Sam3uClockComp<offsetof(TcChannel, TC_RA), TC_SR_CPAS>;
-using At91Sam3uClockCompB = At91Sam3uClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS>;
-using At91Sam3uClockCompC = At91Sam3uClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS>;
+struct At91Sam3uClockCompA : public At91Sam3uClockComp<offsetof(TcChannel, TC_RA), TC_SR_CPAS> {};
+struct At91Sam3uClockCompB : public At91Sam3uClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS> {};
+struct At91Sam3uClockCompC : public At91Sam3uClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS> {};
 
 template <typename, typename, typename, typename, typename, typename>
 class At91Sam3uClockInterruptTimer;

@@ -56,15 +56,15 @@ struct At91Sam3xClockTC {
     static const enum IRQn Irq = TIrq;
 };
 
-using At91Sam3xClockTC0 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[0]), ID_TC0, TC0_IRQn>;
-using At91Sam3xClockTC1 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[1]), ID_TC1, TC1_IRQn>;
-using At91Sam3xClockTC2 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[2]), ID_TC2, TC2_IRQn>;
-using At91Sam3xClockTC3 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[0]), ID_TC3, TC3_IRQn>;
-using At91Sam3xClockTC4 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[1]), ID_TC4, TC4_IRQn>;
-using At91Sam3xClockTC5 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[2]), ID_TC5, TC5_IRQn>;
-using At91Sam3xClockTC6 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[0]), ID_TC6, TC6_IRQn>;
-using At91Sam3xClockTC7 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[1]), ID_TC7, TC7_IRQn>;
-using At91Sam3xClockTC8 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[2]), ID_TC8, TC8_IRQn>;
+struct At91Sam3xClockTC0 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[0]), ID_TC0, TC0_IRQn> {};
+struct At91Sam3xClockTC1 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[1]), ID_TC1, TC1_IRQn> {};
+struct At91Sam3xClockTC2 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[2]), ID_TC2, TC2_IRQn> {};
+struct At91Sam3xClockTC3 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[0]), ID_TC3, TC3_IRQn> {};
+struct At91Sam3xClockTC4 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[1]), ID_TC4, TC4_IRQn> {};
+struct At91Sam3xClockTC5 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[2]), ID_TC5, TC5_IRQn> {};
+struct At91Sam3xClockTC6 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[0]), ID_TC6, TC6_IRQn> {};
+struct At91Sam3xClockTC7 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[1]), ID_TC7, TC7_IRQn> {};
+struct At91Sam3xClockTC8 : public At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[2]), ID_TC8, TC8_IRQn> {};
 
 template <size_t TCpRegOffset, uint32_t TCpMask>
 struct At91Sam3xClockComp {
@@ -72,9 +72,9 @@ struct At91Sam3xClockComp {
     static const uint32_t CpMask = TCpMask;
 };
 
-using At91Sam3xClockCompA = At91Sam3xClockComp<offsetof(TcChannel, TC_RA), TC_SR_CPAS>;
-using At91Sam3xClockCompB = At91Sam3xClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS>;
-using At91Sam3xClockCompC = At91Sam3xClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS>;
+struct At91Sam3xClockCompA : public At91Sam3xClockComp<offsetof(TcChannel, TC_RA), TC_SR_CPAS> {};
+struct At91Sam3xClockCompB : public At91Sam3xClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS> {};
+struct At91Sam3xClockCompC : public At91Sam3xClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS> {};
 
 template <typename, typename, typename, typename, typename, typename>
 class At91Sam3xClockInterruptTimer;

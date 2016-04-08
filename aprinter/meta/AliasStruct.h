@@ -138,7 +138,7 @@ struct name { \
  * a PrinterMain module.
  */
 #define APRINTER_MODULE_TEMPLATE(service_name, class_name) \
-template <typename Context, typename ParentObject, typename ThePrinterMain> \
-using Module = class_name<Context, ParentObject, ThePrinterMain, service_name>;
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename ServiceSelf=service_name> \
+using Module = class_name<Context, ParentObject, ThePrinterMain, ServiceSelf>;
 
 #endif

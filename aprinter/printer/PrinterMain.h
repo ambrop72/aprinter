@@ -924,8 +924,8 @@ private:
     template <int ModuleIndex>
     struct Module {
         struct Object;
-        using ModuleSpec = TypeListGet<ParamsModulesList, ModuleIndex>;
-        using TheModule = typename ModuleSpec::template Module<Context, Object, PrinterMain>;
+        struct ModuleSpec : public TypeListGet<ParamsModulesList, ModuleIndex> {};
+        using TheModule = typename ModuleSpec::template Module<Context, Object, PrinterMain, ModuleSpec>;
         
         static void init (Context c)
         {

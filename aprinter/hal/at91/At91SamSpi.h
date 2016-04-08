@@ -129,14 +129,14 @@ using At91SamSpiService = SimpleSpiService<At91SamSimpleSpiService<Device>>;
 
 #if defined(__SAM3X8E__)
 
-using At91Sam3xSpiDevice = At91SamSpiDevice<
+struct At91Sam3xSpiDevice : public At91SamSpiDevice<
     GET_PERIPHERAL_ADDR(SPI0),
     ID_SPI0,
     SPI0_IRQn, 
     At91SamPin<At91SamPioA, 27>,
     At91SamPin<At91SamPioA, 26>,
     At91SamPin<At91SamPioA, 25>
->;
+> {};
 
 #define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
 extern "C" \
@@ -148,14 +148,14 @@ void SPI0_Handler (void) \
 
 #elif defined(__SAM3U4E__)
 
-using At91Sam3uSpiDevice = At91SamSpiDevice<
+struct At91Sam3uSpiDevice : public At91SamSpiDevice<
     GET_PERIPHERAL_ADDR(SPI),
     ID_SPI,
     SPI_IRQn, 
     At91SamPin<At91SamPioA, 15>,
     At91SamPin<At91SamPioA, 14>,
     At91SamPin<At91SamPioA, 13>
->;
+> {};
 
 #define AMBRO_AT91SAM3U_SPI_GLOBAL(thespi, context) \
 extern "C" \
