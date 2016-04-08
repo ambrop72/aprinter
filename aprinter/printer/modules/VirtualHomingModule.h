@@ -35,16 +35,18 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TThePrinterMain, typename Params>
+template <typename ModuleArg>
 class VirtualHomingModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     
 private:
-    using ThePrinterMain = TThePrinterMain;
     using FpType = typename ThePrinterMain::FpType;
     using Config = typename ThePrinterMain::Config;
     using TheCommand = typename ThePrinterMain::TheCommand;

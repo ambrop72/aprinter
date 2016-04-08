@@ -26,11 +26,14 @@
 #define APRINTER_MILLISECOND_CLOCK_INFO_MODULE_H
 
 #include <aprinter/meta/AliasStruct.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class MillisecondClockInfoModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {

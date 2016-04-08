@@ -31,11 +31,14 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/WebRequest.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class WebApiConfigModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 private:
     using TheConfigManager = typename ThePrinterMain::TheConfigManager;
     static size_t const OptionNameValBufferSize = 128;

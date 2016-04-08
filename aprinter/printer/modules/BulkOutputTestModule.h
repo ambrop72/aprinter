@@ -35,13 +35,16 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/LoopUtils.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
 #define APRINTER_BULKOUTPUT_TEST_DATA "0123456789ABCDEF"
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class BulkOutputTestModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
     static size_t const TestDataLength = sizeof(APRINTER_BULKOUTPUT_TEST_DATA) - 1;
     
 public:

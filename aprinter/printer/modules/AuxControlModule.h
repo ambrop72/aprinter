@@ -56,8 +56,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TThePrinterMain, typename Params>
+template <typename ModuleArg>
 class AuxControlModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     
@@ -65,7 +67,6 @@ public:
     using ReservedHeaterFanNames = MakeTypeList<WrapInt<'F'>, WrapInt<'S'>>;
     
 private:
-    using ThePrinterMain = TThePrinterMain;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;

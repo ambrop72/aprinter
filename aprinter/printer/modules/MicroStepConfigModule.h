@@ -31,11 +31,14 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class MicroStepConfigModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     

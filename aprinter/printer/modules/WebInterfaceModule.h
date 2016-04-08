@@ -50,13 +50,16 @@
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/WebRequest.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class WebInterfaceModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     

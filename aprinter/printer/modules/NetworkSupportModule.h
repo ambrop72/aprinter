@@ -35,11 +35,14 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/Configuration.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class NetworkSupportModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     

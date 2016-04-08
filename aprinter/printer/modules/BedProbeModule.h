@@ -46,11 +46,14 @@
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/HookExecutor.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class BedProbeModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     

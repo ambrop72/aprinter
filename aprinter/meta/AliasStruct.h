@@ -133,12 +133,4 @@ struct name { \
  */
 #define APRINTER_ALIAS_STRUCT(name, pars) APRINTER_ALIAS_STRUCT_EXT(name, pars, ())
 
-/**
- * This is a convenience macro for declaring the Module template alias for
- * a PrinterMain module.
- */
-#define APRINTER_MODULE_TEMPLATE(service_name, class_name) \
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename ServiceSelf=service_name> \
-using Module = class_name<Context, ParentObject, ThePrinterMain, ServiceSelf>;
-
 #endif

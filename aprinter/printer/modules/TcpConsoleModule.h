@@ -37,11 +37,14 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class TcpConsoleModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     struct Object;
     

@@ -31,11 +31,14 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class BasicTestModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     static void init (Context c)
     {

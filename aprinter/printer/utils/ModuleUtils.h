@@ -27,8 +27,30 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 
 #include <aprinter/BeginNamespace.h>
+
+APRINTER_ALIAS_STRUCT(ModuleTemplateArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(ThePrinterMain),
+    APRINTER_AS_TYPE(Params)
+))
+
+#define APRINTER_UNPACK_MODULE_ARG(ModuleArg) \
+using Context        = typename ModuleArg::Context; \
+using ParentObject   = typename ModuleArg::ParentObject; \
+using ThePrinterMain = typename ModuleArg::ThePrinterMain; \
+using Params         = typename ModuleArg::Params;
+
+/**
+ * This is a convenience macro for declaring the Module template alias for
+ * a PrinterMain module.
+ */
+#define APRINTER_MODULE_TEMPLATE(service_name, class_name) \
+template <typename ModuleArg> \
+using Module = class_name<ModuleArg>;
 
 template <int NameChar, typename ReservedList>
 using NameCharIsValid = WrapBool<(NameChar >= 'A' && NameChar <= 'Z') && !TypeListFind<ReservedList, WrapInt<NameChar>>::Found>;

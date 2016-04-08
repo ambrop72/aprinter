@@ -35,11 +35,14 @@
 #include <aprinter/fs/DirLister.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/WebRequest.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class WebApiFilesModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 private:
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheDirLister = DirLister<Context, TheFsAccess>;

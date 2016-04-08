@@ -27,11 +27,14 @@
 
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+template <typename ModuleArg>
 class StubCommandModule {
+    APRINTER_UNPACK_MODULE_ARG(ModuleArg)
+    
 public:
     static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
