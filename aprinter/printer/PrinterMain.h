@@ -164,8 +164,18 @@ APRINTER_ALIAS_STRUCT(PrinterMainLaserParams, (
     APRINTER_AS_TYPE(TheLaserDriverService)
 ))
 
-template <typename Context, typename ParentObject, typename Params>
+APRINTER_ALIAS_STRUCT(PrinterMainTemplateArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Params)
+))
+
+template <typename TemplateArg>
 class PrinterMain {
+    using Context      = typename TemplateArg::Context;
+    using ParentObject = typename TemplateArg::ParentObject;
+    using Params       = typename TemplateArg::Params;
+    
 public:
     struct Object;
     

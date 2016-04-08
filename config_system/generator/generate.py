@@ -2354,9 +2354,10 @@ def generate(config_root_data, cfg_name, main_template):
                 TemplateList(gen._modules_exprs),
             ])
             
-            printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
+            printer_params_typedef = 'struct ThePrinterParams : public {} {{}};\n'.format(printer_params.build(0))
+            printer_params_typedef += 'struct PrinterArg : public PrinterMainTemplateArg<MyContext, Program, ThePrinterParams> {};'
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'ThePrinterParams']), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
+            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['PrinterArg']), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
             gen.add_subst('EmergencyProvider', 'MyPrinter')
             
             setup_event_loop(gen)
