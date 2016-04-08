@@ -37,8 +37,16 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler, typename Params>
+template <typename Arg>
 class TemperatureObserver {
+    using Context          = typename Arg::Context;
+    using ParentObject     = typename Arg::ParentObject;
+    using Config           = typename Arg::Config;
+    using FpType           = typename Arg::FpType;
+    using GetValueCallback = typename Arg::GetValueCallback;
+    using Handler          = typename Arg::Handler;
+    using Params           = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -137,8 +145,19 @@ APRINTER_ALIAS_STRUCT_EXT(TemperatureObserverService, (
     APRINTER_AS_TYPE(ValueTolerance),
     APRINTER_AS_TYPE(MinTime)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler>
-    using Observer = TemperatureObserver<Context, ParentObject, Config, FpType, GetValueCallback, Handler, TemperatureObserverService>;
+    APRINTER_ALIAS_STRUCT_EXT(Observer, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType),
+        APRINTER_AS_TYPE(GetValueCallback),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = TemperatureObserverService;
+        
+        template <typename Self=Observer>
+        using Instance = TemperatureObserver<Self>;
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

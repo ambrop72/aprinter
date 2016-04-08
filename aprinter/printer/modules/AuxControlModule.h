@@ -218,7 +218,8 @@ private:
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
         using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
-        using TheObserver = typename HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>;
+        struct ObserverArg : public HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler> {};
+        using TheObserver = typename ObserverArg::template Instance<ObserverArg>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
         using TheAnalogInput = typename HeaterSpec::AnalogInput::template AnalogInput<Context, Object>;
