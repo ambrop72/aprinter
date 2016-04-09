@@ -37,14 +37,14 @@ public:
     
     static DutyCycleType powerToDuty (PowerFixedType power)
     {
-        auto res = FixedResMultiply(power, Factor);
+        auto res = FixedResMultiply(power, Factor());
         return (res.m_bits.m_int > MaxDutyCycle) ? MaxDutyCycle : res.m_bits.m_int;
     }
     
 private:
     static int const FactorBits = BitsInInt<MaxDutyCycle>::Value;
     using FactorFixedType = FixedPoint<FactorBits, false, 0>;
-    static constexpr FactorFixedType Factor = FactorFixedType::importBitsConstexpr(MaxDutyCycle);
+    static constexpr FactorFixedType Factor() { return FactorFixedType::importBitsConstexpr(MaxDutyCycle); };
 };
 
 template <int PowerBits>
