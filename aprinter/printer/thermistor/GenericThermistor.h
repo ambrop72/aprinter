@@ -31,8 +31,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class GenericThermistor {
+    using Context      = typename Arg::Context;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
     using One = APRINTER_FP_CONST_EXPR(1.0);
     using RoomTemp = APRINTER_FP_CONST_EXPR(298.15);
     using ZeroCelsiusTemp = APRINTER_FP_CONST_EXPR(273.15);
@@ -79,8 +84,15 @@ APRINTER_ALIAS_STRUCT_EXT(GenericThermistorService, (
     APRINTER_AS_TYPE(MinTemp),
     APRINTER_AS_TYPE(MaxTemp)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Formula = GenericThermistor<Context, ParentObject, Config, FpType, GenericThermistorService>;
+    APRINTER_ALIAS_STRUCT_EXT(Formula, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = GenericThermistorService;
+        APRINTER_DEF_INSTANCE(Formula, GenericThermistor)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

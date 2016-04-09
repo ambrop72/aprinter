@@ -1300,13 +1300,15 @@ def setup_network(gen, config, key):
         else:
             chksum_algorithm = 3
         
-        network_expr = TemplateExpr('LwipNetwork', [
+        network_arg = TemplateExpr('LwipNetworkArg', [
             'MyContext',
             'Program',
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
         ])
+        before_expr = 'struct MyNetworkArg : public {} {{}};'.format(network_arg.build(0))
+        network_expr = TemplateLiteral('MyNetworkArg::template Instance<MyNetworkArg>')
         
-        gen.add_global_resource(27, 'MyNetwork', network_expr, context_name='Network', is_fast_event_root=True)
+        gen.add_global_resource(27, 'MyNetwork', network_expr, code_before=before_expr,context_name='Network', is_fast_event_root=True)
         
         network_state = NetworkConfigState()
         gen.register_singleton_object('network', network_state)

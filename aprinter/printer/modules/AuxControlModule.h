@@ -221,7 +221,8 @@ private:
         struct ObserverArg : public HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler> {};
         using TheObserver = typename ObserverArg::template Instance<ObserverArg>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
-        using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
+        struct FormulaArg : public HeaterSpec::Formula::template Formula<Context, Object, Config, FpType> {};
+        using TheFormula = typename FormulaArg::template Instance<FormulaArg>;
         using TheAnalogInput = typename HeaterSpec::AnalogInput::template AnalogInput<Context, Object>;
         using AdcFixedType = typename TheAnalogInput::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;

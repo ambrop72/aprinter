@@ -42,8 +42,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ClientParams, typename Params>
+template <typename Arg>
 class MiiEthernet {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using ClientParams = typename Arg::ClientParams;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -53,7 +58,8 @@ private:
     struct MiiActivateHandler;
     struct MiiPhyMaintHandler;
     using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, SendBufferType, Params::PhyService::Rmii>;
-    using TheMii = typename Params::MiiService::template Mii<Context, Object, TheMiiClientParams>;
+    struct MiiArg : public Params::MiiService::template Mii<Context, Object, TheMiiClientParams> {};
+    using TheMii = typename MiiArg::template Instance<MiiArg>;
     
     class PhyRequester;
     using ThePhyClientParams = PhyClientParams<PhyRequester>;
@@ -229,8 +235,14 @@ struct MiiEthernetService {
     using MiiService = TMiiService;
     using PhyService = TPhyService;
     
-    template <typename Context, typename ParentObject, typename ClientParams>
-    using Ethernet = MiiEthernet<Context, ParentObject, ClientParams, MiiEthernetService>;
+    APRINTER_ALIAS_STRUCT_EXT(Ethernet, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ClientParams)
+    ), (
+        using Params = MiiEthernetService;
+        APRINTER_DEF_INSTANCE(Ethernet, MiiEthernet)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

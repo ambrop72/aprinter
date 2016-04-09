@@ -49,6 +49,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -62,8 +63,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename EthernetService>
+template <typename Arg>
 class LwipNetwork {
+    using Context         = typename Arg::Context;
+    using ParentObject    = typename Arg::ParentObject;
+    using EthernetService = typename Arg::EthernetService;
+    
 public:
     struct Object;
     class TcpListener;
@@ -81,7 +86,8 @@ private:
     struct EthernetReceiveHandler;
     class EthernetSendBuffer;
     using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, EthernetSendBuffer>;
-    using TheEthernet = typename EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>;
+    struct EthernetArg : public EthernetService::template Ethernet<Context, Object, TheEthernetClientParams> {};
+    using TheEthernet = typename EthernetArg::template Instance<EthernetArg>;
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
@@ -1332,6 +1338,14 @@ public:
         struct dhcp dhcp;
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(LwipNetworkArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(EthernetService)
+), (
+    APRINTER_DEF_INSTANCE(LwipNetworkArg, LwipNetwork)
+))
 
 #define APRINTER_DEFINE_LWIP_PLATFORM_DIAG(Context, TheMain, TheNetwork) \
 extern "C" void aprinter_lwip_platform_diag (char const *fmt, ...) \

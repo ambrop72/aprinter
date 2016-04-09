@@ -69,9 +69,13 @@ APRINTER_ALIAS_STRUCT(AxisDriverPrecisionParams, (
 using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0, true>;
 using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4, false>;
 
-template <typename Context, typename ParentObject, typename Stepper, typename TConsumersList, typename Params>
+template <typename Arg>
 class AxisDriver {
-    using ConsumersList = TConsumersList;
+    using Context       = typename Arg::Context;
+    using ParentObject  = typename Arg::ParentObject;
+    using Stepper       = typename Arg::Stepper;
+    using ConsumersList = typename Arg::ConsumersList;
+    using Params        = typename Arg::Params;
     
 private:
     static const int step_bits = Params::PrecisionParams::step_bits;
@@ -637,8 +641,15 @@ APRINTER_ALIAS_STRUCT_EXT(AxisDriverService, (
     APRINTER_AS_VALUE(bool, PreloadCommands),
     APRINTER_AS_TYPE(DelayParams)
 ), (
-    template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList>
-    using AxisDriver = AxisDriver<Context, ParentObject, Stepper, ConsumersList, AxisDriverService>;
+    APRINTER_ALIAS_STRUCT_EXT(Driver, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Stepper),
+        APRINTER_AS_TYPE(ConsumersList)
+    ), (
+        using Params = AxisDriverService;
+        APRINTER_DEF_INSTANCE(Driver, AxisDriver)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

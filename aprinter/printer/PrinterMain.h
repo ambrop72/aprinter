@@ -226,7 +226,8 @@ private:
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
-    using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
+    struct CacheArg : public ConfigCacheArg<Context, Object, DelayedConfigExprs> {};
+    using TheConfigCache = typename CacheArg::template Instance<CacheArg>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
 private:
@@ -1047,7 +1048,8 @@ private:
         using TheStepperGroup = StepperGroup<Context, LazySteppersList>;
         
         template <typename ThePrinterMain=PrinterMain> struct DelayedAxisDriverConsumersList;
-        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>>;
+        struct DriverArg : public AxisSpec::TheAxisDriverService::template Driver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>> {};
+        using TheAxisDriver = typename DriverArg::template Instance<DriverArg>;
         
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;

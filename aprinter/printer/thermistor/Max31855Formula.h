@@ -25,13 +25,17 @@
 #ifndef APRINTER_MAX31855_FORMULA_H
 #define APRINTER_MAX31855_FORMULA_H
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class Max31855Formula {
+    using Context      = typename Arg::Context;
+    using FpType       = typename Arg::FpType;
+    
     using Unscale = APRINTER_FP_CONST_EXPR(16384.0);
     using ZeroValue = APRINTER_FP_CONST_EXPR(8192.0);
     using Resolution = APRINTER_FP_CONST_EXPR(0.25);
@@ -52,8 +56,14 @@ public:
 };
 
 struct Max31855FormulaService {
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Formula = Max31855Formula<Context, ParentObject, Config, FpType, Max31855FormulaService>;
+    APRINTER_ALIAS_STRUCT_EXT(Formula, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        APRINTER_DEF_INSTANCE(Formula, Max31855Formula)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

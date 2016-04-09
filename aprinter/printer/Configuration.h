@@ -31,11 +31,12 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/ProgramMemory.h>
 
@@ -99,8 +100,12 @@ struct ConfigTypeIpAddress {
     uint8_t ip_addr[Size];
 };
 
-template <typename Context, typename ParentObject, typename DelayedExprsList>
+template <typename Arg>
 class ConfigCache {
+    using Context          = typename Arg::Context;
+    using ParentObject     = typename Arg::ParentObject;
+    using DelayedExprsList = typename Arg::DelayedExprsList;
+    
 public:
     struct Object;
     
@@ -214,6 +219,14 @@ public:
         MakeTypeList<TheDebugObject>
     >> {};
 };
+
+APRINTER_ALIAS_STRUCT_EXT(ConfigCacheArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(DelayedExprsList)
+), (
+    APRINTER_DEF_INSTANCE(ConfigCacheArg, ConfigCache)
+))
 
 template <typename TheConfigManager, typename TheConfigCache>
 struct ConfigFramework {

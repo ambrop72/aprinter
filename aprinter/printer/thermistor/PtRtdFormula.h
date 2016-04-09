@@ -31,8 +31,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class PtRtdFormula {
+    using Context      = typename Arg::Context;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
     using One = APRINTER_FP_CONST_EXPR(1.0);
     using Two = APRINTER_FP_CONST_EXPR(2.0);
     
@@ -88,8 +93,15 @@ APRINTER_ALIAS_STRUCT_EXT(PtRtdFormulaService, (
     APRINTER_AS_TYPE(MinTemp),
     APRINTER_AS_TYPE(MaxTemp)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Formula = PtRtdFormula<Context, ParentObject, Config, FpType, PtRtdFormulaService>;
+    APRINTER_ALIAS_STRUCT_EXT(Formula, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = PtRtdFormulaService;
+        APRINTER_DEF_INSTANCE(Formula, PtRtdFormula)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>
