@@ -357,13 +357,15 @@ def format_cpp_float(value):
 def setup_event_loop(gen):
     gen.add_aprinter_include('system/BusyEventLoop.h')
     
-    code_before_expr = 'struct MyLoopExtraDelay;'
-    expr = TemplateExpr('BusyEventLoop', ['MyContext', 'Program', 'MyLoopExtraDelay'])
+    code_before_expr = 'struct MyLoopExtraDelay;\n'
+    code_before_expr += 'struct MyLoopArg : public BusyEventLoopArg<MyContext, Program, MyLoopExtraDelay> {};'
+    expr = TemplateExpr('MyLoopArg::Instance', ['MyLoopArg'])
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
     code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
-    code_before_program += 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, {}>;\n'.format(fast_events)
+    code_before_program += 'struct MyLoopExtraArg : public BusyEventLoopExtraArg<Program, MyLoop, {}> {{}};\n'.format(fast_events)
+    code_before_program += 'using MyLoopExtra = MyLoopExtraArg::Instance<MyLoopExtraArg>;\n'
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')

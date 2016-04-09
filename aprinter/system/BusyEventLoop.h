@@ -30,12 +30,13 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -46,15 +47,17 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename, typename, typename> class BusyEventLoopExtra;
 template <typename> class BusyEventLoopQueuedEvent;
 template <typename> class BusyEventLoopTimedEvent;
 
-template <typename TContext, typename ParentObject, typename ExtraDelay>
+template <typename Arg>
 class BusyEventLoop {
+    using ParentObject = typename Arg::ParentObject;
+    using ExtraDelay   = typename Arg::ExtraDelay;
+    
 public:
     struct Object;
-    using Context = TContext;
+    using Context = typename Arg::Context;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
@@ -246,8 +249,21 @@ public:
     };
 };
 
-template <typename ParentObject, typename Loop, typename FastEventList>
+APRINTER_ALIAS_STRUCT_EXT(BusyEventLoopArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(ExtraDelay)
+), (
+    template <typename Self=BusyEventLoopArg>
+    using Instance = BusyEventLoop<Self>;
+))
+
+template <typename Arg>
 class BusyEventLoopExtra {
+    using ParentObject  = typename Arg::ParentObject;
+    using Loop          = typename Arg::Loop;
+    using FastEventList = typename Arg::FastEventList;
+    
     friend Loop;
     
     static const int NumFastEvents = TypeListLength<FastEventList>::Value;
@@ -270,6 +286,15 @@ public:
         FastEventState m_fast_events[NumFastEvents];
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(BusyEventLoopExtraArg, (
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Loop),
+    APRINTER_AS_TYPE(FastEventList)
+), (
+    template <typename Self=BusyEventLoopExtraArg>
+    using Instance = BusyEventLoopExtra<Self>;
+))
 
 template <typename Loop>
 class BusyEventLoopQueuedEvent
