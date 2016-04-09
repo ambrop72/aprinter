@@ -64,7 +64,7 @@ private:
     };
     
     template <int TransformIndex, typename Dummy>
-    struct Helper<TransformIndex, Dummy> {
+    struct Helper {
         struct Object;
         using TheTransformService = TypeListGet<TransformServicesList, TransformIndex>;
         

@@ -2120,7 +2120,7 @@ def generate(config_root_data, cfg_name, main_template):
                             transform_type_expr = id_transform_type_expr
                         else:
                             gen.add_aprinter_include('printer/transform/CombineTransform.h')
-                            transform_type_expr = TemplateExpr('CombineTransformService', [transform_type_expr, id_transform_type_expr])
+                            transform_type_expr = TemplateExpr('CombineTransformService', [TemplateList([transform_type_expr, id_transform_type_expr])])
                         
                         dimension_count += num_idaxes
                 
