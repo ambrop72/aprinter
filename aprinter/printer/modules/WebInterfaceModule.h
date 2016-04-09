@@ -694,7 +694,7 @@ private:
             AMBRO_ASSERT(m_state == State::JSONRESP_CUSTOM_TRY)
             AMBRO_ASSERT(m_resource_state == ResourceState::NONE)
             AMBRO_ASSERT(state_size <= sizeof(m_custom_req.state))
-            AMBRO_ASSERT(alignof(m_custom_req.state) % state_align == 0)
+            AMBRO_ASSERT(CustomHandlerMaxAlign % state_align == 0)
             
             m_resource_state = ResourceState::CUSTOM_REQ;
             return m_custom_req.state;
@@ -908,7 +908,7 @@ private:
             }
         }
         
-        void finish_command_impl (Context c)
+        void finish_command_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
@@ -924,7 +924,7 @@ private:
             m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
-        void reply_poke_impl (Context c)
+        void reply_poke_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
@@ -934,7 +934,7 @@ private:
             }
         }
         
-        void reply_append_buffer_impl (Context c, char const *str, size_t length)
+        void reply_append_buffer_impl (Context c, char const *str, size_t length) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
@@ -949,7 +949,7 @@ private:
             }
         }
         
-        size_t get_send_buf_avail_impl (Context c)
+        size_t get_send_buf_avail_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
@@ -961,7 +961,7 @@ private:
             return buf_st.length - m_output_pos;
         }
         
-        void commandStreamError (Context c, typename TheConvenientStream::Error error)
+        void commandStreamError (Context c, typename TheConvenientStream::Error error) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
@@ -983,7 +983,7 @@ private:
             return m_client->complete_request(c);
         }
         
-        bool mayWaitForSendBuf (Context c, size_t length)
+        bool mayWaitForSendBuf (Context c, size_t length) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             

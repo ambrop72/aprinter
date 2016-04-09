@@ -251,7 +251,7 @@ private:
             }
         }
         
-        void finish_command_impl (Context c)
+        void finish_command_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
@@ -266,7 +266,7 @@ private:
             m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
-        void reply_poke_impl (Context c)
+        void reply_poke_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
@@ -275,7 +275,7 @@ private:
             }
         }
         
-        void reply_append_buffer_impl (Context c, char const *str, size_t length)
+        void reply_append_buffer_impl (Context c, char const *str, size_t length) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
@@ -289,14 +289,14 @@ private:
             }
         }
         
-        size_t get_send_buf_avail_impl (Context c)
+        size_t get_send_buf_avail_impl (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
             return (m_state != State::CONNECTED) ? (size_t)-1 : m_connection.getSendBufferSpace(c);
         }
         
-        void commandStreamError (Context c, typename TheConvenientStream::Error error)
+        void commandStreamError (Context c, typename TheConvenientStream::Error error) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
@@ -317,7 +317,7 @@ private:
             start_disconnect(c);
         }
         
-        bool mayWaitForSendBuf (Context c, size_t length)
+        bool mayWaitForSendBuf (Context c, size_t length) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
