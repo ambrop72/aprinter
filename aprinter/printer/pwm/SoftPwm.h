@@ -37,8 +37,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class SoftPwm {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Params       = typename Arg::Params;
+    
 private:
     struct TimerHandler;
     
@@ -182,8 +186,13 @@ APRINTER_ALIAS_STRUCT_EXT(SoftPwmService, (
     APRINTER_AS_TYPE(PulseInterval),
     APRINTER_AS_TYPE(TimerService)
 ), (
-    template <typename Context, typename ParentObject>
-    using Pwm = SoftPwm<Context, ParentObject, SoftPwmService>;
+    APRINTER_ALIAS_STRUCT_EXT(Pwm, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        using Params = SoftPwmService;
+        APRINTER_DEF_INSTANCE(Pwm, SoftPwm)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

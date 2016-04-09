@@ -248,7 +248,8 @@ private:
     
     using StepperDefsByAxis = MapTypeList<ParamsAxesList, TemplateFunc<StepperDefsForAxis>>;
     
-    using TheSteppers = Steppers<Context, Object, Config, JoinTypeListList<StepperDefsByAxis>>;
+    struct TheSteppersArg : public SteppersArg<Context, Object, Config, JoinTypeListList<StepperDefsByAxis>> {};
+    using TheSteppers = typename TheSteppersArg::template Instance<TheSteppersArg>;
     
     template <int AxisIndex, int AxisStepperIndex>
     using GetStepper = typename TheSteppers::template Stepper<(GetJoinedListOffset<StepperDefsByAxis, AxisIndex>::Value + AxisStepperIndex)>;
@@ -1045,7 +1046,8 @@ private:
         static bool const IsExtruder = AxisSpec::IsExtruder;
         
         struct LazySteppersList;
-        using TheStepperGroup = StepperGroup<Context, LazySteppersList>;
+        struct GroupArg : public StepperGroupArg<Context, LazySteppersList> {};
+        using TheStepperGroup = typename GroupArg::template Instance<GroupArg>;
         
         template <typename ThePrinterMain=PrinterMain> struct DelayedAxisDriverConsumersList;
         struct DriverArg : public AxisSpec::TheAxisDriverService::template Driver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>> {};

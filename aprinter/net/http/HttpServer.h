@@ -48,8 +48,15 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TheMain, typename RequestHandler, typename UserClientState, typename Params>
+template <typename Arg>
 class HttpServer {
+    using Context         = typename Arg::Context;
+    using ParentObject    = typename Arg::ParentObject;
+    using TheMain         = typename Arg::TheMain;
+    using RequestHandler  = typename Arg::RequestHandler;
+    using UserClientState = typename Arg::UserClientState;
+    using Params          = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -1451,8 +1458,16 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
     APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits),
     APRINTER_AS_VALUE(int, MaxQueryParams)
 ), (
-    template <typename Context, typename ParentObject, typename TheMain, typename RequestHandler, typename UserClientState>
-    using Server = HttpServer<Context, ParentObject, TheMain, RequestHandler, UserClientState, HttpServerService>;
+    APRINTER_ALIAS_STRUCT_EXT(Server, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(TheMain),
+        APRINTER_AS_TYPE(RequestHandler),
+        APRINTER_AS_TYPE(UserClientState)
+    ), (
+        using Params = HttpServerService;
+        APRINTER_DEF_INSTANCE(Server, HttpServer)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

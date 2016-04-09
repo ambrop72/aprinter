@@ -40,8 +40,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigManager, typename Handler, typename Params>
+template <typename Arg>
 class EepromConfigStore {
+    using Context       = typename Arg::Context;
+    using ParentObject  = typename Arg::ParentObject;
+    using ConfigManager = typename Arg::ConfigManager;
+    using Handler       = typename Arg::Handler;
+    using Params        = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -309,8 +315,16 @@ APRINTER_ALIAS_STRUCT_EXT(EepromConfigStoreService, (
     APRINTER_AS_VALUE(int, StartBlock),
     APRINTER_AS_VALUE(int, EndBlock)
 ), (
-    template <typename Context, typename ParentObject, typename ConfigManager, typename ThePrinterMain, typename Handler>
-    using Store = EepromConfigStore<Context, ParentObject, ConfigManager, Handler, EepromConfigStoreService>;
+    APRINTER_ALIAS_STRUCT_EXT(Store, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ConfigManager),
+        APRINTER_AS_TYPE(ThePrinterMain),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = EepromConfigStoreService;
+        APRINTER_DEF_INSTANCE(Store, EepromConfigStore)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

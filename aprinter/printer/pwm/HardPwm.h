@@ -35,8 +35,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class HardPwm {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     using ThePwm = typename Params::PwmService::template Pwm<Context, Object>;
@@ -112,8 +116,13 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(HardPwmService, (
     APRINTER_AS_TYPE(PwmService)
 ), (
-    template <typename Context, typename ParentObject>
-    using Pwm = HardPwm<Context, ParentObject, HardPwmService>;
+    APRINTER_ALIAS_STRUCT_EXT(Pwm, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        using Params = HardPwmService;
+        APRINTER_DEF_INSTANCE(Pwm, HardPwm)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

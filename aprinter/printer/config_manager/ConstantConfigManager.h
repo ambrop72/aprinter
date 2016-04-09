@@ -34,8 +34,8 @@
 
 template <typename Arg>
 class ConstantConfigManager {
-    using Context           = typename Arg::Context;
-    using ParentObject      = typename Arg::ParentObject;
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
     
 public:
     struct Object;

@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -37,8 +38,15 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigManager, typename ThePrinterMain, typename Handler, typename Params>
+template <typename Arg>
 class FileConfigStore {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using ConfigManager  = typename Arg::ConfigManager;
+    using ThePrinterMain = typename Arg::ThePrinterMain;
+    using Handler        = typename Arg::Handler;
+    using Params         = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -232,8 +240,16 @@ public:
 };
 
 struct FileConfigStoreService {
-    template <typename Context, typename ParentObject, typename ConfigManager, typename ThePrinterMain, typename Handler>
-    using Store = FileConfigStore<Context, ParentObject, ConfigManager, ThePrinterMain, Handler, FileConfigStoreService>;
+    APRINTER_ALIAS_STRUCT_EXT(Store, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ConfigManager),
+        APRINTER_AS_TYPE(ThePrinterMain),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = FileConfigStoreService;
+        APRINTER_DEF_INSTANCE(Store, FileConfigStore)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

@@ -49,8 +49,13 @@ APRINTER_ALIAS_STRUCT(StepperDef, (
     APRINTER_AS_TYPE(InvertDir)
 ))
 
-template <typename Context, typename ParentObject, typename Config, typename StepperDefsList>
+template <typename Arg>
 class Steppers {
+    using Context         = typename Arg::Context;
+    using ParentObject    = typename Arg::ParentObject;
+    using Config          = typename Arg::Config;
+    using StepperDefsList = typename Arg::StepperDefsList;
+    
 public:
     struct Object;
     
@@ -208,6 +213,15 @@ public:
         MaskType mask;
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(SteppersArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Config),
+    APRINTER_AS_TYPE(StepperDefsList)
+), (
+    APRINTER_DEF_INSTANCE(SteppersArg, Steppers)
+))
 
 #include <aprinter/EndNamespace.h>
 

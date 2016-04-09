@@ -216,8 +216,10 @@ private:
         static_assert(NameCharIsValid<HeaterSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Heater name not allowed");
         
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
-        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
-        using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
+        struct ControlArg : public HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType> {};
+        using TheControl = typename ControlArg::template Instance<ControlArg>;
+        struct PwmArg : public HeaterSpec::PwmService::template Pwm<Context, Object> {};
+        using ThePwm = typename PwmArg::template Instance<PwmArg>;
         struct ObserverArg : public HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler> {};
         using TheObserver = typename ObserverArg::template Instance<ObserverArg>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
@@ -714,7 +716,8 @@ private:
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
         static_assert(NameCharIsValid<FanSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Fan name not allowed");
         
-        using ThePwm = typename FanSpec::PwmService::template Pwm<Context, Object>;
+        struct PwmArg : public FanSpec::PwmService::template Pwm<Context, Object> {};
+        using ThePwm = typename PwmArg::template Instance<PwmArg>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         
         struct ChannelPayload {

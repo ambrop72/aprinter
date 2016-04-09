@@ -711,7 +711,8 @@ public:
     public:
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
-        using TheLaserDriver = typename LaserSpec::TheLaserDriverService::template LaserDriver<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>;
+        struct DriverArg : public LaserSpec::TheLaserDriverService::template Driver<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback> {};
+        using TheLaserDriver = typename DriverArg::template Instance<DriverArg>;
         
     public: // private, workaround gcc bug
         using TheCommon = AxisCommon<Laser>;
@@ -1051,7 +1052,7 @@ private:
     using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisCommon::TheStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxisCommonList, FixedIdentity, MinTimeTypeHelper>;
     
-    using ComputeStateTuple = Tuple<MapTypeList<AxisCommonList, GetMemberType_ComputeState>>;
+    struct ComputeStateTuple : public Tuple<MapTypeList<AxisCommonList, GetMemberType_ComputeState>> {};
     
 public:
     static void init (Context c, bool prestep_callback_enabled)

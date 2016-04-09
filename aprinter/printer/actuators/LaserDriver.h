@@ -48,8 +48,15 @@ APRINTER_ALIAS_STRUCT(LaserDriverPrecisionParams, (
 
 using LaserDriverDefaultPrecisionParams = LaserDriverPrecisionParams<26, 32>;
 
-template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback, typename Params>
+template <typename Arg>
 class LaserDriver {
+    using Context         = typename Arg::Context;
+    using ParentObject    = typename Arg::ParentObject;
+    using FpType          = typename Arg::FpType;
+    using PowerInterface  = typename Arg::PowerInterface;
+    using CommandCallback = typename Arg::CommandCallback;
+    using Params          = typename Arg::Params;
+    
 private:
     struct TimerCallback;
     
@@ -204,8 +211,16 @@ APRINTER_ALIAS_STRUCT_EXT(LaserDriverService, (
     APRINTER_AS_TYPE(AdjustmentInterval),
     APRINTER_AS_TYPE(PrecisionParams)
 ), (
-    template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback>
-    using LaserDriver = LaserDriver<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserDriverService>;
+    APRINTER_ALIAS_STRUCT_EXT(Driver, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(FpType),
+        APRINTER_AS_TYPE(PowerInterface),
+        APRINTER_AS_TYPE(CommandCallback)
+    ), (
+        using Params = LaserDriverService;
+        APRINTER_DEF_INSTANCE(Driver, LaserDriver)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

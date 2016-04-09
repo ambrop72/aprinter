@@ -33,8 +33,15 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType, typename Params>
+template <typename Arg>
 class PidControl {
+    using Context             = typename Arg::Context;
+    using ParentObject        = typename Arg::ParentObject;
+    using Config              = typename Arg::Config;
+    using MeasurementInterval = typename Arg::MeasurementInterval;
+    using FpType              = typename Arg::FpType;
+    using Params              = typename Arg::Params;
+    
     using One = APRINTER_FP_CONST_EXPR(1.0);
     
     using CIntegralFactor = decltype(ExprCast<FpType>(MeasurementInterval() * Config::e(Params::I::i())));
@@ -88,8 +95,16 @@ APRINTER_ALIAS_STRUCT_EXT(PidControlService, (
     APRINTER_AS_TYPE(IStateMax),
     APRINTER_AS_TYPE(DHistory)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType>
-    using Control = PidControl<Context, ParentObject, Config, MeasurementInterval, FpType, PidControlService>;
+    APRINTER_ALIAS_STRUCT_EXT(Control, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(MeasurementInterval),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = PidControlService;
+        APRINTER_DEF_INSTANCE(Control, PidControl)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

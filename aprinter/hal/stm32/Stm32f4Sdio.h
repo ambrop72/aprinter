@@ -30,6 +30,7 @@
 #include <limits.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -41,8 +42,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout, typename Params>
+template <typename Arg>
 class Stm32f4Sdio {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using CommandHandler = typename Arg::CommandHandler;
+    using BusyTimeout    = typename Arg::BusyTimeout;
+    using Params         = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -634,8 +641,15 @@ struct Stm32f4SdioService {
     static uint32_t const DataTimeoutBusClocks = TDataTimeoutBusClocks;
     static int const SdClockPrescaler = TSdClockPrescaler;
     
-    template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout>
-    using Sdio = Stm32f4Sdio<Context, ParentObject, CommandHandler, BusyTimeout, Stm32f4SdioService>;
+    APRINTER_ALIAS_STRUCT_EXT(Sdio, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(CommandHandler),
+        APRINTER_AS_TYPE(BusyTimeout)
+    ), (
+        using Params = Stm32f4SdioService;
+        APRINTER_DEF_INSTANCE(Sdio, Stm32f4Sdio)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

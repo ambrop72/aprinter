@@ -493,7 +493,8 @@ private:
     AMBRO_STRUCT_IF(StoreFeature, HasStore) {
         struct Object;
         struct StoreHandler;
-        using TheStore = typename StoreService::template Store<Context, Object, RuntimeConfigManager, ThePrinterMain, StoreHandler>;
+        struct StoreArg : public StoreService::template Store<Context, Object, RuntimeConfigManager, ThePrinterMain, StoreHandler> {};
+        using TheStore = typename StoreArg::template Instance<StoreArg>;
         enum {STATE_IDLE, STATE_LOADING, STATE_SAVING};
         
         static void init (Context c)

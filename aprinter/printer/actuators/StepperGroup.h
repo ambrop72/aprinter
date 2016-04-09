@@ -26,12 +26,16 @@
 #define APRINTER_STEPPER_GROUP_H
 
 #include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename LazySteppersList>
+template <typename Arg>
 class StepperGroup {
+    using Context          = typename Arg::Context;
+    using LazySteppersList = typename Arg::LazySteppersList;
+    
 private:
     template <typename TheLazySteppersList=LazySteppersList>
     using SteppersList = typename TheLazySteppersList::List;
@@ -73,6 +77,13 @@ public:
         ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::emergency()));
     }
 };
+
+APRINTER_ALIAS_STRUCT_EXT(StepperGroupArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(LazySteppersList)
+), (
+    APRINTER_DEF_INSTANCE(StepperGroupArg, StepperGroup)
+))
 
 #include <aprinter/EndNamespace.h>
 

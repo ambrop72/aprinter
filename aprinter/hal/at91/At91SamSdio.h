@@ -31,6 +31,7 @@
 #include <dmac.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -40,8 +41,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout, typename Params>
+template <typename Arg>
 class At91SamSdio {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using CommandHandler = typename Arg::CommandHandler;
+    using BusyTimeout    = typename Arg::BusyTimeout;
+    using Params         = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -493,8 +500,15 @@ struct At91SamSdioService {
     static bool const IsWideMode = TIsWideMode;
     static int const MaxIoDescriptors = TMaxIoDescriptors;
     
-    template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout>
-    using Sdio = At91SamSdio<Context, ParentObject, CommandHandler, BusyTimeout, At91SamSdioService>;
+    APRINTER_ALIAS_STRUCT_EXT(Sdio, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(CommandHandler),
+        APRINTER_AS_TYPE(BusyTimeout)
+    ), (
+        using Params = At91SamSdioService;
+        APRINTER_DEF_INSTANCE(Sdio, At91SamSdio)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>
