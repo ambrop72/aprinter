@@ -1496,8 +1496,10 @@ public:
     private:
         using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
         using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
-        using TheTransformAlg = typename TransformParams::TransformService::template Transform<Context, Object, Config, FpType>;
-        using TheSplitterClass = typename TransformParams::SplitterService::template Splitter<Context, Object, Config, FpType>;
+        struct TransformArg : public TransformParams::TransformService::template Transform<Context, Object, Config, FpType> {};
+        using TheTransformAlg = typename TransformArg::template Instance<TransformArg>;
+        struct SplitterArg : public TransformParams::SplitterService::template Splitter<Context, Object, Config, FpType> {};
+        using TheSplitterClass = typename SplitterArg::template Instance<SplitterArg>;
         using TheSplitter = typename TheSplitterClass::Splitter;
         
     public:

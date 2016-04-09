@@ -38,8 +38,14 @@
 #include <aprinter/BeginNamespace.h>
 
 // Calculations from https://roboted.wordpress.com/fundamentals/ 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class SCARATransform {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
 private:
     // constants
     using DegreesToRadians = APRINTER_FP_CONST_EXPR(0.017453292519943295);
@@ -149,8 +155,15 @@ APRINTER_ALIAS_STRUCT_EXT(SCARATransformService, (
     APRINTER_AS_TYPE(XOffset),
     APRINTER_AS_TYPE(YOffset)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = SCARATransform<Context, ParentObject, Config, FpType, SCARATransformService>;
+    APRINTER_ALIAS_STRUCT_EXT(Transform, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = SCARATransformService;
+        APRINTER_DEF_INSTANCE(Transform, SCARATransform)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

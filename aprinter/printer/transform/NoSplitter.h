@@ -25,10 +25,15 @@
 #ifndef AMBROLIB_NO_SPLITTER_H
 #define AMBROLIB_NO_SPLITTER_H
 
+#include <aprinter/meta/AliasStruct.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename FpType>
+template <typename Arg>
 class NoSplitter {
+    using Context = typename Arg::Context;
+    using FpType  = typename Arg::FpType;
+    
 public:
     class Splitter {
     public:
@@ -52,8 +57,14 @@ public:
 };
 
 struct NoSplitterService {
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Splitter = NoSplitter<Context, FpType>;
+    APRINTER_ALIAS_STRUCT_EXT(Splitter, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        APRINTER_DEF_INSTANCE(Splitter, NoSplitter)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

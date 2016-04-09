@@ -36,8 +36,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class DeltaTransform {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
 private:
     using MyVector = Vector3<FpType>;
     
@@ -115,8 +121,15 @@ APRINTER_ALIAS_STRUCT_EXT(DeltaTransformService, (
     APRINTER_AS_TYPE(CarriageOffset),
     APRINTER_AS_TYPE(LimitRadius)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = DeltaTransform<Context, ParentObject, Config, FpType, DeltaTransformService>;
+    APRINTER_ALIAS_STRUCT_EXT(Transform, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = DeltaTransformService;
+        APRINTER_DEF_INSTANCE(Transform, DeltaTransform)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

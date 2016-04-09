@@ -31,8 +31,11 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename FpType, typename Params>
+template <typename Arg>
 class IdentityTransform {
+    using Context = typename Arg::Context;
+    using Params  = typename Arg::Params;
+    
 public:
     static int const NumAxes = Params::NumAxes;
     
@@ -67,8 +70,15 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(IdentityTransformService, (
     APRINTER_AS_VALUE(int, NumAxes)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = IdentityTransform<Context, FpType, IdentityTransformService>;
+    APRINTER_ALIAS_STRUCT_EXT(Transform, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = IdentityTransformService;
+        APRINTER_DEF_INSTANCE(Transform, IdentityTransform)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

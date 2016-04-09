@@ -35,8 +35,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class DistanceSplitter {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -91,8 +97,15 @@ APRINTER_ALIAS_STRUCT_EXT(DistanceSplitterService, (
     APRINTER_AS_TYPE(MaxSplitLength),
     APRINTER_AS_TYPE(SegmentsPerSecond)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Splitter = DistanceSplitter<Context, ParentObject, Config, FpType, DistanceSplitterService>;
+    APRINTER_ALIAS_STRUCT_EXT(Splitter, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = DistanceSplitterService;
+        APRINTER_DEF_INSTANCE(Splitter, DistanceSplitter)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

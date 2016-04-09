@@ -33,8 +33,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+template <typename Arg>
 class CombineTransform {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -56,19 +62,12 @@ public:
     
 private:
     template <int TransformIndex, typename Dummy=void>
-    struct Helper;
-    
-    template <typename Dummy>
-    struct Helper<-1, Dummy> {
-        static int const AxisEndIndex = 0;
-    };
-    
-    template <int TransformIndex, typename Dummy>
     struct Helper {
         struct Object;
         using TheTransformService = TypeListGet<TransformServicesList, TransformIndex>;
         
-        using TheTransform = typename TheTransformService::template Transform<Context, Object, Config, FpType>;
+        struct TransformArg : public TheTransformService::template Transform<Context, Object, Config, FpType> {};
+        using TheTransform = typename TransformArg::template Instance<TransformArg>;
         
         static int const AxisStartIndex = Helper<(TransformIndex-1)>::AxisEndIndex;
         static int const AxisEndIndex = AxisStartIndex + TheTransform::NumAxes;
@@ -103,6 +102,11 @@ private:
     };
     using HelpersList = IndexElemList<TransformServicesList, DedummyIndexTemplate<Helper>::template Result>;
     
+    template <typename Dummy>
+    struct Helper<-1, Dummy> {
+        static int const AxisEndIndex = 0;
+    };
+    
 public:
     static int const NumAxes = Helper<(TypeListLength<TransformServicesList>::Value-1)>::AxisEndIndex;
     
@@ -113,8 +117,15 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(CombineTransformService, (
     APRINTER_AS_TYPE(TransformServicesList)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = CombineTransform<Context, ParentObject, Config, FpType, CombineTransformService>;
+    APRINTER_ALIAS_STRUCT_EXT(Transform, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        using Params = CombineTransformService;
+        APRINTER_DEF_INSTANCE(Transform, CombineTransform)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

@@ -25,10 +25,14 @@
 #ifndef AMBROLIB_COREXY_TRANSFORM_H
 #define AMBROLIB_COREXY_TRANSFORM_H
 
+#include <aprinter/meta/AliasStruct.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename FpType>
+template <typename Arg>
 class CoreXyTransform {
+    using Context = typename Arg::Context;
+    
 public:
     static int const NumAxes = 2;
     
@@ -51,8 +55,14 @@ public:
 };
 
 struct CoreXyTransformService {
-    template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = CoreXyTransform<Context, FpType>;
+    APRINTER_ALIAS_STRUCT_EXT(Transform, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType)
+    ), (
+        APRINTER_DEF_INSTANCE(Transform, CoreXyTransform)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>
