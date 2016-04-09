@@ -86,24 +86,6 @@ struct MotionPlannerConstants {
     using TimeConversion = APRINTER_FP_CONST_EXPR(Context::Clock::time_freq);
 };
 
-APRINTER_ALIAS_STRUCT(MotionPlannerArg, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(Config),
-    APRINTER_AS_TYPE(ParamsAxesList),
-    APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
-    APRINTER_AS_VALUE(int, LookaheadBufferSize),
-    APRINTER_AS_VALUE(int, LookaheadCommitCount),
-    APRINTER_AS_TYPE(FpType),
-    APRINTER_AS_TYPE(MaxStepsPerCycle),
-    APRINTER_AS_TYPE(PullHandler),
-    APRINTER_AS_TYPE(FinishedHandler),
-    APRINTER_AS_TYPE(AbortedHandler),
-    APRINTER_AS_TYPE(UnderrunCallback),
-    APRINTER_AS_TYPE(ParamsChannelsList),
-    APRINTER_AS_TYPE(ParamsLasersList)
-))
-
 template <typename Arg>
 class MotionPlanner {
     using Context                             = typename Arg::Context;
@@ -1610,6 +1592,26 @@ public:
         typename TheLinearPlanner::SegmentState m_segment_state[LookaheadBufferSize];
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(MotionPlannerArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Config),
+    APRINTER_AS_TYPE(ParamsAxesList),
+    APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadCommitCount),
+    APRINTER_AS_TYPE(FpType),
+    APRINTER_AS_TYPE(MaxStepsPerCycle),
+    APRINTER_AS_TYPE(PullHandler),
+    APRINTER_AS_TYPE(FinishedHandler),
+    APRINTER_AS_TYPE(AbortedHandler),
+    APRINTER_AS_TYPE(UnderrunCallback),
+    APRINTER_AS_TYPE(ParamsChannelsList),
+    APRINTER_AS_TYPE(ParamsLasersList)
+), (
+    APRINTER_DEF_INSTANCE(MotionPlannerArg, MotionPlanner)
+))
 
 #include <aprinter/EndNamespace.h>
 

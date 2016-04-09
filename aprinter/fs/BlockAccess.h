@@ -295,9 +295,7 @@ APRINTER_ALIAS_STRUCT_EXT(BlockAccessService, (
         APRINTER_AS_TYPE(ActivateHandler)
     ), (
         using Params = BlockAccessService;
-        
-        template <typename Self=Access>
-        using Instance = BlockAccess<Self>;
+        APRINTER_DEF_INSTANCE(Access, BlockAccess)
     ))
 ))
 

@@ -154,9 +154,7 @@ APRINTER_ALIAS_STRUCT_EXT(TemperatureObserverService, (
         APRINTER_AS_TYPE(Handler)
     ), (
         using Params = TemperatureObserverService;
-        
-        template <typename Self=Observer>
-        using Instance = TemperatureObserver<Self>;
+        APRINTER_DEF_INSTANCE(Observer, TemperatureObserver)
     ))
 ))
 

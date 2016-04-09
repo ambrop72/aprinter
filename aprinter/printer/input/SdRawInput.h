@@ -266,23 +266,19 @@ public:
     };
 };
 
-APRINTER_ALIAS_STRUCT_EXT(SdRawInputArg, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(ClientParams),
-    APRINTER_AS_TYPE(Params)
-), (
-    template <typename Self=SdRawInputArg>
-    using Instance = SdRawInput<Self>;
-))
-
 APRINTER_ALIAS_STRUCT_EXT(SdRawInputService, (
     APRINTER_AS_TYPE(SdCardService)
 ), (
     static bool const ProvidesFsAccess = false;
     
-    template <typename Context, typename ParentObject, typename ClientParams>
-    using Input = SdRawInputArg<Context, ParentObject, ClientParams, SdRawInputService>;
+    APRINTER_ALIAS_STRUCT_EXT(Input, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ClientParams)
+    ), (
+        using Params = SdRawInputService;
+        APRINTER_DEF_INSTANCE(Input, SdRawInput)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

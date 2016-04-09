@@ -133,4 +133,8 @@ struct name { \
  */
 #define APRINTER_ALIAS_STRUCT(name, pars) APRINTER_ALIAS_STRUCT_EXT(name, pars, ())
 
+#define APRINTER_DEF_INSTANCE(self, class) \
+template <typename Instance_self=self> \
+using Instance = class<Instance_self>;
+
 #endif

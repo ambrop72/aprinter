@@ -36,7 +36,6 @@ template <typename Arg>
 class ConstantConfigManager {
     using Context           = typename Arg::Context;
     using ParentObject      = typename Arg::ParentObject;
-    using ConfigOptionsList = typename Arg::ConfigOptionsList;
     
 public:
     struct Object;
@@ -77,8 +76,7 @@ struct ConstantConfigManagerService {
         APRINTER_AS_TYPE(ThePrinterMain),
         APRINTER_AS_TYPE(Handler)
     ), (
-        template <typename Self=ConfigManager>
-        using Instance = ConstantConfigManager<Self>;
+        APRINTER_DEF_INSTANCE(ConfigManager, ConstantConfigManager)
     ))
 };
 

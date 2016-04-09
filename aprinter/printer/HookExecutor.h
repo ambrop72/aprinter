@@ -218,8 +218,7 @@ APRINTER_ALIAS_STRUCT_EXT(HookExecutorArg, (
     APRINTER_AS_TYPE(ParentObject),
     APRINTER_AS_TYPE(HookDefinitionList)
 ), (
-    template <typename Self=HookExecutorArg>
-    using Instance = HookExecutor<Self>;
+    APRINTER_DEF_INSTANCE(HookExecutorArg, HookExecutor)
 ))
 
 #include <aprinter/EndNamespace.h>

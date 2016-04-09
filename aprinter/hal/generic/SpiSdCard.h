@@ -524,9 +524,7 @@ APRINTER_ALIAS_STRUCT_EXT(SpiSdCardService, (
         APRINTER_AS_TYPE(CommandHandler)
     ), (
         using Params = SpiSdCardService;
-        
-        template <typename Self=SdCard>
-        using Instance = SpiSdCard<Self>;
+        APRINTER_DEF_INSTANCE(SdCard, SpiSdCard)
     ))
 ))
 

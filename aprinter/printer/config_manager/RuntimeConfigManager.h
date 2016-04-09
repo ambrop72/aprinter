@@ -727,9 +727,7 @@ APRINTER_ALIAS_STRUCT_EXT(RuntimeConfigManagerService, (
         APRINTER_AS_TYPE(Handler)
     ), (
         using Params = RuntimeConfigManagerService;
-        
-        template <typename Self=ConfigManager>
-        using Instance = RuntimeConfigManager<Self>;
+        APRINTER_DEF_INSTANCE(ConfigManager, RuntimeConfigManager)
     ))
 ))
 

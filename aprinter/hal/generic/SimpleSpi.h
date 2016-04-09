@@ -329,9 +329,7 @@ struct SimpleSpiService {
         APRINTER_AS_VALUE(int, CommandBufferBits)
     ), (
         using Params = SimpleSpiService;
-        
-        template <typename Self=Spi>
-        using Instance = SimpleSpi<Self>;
+        APRINTER_DEF_INSTANCE(Spi, SimpleSpi)
     ))
 };
 

@@ -376,9 +376,7 @@ struct AvrSpiService {
         APRINTER_AS_VALUE(int, CommandBufferBits)
     ), (
         using Params = AvrSpiService;
-        
-        template <typename Self=Spi>
-        using Instance = AvrSpi<Self>;
+        APRINTER_DEF_INSTANCE(Spi, AvrSpi)
     ))
 };
 

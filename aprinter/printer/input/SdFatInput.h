@@ -1006,16 +1006,6 @@ public:
     };
 };
 
-APRINTER_ALIAS_STRUCT_EXT(SdFatInputArg, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(ClientParams),
-    APRINTER_AS_TYPE(Params)
-), (
-    template <typename Self=SdFatInputArg>
-    using Instance = SdFatInput<Self>;
-))
-
 APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
     APRINTER_AS_TYPE(SdCardService),
     APRINTER_AS_TYPE(FsService),
@@ -1023,8 +1013,14 @@ APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
 ), (
     static bool const ProvidesFsAccess = HaveAccessInterface;
     
-    template <typename Context, typename ParentObject, typename ClientParams>
-    using Input = SdFatInputArg<Context, ParentObject, ClientParams, SdFatInputService>;
+    APRINTER_ALIAS_STRUCT_EXT(Input, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(ClientParams)
+    ), (
+        using Params = SdFatInputService;
+        APRINTER_DEF_INSTANCE(Input, SdFatInput)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

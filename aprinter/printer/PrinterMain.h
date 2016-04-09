@@ -74,7 +74,6 @@
 #include <aprinter/printer/HookExecutor.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
-#include <aprinter/printer/utils/AxisHomer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -164,17 +163,11 @@ APRINTER_ALIAS_STRUCT(PrinterMainLaserParams, (
     APRINTER_AS_TYPE(TheLaserDriverService)
 ))
 
-APRINTER_ALIAS_STRUCT(PrinterMainTemplateArg, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(Params)
-))
-
-template <typename TemplateArg>
+template <typename MainArg>
 class PrinterMain {
-    using Context      = typename TemplateArg::Context;
-    using ParentObject = typename TemplateArg::ParentObject;
-    using Params       = typename TemplateArg::Params;
+    using Context      = typename MainArg::Context;
+    using ParentObject = typename MainArg::ParentObject;
+    using Params       = typename MainArg::Params;
     
 public:
     struct Object;
@@ -1089,20 +1082,20 @@ private:
         AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
             
-            struct InstanceParams : public AxisHomerInstanceParams<
+            using HomerGeneral = typename HomingSpec::HomerService::template HomerGeneral<
                 Context, PrinterMain, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, MaxStepsPerCycle, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
                 DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
-            > {};
-            using HomerInstance = typename HomingSpec::HomerService::template Instance<InstanceParams>;
+            >;
             
-            using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
+            struct HomerGlobalArg : public HomerGeneral::template HomerGlobal<Object> {};
+            using HomerGlobal = typename HomerGlobalArg::template Instance<HomerGlobalArg>;
             
             struct HomingState {
                 struct Object;
                 struct HomerFinishedHandler;
                 
-                struct HomerArg : public HomerInstance::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler> {};
+                struct HomerArg : public HomerGeneral::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler> {};
                 using Homer = typename HomerArg::template Instance<HomerArg>;
                 
                 static void homer_finished_handler (Context c, bool success)
@@ -2112,7 +2105,7 @@ public:
         PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback,
         MotionPlannerChannels, MotionPlannerLasers
     > {};
-    using ThePlanner = MotionPlanner<PlannerArg>;
+    using ThePlanner = typename PlannerArg::template Instance<PlannerArg>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <typename PlannerChannelSpec>
@@ -3082,6 +3075,14 @@ public:
         char msg_buffer[MaxMsgSize];
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(PrinterMainArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Params)
+), (
+    APRINTER_DEF_INSTANCE(PrinterMainArg, PrinterMain)
+))
 
 #include <aprinter/EndNamespace.h>
 

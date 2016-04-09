@@ -43,8 +43,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ThePrinterMain, typename Params>
+template <typename Arg>
 class AxisHomerGlobal {
+    using Context        = typename Arg::GeneralParams::Context;
+    using ThePrinterMain = typename Arg::GeneralParams::ThePrinterMain;
+    using Params         = typename Arg::Params;
+    
     using Config = typename ThePrinterMain::Config;
     using CSwitchInvert = decltype(ExprCast<bool>(Config::e(Params::SwitchInvert::i())));
     
@@ -73,18 +77,18 @@ class AxisHomer {
     using TheAxisDriver   = typename Arg::TheAxisDriver;
     using FinishedHandler = typename Arg::FinishedHandler;
     using Params          = typename Arg::Params;
-    using InstParams      = typename Arg::InstParams;
+    using GeneralParams   = typename Arg::GeneralParams;
     
-    using Context          = typename InstParams::Context;
-    using ThePrinterMain   = typename InstParams::ThePrinterMain;
-    using MaxStepsPerCycle = typename InstParams::MaxStepsPerCycle;
-    using MaxAccel         = typename InstParams::MaxAccel;
-    using DistConversion   = typename InstParams::DistConversion;
-    using TimeConversion   = typename InstParams::TimeConversion;
-    using HomeDir          = typename InstParams::HomeDir;
-    static int const PlannerStepBits          = InstParams::PlannerStepBits;
-    static int const StepperSegmentBufferSize = InstParams::StepperSegmentBufferSize;
-    static int const MaxLookaheadBufferSize   = InstParams::MaxLookaheadBufferSize;
+    using Context          = typename GeneralParams::Context;
+    using ThePrinterMain   = typename GeneralParams::ThePrinterMain;
+    using MaxStepsPerCycle = typename GeneralParams::MaxStepsPerCycle;
+    using MaxAccel         = typename GeneralParams::MaxAccel;
+    using DistConversion   = typename GeneralParams::DistConversion;
+    using TimeConversion   = typename GeneralParams::TimeConversion;
+    using HomeDir          = typename GeneralParams::HomeDir;
+    static int const PlannerStepBits          = GeneralParams::PlannerStepBits;
+    static int const StepperSegmentBufferSize = GeneralParams::StepperSegmentBufferSize;
+    static int const MaxLookaheadBufferSize   = GeneralParams::MaxLookaheadBufferSize;
     
 public:
     struct Object;
@@ -118,7 +122,7 @@ private:
     struct PlannerAxisSpec : public MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback> {};
     using PlannerAxes = MakeTypeList<PlannerAxisSpec>;
     struct PlannerArg : public MotionPlannerArg<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, EmptyTypeList, EmptyTypeList> {};
-    using Planner = MotionPlanner<PlannerArg>;
+    using Planner = typename PlannerArg::template Instance<PlannerArg>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
     using TheDebugObject = DebugObject<Context, Object>;
@@ -280,19 +284,6 @@ public:
     };
 };
 
-APRINTER_ALIAS_STRUCT(AxisHomerInstanceParams, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ThePrinterMain),
-    APRINTER_AS_VALUE(int, PlannerStepBits),
-    APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
-    APRINTER_AS_VALUE(int, MaxLookaheadBufferSize),
-    APRINTER_AS_TYPE(MaxStepsPerCycle),
-    APRINTER_AS_TYPE(MaxAccel),
-    APRINTER_AS_TYPE(DistConversion),
-    APRINTER_AS_TYPE(TimeConversion),
-    APRINTER_AS_TYPE(HomeDir)
-))
-
 APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
     APRINTER_AS_TYPE(SwitchPin),
     APRINTER_AS_TYPE(SwitchPinInputMode),
@@ -304,10 +295,25 @@ APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
     APRINTER_AS_TYPE(RetractSpeed),
     APRINTER_AS_TYPE(SlowSpeed)
 ), (
-    template <typename InstanceParams>
-    struct Instance {
-        template <typename ParentObject>
-        using HomerGlobal = AxisHomerGlobal<typename InstanceParams::Context, typename InstanceParams::ThePrinterMain, AxisHomerService>;
+    APRINTER_ALIAS_STRUCT_EXT(HomerGeneral, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ThePrinterMain),
+        APRINTER_AS_VALUE(int, PlannerStepBits),
+        APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
+        APRINTER_AS_VALUE(int, MaxLookaheadBufferSize),
+        APRINTER_AS_TYPE(MaxStepsPerCycle),
+        APRINTER_AS_TYPE(MaxAccel),
+        APRINTER_AS_TYPE(DistConversion),
+        APRINTER_AS_TYPE(TimeConversion),
+        APRINTER_AS_TYPE(HomeDir)
+    ), (
+        APRINTER_ALIAS_STRUCT_EXT(HomerGlobal, (
+            APRINTER_AS_TYPE(ParentObject)
+        ), (
+            using Params = AxisHomerService;
+            using GeneralParams = HomerGeneral;
+            APRINTER_DEF_INSTANCE(HomerGlobal, AxisHomerGlobal)
+        ))
         
         APRINTER_ALIAS_STRUCT_EXT(Homer, (
             APRINTER_AS_TYPE(ParentObject),
@@ -316,12 +322,10 @@ APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
             APRINTER_AS_TYPE(FinishedHandler)
         ), (
             using Params = AxisHomerService;
-            using InstParams = InstanceParams;
-            
-            template <typename Self=Homer>
-            using Instance = AxisHomer<Self>;
+            using GeneralParams = HomerGeneral;
+            APRINTER_DEF_INSTANCE(Homer, AxisHomer)
         ))
-    };
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

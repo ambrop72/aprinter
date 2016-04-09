@@ -55,21 +55,18 @@
 
 template <typename Arg>
 class BlockCache {
-    using Context                     = typename Arg::Context;
-    using ParentObject                = typename Arg::ParentObject;
-    using TTheBlockAccess             = typename Arg::TTheBlockAccess;
-    static int const TNumCacheEntries = Arg::TNumCacheEntries;
-    static int const TNumIoUnits      = Arg::TNumIoUnits;
-    static int const TMaxIoBlocks     = Arg::TMaxIoBlocks;
-    static bool const TWritable       = Arg::TWritable;
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
     
 public:
     struct Object;
-    using TheBlockAccess = TTheBlockAccess;
-    static int const NumCacheEntries = TNumCacheEntries;
-    static int const NumIoUnits = TNumIoUnits;
-    static int const MaxIoBlocks = TMaxIoBlocks;
-    static bool const Writable = TWritable;
+    
+public:
+    using TheBlockAccess             = typename Arg::TheBlockAccess;
+    static int const NumCacheEntries = Arg::NumCacheEntries;
+    static int const NumIoUnits      = Arg::NumIoUnits;
+    static int const MaxIoBlocks     = Arg::MaxIoBlocks;
+    static bool const Writable       = Arg::Writable;
     
 private:
     static_assert(NumCacheEntries > 0, "");
@@ -1527,14 +1524,13 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(BlockCacheArg, (
     APRINTER_AS_TYPE(Context),
     APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(TTheBlockAccess),
-    APRINTER_AS_VALUE(int, TNumCacheEntries),
-    APRINTER_AS_VALUE(int, TNumIoUnits),
-    APRINTER_AS_VALUE(int, TMaxIoBlocks),
-    APRINTER_AS_VALUE(bool, TWritable)
+    APRINTER_AS_TYPE(TheBlockAccess),
+    APRINTER_AS_VALUE(int, NumCacheEntries),
+    APRINTER_AS_VALUE(int, NumIoUnits),
+    APRINTER_AS_VALUE(int, MaxIoBlocks),
+    APRINTER_AS_VALUE(bool, Writable)
 ), (
-    template <typename Self=BlockCacheArg>
-    using Instance = BlockCache<Self>;
+    APRINTER_DEF_INSTANCE(BlockCacheArg, BlockCache)
 ))
 
 #include <aprinter/EndNamespace.h>

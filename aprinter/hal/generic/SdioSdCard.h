@@ -500,9 +500,7 @@ APRINTER_ALIAS_STRUCT_EXT(SdioSdCardService, (
         APRINTER_AS_TYPE(CommandHandler)
     ), (
         using Params = SdioSdCardService;
-        
-        template <typename Self=SdCard>
-        using Instance = SdioSdCard<Self>;
+        APRINTER_DEF_INSTANCE(SdCard, SdioSdCard)
     ))
 ))
 

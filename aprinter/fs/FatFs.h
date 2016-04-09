@@ -2150,18 +2150,6 @@ public:
     };
 };
 
-APRINTER_ALIAS_STRUCT_EXT(FatFsArg, (
-    APRINTER_AS_TYPE(Context),
-    APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(TheBlockAccess),
-    APRINTER_AS_TYPE(InitHandler),
-    APRINTER_AS_TYPE(WriteMountHandler),
-    APRINTER_AS_TYPE(Params)
-), (
-    template <typename Self=FatFsArg>
-    using Instance = FatFs<Self>;
-))
-
 APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     APRINTER_AS_VALUE(int, MaxFileNameSize),
     APRINTER_AS_VALUE(int, NumCacheEntries),
@@ -2171,8 +2159,16 @@ APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     APRINTER_AS_VALUE(bool, Writable),
     APRINTER_AS_VALUE(bool, EnableReadHinting)
 ), (
-    template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>
-    using Fs = FatFsArg<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;
+    APRINTER_ALIAS_STRUCT_EXT(Fs, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(TheBlockAccess),
+        APRINTER_AS_TYPE(InitHandler),
+        APRINTER_AS_TYPE(WriteMountHandler)
+    ), (
+        using Params = FatFsService;
+        APRINTER_DEF_INSTANCE(Fs, FatFs)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

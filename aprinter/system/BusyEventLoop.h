@@ -254,8 +254,7 @@ APRINTER_ALIAS_STRUCT_EXT(BusyEventLoopArg, (
     APRINTER_AS_TYPE(ParentObject),
     APRINTER_AS_TYPE(ExtraDelay)
 ), (
-    template <typename Self=BusyEventLoopArg>
-    using Instance = BusyEventLoop<Self>;
+    APRINTER_DEF_INSTANCE(BusyEventLoopArg, BusyEventLoop)
 ))
 
 template <typename Arg>
@@ -292,8 +291,7 @@ APRINTER_ALIAS_STRUCT_EXT(BusyEventLoopExtraArg, (
     APRINTER_AS_TYPE(Loop),
     APRINTER_AS_TYPE(FastEventList)
 ), (
-    template <typename Self=BusyEventLoopExtraArg>
-    using Instance = BusyEventLoopExtra<Self>;
+    APRINTER_DEF_INSTANCE(BusyEventLoopExtraArg, BusyEventLoopExtra)
 ))
 
 template <typename Loop>

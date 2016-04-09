@@ -351,6 +351,13 @@ class TemplateChar(object):
     def build (self, indent):
         return '\'{}\''.format(self._ch)
 
+class TemplateLiteral(object):
+    def __init__ (self, str):
+        self._str = str
+    
+    def build (self, indent):
+        return self._str
+
 def format_cpp_float(value):
     return '{:.17E}'.format(value).replace('INF', 'INFINITY')
 
@@ -2357,9 +2364,9 @@ def generate(config_root_data, cfg_name, main_template):
             ])
             
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};\n'.format(printer_params.build(0))
-            printer_params_typedef += 'struct PrinterArg : public PrinterMainTemplateArg<MyContext, Program, ThePrinterParams> {};'
+            printer_params_typedef += 'struct PrinterArg : public PrinterMainArg<MyContext, Program, ThePrinterParams> {};'
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['PrinterArg']), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
+            gen.add_global_resource(30, 'MyPrinter', TemplateLiteral('PrinterArg::Instance<PrinterArg>'), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
             gen.add_subst('EmergencyProvider', 'MyPrinter')
             
             setup_event_loop(gen)
