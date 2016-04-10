@@ -31,7 +31,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

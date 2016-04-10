@@ -26,7 +26,7 @@
 #define APRINTER_CONSTANT_CONFIG_MANAGER_H
 
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Object.h>
 

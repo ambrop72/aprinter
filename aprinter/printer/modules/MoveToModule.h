@@ -31,7 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>

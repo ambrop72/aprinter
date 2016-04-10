@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_PID_CONTROL_H
 #define AMBROLIB_PID_CONTROL_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Hints.h>

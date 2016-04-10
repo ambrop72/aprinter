@@ -25,7 +25,7 @@
 #ifndef APRINTER_MILLISECOND_CLOCK_INFO_MODULE_H
 #define APRINTER_MILLISECOND_CLOCK_INFO_MODULE_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aprinter/BeginNamespace.h>

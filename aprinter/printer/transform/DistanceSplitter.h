@@ -28,7 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>

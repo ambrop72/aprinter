@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>

@@ -25,7 +25,7 @@
 #ifndef APRINTER_ADC_ANALOG_INPUT_H
 #define APRINTER_ADC_ANALOG_INPUT_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

@@ -30,7 +30,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/BitsInInt.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>

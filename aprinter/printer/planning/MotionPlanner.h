@@ -44,7 +44,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>

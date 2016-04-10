@@ -32,7 +32,7 @@
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>

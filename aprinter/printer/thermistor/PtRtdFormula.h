@@ -25,7 +25,7 @@
 #ifndef APRINTER_PT_RTD_FORMULA_H
 #define APRINTER_PT_RTD_FORMULA_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 

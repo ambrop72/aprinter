@@ -45,7 +45,7 @@
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/MemberType.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/LoopUtils.h>

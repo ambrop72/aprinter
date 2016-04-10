@@ -27,7 +27,7 @@
 
 #include <stddef.h>
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/WebRequest.h>

@@ -50,7 +50,7 @@
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/ListCollect.h>
 #include <aprinter/meta/TypeDict.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

@@ -34,7 +34,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ConstexprMath.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>

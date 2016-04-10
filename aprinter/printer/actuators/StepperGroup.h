@@ -26,7 +26,7 @@
 #define APRINTER_STEPPER_GROUP_H
 
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -30,7 +30,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>

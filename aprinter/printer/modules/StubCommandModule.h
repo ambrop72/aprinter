@@ -25,7 +25,7 @@
 #ifndef APRINTER_STUB_COMMAND_MODULE_H
 #define APRINTER_STUB_COMMAND_MODULE_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 

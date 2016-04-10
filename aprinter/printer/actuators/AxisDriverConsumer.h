@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_AXIS_DRIVER_CONSUMER_H
 #define AMBROLIB_AXIS_DRIVER_CONSUMER_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

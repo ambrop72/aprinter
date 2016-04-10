@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

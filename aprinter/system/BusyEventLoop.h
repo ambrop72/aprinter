@@ -34,7 +34,7 @@
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>

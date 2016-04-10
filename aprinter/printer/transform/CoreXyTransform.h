@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_COREXY_TRANSFORM_H
 #define AMBROLIB_COREXY_TRANSFORM_H
 
-#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/ServiceUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
