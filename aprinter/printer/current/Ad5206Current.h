@@ -44,8 +44,15 @@ APRINTER_ALIAS_STRUCT(Ad5206CurrentChannelParams, (
     APRINTER_AS_TYPE(ConversionFactor)
 ))
 
-template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList, typename Params>
+template <typename Arg>
 class Ad5206Current {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Config       = typename Arg::Config;
+    using FpType       = typename Arg::FpType;
+    using ChannelsList = typename Arg::ChannelsList;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -173,8 +180,16 @@ APRINTER_ALIAS_STRUCT_EXT(Ad5206CurrentService, (
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (
-    template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList>
-    using Current = Ad5206Current<Context, ParentObject, Config, FpType, ChannelsList, Ad5206CurrentService>;
+    APRINTER_ALIAS_STRUCT_EXT(Current, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Config),
+        APRINTER_AS_TYPE(FpType),
+        APRINTER_AS_TYPE(ChannelsList)
+    ), (
+        using Params = Ad5206CurrentService;
+        APRINTER_DEF_INSTANCE(Current, Ad5206Current)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

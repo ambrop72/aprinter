@@ -39,8 +39,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class Max31855AnalogInput {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -172,8 +176,13 @@ APRINTER_ALIAS_STRUCT_EXT(Max31855AnalogInputService, (
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (
-    template <typename Context, typename ParentObject>
-    using AnalogInput = Max31855AnalogInput<Context, ParentObject, Max31855AnalogInputService>;
+    APRINTER_ALIAS_STRUCT_EXT(AnalogInput, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        using Params = Max31855AnalogInputService;
+        APRINTER_DEF_INSTANCE(AnalogInput, Max31855AnalogInput)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

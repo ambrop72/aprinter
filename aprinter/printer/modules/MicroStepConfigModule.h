@@ -53,7 +53,8 @@ private:
     struct MicroStepAxis {
         struct Object;
         using TheSpec = TypeListGet<typename Params::MicroStepAxisList, MicroStepAxisIndex>;
-        using TheMicroStep = typename TheSpec::MicroStepService::template MicroStep<Context, Object>;
+        struct MicroStepArg : public TheSpec::MicroStepService::template MicroStep<Context, Object> {};
+        using TheMicroStep = typename MicroStepArg::template Instance<MicroStepArg>;
         
         static void init (Context c)
         {

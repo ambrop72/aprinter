@@ -29,8 +29,11 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class AdcAnalogInput {
+    using Context = typename Arg::Context;
+    using Params  = typename Arg::Params;
+    
     using TheAdc = typename Context::Adc;
     
 public:
@@ -67,8 +70,13 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(AdcAnalogInputService, (
     APRINTER_AS_TYPE(AdcPin)
 ), (
-    template <typename Context, typename ParentObject>
-    using AnalogInput = AdcAnalogInput<Context, ParentObject, AdcAnalogInputService>;
+    APRINTER_ALIAS_STRUCT_EXT(AnalogInput, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        using Params = AdcAnalogInputService;
+        APRINTER_DEF_INSTANCE(AnalogInput, AdcAnalogInput)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>

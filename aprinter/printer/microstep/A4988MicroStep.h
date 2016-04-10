@@ -32,11 +32,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class A4988MicroStep {
-public:
-    struct Object;
+    using Context = typename Arg::Context;
+    using Params  = typename Arg::Params;
     
+public:
     static void init (Context c, uint8_t microsteps)
     {
         set_microsteps(c, microsteps);
@@ -84,7 +85,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<A4988MicroStep, ParentObject, EmptyTypeList> {};
+    struct Object {};
 };
 
 APRINTER_ALIAS_STRUCT_EXT(A4988MicroStepService, (
@@ -92,8 +93,13 @@ APRINTER_ALIAS_STRUCT_EXT(A4988MicroStepService, (
     APRINTER_AS_TYPE(Ms2Pin),
     APRINTER_AS_TYPE(Ms3Pin)
 ), (
-    template <typename Context, typename ParentObject>
-    using MicroStep = A4988MicroStep<Context, ParentObject, A4988MicroStepService>;
+    APRINTER_ALIAS_STRUCT_EXT(MicroStep, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        using Params = A4988MicroStepService;
+        APRINTER_DEF_INSTANCE(MicroStep, A4988MicroStep)
+    ))
 ))
 
 #include <aprinter/EndNamespace.h>
