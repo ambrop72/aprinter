@@ -66,8 +66,7 @@ private:
         struct Object;
         using TheTransformService = TypeListGet<TransformServicesList, TransformIndex>;
         
-        struct TransformArg : public TheTransformService::template Transform<Context, Object, Config, FpType> {};
-        using TheTransform = typename TransformArg::template Instance<TransformArg>;
+        APRINTER_MAKE_INSTANCE(TheTransform, (TheTransformService::template Transform<Context, Object, Config, FpType>))
         
         static int const AxisStartIndex = Helper<(TransformIndex-1)>::AxisEndIndex;
         static int const AxisEndIndex = AxisStartIndex + TheTransform::NumAxes;

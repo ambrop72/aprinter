@@ -711,8 +711,7 @@ public:
     public:
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
-        struct DriverArg : public LaserSpec::TheLaserDriverService::template Driver<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback> {};
-        using TheLaserDriver = typename DriverArg::template Instance<DriverArg>;
+        APRINTER_MAKE_INSTANCE(TheLaserDriver, (LaserSpec::TheLaserDriverService::template Driver<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>))
         
     public: // private, workaround gcc bug
         using TheCommon = AxisCommon<Laser>;

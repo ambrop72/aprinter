@@ -226,16 +226,11 @@ private:
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
-    struct CacheArg : public ConfigCacheArg<Context, Object, DelayedConfigExprs> {};
-    using TheConfigCache = typename CacheArg::template Instance<CacheArg>;
-    struct TheBlinkerArg : public BlinkerArg<Context, Object, typename Params::LedPin, BlinkerHandler> {};
-    using TheBlinker = typename TheBlinkerArg::template Instance<TheBlinkerArg>;
-    
-private:
-    struct ConfigManagerArg : public Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler> {};
+    APRINTER_MAKE_INSTANCE(TheConfigCache, (ConfigCacheArg<Context, Object, DelayedConfigExprs>))
+    APRINTER_MAKE_INSTANCE(TheBlinker, (BlinkerArg<Context, Object, typename Params::LedPin, BlinkerHandler>))
     
 public:
-    using TheConfigManager = typename ConfigManagerArg::template Instance<ConfigManagerArg>;
+    APRINTER_MAKE_INSTANCE(TheConfigManager, (Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>))
     
 public:
     using FpType = typename Params::FpType;
@@ -249,8 +244,7 @@ private:
     
     using StepperDefsByAxis = MapTypeList<ParamsAxesList, TemplateFunc<StepperDefsForAxis>>;
     
-    struct TheSteppersArg : public SteppersArg<Context, Object, Config, JoinTypeListList<StepperDefsByAxis>> {};
-    using TheSteppers = typename TheSteppersArg::template Instance<TheSteppersArg>;
+    APRINTER_MAKE_INSTANCE(TheSteppers, (SteppersArg<Context, Object, Config, JoinTypeListList<StepperDefsByAxis>>))
     
     template <int AxisIndex, int AxisStepperIndex>
     using GetStepper = typename TheSteppers::template Stepper<(GetJoinedListOffset<StepperDefsByAxis, AxisIndex>::Value + AxisStepperIndex)>;
@@ -1047,12 +1041,10 @@ private:
         static bool const IsExtruder = AxisSpec::IsExtruder;
         
         struct LazySteppersList;
-        struct GroupArg : public StepperGroupArg<Context, LazySteppersList> {};
-        using TheStepperGroup = typename GroupArg::template Instance<GroupArg>;
+        APRINTER_MAKE_INSTANCE(TheStepperGroup, (StepperGroupArg<Context, LazySteppersList>))
         
         template <typename ThePrinterMain=PrinterMain> struct DelayedAxisDriverConsumersList;
-        struct DriverArg : public AxisSpec::TheAxisDriverService::template Driver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>> {};
-        using TheAxisDriver = typename DriverArg::template Instance<DriverArg>;
+        APRINTER_MAKE_INSTANCE(TheAxisDriver, (AxisSpec::TheAxisDriverService::template Driver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>>))
         
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
@@ -1093,15 +1085,13 @@ private:
                 DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
             >;
             
-            struct HomerGlobalArg : public HomerGeneral::template HomerGlobal<Object> {};
-            using HomerGlobal = typename HomerGlobalArg::template Instance<HomerGlobalArg>;
+            APRINTER_MAKE_INSTANCE(HomerGlobal, (HomerGeneral::template HomerGlobal<Object>))
             
             struct HomingState {
                 struct Object;
                 struct HomerFinishedHandler;
                 
-                struct HomerArg : public HomerGeneral::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler> {};
-                using Homer = typename HomerArg::template Instance<HomerArg>;
+                APRINTER_MAKE_INSTANCE(Homer, (HomerGeneral::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler>))
                 
                 static void homer_finished_handler (Context c, bool success)
                 {
@@ -1497,10 +1487,8 @@ public:
     private:
         using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
         using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
-        struct TransformArg : public TransformParams::TransformService::template Transform<Context, Object, Config, FpType> {};
-        using TheTransformAlg = typename TransformArg::template Instance<TransformArg>;
-        struct SplitterArg : public TransformParams::SplitterService::template Splitter<Context, Object, Config, FpType> {};
-        using TheSplitterClass = typename SplitterArg::template Instance<SplitterArg>;
+        APRINTER_MAKE_INSTANCE(TheTransformAlg, (TransformParams::TransformService::template Transform<Context, Object, Config, FpType>))
+        APRINTER_MAKE_INSTANCE(TheSplitterClass, (TransformParams::SplitterService::template Splitter<Context, Object, Config, FpType>))
         using TheSplitter = typename TheSplitterClass::Splitter;
         
     public:
@@ -2106,13 +2094,12 @@ private:
     using MotionPlannerLasers = MapTypeList<LasersList, GetMemberType_PlannerLaserSpec>;
     
 public:
-    struct PlannerArg : public MotionPlannerArg<
+    APRINTER_MAKE_INSTANCE(ThePlanner, (MotionPlannerArg<
         Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize,
         Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, MaxStepsPerCycle,
         PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback,
         MotionPlannerChannels, MotionPlannerLasers
-    > {};
-    using ThePlanner = typename PlannerArg::template Instance<PlannerArg>;
+    >))
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <typename PlannerChannelSpec>
@@ -2180,8 +2167,7 @@ private:
     
     using ModulesHooks = TypeDictValues<ListCollect<ModuleClassesList, MemberType_HookDefinitionList>>;
     
-    struct ExecutorArg : public HookExecutorArg<Context, typename PrinterMain::Object, JoinTypeLists<MyHooks, ModulesHooks>> {};
-    using TheHookExecutor = typename ExecutorArg::template Instance<ExecutorArg>;
+    APRINTER_MAKE_INSTANCE(TheHookExecutor, (HookExecutorArg<Context, typename PrinterMain::Object, JoinTypeLists<MyHooks, ModulesHooks>>))
     
 public:
     template <typename HookType>

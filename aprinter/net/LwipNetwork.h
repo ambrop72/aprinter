@@ -86,8 +86,7 @@ private:
     struct EthernetReceiveHandler;
     class EthernetSendBuffer;
     using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, EthernetSendBuffer>;
-    struct EthernetArg : public EthernetService::template Ethernet<Context, Object, TheEthernetClientParams> {};
-    using TheEthernet = typename EthernetArg::template Instance<EthernetArg>;
+    APRINTER_MAKE_INSTANCE(TheEthernet, (EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>))
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     

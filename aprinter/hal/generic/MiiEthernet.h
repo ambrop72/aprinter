@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -58,8 +59,7 @@ private:
     struct MiiActivateHandler;
     struct MiiPhyMaintHandler;
     using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, SendBufferType, Params::PhyService::Rmii>;
-    struct MiiArg : public Params::MiiService::template Mii<Context, Object, TheMiiClientParams> {};
-    using TheMii = typename MiiArg::template Instance<MiiArg>;
+    APRINTER_MAKE_INSTANCE(TheMii, (Params::MiiService::template Mii<Context, Object, TheMiiClientParams>))
     
     class PhyRequester;
     using ThePhyClientParams = PhyClientParams<PhyRequester>;

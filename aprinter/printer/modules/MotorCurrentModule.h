@@ -52,8 +52,7 @@ private:
     template <typename ChannelAxisParams>
     using MakeCurrentChannel = typename ChannelAxisParams::Params;
     using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
-    struct CurrentArg : public Params::CurrentService::template Current<Context, Object, Config, FpType, CurrentChannelsList> {};
-    using Current = typename CurrentArg::template Instance<CurrentArg>;
+    APRINTER_MAKE_INSTANCE(Current, (Params::CurrentService::template Current<Context, Object, Config, FpType, CurrentChannelsList>))
     
 public:
     static void init (Context c)

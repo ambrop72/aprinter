@@ -60,8 +60,7 @@ private:
     static const int SpiMaxCommands = 3;
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
-    struct SpiArg : public Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits> {};
-    using TheSpi = typename SpiArg::template Instance<SpiArg>;
+    APRINTER_MAKE_INSTANCE(TheSpi, (Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>))
     using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename TheClockUtils::TimeType;
     

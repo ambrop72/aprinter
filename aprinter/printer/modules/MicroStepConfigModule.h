@@ -53,8 +53,7 @@ private:
     struct MicroStepAxis {
         struct Object;
         using TheSpec = TypeListGet<typename Params::MicroStepAxisList, MicroStepAxisIndex>;
-        struct MicroStepArg : public TheSpec::MicroStepService::template MicroStep<Context, Object> {};
-        using TheMicroStep = typename MicroStepArg::template Instance<MicroStepArg>;
+        APRINTER_MAKE_INSTANCE(TheMicroStep, (TheSpec::MicroStepService::template MicroStep<Context, Object>))
         
         static void init (Context c)
         {

@@ -121,8 +121,7 @@ private:
     
     struct PlannerAxisSpec : public MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback> {};
     using PlannerAxes = MakeTypeList<PlannerAxisSpec>;
-    struct PlannerArg : public MotionPlannerArg<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, EmptyTypeList, EmptyTypeList> {};
-    using Planner = typename PlannerArg::template Instance<PlannerArg>;
+    APRINTER_MAKE_INSTANCE(Planner, (MotionPlannerArg<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, EmptyTypeList, EmptyTypeList>))
     using PlannerCommand = typename Planner::SplitBuffer;
     
     using TheDebugObject = DebugObject<Context, Object>;

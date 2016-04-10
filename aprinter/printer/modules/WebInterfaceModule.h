@@ -124,8 +124,7 @@ private:
     
     struct HttpRequestHandler;
     struct UserClientState;
-    struct ServerArg : public TheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState> {};
-    using TheHttpServer = typename ServerArg::template Instance<ServerArg>;
+    APRINTER_MAKE_INSTANCE(TheHttpServer, (TheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>))
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
     
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;

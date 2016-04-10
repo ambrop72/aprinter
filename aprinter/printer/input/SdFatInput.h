@@ -65,12 +65,10 @@ private:
     using TheCommand = typename ThePrinterMain::TheCommand;
     using TheDebugObject = DebugObject<Context, Object>;
     struct BlockAccessActivateHandler;
-    struct BlockAccessArg : public BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler> {};
-    using TheBlockAccess = typename BlockAccessArg::template Instance<BlockAccessArg>;
+    APRINTER_MAKE_INSTANCE(TheBlockAccess, (BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>))
     struct FsInitHandler;
     struct FsWriteMountHandler;
-    struct FsArg : public Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler> {};
-    using TheFs = typename FsArg::template Instance<FsArg>;
+    APRINTER_MAKE_INSTANCE(TheFs, (Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler>))
     
     static size_t const BlockSize = TheBlockAccess::BlockSize;
     static size_t const DirListReplyRequestExtra = 24;

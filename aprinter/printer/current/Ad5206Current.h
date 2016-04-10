@@ -63,8 +63,7 @@ private:
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
-    struct SpiArg : public Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits> {};
-    using TheSpi = typename SpiArg::template Instance<SpiArg>;
+    APRINTER_MAKE_INSTANCE(TheSpi, (Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>))
     
     template <int ChannelIndex>
     struct ChannelHelper {

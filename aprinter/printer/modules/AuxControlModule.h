@@ -216,17 +216,12 @@ private:
         static_assert(NameCharIsValid<HeaterSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Heater name not allowed");
         
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
-        struct ControlArg : public HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType> {};
-        using TheControl = typename ControlArg::template Instance<ControlArg>;
-        struct PwmArg : public HeaterSpec::PwmService::template Pwm<Context, Object> {};
-        using ThePwm = typename PwmArg::template Instance<PwmArg>;
-        struct ObserverArg : public HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler> {};
-        using TheObserver = typename ObserverArg::template Instance<ObserverArg>;
+        APRINTER_MAKE_INSTANCE(TheControl, (HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>))
+        APRINTER_MAKE_INSTANCE(ThePwm, (HeaterSpec::PwmService::template Pwm<Context, Object>))
+        APRINTER_MAKE_INSTANCE(TheObserver, (HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>))
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
-        struct FormulaArg : public HeaterSpec::Formula::template Formula<Context, Object, Config, FpType> {};
-        using TheFormula = typename FormulaArg::template Instance<FormulaArg>;
-        struct AnalogInputArg : public HeaterSpec::AnalogInput::template AnalogInput<Context, Object> {};
-        using TheAnalogInput = typename AnalogInputArg::template Instance<AnalogInputArg>;
+        APRINTER_MAKE_INSTANCE(TheFormula, (HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>))
+        APRINTER_MAKE_INSTANCE(TheAnalogInput, (HeaterSpec::AnalogInput::template AnalogInput<Context, Object>))
         using AdcFixedType = typename TheAnalogInput::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;
         using MinSafeTemp = decltype(Config::e(HeaterSpec::MinSafeTemp::i()));
@@ -717,8 +712,7 @@ private:
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
         static_assert(NameCharIsValid<FanSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Fan name not allowed");
         
-        struct PwmArg : public FanSpec::PwmService::template Pwm<Context, Object> {};
-        using ThePwm = typename PwmArg::template Instance<PwmArg>;
+        APRINTER_MAKE_INSTANCE(ThePwm, (FanSpec::PwmService::template Pwm<Context, Object>))
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         
         struct ChannelPayload {

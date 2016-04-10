@@ -133,8 +133,19 @@ struct name { \
  */
 #define APRINTER_ALIAS_STRUCT(name, pars) APRINTER_ALIAS_STRUCT_EXT(name, pars, ())
 
+/**
+ * Convenience macro for declaring the Instance template-alias
+ * in a service definition.
+ */
 #define APRINTER_DEF_INSTANCE(self, class) \
 template <typename Instance_self=self> \
 using Instance = class<Instance_self>;
+
+/**
+ * Convenience macro for instantiating a service instance.
+ */
+#define APRINTER_MAKE_INSTANCE(service_name, arg_expr_parens) \
+struct service_name##_arg : public APRINTER_AS_REMOVE_PARENS arg_expr_parens {}; \
+using service_name = typename service_name##_arg::template Instance<service_name##_arg>;
 
 #endif

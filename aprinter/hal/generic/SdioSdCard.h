@@ -57,8 +57,7 @@ private:
     
     using TheDebugObject = DebugObject<Context, Object>;
     struct SdioCommandHandler;
-    struct SdioArg : public Params::SdioService::template Sdio<Context, Object, SdioCommandHandler, ProgrammingTimeout> {};
-    using TheSdio = typename SdioArg::template Instance<SdioArg>;
+    APRINTER_MAKE_INSTANCE(TheSdio, (Params::SdioService::template Sdio<Context, Object, SdioCommandHandler, ProgrammingTimeout>))
     using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename TheClockUtils::TimeType;
     
