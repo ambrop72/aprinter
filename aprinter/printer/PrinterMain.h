@@ -228,7 +228,8 @@ private:
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     struct CacheArg : public ConfigCacheArg<Context, Object, DelayedConfigExprs> {};
     using TheConfigCache = typename CacheArg::template Instance<CacheArg>;
-    using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
+    struct TheBlinkerArg : public BlinkerArg<Context, Object, typename Params::LedPin, BlinkerHandler> {};
+    using TheBlinker = typename TheBlinkerArg::template Instance<TheBlinkerArg>;
     
 private:
     struct ConfigManagerArg : public Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler> {};

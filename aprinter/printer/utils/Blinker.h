@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -34,9 +35,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Pin, typename Handler>
-class Blinker
-{
+template <typename Arg>
+class Blinker {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Pin          = typename Arg::Pin;
+    using Handler      = typename Arg::Handler;
+    
 public:
     struct Object;
     
@@ -102,6 +107,15 @@ public:
         typename Loop::TimedEvent timer;
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(BlinkerArg, (
+    APRINTER_AS_TYPE(Context),
+    APRINTER_AS_TYPE(ParentObject),
+    APRINTER_AS_TYPE(Pin),
+    APRINTER_AS_TYPE(Handler)
+), (
+    APRINTER_DEF_INSTANCE(BlinkerArg, Blinker)
+))
 
 #include <aprinter/EndNamespace.h>
 
