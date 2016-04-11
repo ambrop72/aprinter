@@ -29,8 +29,9 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/hal/teensy3/Mk20Pins.h>
@@ -40,8 +41,15 @@
 
 struct Mk20AdcUnsupportedInput {};
 
-template <typename Context, typename ParentObject, typename ParamsPinsList, int ADiv>
+//template <typename Context, typename ParentObject, typename ParamsPinsList, int ADiv>
+template <typename Arg>
 class Mk20Adc {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using ParamsPinsList = typename Arg::PinsList;
+    using Params         = typename Arg::Params;
+    
+    static int const ADiv = Params::ADiv;
     static_assert(ADiv >= 0 && ADiv <= 3, "");
     
 private:
@@ -201,6 +209,19 @@ public:
         bool m_finished;
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(Mk20AdcService, (
+    APRINTER_AS_VALUE(int, ADiv)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Adc, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(PinsList)
+    ), (
+        using Params = Mk20AdcService;
+        APRINTER_DEF_INSTANCE(Adc, Mk20Adc)
+    ))
+))
 
 #define AMBRO_MK20_ADC_ISRS(adc, context) \
 extern "C" \

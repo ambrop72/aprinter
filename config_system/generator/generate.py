@@ -734,16 +734,13 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('At91SamAdc', [
-                'Context', 'Program', pins,
-                TemplateExpr('At91SamAdcParams', [
-                    'AdcFreq',
-                    adc_config.get_int('startup'),
-                    adc_config.get_int('settling'),
-                    adc_config.get_int('tracking'),
-                    adc_config.get_int('transfer'),
-                    'At91SamAdcAvgParams<AdcAvgInterval>'
-                ])
+            'service_expr': TemplateExpr('At91SamAdcService', [
+                'AdcFreq',
+                adc_config.get_int('startup'),
+                adc_config.get_int('settling'),
+                adc_config.get_int('tracking'),
+                adc_config.get_int('transfer'),
+                'At91SamAdcAvgParams<AdcAvgInterval>',
             ]),
             'pin_func': lambda pin: 'At91SamAdcSmoothPin<{}, AdcSmoothing>'.format(pin)
         }
@@ -757,14 +754,11 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('At91SamAdc', [
-                'Context', 'Program', pins,
-                TemplateExpr('At91Sam3uAdcParams', [
-                    'AdcFreq',
-                    adc_config.get_int('startup'),
-                    adc_config.get_int('shtim'),
-                    'At91SamAdcAvgParams<AdcAvgInterval>'
-                ])
+            'service_expr': TemplateExpr('At91Sam3uAdcService', [
+                'AdcFreq',
+                adc_config.get_int('startup'),
+                adc_config.get_int('shtim'),
+                'At91SamAdcAvgParams<AdcAvgInterval>',
             ]),
             'pin_func': lambda pin: 'At91SamAdcSmoothPin<{}, AdcSmoothing>'.format(pin)
         }
@@ -776,7 +770,7 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('Mk20Adc', ['Context', 'Program', pins, 'AdcADiv']),
+            'service_expr': TemplateExpr('Mk20AdcService', ['AdcADiv']),
             'pin_func': lambda pin: pin
         }
     
@@ -789,7 +783,7 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('AvrAdc', ['Context', 'Program', pins, 'AdcRefSel', 'AdcPrescaler', 'AdcOverSamplingBits']),
+            'service_expr': TemplateExpr('AvrAdcService', ['AdcRefSel', 'AdcPrescaler', 'AdcOverSamplingBits']),
             'pin_func': lambda pin: pin
         }
     
@@ -799,8 +793,7 @@ def setup_adc (gen, config, key):
         gen.add_isr('APRINTER_STM32F4_ADC_GLOBAL(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('Stm32f4Adc', [
-                'Context', 'Program', pins,
+            'service_expr': TemplateExpr('Stm32f4AdcService', [
                 adc_config.get_int('ClockDivider'),
                 adc_config.get_int('SampleTimeSelection'),
             ]),
@@ -816,7 +809,9 @@ def setup_adc (gen, config, key):
     def finalize():
         adc_pins = gen.get_singleton_object('adc_pins')
         pins_expr = TemplateList([result['pin_func'](pin) for pin in adc_pins])
-        gen.add_global_resource(20, 'MyAdc', result['value_func'](pins_expr), context_name='Adc')
+        service_code = 'using AdcService = {};'.format(result['service_expr'].build(indent=0))
+        adc_expr = TemplateExpr('AdcService::Adc', ['Context', 'Program', pins_expr])
+        gen.add_global_resource(20, 'MyAdc', adc_expr, use_instance=True, code_before=service_code, context_name='Adc')
     
     gen.add_finalize_action(finalize)
 

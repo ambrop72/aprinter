@@ -33,6 +33,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -47,8 +48,17 @@ struct AvrAdcDifferentialInput {};
 struct AvrAdcVbgPin {};
 struct AvrAdcGndPin {};
 
-template <typename Context, typename ParentObject, typename ParamsPinsList, int AdcRefSel, int AdcPrescaler, int AdcOverSamplingBits>
+template <typename Arg>
 class AvrAdc {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using ParamsPinsList = typename Arg::PinsList;
+    using Params         = typename Arg::Params;
+    
+    static int const AdcRefSel           = Params::AdcRefSel;
+    static int const AdcPrescaler        = Params::AdcPrescaler;
+    static int const AdcOverSamplingBits = Params::AdcOverSamplingBits;
+    
 private:
     static const int NumPins = TypeListLength<ParamsPinsList>::Value;
     
@@ -368,6 +378,21 @@ public:
         bool m_finished;
     };
 };
+
+APRINTER_ALIAS_STRUCT_EXT(AvrAdcService, (
+    APRINTER_AS_VALUE(int, AdcRefSel),
+    APRINTER_AS_VALUE(int, AdcPrescaler),
+    APRINTER_AS_VALUE(int, AdcOverSamplingBits)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Adc, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(PinsList)
+    ), (
+        using Params = AvrAdcService;
+        APRINTER_DEF_INSTANCE(Adc, AvrAdc)
+    ))
+))
 
 #define AMBRO_AVR_ADC_ISRS(adc, context) \
 ISR(ADC_vect) \

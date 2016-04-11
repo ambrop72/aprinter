@@ -34,6 +34,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
@@ -52,8 +53,16 @@ struct AdcDefName { \
     static uint32_t const DmaChannelSelection = DMA_CHANNEL_##DmaChannelNumber; \
 };
 
-template <typename Context, typename ParentObject, typename ParamsPinsList, int ClockDivider, int SampleTimeSelection>
+template <typename Arg>
 class Stm32f4Adc {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using ParamsPinsList = typename Arg::PinsList;
+    using Params         = typename Arg::Params;
+    
+    static int const ClockDivider        = Params::ClockDivider;
+    static int const SampleTimeSelection = Params::SampleTimeSelection;
+    
     static_assert(ClockDivider == 2 || ClockDivider == 4 || ClockDivider == 6 || ClockDivider == 8, "");
     static_assert(SampleTimeSelection >= 0 && SampleTimeSelection <= 7, "");
     
@@ -339,6 +348,20 @@ public:
         MakeTypeList<TheDebugObject>
     >> {};
 };
+
+APRINTER_ALIAS_STRUCT_EXT(Stm32f4AdcService, (
+    APRINTER_AS_VALUE(int, ClockDivider),
+    APRINTER_AS_VALUE(int, SampleTimeSelection)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Adc, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(PinsList)
+    ), (
+        using Params = Stm32f4AdcService;
+        APRINTER_DEF_INSTANCE(Adc, Stm32f4Adc)
+    ))
+))
 
 #define APRINTER_STM32F4_ADC_GLOBAL(adc, context) \
 extern "C" \

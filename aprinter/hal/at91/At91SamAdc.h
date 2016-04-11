@@ -30,12 +30,13 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
@@ -45,38 +46,6 @@
 
 struct At91SamAdcTempInput {};
 struct At91SamAdcUnsupportedInput {};
-
-#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
-
-template <
-    typename TAdcFreq, uint8_t TAdcStartup, uint8_t TAdcSettling, uint8_t TAdcTracking, uint8_t TAdcTransfer,
-    typename TAvgParams
->
-struct At91SamAdcParams {
-    using AdcFreq = TAdcFreq;
-    static const uint8_t AdcStartup = TAdcStartup;
-    static const uint8_t AdcSettling = TAdcSettling;
-    static const uint8_t AdcTracking = TAdcTracking;
-    static const uint8_t AdcTransfer = TAdcTransfer;
-    using AvgParams = TAvgParams;
-};
-
-#elif defined(__SAM3U4E__)
-
-template <
-    typename TAdcFreq, uint8_t TAdcStartup, uint8_t TAdcShtim,
-    typename TAvgParams
->
-struct At91Sam3uAdcParams {
-    using AdcFreq = TAdcFreq;
-    static const uint8_t AdcStartup = TAdcStartup;
-    static const uint8_t AdcShtim = TAdcShtim;
-    using AvgParams = TAvgParams;
-};
-
-#else
-#error "Unsupported device."
-#endif
 
 struct At91SamAdcNoAvgParams {
     static const bool Enabled = false;
@@ -93,8 +62,13 @@ struct At91SamAdcAvgParams {
 template <typename TPin, uint16_t TSmoothFactor>
 struct At91SamAdcSmoothPin {};
 
-template <typename Context, typename ParentObject, typename ParamsPinsList, typename Params>
+template <typename Arg>
 class At91SamAdc {
+    using Context        = typename Arg::Context;
+    using ParentObject   = typename Arg::ParentObject;
+    using ParamsPinsList = typename Arg::PinsList;
+    using Params         = typename Arg::Params;
+    
 public:
     struct Object;
     
@@ -438,6 +412,47 @@ public:
     >> {};
 };
 
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
+
+APRINTER_ALIAS_STRUCT_EXT(At91SamAdcService, (
+    APRINTER_AS_TYPE(AdcFreq),
+    APRINTER_AS_VALUE(uint8_t, AdcStartup),
+    APRINTER_AS_VALUE(uint8_t, AdcSettling),
+    APRINTER_AS_VALUE(uint8_t, AdcTracking),
+    APRINTER_AS_VALUE(uint8_t, AdcTransfer),
+    APRINTER_AS_TYPE(AvgParams)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Adc, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(PinsList)
+    ), (
+        using Params = At91SamAdcService;
+        APRINTER_DEF_INSTANCE(Adc, At91SamAdc)
+    ))
+))
+
+#elif defined(__SAM3U4E__)
+
+APRINTER_ALIAS_STRUCT_EXT(At91Sam3uAdcService, (
+    APRINTER_AS_TYPE(AdcFreq),
+    APRINTER_AS_VALUE(uint8_t, AdcStartup),
+    APRINTER_AS_VALUE(uint8_t, AdcShtim),
+    APRINTER_AS_TYPE(AvgParams)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Adc, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(PinsList)
+    ), (
+        using Params = At91Sam3uAdcService;
+        APRINTER_DEF_INSTANCE(Adc, At91SamAdc)
+    ))
+))
+
+#else
+#error "Unsupported device."
+#endif
 
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
 
