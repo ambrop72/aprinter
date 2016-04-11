@@ -55,12 +55,12 @@ APRINTER_CONFIG_START
 $${ConfigOptions}
 APRINTER_CONFIG_END
 
-struct MyContext;
+struct Context;
 struct Program;
 
-using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
+using MyDebugObjectGroup = DebugObjectGroup<Context, Program>;
 $${GlobalResourceExprs}
-struct MyContext {
+struct Context {
     using DebugGroup = MyDebugObjectGroup;
 $${GlobalResourceContextAliases}
     void check () const;
@@ -71,7 +71,7 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyDebugObjectGroup,
 $${GlobalResourceProgramChildren}
 >> {
-    static Program * self (MyContext c);
+    static Program * self (Context c);
 };
 
 union ProgramMemory {
@@ -81,8 +81,8 @@ union ProgramMemory {
     Program program;
 } program_memory;
 
-Program * Program::self (MyContext c) { return &program_memory.program; }
-void MyContext::check () const {}
+Program * Program::self (Context c) { return &program_memory.program; }
+void Context::check () const {}
 
 $${GlobalCode}
 static void emergency (void)
@@ -98,7 +98,7 @@ extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 int main ()
 {
 $${InitCalls}
-    MyContext c;
+    Context c;
     
     new(&program_memory.program) Program();
     

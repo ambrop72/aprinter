@@ -365,14 +365,14 @@ def setup_event_loop(gen):
     gen.add_aprinter_include('system/BusyEventLoop.h')
     
     code_before_expr = 'struct MyLoopExtraDelay;\n'
-    code_before_expr += 'struct MyLoopArg : public BusyEventLoopArg<MyContext, Program, MyLoopExtraDelay> {};'
-    expr = TemplateExpr('MyLoopArg::Instance', ['MyLoopArg'])
+    code_before_expr += 'struct LoopArg : public BusyEventLoopArg<Context, Program, MyLoopExtraDelay> {};'
+    expr = TemplateExpr('LoopArg::Instance', ['LoopArg'])
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
     code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
-    code_before_program += 'struct MyLoopExtraArg : public BusyEventLoopExtraArg<Program, MyLoop, {}> {{}};\n'.format(fast_events)
-    code_before_program += 'using MyLoopExtra = MyLoopExtraArg::Instance<MyLoopExtraArg>;\n'
+    code_before_program += 'struct LoopExtraArg : public BusyEventLoopExtraArg<Program, MyLoop, {}> {{}};\n'.format(fast_events)
+    code_before_program += 'using MyLoopExtra = LoopExtraArg::Instance<LoopExtraArg>;\n'
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
@@ -432,10 +432,10 @@ def setup_debug_interface(gen, config, key):
             debug.key_path('StimulusPort').error('Incorrect value.')
         gen.add_platform_include('aprinter/hal/generic/ArmItmDebug.h')
         gen.add_aprinter_include('hal/generic/NewlibDebugWrite.h')
-        gen.add_global_code(0, 'using MyDebug = ArmItmDebug<MyContext, {}>;'.format(
+        gen.add_global_code(0, 'using MyDebug = ArmItmDebug<Context, {}>;'.format(
             stimulus_port,
         ))
-        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(MyDebug::write, MyContext())')
+        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(MyDebug::write, Context())')
     
     config.do_selection(key, debug_sel)
 
@@ -503,43 +503,43 @@ class CommonClock(object):
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3xClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3xClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3xClock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
-    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL({}, MyContext())'.format(tc, my_clock)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL({}, Context())'.format(tc, my_clock)
 
 def At91Sam3uClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3uClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3uClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3uClock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3uClockInterruptTimerService<At91Sam3uClockTC{}, At91Sam3uClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3uClockTC{}'.format(tc)
-    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL({}, MyContext())'.format(tc, my_clock)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL({}, Context())'.format(tc, my_clock)
 
 def Mk20ClockDef(x):
     x.INCLUDE = 'hal/teensy3/Mk20Clock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\AFTM([0-9])\\Z'
     x.CHANNEL_RE = '\\AFTM([0-9])_([0-9])\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20ClockFTM{}>'.format(tc)
-    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, {}, MyContext())'.format(tc, my_clock)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, {}, Context())'.format(tc, my_clock)
 
 def AvrClockDef(x):
     x.INCLUDE = 'hal/avr/AvrClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('AvrClock', ['MyContext', 'Program', config.get_int_constant('PrescaleDivide'), timers])
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('AvrClock', ['Context', 'Program', config.get_int_constant('PrescaleDivide'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])_([A-Z])\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
-    x.CLOCK_ISR = lambda my_clock, clock: 'AMBRO_AVR_CLOCK_ISRS({}, {}, MyContext())'.format(clock['primary_timer'], my_clock)
+    x.CLOCK_ISR = lambda my_clock, clock: 'AMBRO_AVR_CLOCK_ISRS({}, {}, Context())'.format(clock['primary_timer'], my_clock)
     
     @assign_func.assign_func(x, 'handle_timer')
     def handle_timer(gen, timer_id, timer_config):
@@ -569,13 +569,13 @@ def AvrClockDef(x):
 
 def Stm32f4ClockDef(x):
     x.INCLUDE = 'hal/stm32/Stm32f4Clock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Stm32f4Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Stm32f4Clock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATIM([0-9]{1,2})\\Z'
     x.CHANNEL_RE = '\\ATIM([0-9]{1,2})_([1-4])\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Stm32f4ClockInterruptTimerService<Stm32f4ClockTIM{}, Stm32f4ClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
-    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, MyContext())'.format(tc, my_clock)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, Context())'.format(tc, my_clock)
 
 def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     clock_sel = selection.Selection()
@@ -620,9 +620,9 @@ def setup_millisecond_clock(gen, config, key, priority):
     @clock_sel.option('ArmSysTickMillisecondClock')
     def option(clock):
         gen.add_aprinter_include('hal/generic/ArmSysTickMillisecondClock.h')
-        gen.add_isr('APRINTER_ARM_SYSTICK_MILLISECOND_CLOCK_GLOBAL(MyMillisecondClock, MyContext())')
+        gen.add_isr('APRINTER_ARM_SYSTICK_MILLISECOND_CLOCK_GLOBAL(MyMillisecondClock, Context())')
         gen.set_have_hw_millisecond_clock()
-        return TemplateExpr('ArmSysTickMillisecondClock', ['MyContext', 'Program'])
+        return TemplateExpr('ArmSysTickMillisecondClock', ['Context', 'Program'])
     
     clock_expr = config.do_selection(key, clock_sel)
     if clock_expr is not None:
@@ -637,25 +637,25 @@ def setup_pins (gen, config, key):
     def options(pin_config):
         gen.add_aprinter_include('hal/at91/At91SamPins.h')
         pin_regexes.append('\\AAt91SamPin<At91SamPio[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
+        return TemplateExpr('At91SamPins', ['Context', 'Program'])
     
     @pins_sel.option('Mk20Pins')
     def options(pin_config):
         gen.add_aprinter_include('hal/teensy3/Mk20Pins.h')
         pin_regexes.append('\\AMk20Pin<Mk20Port[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('Mk20Pins', ['MyContext', 'Program'])
+        return TemplateExpr('Mk20Pins', ['Context', 'Program'])
     
     @pins_sel.option('AvrPins')
     def options(pin_config):
         gen.add_aprinter_include('hal/avr/AvrPins.h')
         pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('AvrPins', ['MyContext', 'Program'])
+        return TemplateExpr('AvrPins', ['Context', 'Program'])
     
     @pins_sel.option('Stm32f4Pins')
     def options(pin_config):
         gen.add_aprinter_include('hal/stm32/Stm32f4Pins.h')
         pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('Stm32f4Pins', ['MyContext', 'Program'])
+        return TemplateExpr('Stm32f4Pins', ['Context', 'Program'])
     
     gen.add_global_resource(10, 'MyPins', config.do_selection(key, pins_sel), context_name='Pins')
     gen.register_singleton_object('pin_regexes', pin_regexes)
@@ -723,11 +723,11 @@ def setup_adc (gen, config, key):
         gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
         gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
         gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
-        gen.add_isr('AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())')
+        gen.add_isr('AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, Context())')
         
         return {
             'value_func': lambda pins: TemplateExpr('At91SamAdc', [
-                'MyContext', 'Program', pins,
+                'Context', 'Program', pins,
                 TemplateExpr('At91SamAdcParams', [
                     'AdcFreq',
                     adc_config.get_int('startup'),
@@ -746,11 +746,11 @@ def setup_adc (gen, config, key):
         gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
         gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
         gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
-        gen.add_isr('AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, MyContext())')
+        gen.add_isr('AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, Context())')
         
         return {
             'value_func': lambda pins: TemplateExpr('At91SamAdc', [
-                'MyContext', 'Program', pins,
+                'Context', 'Program', pins,
                 TemplateExpr('At91Sam3uAdcParams', [
                     'AdcFreq',
                     adc_config.get_int('startup'),
@@ -765,10 +765,10 @@ def setup_adc (gen, config, key):
     def option(adc_config):
         gen.add_aprinter_include('hal/teensy3/Mk20Adc.h')
         gen.add_int_constant('int32', 'AdcADiv', adc_config.get_int('AdcADiv'))
-        gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())')
+        gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('Mk20Adc', ['MyContext', 'Program', pins, 'AdcADiv']),
+            'value_func': lambda pins: TemplateExpr('Mk20Adc', ['Context', 'Program', pins, 'AdcADiv']),
             'pin_func': lambda pin: pin
         }
     
@@ -778,21 +778,21 @@ def setup_adc (gen, config, key):
         gen.add_int_constant('int32', 'AdcRefSel', adc_config.get_int('RefSel'))
         gen.add_int_constant('int32', 'AdcPrescaler', adc_config.get_int('Prescaler'))
         gen.add_int_constant('int32', 'AdcOverSamplingBits', adc_config.get_int('OverSamplingBits'))
-        gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())')
+        gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, Context())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('AvrAdc', ['MyContext', 'Program', pins, 'AdcRefSel', 'AdcPrescaler', 'AdcOverSamplingBits']),
+            'value_func': lambda pins: TemplateExpr('AvrAdc', ['Context', 'Program', pins, 'AdcRefSel', 'AdcPrescaler', 'AdcOverSamplingBits']),
             'pin_func': lambda pin: pin
         }
     
     @adc_sel.option('Stm32f4Adc')
     def option(adc_config):
         gen.add_aprinter_include('hal/stm32/Stm32f4Adc.h')
-        gen.add_isr('APRINTER_STM32F4_ADC_GLOBAL(MyAdc, MyContext())')
+        gen.add_isr('APRINTER_STM32F4_ADC_GLOBAL(MyAdc, Context())')
         
         return {
             'value_func': lambda pins: TemplateExpr('Stm32f4Adc', [
-                'MyContext', 'Program', pins,
+                'Context', 'Program', pins,
                 adc_config.get_int('ClockDivider'),
                 adc_config.get_int('SampleTimeSelection'),
             ]),
@@ -823,7 +823,7 @@ def setup_pwm(gen, config, key):
     def option(pwm_config):
         gen.add_aprinter_include('hal/at91/At91Sam3xPwm.h')
         
-        return TemplateExpr('At91Sam3xPwm', ['MyContext', 'Program', TemplateExpr('At91Sam3xPwmParams', [
+        return TemplateExpr('At91Sam3xPwm', ['Context', 'Program', TemplateExpr('At91Sam3xPwmParams', [
             pwm_config.get_int('PreA'),
             pwm_config.get_int('DivA'),
             pwm_config.get_int('PreB'),
@@ -961,14 +961,14 @@ def use_spi (gen, config, key, user):
         dev = spi_config.get_identifier('Device')
         if dev not in devices:
             spi_config.path().error('Incorrect SPI device.')
-        gen.add_isr('{}({}, MyContext())'.format(devices[dev], user))
+        gen.add_isr('{}({}, Context())'.format(devices[dev], user))
         return TemplateExpr('At91SamSpiService', [dev])
     
     @spi_sel.option('At91SamUsartSpi')
     def option(spi_config):
         gen.add_aprinter_include('hal/at91/At91SamUsartSpi.h')
         dev_index = spi_config.get_int('DeviceIndex')
-        gen.add_isr('APRINTER_AT91SAM_USART_SPI_GLOBAL({}, {}, MyContext())'.format(dev_index, user))
+        gen.add_isr('APRINTER_AT91SAM_USART_SPI_GLOBAL({}, {}, Context())'.format(dev_index, user))
         return TemplateExpr('At91SamUsartSpiService', [
             'At91SamUsartSpiDevice{}'.format(dev_index),
             spi_config.get_int('ClockDivider'),
@@ -977,7 +977,7 @@ def use_spi (gen, config, key, user):
     @spi_sel.option('AvrSpi')
     def option(spi_config):
         gen.add_aprinter_include('hal/avr/AvrSpi.h')
-        gen.add_isr('AMBRO_AVR_SPI_ISRS({}, MyContext())'.format(user))
+        gen.add_isr('AMBRO_AVR_SPI_ISRS({}, Context())'.format(user))
         return TemplateExpr('AvrSpiService', [spi_config.get_int('SpeedDiv')])
     
     return config.do_selection(key, spi_sel)
@@ -988,7 +988,7 @@ def use_sdio (gen, config, key, user):
     @sdio_sel.option('Stm32f4Sdio')
     def option(sdio_config):
         gen.add_aprinter_include('hal/stm32/Stm32f4Sdio.h')
-        gen.add_isr('APRINTER_STM32F4_SDIO_GLOBAL({}, MyContext())'.format(user))
+        gen.add_isr('APRINTER_STM32F4_SDIO_GLOBAL({}, Context())'.format(user))
         return TemplateExpr('Stm32f4SdioService', [
             sdio_config.get_bool('IsWideMode'),
             sdio_config.get_int('DataTimeoutBusClocks'),
@@ -1018,7 +1018,7 @@ def use_i2c (gen, config, key, user, username):
         dev = i2c_config.get_identifier('Device')
         if dev not in devices:
             i2c_config.path().error('Incorrect I2C device.')
-        gen.add_isr('AMBRO_AT91SAM_I2C_GLOBAL({}, {}, MyContext())'.format(devices[dev], user))
+        gen.add_isr('AMBRO_AT91SAM_I2C_GLOBAL({}, {}, Context())'.format(devices[dev], user))
         return 'At91SamI2cService<{}, {}, {}>'.format(
             dev,
             i2c_config.get_int('Ckdiv'),
@@ -1043,7 +1043,7 @@ def use_eeprom(gen, config, key, user):
     @eeprom_sel.option('AvrEeprom')
     def option(eeprom):
         gen.add_aprinter_include('hal/avr/AvrEeprom.h')
-        gen.add_isr('AMBRO_AVR_EEPROM_ISRS({}, MyContext())'.format(user))
+        gen.add_isr('AMBRO_AVR_EEPROM_ISRS({}, Context())'.format(user))
         return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
     
     @eeprom_sel.option('FlashWrapper')
@@ -1064,7 +1064,7 @@ def use_flash(gen, config, key, user):
         if not (0 <= device_index < 10):
             flash.key_path('DeviceIndex').error('Invalid device index.')
         gen.add_aprinter_include('hal/at91/At91Sam3xFlash.h')
-        gen.add_isr('AMBRO_AT91SAM3X_FLASH_GLOBAL({}, {}, MyContext())'.format(device_index, user))
+        gen.add_isr('AMBRO_AT91SAM3X_FLASH_GLOBAL({}, {}, Context())'.format(device_index, user))
         return TemplateExpr('At91Sam3xFlashService', [
             'At91Sam3xFlashDevice{}'.format(device_index)
         ])
@@ -1083,10 +1083,10 @@ def use_serial(gen, config, key, user):
     @serial_sel.option('At91Sam3xSerial')
     def option(serial_service):
         gen.add_aprinter_include('hal/at91/At91Sam3xSerial.h')
-        gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL({}, MyContext())'.format(user))
+        gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL({}, Context())'.format(user))
         if serial_service.get_bool('UseForDebug'):
             gen.add_aprinter_include('hal/generic/NewlibDebugWrite.h')
-            gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, MyContext())'.format(user))
+            gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, Context())'.format(user))
         return 'At91Sam3xSerialService'
     
     @serial_sel.option('TeensyUsbSerial')
@@ -1100,8 +1100,8 @@ def use_serial(gen, config, key, user):
     def option(serial_service):
         gen.add_aprinter_include('hal/avr/AvrSerial.h')
         gen.add_aprinter_include('hal/avr/AvrDebugWrite.h')
-        gen.add_isr('AMBRO_AVR_SERIAL_ISRS({}, MyContext())'.format(user))
-        gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, MyContext())'.format(user))
+        gen.add_isr('AMBRO_AVR_SERIAL_ISRS({}, Context())'.format(user))
+        gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, Context())'.format(user))
         gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
         return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
     
@@ -1278,9 +1278,9 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/netif/etharp.c')
         
         gen.set_need_millisecond_clock()
-        gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
+        gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { Context c; return MyMillisecondClock::getTime(c); }')
         
-        gen.add_global_code(0, 'APRINTER_DEFINE_LWIP_PLATFORM_DIAG(MyContext, MyPrinter, MyNetwork)')
+        gen.add_global_code(0, 'APRINTER_DEFINE_LWIP_PLATFORM_DIAG(Context, MyPrinter, MyNetwork)')
         
         mss_for_check = 1460
         
@@ -1301,12 +1301,12 @@ def setup_network(gen, config, key):
             chksum_algorithm = 3
         
         network_arg = TemplateExpr('LwipNetworkArg', [
-            'MyContext',
+            'Context',
             'Program',
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
         ])
-        before_expr = 'struct MyNetworkArg : public {} {{}};'.format(network_arg.build(0))
-        network_expr = TemplateLiteral('MyNetworkArg::template Instance<MyNetworkArg>')
+        before_expr = 'struct NetworkArg : public {} {{}};'.format(network_arg.build(0))
+        network_expr = TemplateLiteral('NetworkArg::template Instance<NetworkArg>')
         
         gen.add_global_resource(27, 'MyNetwork', network_expr, code_before=before_expr,context_name='Network', is_fast_event_root=True)
         
@@ -1357,7 +1357,7 @@ def use_mii(gen, config, key, user):
         
         gen.add_aprinter_include('hal/at91/At91SamEmacMii.h')
         gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
-        gen.add_isr('APRINTER_AT91SAM_EMAC_MII_GLOBAL({}, MyContext())'.format(user))
+        gen.add_isr('APRINTER_AT91SAM_EMAC_MII_GLOBAL({}, Context())'.format(user))
         gen.add_define('APRINTER_AT91SAM_EMAC_NUM_RX_BUFFERS', num_rx_buffers)
         gen.add_define('APRINTER_AT91SAM_EMAC_NUM_TX_BUFFERS', num_tx_buffers)
         return 'At91SamEmacMiiService'
@@ -2336,7 +2336,7 @@ def generate(config_root_data, cfg_name, main_template):
             if gen._need_millisecond_clock:
                 if not gen._have_hw_millisecond_clock:
                     gen.add_aprinter_include('system/MillisecondClock.h')
-                    gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
+                    gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['Context', 'Program']), context_name='MillisecondClock')
                 
                 gen.add_aprinter_include('printer/modules/MillisecondClockInfoModule.h')
                 millisecond_clock_module = gen.add_module()
@@ -2366,7 +2366,7 @@ def generate(config_root_data, cfg_name, main_template):
             ])
             
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};\n'.format(printer_params.build(0))
-            printer_params_typedef += 'struct PrinterArg : public PrinterMainArg<MyContext, Program, ThePrinterParams> {};'
+            printer_params_typedef += 'struct PrinterArg : public PrinterMainArg<Context, Program, ThePrinterParams> {};'
             
             gen.add_global_resource(30, 'MyPrinter', TemplateLiteral('PrinterArg::Instance<PrinterArg>'), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
             gen.add_subst('EmergencyProvider', 'MyPrinter')
