@@ -155,13 +155,23 @@ class GenState(object):
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
-    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None, code_before_program=None, extra_program_child=None, is_fast_event_root=False):
-        code_before = '' if code_before is None else '{}\n'.format(code_before)
+    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None, code_before_program=None,
+                             extra_program_child=None, is_fast_event_root=False, use_instance=False):
+        code = ''
+        if code_before is not None:
+            code += '{}\n'.format(code_before)
+        if use_instance:
+            code += 'APRINTER_MAKE_INSTANCE({}, ({}))\n'.format(name, expr.build(indent=0))
+        else:
+            code += 'using {} = {};\n'.format(name, expr.build(indent=0))
         self._global_resources.append({
-            'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name,
-            'code_before':code_before, 'code_before_program':code_before_program,
-            'extra_program_child':extra_program_child,
-            'is_fast_event_root':is_fast_event_root,
+            'priority': priority,
+            'name': name,
+            'context_name':context_name,
+            'code': code,
+            'code_before_program': code_before_program,
+            'extra_program_child': extra_program_child,
+            'is_fast_event_root': is_fast_event_root,
         })
     
     def add_module (self):
@@ -212,7 +222,7 @@ class GenState(object):
         self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
-        self.add_subst('GlobalResourceExprs', ''.join('{}using {} = {};\n'.format(gr['code_before'], gr['name'], gr['expr'].build(indent=0)) for gr in global_resources))
+        self.add_subst('GlobalResourceExprs', ''.join(gr['code'] for gr in global_resources))
         self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
         self.add_subst('GlobalResourceProgramChildren', ',\n'.join('    {}'.format(pc_name) for pc_name in program_children))
         self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
@@ -365,17 +375,15 @@ def setup_event_loop(gen):
     gen.add_aprinter_include('system/BusyEventLoop.h')
     
     code_before_expr = 'struct MyLoopExtraDelay;\n'
-    code_before_expr += 'struct LoopArg : public BusyEventLoopArg<Context, Program, MyLoopExtraDelay> {};'
-    expr = TemplateExpr('LoopArg::Instance', ['LoopArg'])
+    expr = TemplateExpr('BusyEventLoopArg', ['Context', 'Program', 'MyLoopExtraDelay'])
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
     code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
-    code_before_program += 'struct LoopExtraArg : public BusyEventLoopExtraArg<Program, MyLoop, {}> {{}};\n'.format(fast_events)
-    code_before_program += 'using MyLoopExtra = LoopExtraArg::Instance<LoopExtraArg>;\n'
+    code_before_program += 'APRINTER_MAKE_INSTANCE(MyLoopExtra, (BusyEventLoopExtraArg<Program, MyLoop, {}>))\n'.format(fast_events)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
-    gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
+    gen.add_global_resource(0, 'MyLoop', expr, use_instance=True, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
     gen.add_final_init_call(100, 'MyLoop::run(c);')
 
 def setup_platform(gen, config, key):
@@ -1300,15 +1308,13 @@ def setup_network(gen, config, key):
         else:
             chksum_algorithm = 3
         
-        network_arg = TemplateExpr('LwipNetworkArg', [
+        network_expr = TemplateExpr('LwipNetworkArg', [
             'Context',
             'Program',
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
         ])
-        before_expr = 'struct NetworkArg : public {} {{}};'.format(network_arg.build(0))
-        network_expr = TemplateLiteral('NetworkArg::template Instance<NetworkArg>')
         
-        gen.add_global_resource(27, 'MyNetwork', network_expr, code_before=before_expr,context_name='Network', is_fast_event_root=True)
+        gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, context_name='Network', is_fast_event_root=True)
         
         network_state = NetworkConfigState()
         gen.register_singleton_object('network', network_state)
@@ -2365,10 +2371,10 @@ def generate(config_root_data, cfg_name, main_template):
                 TemplateList(gen._modules_exprs),
             ])
             
-            printer_params_typedef = 'struct ThePrinterParams : public {} {{}};\n'.format(printer_params.build(0))
-            printer_params_typedef += 'struct PrinterArg : public PrinterMainArg<Context, Program, ThePrinterParams> {};'
+            printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
+            printer_expr = TemplateExpr('PrinterMainArg', ['Context', 'Program', 'ThePrinterParams'])
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateLiteral('PrinterArg::Instance<PrinterArg>'), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
+            gen.add_global_resource(30, 'MyPrinter', printer_expr, use_instance=True, context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
             gen.add_subst('EmergencyProvider', 'MyPrinter')
             
             setup_event_loop(gen)
