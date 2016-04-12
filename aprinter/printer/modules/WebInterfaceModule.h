@@ -123,7 +123,7 @@ private:
     static size_t const CustomHandlerMaxAlign = TypeListFold<WebApiHandlers, WrapValue<size_t, 1>, MaxAlignFoldFunc>::Value;
     
     struct HttpRequestHandler;
-    struct UserClientState;
+    class UserClientState;
     APRINTER_MAKE_INSTANCE(TheHttpServer, (TheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>))
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
     
