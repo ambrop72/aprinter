@@ -28,10 +28,11 @@
 #include <stdint.h>
 #include <sam/drivers/pmc/pmc.h>
 
+#include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -82,8 +83,11 @@ struct At91SamPinPeriphMode {
 struct At91SamPeriphA {};
 struct At91SamPeriphB {};
 
-template <typename Context, typename ParentObject>
+template <typename Arg>
 class At91SamPins {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    
     template <typename ThePio>
     static Pio volatile * pio ()
     {
@@ -210,6 +214,15 @@ private:
     
 public:
     struct Object : public ObjBase<At91SamPins, ParentObject, MakeTypeList<TheDebugObject>> {};
+};
+
+struct At91SamPinsService {
+    APRINTER_ALIAS_STRUCT_EXT(Pins, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        APRINTER_DEF_INSTANCE(Pins, At91SamPins)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -67,8 +68,11 @@ using Mk20PinInputModePullDown = Mk20PinInputMode<true, true>;
 
 using Mk20PinOutputModeNormal = void;
 
-template <typename Context, typename ParentObject>
+template <typename Arg>
 class Mk20Pins {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    
 public:
     struct Object;
     
@@ -158,6 +162,15 @@ public:
     
 public:
     struct Object : public ObjBase<Mk20Pins, ParentObject, MakeTypeList<TheDebugObject>> {};
+};
+
+struct Mk20PinsService {
+    APRINTER_ALIAS_STRUCT_EXT(Pins, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        APRINTER_DEF_INSTANCE(Pins, Mk20Pins)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

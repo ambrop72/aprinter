@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -102,8 +103,11 @@ struct Stm32f4PinOutputMode {
 using Stm32f4PinOutputModeNormal = Stm32f4PinOutputMode<Stm32f4PinOutputTypeNormal, Stm32f4PinOutputSpeedLow, Stm32f4PinPullModeNone>;
 using Stm32f4PinOutputModeOpenDrain = Stm32f4PinOutputMode<Stm32f4PinOutputTypeOpenDrain, Stm32f4PinOutputSpeedLow, Stm32f4PinPullModeNone>;
 
-template <typename Context, typename ParentObject>
+template <typename Arg>
 class Stm32f4Pins {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    
 public:
     struct Object;
     
@@ -270,6 +274,15 @@ private:
     
 public:
     struct Object : public ObjBase<Stm32f4Pins, ParentObject, MakeTypeList<TheDebugObject>> {};
+};
+
+struct Stm32f4PinsService {
+    APRINTER_ALIAS_STRUCT_EXT(Pins, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        APRINTER_DEF_INSTANCE(Pins, Stm32f4Pins)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

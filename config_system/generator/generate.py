@@ -223,7 +223,7 @@ class GenState(object):
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
         self.add_subst('GlobalResourceExprs', ''.join(gr['code'] for gr in global_resources))
-        self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
+        self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = ::{};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
         self.add_subst('GlobalResourceProgramChildren', ',\n'.join('    {}'.format(pc_name) for pc_name in program_children))
         self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
         self.add_subst('FinalInitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._final_init_calls, key=lambda x: x['priority'])))
@@ -645,27 +645,30 @@ def setup_pins (gen, config, key):
     def options(pin_config):
         gen.add_aprinter_include('hal/at91/At91SamPins.h')
         pin_regexes.append('\\AAt91SamPin<At91SamPio[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('At91SamPins', ['Context', 'Program'])
+        return TemplateLiteral('At91SamPinsService')
     
     @pins_sel.option('Mk20Pins')
     def options(pin_config):
         gen.add_aprinter_include('hal/teensy3/Mk20Pins.h')
         pin_regexes.append('\\AMk20Pin<Mk20Port[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('Mk20Pins', ['Context', 'Program'])
+        return TemplateLiteral('Mk20PinsService')
     
     @pins_sel.option('AvrPins')
     def options(pin_config):
         gen.add_aprinter_include('hal/avr/AvrPins.h')
         pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('AvrPins', ['Context', 'Program'])
+        return TemplateLiteral('AvrPinsService')
     
     @pins_sel.option('Stm32f4Pins')
     def options(pin_config):
         gen.add_aprinter_include('hal/stm32/Stm32f4Pins.h')
         pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
-        return TemplateExpr('Stm32f4Pins', ['Context', 'Program'])
+        return TemplateLiteral('Stm32f4PinsService')
     
-    gen.add_global_resource(10, 'MyPins', config.do_selection(key, pins_sel), context_name='Pins')
+    service_expr = config.do_selection(key, pins_sel)
+    service_code = 'using PinsService = {};'.format(service_expr.build(indent=0))
+    pins_expr = TemplateExpr('PinsService::Pins', ['Context', 'Program'])
+    gen.add_global_resource(10, 'Pins', pins_expr, use_instance=True, code_before=service_code, context_name='Pins')
     gen.register_singleton_object('pin_regexes', pin_regexes)
 
 def get_pin (gen, config, key):

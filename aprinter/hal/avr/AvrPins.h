@@ -32,6 +32,7 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Hints.h>
@@ -143,8 +144,11 @@ struct AvrPinInputMode {
 using AvrPinInputModeNormal = AvrPinInputMode<false>;
 using AvrPinInputModePullUp = AvrPinInputMode<true>;
 
-template <typename Context, typename ParentObject>
+template <typename Arg>
 class AvrPins {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    
 public:
     struct Object;
     
@@ -217,6 +221,15 @@ public:
     
 public:
     struct Object : public ObjBase<AvrPins, ParentObject, MakeTypeList<TheDebugObject>> {};
+};
+
+struct AvrPinsService {
+    APRINTER_ALIAS_STRUCT_EXT(Pins, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject)
+    ), (
+        APRINTER_DEF_INSTANCE(Pins, AvrPins)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>
