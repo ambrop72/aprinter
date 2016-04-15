@@ -42,6 +42,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/TypeDict.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -236,21 +237,26 @@ struct AvrClockTcSpec {
     using Mode = TMode;
 };
 
-template <typename, typename, typename, typename, typename>
+template <typename>
 class AvrClock16BitInterruptTimer;
 
-template <typename, typename, typename, typename, typename>
+template <typename>
 class AvrClock8BitInterruptTimer;
 
 template <typename, typename, typename, typename>
 class AvrClockPwm;
 
-template <typename Context, typename ParentObject, uint16_t TPrescaleDivide, typename TcsList>
+template <typename Arg>
 class AvrClock {
-    template <typename, typename, typename, typename, typename>
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using TcsList      = typename Arg::TcsList;
+    using Params       = typename Arg::Params;
+    
+    template <typename>
     friend class AvrClock16BitInterruptTimer;
 
-    template <typename, typename, typename, typename, typename>
+    template <typename>
     friend class AvrClock8BitInterruptTimer;
     
     template <typename, typename, typename, typename>
@@ -262,7 +268,7 @@ public:
     using ClockTc = typename ClockTcSpec::Tc;
     static_assert(TypesAreEqual<typename ClockTcSpec::Mode, AvrClockTcModeClock>::Value, "First TC must be AvrClockTcModeClock.");
     static_assert(!ClockTc::Is8Bit, "First TC must be 16-bit.");
-    static uint16_t const PrescaleDivide = TPrescaleDivide;
+    static uint16_t const PrescaleDivide = Params::PrescaleDivide;
     
     using TimeType = uint32_t;
     static constexpr double time_unit = (double)PrescaleDivide / F_CPU;
@@ -424,15 +430,34 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcChannel, typename ExtraClearance>
+APRINTER_ALIAS_STRUCT_EXT(AvrClockService, (
+    APRINTER_AS_VALUE(uint16_t, PrescaleDivide)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Clock, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(TcsList)
+    ), (
+        using Params = AvrClockService;
+        APRINTER_DEF_INSTANCE(Clock, AvrClock)
+    ))
+))
+
+template <typename Arg>
 class AvrClock16BitInterruptTimer {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Handler      = typename Arg::Handler;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef AtomicContext<Context> HandlerContext;
-    using TcChannel = TTcChannel;
+    using TcChannel = typename Params::TcChannel;
     using Tc = typename TcChannel::Tc;
+    using ExtraClearance = typename Params::ExtraClearance;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -654,15 +679,21 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcChannel, typename ExtraClearance>
+template <typename Arg>
 class AvrClock8BitInterruptTimer {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Handler      = typename Arg::Handler;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef AtomicContext<Context> HandlerContext;
-    using TcChannel = TTcChannel;
+    using TcChannel = typename Params::TcChannel;
     using Tc = typename TcChannel::Tc;
+    using ExtraClearance = typename Params::ExtraClearance;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -881,20 +912,28 @@ public:
     };
 };
 
-template <typename TcChannel, typename ExtraClearance = AvrClockDefaultExtraClearance>
-class AvrClockInterruptTimerService {
-    AMBRO_STRUCT_IF(BitnessChoice, TcChannel::Tc::Is8Bit) {
-        template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock8BitInterruptTimer<Context, ParentObject, Handler, TcChannel, ExtraClearance>;
-    } AMBRO_STRUCT_ELSE(BitnessChoice) {
-        template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock16BitInterruptTimer<Context, ParentObject, Handler, TcChannel, ExtraClearance>;
-    };
-    
-public:
-    template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = typename BitnessChoice::template InterruptTimer<Context, ParentObject, Handler>;
-};
+APRINTER_ALIAS_STRUCT_EXT(AvrClockInterruptTimerService, (
+    APRINTER_AS_TYPE(TcChannel),
+    APRINTER_AS_TYPE(ExtraClearance)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(InterruptTimer, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = AvrClockInterruptTimerService;
+        
+        AMBRO_STRUCT_IF(BitnessChoice, TcChannel::Tc::Is8Bit) {
+            template <typename Arg>
+            using InterruptTimer = AvrClock8BitInterruptTimer<Arg>;
+        } AMBRO_STRUCT_ELSE(BitnessChoice) {
+            template <typename Arg>
+            using InterruptTimer = AvrClock16BitInterruptTimer<Arg>;
+        };
+        
+        APRINTER_DEF_INSTANCE(InterruptTimer, typename BitnessChoice::template InterruptTimer)
+    ))
+))
 
 #define AMBRO_AVR_CLOCK_ISRS(FirstTcNum, Clock, context) \
 static_assert(TypesAreEqual<Clock::ClockTc, AvrClockTc##FirstTcNum>::Value, "Incorrect FirstTcNum specified in AMBRO_AVR_CLOCK_ISRS."); \

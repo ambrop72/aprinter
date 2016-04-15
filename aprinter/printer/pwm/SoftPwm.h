@@ -55,7 +55,7 @@ private:
 public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TheTimer = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
+    APRINTER_MAKE_INSTANCE(TheTimer, (Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>))
     
     struct DutyCycleData {
         TimeType on_time;

@@ -860,7 +860,7 @@ public:
         using Payload = typename ChannelSpec::Payload;
         using TheChannelCommand = ChannelCommand<ChannelIndex>;
         using TheChannelSegment = ChannelSegment<ChannelIndex>;
-        using TheTimer = typename ChannelSpec::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
+        APRINTER_MAKE_INSTANCE(TheTimer, (ChannelSpec::TimerService::template InterruptTimer<Context, Object, TimerHandler>))
         using CallbackContext = typename TheTimer::HandlerContext;
         
     public: // private, workaround gcc bug

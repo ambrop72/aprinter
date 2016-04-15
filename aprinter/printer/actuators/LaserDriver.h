@@ -66,7 +66,7 @@ public:
     using TimeType = typename Clock::TimeType;
     using PowerFixedType = typename PowerInterface::PowerFixedType;
     static_assert(!PowerFixedType::is_signed, "");
-    using TheTimer = typename Params::InterruptTimerService::template InterruptTimer<Context, Object, TimerCallback>;
+    APRINTER_MAKE_INSTANCE(TheTimer, (Params::InterruptTimerService::template InterruptTimer<Context, Object, TimerCallback>))
     using CommandCallbackContext = typename TheTimer::HandlerContext;
     using TimeFixedType = FixedPoint<Params::PrecisionParams::TimeBits, false, 0>;
     

@@ -35,6 +35,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -46,8 +47,6 @@ struct At91Sam3xClock__IrqCompHelper {
 };
 
 #include <aprinter/BeginNamespace.h>
-
-using At91Sam3xClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
 template <uint32_t TAddr, int TId, enum IRQn TIrq>
 struct At91Sam3xClockTC {
@@ -76,15 +75,21 @@ struct At91Sam3xClockCompA : public At91Sam3xClockComp<offsetof(TcChannel, TC_RA
 struct At91Sam3xClockCompB : public At91Sam3xClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS> {};
 struct At91Sam3xClockCompC : public At91Sam3xClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS> {};
 
-template <typename, typename, typename, typename, typename, typename>
+template <typename>
 class At91Sam3xClockInterruptTimer;
 
-template <typename Context, typename ParentObject, int Prescale, typename TcsList>
+template <typename Arg>
 class At91Sam3xClock {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using TcsList      = typename Arg::TcsList;
+    using Params       = typename Arg::Params;
+    
+    static int const Prescale = Params::Prescale;
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 4, "Prescale must be <=4");
     
-    template <typename, typename, typename, typename, typename, typename>
+    template <typename>
     friend class At91Sam3xClockInterruptTimer;
     
 public:
@@ -190,6 +195,19 @@ public:
     struct Object : public ObjBase<At91Sam3xClock, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
+APRINTER_ALIAS_STRUCT_EXT(At91Sam3xClockService, (
+    APRINTER_AS_VALUE(int, Prescale)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Clock, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(TcsList)
+    ), (
+        using Params = At91Sam3xClockService;
+        APRINTER_DEF_INSTANCE(Clock, At91Sam3xClock)
+    ))
+))
+
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \
 extern "C" \
 __attribute__((used)) \
@@ -208,15 +226,21 @@ void TC##tcnum##_Handler (void) \
 #define AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(7, clock, (context))
 #define AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(8, clock, (context))
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp, typename ExtraClearance>
+template <typename Arg>
 class At91Sam3xClockInterruptTimer {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Handler      = typename Arg::Handler;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
-    using TcSpec = TTcSpec;
-    using Comp = TComp;
+    using TcSpec = typename Params::Tc;
+    using Comp = typename Params::Comp;
+    using ExtraClearance = typename Params::ExtraClearance;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -357,11 +381,20 @@ public:
     };
 };
 
-template <typename Tc, typename Comp, typename ExtraClearance = At91Sam3xClockDefaultExtraClearance>
-struct At91Sam3xClockInterruptTimerService {
-    template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, Tc, Comp, ExtraClearance>;
-};
+APRINTER_ALIAS_STRUCT_EXT(At91Sam3xClockInterruptTimerService, (
+    APRINTER_AS_TYPE(Tc),
+    APRINTER_AS_TYPE(Comp),
+    APRINTER_AS_TYPE(ExtraClearance)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(InterruptTimer, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = At91Sam3xClockInterruptTimerService;
+        APRINTER_DEF_INSTANCE(InterruptTimer, At91Sam3xClockInterruptTimer)
+    ))
+))
 
 #define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \

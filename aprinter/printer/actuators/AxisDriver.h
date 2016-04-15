@@ -92,7 +92,7 @@ public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
+    APRINTER_MAKE_INSTANCE(TimerInstance, (Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>))
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
     using DirStepIntType = typename DirStepFixedType::IntType;

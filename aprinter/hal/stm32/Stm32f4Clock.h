@@ -37,6 +37,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/TypeDict.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -105,11 +106,18 @@ STM32F4CLOCK_DEFINE_COMP(2, 1, 8, 4,  TIM_DIER_CC2IE, TIM_SR_CC2IF)
 STM32F4CLOCK_DEFINE_COMP(3, 2, 0, 8,  TIM_DIER_CC3IE, TIM_SR_CC3IF)
 STM32F4CLOCK_DEFINE_COMP(4, 2, 8, 12, TIM_DIER_CC4IE, TIM_SR_CC4IF)
 
-template <typename Context, typename ParentObject, uint16_t Prescale, typename ParamsTcsList>
+template <typename Arg>
 class Stm32f4Clock {
-    static_assert(TypeListLength<ParamsTcsList>::Value > 0, "Need at least one timer.");
-    static_assert(TypeListGet<ParamsTcsList, 0>::Is32Bit, "First timer must be 32-bit.");
-    static_assert(TypeListGet<ParamsTcsList, 0>::ClockType == 1, "First timer must be APB1-clocked");
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using TcsList      = typename Arg::TcsList;
+    using Params       = typename Arg::Params;
+    
+    static uint16_t const Prescale = Params::Prescale;
+    
+    static_assert(TypeListLength<TcsList>::Value > 0, "Need at least one timer.");
+    static_assert(TypeListGet<TcsList, 0>::Is32Bit, "First timer must be 32-bit.");
+    static_assert(TypeListGet<TcsList, 0>::ClockType == 1, "First timer must be APB1-clocked");
     
 public:
     struct Object;
@@ -127,7 +135,7 @@ private:
     template <int TTcIndex>
     struct MyTc {
         static int const TcIndex = TTcIndex;
-        using TcSpec = TypeListGet<ParamsTcsList, TcIndex>;
+        using TcSpec = TypeListGet<TcsList, TcIndex>;
         
         static void init (Context c)
         {
@@ -175,10 +183,10 @@ private:
         }
     };
     
-    using MyTcsList = IndexElemList<ParamsTcsList, MyTc>;
+    using MyTcsList = IndexElemList<TcsList, MyTc>;
     
     template <typename TcSpec>
-    using FindTc = MyTc<TypeListIndex<ParamsTcsList, TcSpec>::Value>;
+    using FindTc = MyTc<TypeListIndex<TcsList, TcSpec>::Value>;
     
 public:
     static void init (Context c)
@@ -217,6 +225,19 @@ public:
     struct Object : public ObjBase<Stm32f4Clock, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
+APRINTER_ALIAS_STRUCT_EXT(Stm32f4ClockService, (
+    APRINTER_AS_VALUE(uint16_t, Prescale)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Clock, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(TcsList)
+    ), (
+        using Params = Stm32f4ClockService;
+        APRINTER_DEF_INSTANCE(Clock, Stm32f4Clock)
+    ))
+))
+
 #define AMBRO_STM32F4_CLOCK_TC_GLOBAL(tc_num, clock, context) \
 extern "C" \
 __attribute__((used)) \
@@ -225,15 +246,21 @@ void APRINTER_JOIN(STM32F4CLOCK_IRQ_FOR_TIM##tc_num, IRQHandler) (void) \
     clock::tc_irq_handler<Stm32f4ClockTIM##tc_num>(MakeInterruptContext((context))); \
 }
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp, typename ExtraClearance>
+template <typename Arg>
 class Stm32f4ClockInterruptTimer {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Handler      = typename Arg::Handler;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
-    using TcSpec = TTcSpec;
-    using Comp = TComp;
+    using TcSpec = typename Params::Tc;
+    using Comp = typename Params::Comp;
+    using ExtraClearance = typename Params::ExtraClearance;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -385,11 +412,20 @@ public:
     };
 };
 
-template <typename Tc, typename Comp, typename ExtraClearance = Stm32f4ClockDefaultExtraClearance>
-struct Stm32f4ClockInterruptTimerService {
-    template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = Stm32f4ClockInterruptTimer<Context, ParentObject, Handler, Tc, Comp, ExtraClearance>;
-};
+APRINTER_ALIAS_STRUCT_EXT(Stm32f4ClockInterruptTimerService, (
+    APRINTER_AS_TYPE(Tc),
+    APRINTER_AS_TYPE(Comp),
+    APRINTER_AS_TYPE(ExtraClearance)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(InterruptTimer, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = Stm32f4ClockInterruptTimerService;
+        APRINTER_DEF_INSTANCE(InterruptTimer, Stm32f4ClockInterruptTimer)
+    ))
+))
 
 #define AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \

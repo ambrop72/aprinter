@@ -38,6 +38,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -119,18 +120,24 @@ struct Mk20ClockFtmSpec {
     using Mode = TMode;
 };
 
-template <typename, typename, typename, typename, int, typename>
+template <typename>
 class Mk20ClockInterruptTimer;
 
 template <typename, typename, typename, int, typename>
 class Mk20ClockPwm;
 
-template <typename Context, typename ParentObject, int Prescale, typename FtmsList>
+template <typename Arg>
 class Mk20Clock {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using FtmsList     = typename Arg::FtmsList;
+    using Params       = typename Arg::Params;
+    
+    static int const Prescale = Params::Prescale;
     static_assert(Prescale >= 0, "");
     static_assert(Prescale <= 7, "");
     
-    template <typename, typename, typename, typename, int, typename>
+    template <typename>
     friend class Mk20ClockInterruptTimer;
     
     template <typename, typename, typename, int, typename>
@@ -316,6 +323,19 @@ public:
     };
 };
 
+APRINTER_ALIAS_STRUCT_EXT(Mk20ClockService, (
+    APRINTER_AS_VALUE(int, Prescale)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Clock, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(FtmsList)
+    ), (
+        using Params = Mk20ClockService;
+        APRINTER_DEF_INSTANCE(Clock, Mk20Clock)
+    ))
+))
+
 #define AMBRO_MK20_CLOCK_FTM_GLOBAL(ftmnum, clock, context) \
 extern "C" \
 __attribute__((used)) \
@@ -324,15 +344,21 @@ void ftm##ftmnum##_isr (void) \
     clock::ftm_irq_handler<Mk20ClockFTM##ftmnum>(MakeInterruptContext((context))); \
 }
 
-template <typename Context, typename ParentObject, typename Handler, typename TFtm, int TChannelIndex, typename ExtraClearance>
+template <typename Arg>
 class Mk20ClockInterruptTimer {
+    using Context      = typename Arg::Context;
+    using ParentObject = typename Arg::ParentObject;
+    using Handler      = typename Arg::Handler;
+    using Params       = typename Arg::Params;
+    
 public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
-    using Ftm = TFtm;
-    static int const ChannelIndex = TChannelIndex;
+    using Ftm = typename Params::Ftm;
+    static int const ChannelIndex = Params::ChannelIndex;
+    using ExtraClearance = typename Params::ExtraClearance;
     
 private:
     using TheMyFtm = typename Clock::template FindFtm<Ftm>;
@@ -468,11 +494,20 @@ public:
     };
 };
 
-template <typename Ftm, int ChannelIndex, typename ExtraClearance = Mk20ClockDefaultExtraClearance>
-struct Mk20ClockInterruptTimerService {
-    template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Ftm, ChannelIndex, ExtraClearance>;
-};
+APRINTER_ALIAS_STRUCT_EXT(Mk20ClockInterruptTimerService, (
+    APRINTER_AS_TYPE(Ftm),
+    APRINTER_AS_VALUE(int, ChannelIndex),
+    APRINTER_AS_TYPE(ExtraClearance)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(InterruptTimer, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_TYPE(Handler)
+    ), (
+        using Params = Mk20ClockInterruptTimerService;
+        APRINTER_DEF_INSTANCE(InterruptTimer, Mk20ClockInterruptTimer)
+    ))
+))
 
 #define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(ftm, channel_index, timer, context) \
 static_assert( \

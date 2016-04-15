@@ -485,9 +485,10 @@ class CommonClock(object):
     def add_interrupt_timer (self, name, user, clearance, path):
         it = self.check_oc_unit(name, path)
         self._interrupt_timers.append(it)
-        clearance_extra = ', {}'.format(clearance) if clearance is not None else ''
+        clearance_name = '{}_{}_Clearance'.format(self._my_clock, name)
+        self._gen.add_float_constant(clearance_name, clearance)
         self._gen.add_isr(self._clockdef.INTERRUPT_TIMER_ISR(it, user))
-        return self._clockdef.INTERRUPT_TIMER_EXPR(it, clearance_extra)
+        return self._clockdef.INTERRUPT_TIMER_EXPR(it, clearance_name)
     
     def finalize (self):
         auto_timers = (set(it['tc'] for it in self._interrupt_timers) | set([self._primary_timer])) - set(self._timers)
@@ -505,46 +506,47 @@ class CommonClock(object):
         ordered_timers = [self._primary_timer] + sorted(temp_timers)
         timers_expr = TemplateList([self._timers[timer_id] for timer_id in ordered_timers])
         
-        clock_expr = self._clockdef.CLOCK_EXPR(self._config, timers_expr)
-        
-        self._gen.add_global_resource(self._priority, self._my_clock, clock_expr, context_name=self._clock_name)
+        clock_service_expr = self._clockdef.CLOCK_SERVICE(self._config)
+        service_code = 'using {}Service = {};'.format(self._my_clock, clock_service_expr.build(indent=0))
+        clock_expr = TemplateExpr('{}Service::Clock'.format(self._my_clock), ['Context', 'Program', timers_expr])
+        self._gen.add_global_resource(self._priority, self._my_clock, clock_expr, use_instance=True, code_before=service_code, context_name=self._clock_name)
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3xClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3xClock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('At91Sam3xClockService', [config.get_int_constant('prescaler')])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}>'.format(it['tc'], it['channel'], clearance)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL({}, Context())'.format(tc, my_clock)
 
 def At91Sam3uClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3uClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3uClock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('At91Sam3uClockService', [config.get_int_constant('prescaler')])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3uClockInterruptTimerService<At91Sam3uClockTC{}, At91Sam3uClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'At91Sam3uClockInterruptTimerService<At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}>'.format(it['tc'], it['channel'], clearance)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3uClockTC{}'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL({}, Context())'.format(tc, my_clock)
 
 def Mk20ClockDef(x):
     x.INCLUDE = 'hal/teensy3/Mk20Clock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('Mk20ClockService', [config.get_int_constant('prescaler')])
     x.TIMER_RE = '\\AFTM([0-9])\\Z'
     x.CHANNEL_RE = '\\AFTM([0-9])_([0-9])\\Z'
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}, {}>'.format(it['tc'], it['channel'], clearance)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20ClockFTM{}>'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, {}, Context())'.format(tc, my_clock)
 
 def AvrClockDef(x):
     x.INCLUDE = 'hal/avr/AvrClock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('AvrClock', ['Context', 'Program', config.get_int_constant('PrescaleDivide'), timers])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('AvrClockService', [config.get_int_constant('PrescaleDivide')])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])_([A-Z])\\Z'
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}, {}>'.format(it['tc'], it['channel'], clearance)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
     x.CLOCK_ISR = lambda my_clock, clock: 'AMBRO_AVR_CLOCK_ISRS({}, {}, Context())'.format(clock['primary_timer'], my_clock)
@@ -577,10 +579,10 @@ def AvrClockDef(x):
 
 def Stm32f4ClockDef(x):
     x.INCLUDE = 'hal/stm32/Stm32f4Clock.h'
-    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Stm32f4Clock', ['Context', 'Program', config.get_int_constant('prescaler'), timers])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('Stm32f4ClockService', [config.get_int_constant('prescaler')])
     x.TIMER_RE = '\\ATIM([0-9]{1,2})\\Z'
     x.CHANNEL_RE = '\\ATIM([0-9]{1,2})_([1-4])\\Z'
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Stm32f4ClockInterruptTimerService<Stm32f4ClockTIM{}, Stm32f4ClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'Stm32f4ClockInterruptTimerService<Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}>'.format(it['tc'], it['channel'], clearance)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}, Context())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, Context())'.format(tc, my_clock)
@@ -892,7 +894,7 @@ def use_analog_input (gen, config, key, user):
     
     return ai.do_selection('Driver', analog_input_sel)
 
-def use_interrupt_timer (gen, config, key, user, clearance=None):
+def use_interrupt_timer (gen, config, key, user, clearance=0.0):
     clock = gen.get_singleton_object('Clock')
     
     for it_config in config.enter_config(key):
@@ -1437,13 +1439,14 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.register_objects('laser_port', board_data, 'laser_ports')
                 
                 led_pin_expr = get_pin(gen, board_data, 'LedPin')
-                event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='{}::GetEventChannelTimer<>'.format(aux_control_module_user), clearance='EventChannelTimerClearance')
                 
                 for performance in board_data.enter_config('performance'):
                     gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
-                    gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
+                    event_channel_timer_clearance = performance.get_float('EventChannelTimerClearance')
                     optimize_for_size = performance.get_bool('OptimizeForSize')
                     optimize_libc_for_size = performance.get_bool('OptimizeLibcForSize')
+                
+                event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='{}::GetEventChannelTimer<>'.format(aux_control_module_user), clearance=event_channel_timer_clearance)
                 
                 for development in board_data.enter_config('development'):
                     assertions_enabled = development.get_bool('AssertionsEnabled')
