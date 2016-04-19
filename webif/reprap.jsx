@@ -2,6 +2,7 @@
 // Hardcoded constants
 
 var statusRefreshInterval = 2000;
+var configRefreshInterval = 120000;
 var axisPrecision = 6;
 var heaterPrecision = 4;
 var fanPrecision = 3;
@@ -42,6 +43,13 @@ function orderObject(obj) {
     return arr;
 }
 
+function preprocessObjectForState(obj) {
+    return {
+        obj: obj,
+        arr: orderObject(obj)
+    };
+}
+
 function showError(error_str) {
     console.log('ERROR: '+error_str);
 }
@@ -80,7 +88,7 @@ var AxesTable = React.createClass({
     allAxesGo: function() {
         var cmdAxes = '';
         var error = null;
-        $.each(orderObject(this.props.axes), function(idx, axis) {
+        $.each(this.props.axes.arr, function(idx, axis) {
             var axis_name = axis.key;
             if (!this.props.controller.isEditing(axis_name)) {
                 return;
@@ -101,7 +109,7 @@ var AxesTable = React.createClass({
         }
     },
     render: function() {
-        this.props.controller.rendering(this.props.axes);
+        this.props.controller.rendering(this.props.axes.obj);
         return (
             <table className={controlTableClass}>
                 <colgroup>
@@ -119,7 +127,7 @@ var AxesTable = React.createClass({
                     </tr>
                 </thead>
                 <tbody>
-                    {$.map(orderObject(this.props.axes), function(axis) {
+                    {$.map(this.props.axes.arr, function(axis) {
                         var dispPos = axis.val.pos.toPrecision(axisPrecision);
                         var ecInputs = this.props.controller.getRenderInputs(axis.key, dispPos);
                         return (
@@ -145,7 +153,7 @@ var AxesTable = React.createClass({
         );
     },
     componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate(this.props.axes);
+        this.props.controller.componentDidUpdate(this.props.axes.obj);
     }
 });
 
@@ -178,7 +186,7 @@ var HeatersTable = React.createClass({
     allHeatersSet: function() {
         var cmds = [];
         var error = null;
-        $.each(orderObject(this.props.heaters), function(idx, heater) {
+        $.each(this.props.heaters.arr, function(idx, heater) {
             var heater_name = heater.key;
             if (this.props.controller.isEditing(heater_name)) {
                 var makeRes = this.makeSetHeaterGcode(heater_name);
@@ -198,7 +206,7 @@ var HeatersTable = React.createClass({
         }
     },
     render: function() {
-        this.props.controller.rendering(this.props.heaters);
+        this.props.controller.rendering(this.props.heaters.obj);
         return (
             <table className={controlTableClass}>
                 <colgroup>
@@ -216,7 +224,7 @@ var HeatersTable = React.createClass({
                     </tr>
                 </thead>
                 <tbody>
-                    {$.map(orderObject(this.props.heaters), function(heater) {
+                    {$.map(this.props.heaters.arr, function(heater) {
                         var dispActual = heater.val.current.toPrecision(heaterPrecision);
                         var isOff = (heater.val.target === -Infinity);
                         var dispTarget = isOff ? 'off' : heater.val.target.toPrecision(heaterPrecision);
@@ -246,7 +254,7 @@ var HeatersTable = React.createClass({
         );
     },
     componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate(this.props.heaters);
+        this.props.controller.componentDidUpdate(this.props.heaters.obj);
     }
 });
 
@@ -279,7 +287,7 @@ var FansTable = React.createClass({
     allFansSet: function() {
         var cmds = [];
         var error = null;
-        $.each(orderObject(this.props.fans), function(idx, fan) {
+        $.each(this.props.fans.arr, function(idx, fan) {
             var fan_name = fan.key;
             if (this.props.controller.isEditing(fan_name)) {
                 var makeRes = this.makeSetFanGcode(fan_name);
@@ -299,7 +307,7 @@ var FansTable = React.createClass({
         }
     },
     render: function() {
-        this.props.controller.rendering(this.props.fans);
+        this.props.controller.rendering(this.props.fans.obj);
         return (
             <table className={controlTableClass}>
                 <colgroup>
@@ -317,7 +325,7 @@ var FansTable = React.createClass({
                     </tr>
                 </thead>
                 <tbody>
-                    {$.map(orderObject(this.props.fans), function(fan) {
+                    {$.map(this.props.fans.arr, function(fan) {
                         var isOff = (fan.val.target === 0);
                         var editTarget = (fan.val.target * 100).toPrecision(fanPrecision);
                         var dispTarget = isOff ? 'off' : editTarget;
@@ -347,7 +355,7 @@ var FansTable = React.createClass({
         );
     },
     componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate(this.props.fans);
+        this.props.controller.componentDidUpdate(this.props.fans.obj);
     }
 });
 
@@ -434,14 +442,128 @@ var Buttons2 = React.createClass({
     );}
 });
 
+function preprocessOptionsList(options) {
+    var result = {};
+    $.map(options, function(option) {
+        var eqIndex = option.nameval.indexOf('=');
+        var optionName = option.nameval.substring(0, eqIndex);
+        var optionValue = option.nameval.substring(eqIndex+1);
+        result[optionName] = $.extend({name: optionName, value: optionValue}, option);
+    });
+    return result;
+}
+
+var ConfigTable = React.createClass({
+    componentWillMount: function() {
+        this.props.controller.setComponent(this);
+    },
+    onInputEnter: function(option_name) {
+        this.optionSet(option_name);
+    },
+    makeSetOptionGcode: function(option_name) {
+        var target = this.props.controller.getValue(option_name);
+        return {res: 'M926 I'+option_name+' V'+target};
+    },
+    optionSet: function(option_name) {
+        var makeRes = this.makeSetOptionGcode(option_name);
+        if ($has(makeRes, 'err')) {
+            return showError(makeRes.err);
+        }
+        sendGcode(makeRes.res, function(status) { configUpdater.requestUpdate(); });
+        this.props.controller.cancel(option_name);
+    },
+    allOptionsSet: function() {
+        var cmds = [];
+        var error = null;
+        $.each(this.props.options.arr, function(idx, option) {
+            var option_name = option.key;
+            if (this.props.controller.isEditing(option_name)) {
+                var makeRes = this.makeSetOptionGcode(option_name);
+                if ($has(makeRes, 'err')) {
+                    if (error === null) error = makeRes.err;
+                    return;
+                }
+                cmds.push(makeRes.res);
+            }
+        }.bind(this));
+        if (error !== null) {
+            return showError(error);
+        }
+        if (cmds.length !== 0) {
+            sendGcodes(cmds, function(status) { configUpdater.requestUpdate(); });
+            this.props.controller.cancelAll();
+        }
+    },
+    render: function() {
+        this.props.controller.rendering(this.props.options.obj);
+        return (
+            <table className={controlTableClass} style={{width: '670px'}}>
+                <colgroup>
+                    <col span="1" style={{width: '200px'}} />
+                    <col span="1" style={{width: '70px'}} />
+                    <col span="1" style={{width: '150px'}} />
+                    <col span="1" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>{controlAllTable('New value', 'Set', {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet})}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {$.map(this.props.options.arr, function(option) {
+                        var optionName = option.key;
+                        return <ConfigRow key={optionName} ref={optionName} option={option.val} parent={this} />;
+                    }.bind(this))}
+                </tbody>
+            </table>
+        );
+    },
+    componentDidUpdate: function() {
+        this.props.controller.componentDidUpdate(this.props.options.obj);
+    }
+});
+
+var ConfigRow = React.createClass({
+    render: function() {
+        var option = this.props.option;
+        var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, option.value);
+        var onClickSet = $bind(this.props.parent, 'optionSet', option.name);
+        return (
+            <tr>
+                <td><b>{option.name}</b></td>
+                <td>{option.type}</td>
+                <td>{option.value}</td>
+                <td>
+                    <div className="input-group">
+                        <input type="text" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
+                                onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                        <span className="input-group-btn">
+                            <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                            <button type="button" className={controlButtonClass('warning')} onClick={onClickSet}>Set</button>
+                        </span>
+                    </div>
+                </td>
+            </tr>
+        );
+    },
+    shouldComponentUpdate: function(nextProps, nextState) {
+        return this.props.parent.props.controller.rowNeedsUpdate(this.props.option.name);
+    }
+});
+
 
 // Field editing logic
 
-function EditController(input_ref_prefix) {
+function EditController(input_ref) {
     this._update_comp = null;
     this._comp = null;
-    this._input_ref_prefix = input_ref_prefix;
-    this._editing = {Q: 1};
+    this._input_ref = input_ref;
+    this._editing = {};
+    this._dirty_all = false;
+    this._dirty_rows = {};
 }
 
 EditController.prototype.setUpdateComponent = function(update_component) {
@@ -468,14 +590,18 @@ EditController.prototype.isEditingAny = function() {
     return !$.isEmptyObject(this._editing);
 };
 
+EditController.prototype.rowNeedsUpdate = function(id) {
+    return (this._dirty_all || $has(this._dirty_rows, id));
+};
+
 EditController.prototype._input = function(id) {
-    return this._comp.refs[this._input_ref_prefix+id];
+    return this._input_ref(this._comp, id);
 };
 
 EditController.prototype._onChange = function(id) {
     var value = this.getValue(id);
     this._editing[id] = value;
-    this._update_comp.forceUpdate();
+    this.updateRow(id);
 };
 
 EditController.prototype._onKeyDown = function(id, event) {
@@ -493,16 +619,28 @@ EditController.prototype._onKeyPress = function(id, event) {
     }
 };
 
+EditController.prototype.updateAll = function() {
+    this._dirty_all = true;
+    this._update_comp.forceUpdate();
+};
+
+EditController.prototype.updateRow = function(id) {
+    this._dirty_rows[id] = true;
+    this._update_comp.forceUpdate();
+};
+
 EditController.prototype.cancel = function(id) {
     if (this.isEditing(id)) {
         delete this._editing[id];
-        this._update_comp.forceUpdate();
+        this.updateRow(id);
     }
 };
 
-EditController.prototype.cancelAll = function(id) {
+EditController.prototype.cancelAll = function() {
+    $.each(this._editing, function(id, value) {
+        this._dirty_rows[id] = true;
+    }.bind(this));
     this._editing = {};
-    this._update_comp.forceUpdate();
 };
 
 EditController.prototype.rendering = function(id_datas) {
@@ -526,15 +664,40 @@ EditController.prototype.getRenderInputs = function(id, live_value) {
     };
 };
 
+EditController.prototype._forAllDirtyRows = function(id_datas, func) {
+    if (this._dirty_all) {
+        $.each(id_datas, func);
+    } else {
+        $.each(this._dirty_rows, function(id) {
+            if ($has(id_datas, id)) {
+                func(id, id_datas[id]);
+            }
+        });
+    }
+};
+
 EditController.prototype.componentDidUpdate = function(id_datas) {
-    $.each(id_datas, function(id, data) {
+    this._forAllDirtyRows(id_datas, function(id, data) {
         var input = this._input(id);
         if (!this.isEditing(id)) {
             input.defaultValue = input.value;
         }
     }.bind(this));
+    this._dirty_all = false;
+    this._dirty_rows = {};
 };
 
+function EditInputRefPrefix(prefix) {
+    return function(comp, id) {
+        return comp.refs[prefix+id];
+    };
+}
+
+function EditInputRefChild(child_ref_name) {
+    return function(comp, id) {
+        return comp.refs[id].refs[child_ref_name];
+    };
+}
 
 // Gluing of react classes into page
 
@@ -546,15 +709,18 @@ var ComponentWrapper = React.createClass({
 
 var machine_state = {
     speedRatio: 1,
-    axes: {},
-    heaters: {},
-    fans: {}
+    axes:    preprocessObjectForState({}),
+    heaters: preprocessObjectForState({}),
+    fans:    preprocessObjectForState({})
 };
 
-var controller_axes    = new EditController('target_');
-var controller_heaters = new EditController('target_');
-var controller_fans    = new EditController('target_');
-var controller_speed   = new EditController('target_');
+var machine_options = preprocessObjectForState({});
+
+var controller_axes    = new EditController(EditInputRefPrefix('target_'));
+var controller_heaters = new EditController(EditInputRefPrefix('target_'));
+var controller_fans    = new EditController(EditInputRefPrefix('target_'));
+var controller_speed   = new EditController(EditInputRefPrefix('target_'));
+var controller_config  = new EditController(EditInputRefChild('target'));
 
 function render_axes() {
     return <AxesTable axes={machine_state.axes} controller={controller_axes} />;
@@ -574,6 +740,9 @@ function render_buttons1() {
 function render_buttons2() {
     return <Buttons2 />;
 }
+function render_config() {
+    return <ConfigTable options={machine_options} controller={controller_config} />;
+}
 
 var wrapper_axes     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
 var wrapper_heaters  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
@@ -581,107 +750,141 @@ var wrapper_fans     = ReactDOM.render(<ComponentWrapper render={render_fans} />
 var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
 var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
+var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
 
 controller_axes.setUpdateComponent(wrapper_axes);
 controller_heaters.setUpdateComponent(wrapper_heaters);
 controller_fans.setUpdateComponent(wrapper_fans);
 controller_speed.setUpdateComponent(wrapper_speed);
+controller_config.setUpdateComponent(wrapper_config);
 
-function updateAll() {
-    wrapper_axes.forceUpdate();
-    wrapper_heaters.forceUpdate();
-    wrapper_fans.forceUpdate();
-    wrapper_speed.forceUpdate();
+function updateStatus() {
+    controller_axes.updateAll();
+    controller_heaters.updateAll();
+    controller_fans.updateAll();
+    controller_speed.updateAll();
     wrapper_buttons1.forceUpdate();
     wrapper_buttons2.forceUpdate();
+}
+
+function updateConfig() {
+    controller_config.updateAll();
+}
+
+// Generic status updating
+
+function StatusUpdater(reqPath, refreshInterval, handleNewStatus) {
+    this._reqPath = reqPath;
+    this._refreshInterval = refreshInterval;
+    this._handleNewStatus = handleNewStatus;
+    this._reqestInProgress = false;
+    this._needsAnotherUpdate = false;
+    this._timerId = null;
+}
+
+StatusUpdater.prototype.requestUpdate = function() {
+    if (this._reqestInProgress) {
+        this._needsAnotherUpdate = true;
+    } else {
+        this._startRequest();
+    }
+};
+
+StatusUpdater.prototype._startRequest = function() {
+    if (this._timerId !== null) {
+        clearTimeout(this._timerId);
+        this._timerId = null;
+    }
+    this._reqestInProgress = true;
+    $.ajax({
+        url: this._reqPath,
+        dataType: 'json',
+        cache: false,
+        success: function(new_status) {
+            this._requestCompleted();
+            this._handleNewStatus(new_status);
+        }.bind(this),
+        error: function(xhr, status, err) {
+            console.error(this._reqPath, status, err.toString());
+            this._requestCompleted();
+        }.bind(this)
+    });
+};
+
+StatusUpdater.prototype._requestCompleted = function() {
+    this._reqestInProgress = false;
+    if (this._needsAnotherUpdate) {
+        this._needsAnotherUpdate = false;
+        this._startRequest();
+    } else {
+        this._timerId = setTimeout(this._timerHandler.bind(this), this._refreshInterval);
+    }
+};
+
+StatusUpdater.prototype._timerHandler = function() {
+    if (!this._reqestInProgress) {
+        this._startRequest();
+    }
 }
 
 
 // Status updating
 
-var statusRequestInProgesss = false;
-var statusNeedsAnotherUpdate = false;
-var statusTimerId = null;
+var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, function(new_machine_state) {
+    machine_state = new_machine_state;
+    machine_state.axes    = preprocessObjectForState(machine_state.axes);
+    machine_state.heaters = preprocessObjectForState(machine_state.heaters);
+    machine_state.fans    = preprocessObjectForState(machine_state.fans);
+    updateStatus();
+});
 
-function accelerateStatusUpdate() {
-    if (statusRequestInProgesss) {
-        statusNeedsAnotherUpdate = true;
-    } else {
-        requestStatus();
-    }
-}
 
-function requestStatus() {
-    if (statusTimerId !== null) {
-        clearTimeout(statusTimerId);
-        statusTimerId = null;
-    }
-    statusRequestInProgesss = true;
-    $.ajax({
-        url: '/rr_status',
-        dataType: 'json',
-        cache: false,
-        success: function(new_machine_state) {
-            statusRequestCompleted();
-            machine_state = new_machine_state;
-            updateAll();
-        },
-        error: function(xhr, status, err) {
-            console.error('/rr_status', status, err.toString());
-            statusRequestCompleted();
-        }
-    });
-}
+// Configuration updating
 
-function statusRequestCompleted() {
-    statusRequestInProgesss = false;
-    if (statusNeedsAnotherUpdate) {
-        statusNeedsAnotherUpdate = false;
-        requestStatus();
-    } else {
-        statusTimerId = setTimeout(statusTimerHandler, statusRefreshInterval);
-    }
-}
-
-function statusTimerHandler() {
-    if (!statusRequestInProgesss) {
-        requestStatus();
-    }
-}
+var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, function(new_config) {
+    machine_options = preprocessObjectForState(preprocessOptionsList(new_config.options));
+    updateConfig();
+});
 
 
 // Gcode execution
 
 var gcodeQueue = [];
 
-function sendGcode(gcode_str) {
-    gcodeQueue.push(gcode_str);
+function sendGcode(cmd, callback) {
+    gcodeQueue.push({cmd: cmd, callback: callback});
     if (gcodeQueue.length === 1) {
         sendNextQueuedGcode();
     }
 }
 
-function sendGcodes(gcodes) {
-    sendGcode(gcodes.join('\n'));
+function sendGcodes(cmds, callback) {
+    sendGcode(cmds.join('\n'), callback);
 }
 
 function sendNextQueuedGcode() {
-    var gcode_str = gcodeQueue[0];
-    console.log('>>> '+gcode_str);
+    var entry = gcodeQueue[0];
+    console.log('>>> '+entry.cmd);
     $.ajax({
         url: '/rr_gcode',
         type: 'POST',
-        data: gcode_str + '\n',
+        data: entry.cmd + '\n',
         dataType: 'text',
         success: function(response) {
             console.log('<<< '+response);
             currentGcodeCompleted();
-            accelerateStatusUpdate();
+            statusUpdater.requestUpdate();
+            if (entry.callback) {
+                entry.callback(true);
+            }
         },
         error: function(xhr, status, err) {
             console.error('/rr_gcode', status, err.toString());
             currentGcodeCompleted();
-            showError('Error sending gcode: '+gcode_str);
+            showError('Error sending gcode: '+entry.cmd);
+            if (entry.callback) {
+                entry.callback(false);
+            }
         }
     });
 }
@@ -709,10 +912,12 @@ function onBtnMotorsOff() {
 }
 
 function onBtnRefresh() {
-    accelerateStatusUpdate();
+    statusUpdater.requestUpdate();
+    configUpdater.requestUpdate();
 }
 
 
 // Initial actions
 
-requestStatus();
+statusUpdater.requestUpdate();
+configUpdater.requestUpdate();
