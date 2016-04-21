@@ -550,25 +550,23 @@ var ConfigRow = React.createClass({
         );
     },
     shouldComponentUpdate: function(nextProps, nextState) {
-        return this.props.parent.props.controller.rowNeedsUpdate(this.props.option.name);
+        return this.props.parent.props.controller.rowIsDirty(this.props.option.name);
+    },
+    componentDidUpdate: function() {
+        this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
     }
 });
 
 
 // Field editing logic
 
-function EditController(input_ref) {
-    this._update_comp = null;
+function EditController(row_ref) {
     this._comp = null;
-    this._input_ref = input_ref;
+    this._row_ref = row_ref;
     this._editing = {};
-    this._dirty_all = false;
+    this._dirty_all_rows = false;
     this._dirty_rows = {};
 }
-
-EditController.prototype.setUpdateComponent = function(update_component) {
-    this._update_comp = update_component;
-};
 
 EditController.prototype.setComponent = function(comp) {
     this._comp = comp;
@@ -590,18 +588,25 @@ EditController.prototype.isEditingAny = function() {
     return !$.isEmptyObject(this._editing);
 };
 
-EditController.prototype.rowNeedsUpdate = function(id) {
-    return (this._dirty_all || $has(this._dirty_rows, id));
+EditController.prototype.rowIsDirty = function(id) {
+    return (this._dirty_all_rows || $has(this._dirty_rows, id));
 };
 
 EditController.prototype._input = function(id) {
-    return this._input_ref(this._comp, id);
+    return this._row_ref.getRowInput(this._comp, id);
 };
 
 EditController.prototype._onChange = function(id) {
     var value = this.getValue(id);
+    var wasEditingAny = this.isEditingAny();
     this._editing[id] = value;
-    this.updateRow(id);
+    this.markDirtyRow(id);
+    if (wasEditingAny) {
+        this.updateRow(id);
+    } else {
+        // The combined "set" button may need to change to enabled.
+        this.updateTable();
+    }
 };
 
 EditController.prototype._onKeyDown = function(id, event) {
@@ -619,28 +624,46 @@ EditController.prototype._onKeyPress = function(id, event) {
     }
 };
 
-EditController.prototype.updateAll = function() {
-    this._dirty_all = true;
-    this._update_comp.forceUpdate();
+EditController.prototype.markDirtyAllRows = function() {
+    this._dirty_all_rows = true;
+};
+
+EditController.prototype.markDirtyRow = function(id) {
+    this._dirty_rows[id] = true;
+};
+
+EditController.prototype.updateTable = function() {
+    this._comp.forceUpdate();
 };
 
 EditController.prototype.updateRow = function(id) {
-    this._dirty_rows[id] = true;
-    this._update_comp.forceUpdate();
+    this._row_ref.updateRow(this._comp, id);
+};
+
+EditController.prototype.forceUpdateVia = function(update_comp) {
+    this.markDirtyAllRows();
+    update_comp.forceUpdate();
 };
 
 EditController.prototype.cancel = function(id) {
     if (this.isEditing(id)) {
         delete this._editing[id];
-        this.updateRow(id);
+        this.markDirtyRow(id);
+        if (this.isEditingAny()) {
+            this.updateRow(id);
+        } else {
+            // The combined "set" button may need to change to disabled.
+            this.updateTable();
+        }
     }
 };
 
 EditController.prototype.cancelAll = function() {
     $.each(this._editing, function(id, value) {
-        this._dirty_rows[id] = true;
+        this.markDirtyRow(id);
     }.bind(this));
     this._editing = {};
+    this.updateTable();
 };
 
 EditController.prototype.rendering = function(id_datas) {
@@ -657,15 +680,15 @@ EditController.prototype.getRenderInputs = function(id, live_value) {
         editing:    editing,
         class:      editing ? controlEditingClass : '',
         value:      editing ? this._editing[id] : live_value,
-        onChange:   this._onChange.bind(this, id),
         onCancel:   this.cancel.bind(this, id),
+        onChange:   this._onChange.bind(this, id),
         onKeyDown:  this._onKeyDown.bind(this, id),
         onKeyPress: this._onKeyPress.bind(this, id)
     };
 };
 
 EditController.prototype._forAllDirtyRows = function(id_datas, func) {
-    if (this._dirty_all) {
+    if (this._dirty_all_rows) {
         $.each(id_datas, func);
     } else {
         $.each(this._dirty_rows, function(id) {
@@ -676,26 +699,45 @@ EditController.prototype._forAllDirtyRows = function(id_datas, func) {
     }
 };
 
+EditController.prototype._updateRowInput = function(id) {
+    var input = this._input(id);
+    if (!this.isEditing(id)) {
+        input.defaultValue = input.value;
+    }
+};
+
 EditController.prototype.componentDidUpdate = function(id_datas) {
     this._forAllDirtyRows(id_datas, function(id, data) {
-        var input = this._input(id);
-        if (!this.isEditing(id)) {
-            input.defaultValue = input.value;
-        }
+        this._updateRowInput(id);
     }.bind(this));
-    this._dirty_all = false;
+    this._dirty_all_rows = false;
     this._dirty_rows = {};
 };
 
-function EditInputRefPrefix(prefix) {
-    return function(comp, id) {
-        return comp.refs[prefix+id];
+EditController.prototype.rowComponentDidUpdate = function(id) {
+    this._updateRowInput(id);
+    delete this._dirty_rows[id];
+};
+
+function RowRefSameComp(prefix) {
+    return {
+        getRowInput: function(comp, id) {
+            return comp.refs[prefix+id];
+        },
+        updateRow: function(comp, id) {
+            comp.forceUpdate();
+        }
     };
 }
 
-function EditInputRefChild(child_ref_name) {
-    return function(comp, id) {
-        return comp.refs[id].refs[child_ref_name];
+function RowRefChildComp(child_ref_name) {
+    return {
+        getRowInput: function(comp, id) {
+            return comp.refs[id].refs[child_ref_name];
+        },
+        updateRow: function(comp, id) {
+            comp.refs[id].forceUpdate();
+        }
     };
 }
 
@@ -716,11 +758,11 @@ var machine_state = {
 
 var machine_options = preprocessObjectForState({});
 
-var controller_axes    = new EditController(EditInputRefPrefix('target_'));
-var controller_heaters = new EditController(EditInputRefPrefix('target_'));
-var controller_fans    = new EditController(EditInputRefPrefix('target_'));
-var controller_speed   = new EditController(EditInputRefPrefix('target_'));
-var controller_config  = new EditController(EditInputRefChild('target'));
+var controller_axes    = new EditController(RowRefSameComp('target_'));
+var controller_heaters = new EditController(RowRefSameComp('target_'));
+var controller_fans    = new EditController(RowRefSameComp('target_'));
+var controller_speed   = new EditController(RowRefSameComp('target_'));
+var controller_config  = new EditController(RowRefChildComp('target'));
 
 function render_axes() {
     return <AxesTable axes={machine_state.axes} controller={controller_axes} />;
@@ -752,23 +794,16 @@ var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
 
-controller_axes.setUpdateComponent(wrapper_axes);
-controller_heaters.setUpdateComponent(wrapper_heaters);
-controller_fans.setUpdateComponent(wrapper_fans);
-controller_speed.setUpdateComponent(wrapper_speed);
-controller_config.setUpdateComponent(wrapper_config);
-
 function updateStatus() {
-    controller_axes.updateAll();
-    controller_heaters.updateAll();
-    controller_fans.updateAll();
-    controller_speed.updateAll();
+    controller_axes.forceUpdateVia(wrapper_axes);
+    controller_heaters.forceUpdateVia(wrapper_heaters);
+    controller_fans.forceUpdateVia(wrapper_fans);
+    controller_speed.forceUpdateVia(wrapper_speed);
     wrapper_buttons1.forceUpdate();
-    wrapper_buttons2.forceUpdate();
 }
 
 function updateConfig() {
-    controller_config.updateAll();
+    controller_config.forceUpdateVia(wrapper_config);
 }
 
 // Generic status updating
