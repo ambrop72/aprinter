@@ -172,47 +172,56 @@ private:
         }
     };
     
-    template <typename Dummy>
-    struct TypeSpecific<ConfigTypeMacAddress, Dummy> {
-        static size_t const MaxStringValueLength = 17;
-        static constexpr char const * TypeName() { return "mac_addr"; }
+    template <typename TypeSpec>
+    struct GenericTypeSpecific {
+    private:
+        using ConfigType = typename TypeSpec::ConfigType;
         
-        static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeMacAddress value)
+    public:
+        static size_t const MaxStringValueLength = TypeSpec::MaxStringValueLength;
+        static constexpr char const * TypeName() { return TypeSpec::TypeName(); }
+        
+        static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigType value)
         {
             char str[MaxStringValueLength+1];
-            print_mac_addr(value, str);
+            TypeSpec::print_value(value, str);
             cmd->reply_append_str(c, str);
         }
         
-        static void set_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeMacAddress *value, ConfigTypeMacAddress default_value)
+        static void set_value_cmd (Context c, TheCommand<> *cmd, ConfigType *value, ConfigType default_value)
         {
             char const *str = cmd->get_command_param_str(c, 'V', nullptr);
-            if (!str || !parse_mac_addr(str, value)) {
+            if (!str || !TypeSpec::parse_value(str, value)) {
                 *value = default_value;
             }
         }
         
-        static void get_value_str (ConfigTypeMacAddress value, char *out_str)
+        static void get_value_str (ConfigType value, char *out_str)
         {
-            print_mac_addr(value, out_str);
+            TypeSpec::print_value(value, out_str);
         }
         
-        static void set_value_str (ConfigTypeMacAddress *value, char const *in_str)
+        static void set_value_str (ConfigType *value, char const *in_str)
         {
-            if (!parse_mac_addr(in_str, value)) {
-                *value = ConfigTypeMacAddress();
+            if (!TypeSpec::parse_value(in_str, value)) {
+                *value = ConfigType();
             }
         }
+    };
+    
+    struct MacAddressTypeSpec {
+        using ConfigType = ConfigTypeMacAddress;
+        static size_t const MaxStringValueLength = 17;
+        static constexpr char const * TypeName() { return "mac_addr"; }
         
-    private:
-        static void print_mac_addr (ConfigTypeMacAddress value, char *out_str)
+        static void print_value (ConfigTypeMacAddress value, char *out_str)
         {
             sprintf(out_str, "%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8,
                     value.mac_addr[0], value.mac_addr[1], value.mac_addr[2],
                     value.mac_addr[3], value.mac_addr[4], value.mac_addr[5]);
         }
         
-        static bool parse_mac_addr (char const *str, ConfigTypeMacAddress *out_value)
+        static bool parse_value (char const *str, ConfigTypeMacAddress *out_value)
         {
             for (auto i : LoopRange<size_t>(ConfigTypeMacAddress::Size)) {
                 if (*str == '\0') {
@@ -244,45 +253,20 @@ private:
     };
     
     template <typename Dummy>
-    struct TypeSpecific<ConfigTypeIpAddress, Dummy> {
+    struct TypeSpecific<ConfigTypeMacAddress, Dummy> : public GenericTypeSpecific<MacAddressTypeSpec> {};
+    
+    struct IpAddressTypeSpec {
+        using ConfigType = ConfigTypeIpAddress;
         static size_t const MaxStringValueLength = 15;
         static constexpr char const * TypeName() { return "ip_addr"; }
         
-        static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeIpAddress value)
-        {
-            char str[MaxStringValueLength+1];
-            print_ip_addr(value, str);
-            cmd->reply_append_str(c, str);
-        }
-        
-        static void set_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeIpAddress *value, ConfigTypeIpAddress default_value)
-        {
-            char const *str = cmd->get_command_param_str(c, 'V', nullptr);
-            if (!str || !parse_ip_addr(str, value)) {
-                *value = default_value;
-            }
-        }
-        
-        static void get_value_str (ConfigTypeIpAddress value, char *out_str)
-        {
-            print_ip_addr(value, out_str);
-        }
-        
-        static void set_value_str (ConfigTypeIpAddress *value, char const *in_str)
-        {
-            if (!parse_ip_addr(in_str, value)) {
-                *value = ConfigTypeIpAddress();
-            }
-        }
-        
-    private:
-        static void print_ip_addr (ConfigTypeIpAddress value, char *out_str)
+        static void print_value (ConfigTypeIpAddress value, char *out_str)
         {
             sprintf(out_str, "%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8,
                     value.ip_addr[0], value.ip_addr[1], value.ip_addr[2], value.ip_addr[3]);
         }
         
-        static bool parse_ip_addr (char const *str, ConfigTypeIpAddress *out_value)
+        static bool parse_value (char const *str, ConfigTypeIpAddress *out_value)
         {
             for (auto i : LoopRange<size_t>(ConfigTypeIpAddress::Size)) {
                 if (*str == '\0') {
@@ -312,6 +296,9 @@ private:
             return true;
         }
     };
+    
+    template <typename Dummy>
+    struct TypeSpecific<ConfigTypeIpAddress, Dummy> : public GenericTypeSpecific<IpAddressTypeSpec> {};
     
     template <int TypeIndex, typename Dummy=void>
     struct TypeGeneral {
