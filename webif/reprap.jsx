@@ -7,6 +7,7 @@ var axisPrecision = 6;
 var heaterPrecision = 4;
 var fanPrecision = 3;
 var speedPrecision = 4;
+var configPrecision = 15;
 
 
 // Commonly used styles/elements
@@ -67,8 +68,21 @@ function $toNumber(val) {
     return val - 0;
 }
 
+function encodeStrForCmd(val) {
+    return encodeURIComponent(val).replace(/%/g, "\\");
+}
 
-// Main React classes
+function removeTrailingZerosInNumStr(num_str) {
+    // 123.0200 => 123.02
+    // 123.0000 => 123
+    // 1200 => 1200
+    return num_str.replace(/(\.|(\.[0-9]*[1-9]))0*$/, function(match, p1, p2) {
+        return typeof(p2) === 'string' ? p2 : '';
+    });
+}
+
+
+// Status stables (axes, heaters, fans, speed)
 
 var AxesTable = React.createClass({
     componentWillMount: function() {
@@ -422,6 +436,9 @@ var SpeedTable = React.createClass({
     }
 });
 
+
+// Buttons at the top row
+
 var Buttons1 = React.createClass({
     render: function() { return (
         <div>
@@ -441,6 +458,112 @@ var Buttons2 = React.createClass({
         </div>
     );}
 });
+
+
+// Configuration options table
+
+function normalizeIpAddr(input) {
+    var comps = input.split('.');
+    if (comps.length != 4) {
+        return {err: 'Invalid number of address components'};
+    }
+    var res_comps = [];
+    $.each(comps, function(idx, comp) {
+        if (/^[0-9]{1,3}$/.test(comp)) {
+            var comp_val = parseInt(comp, 10);
+            if (comp_val <= 255) {
+                res_comps.push(comp_val.toString(10));
+            }
+        }
+    });
+    if (res_comps.length != 4) {
+        return {err: 'Invalid address component'};
+    }
+    return {res: res_comps.join('.')};
+}
+
+function normalizeMacAddr(input) {
+    var comps = input.split(':');
+    if (comps.length != 6) {
+        return {err: 'Invalid number of address components'};
+    }
+    var res_comps = [];
+    $.each(comps, function(idx, comp) {
+        if (/^[0-9A-Fa-f]{1,2}$/.test(comp)) {
+            var res_str = parseInt(comp, 16).toString(16);
+            if (res_str.length == 1) {
+                res_str = "0" + res_str;
+            }
+            res_comps.push(res_str);
+        }
+    });
+    if (res_comps.length != 6) {
+        return {err: 'Invalid address component'};
+    }
+    return {res: res_comps.join(':').toUpperCase()};
+}
+
+var ConfigTypes = {
+    'bool': {
+        input: {type: 'select', options: ['false', 'true']},
+        convertForDisp: function(string) {
+            if (string !== '0' && string !== '1') {
+                return {err: 'Not 0 or 1'};
+            }
+            return {res: string === '0' ? 'false' : 'true'};
+        },
+        convertForSet: function(string) {
+            if (string !== 'false' && string !== 'true') {
+                return {err: 'Not false or true'};
+            }
+            return {res: string === 'false' ? '0' : '1'};
+        }
+    },
+    'double': {
+        input: {type: 'number'},
+        convertForDisp: function(string) {
+            var num = Number(string);
+            if (isNaN(num)) {
+                return {err: 'Not a numeric string'};
+            }
+            return {res: removeTrailingZerosInNumStr(num.toPrecision(configPrecision))};
+        },
+        convertForSet: function(string) {
+            return {res: string};
+        }
+    },
+    'ip_addr': {
+        input: {type: 'text'},
+        convertForDisp: function(string) {
+            return normalizeIpAddr(string);
+        },
+        convertForSet: function(string) {
+            return normalizeIpAddr(string);
+        }
+    },
+    'mac_addr': {
+        input: {type: 'text'},
+        convertForDisp: function(string) {
+            return normalizeMacAddr(string);
+        },
+        convertForSet: function(string) {
+            return normalizeMacAddr(string);
+        }
+    },
+    'text': {
+        input: {type: 'text'},
+        convertForDisp: function(string) {
+            return {res: string};
+        },
+        convertForSet: function(string) {
+            return {res: string};
+        }
+    }
+};
+
+function getOptionTypeImpl(type) {
+    return $has(ConfigTypes, type) ? ConfigTypes[type] : ConfigTypes['text'];
+}
 
 function preprocessOptionsList(options) {
     var result = {};
@@ -462,7 +585,12 @@ var ConfigTable = React.createClass({
     },
     makeSetOptionGcode: function(option_name) {
         var target = this.props.controller.getValue(option_name);
-        return {res: 'M926 I'+option_name+' V'+target};
+        var typeImpl = getOptionTypeImpl(this.props.options.obj[option_name].type);
+        var convRes = typeImpl.convertForSet(target);
+        if ($has(convRes, 'err')) {
+            return convRes;
+        }
+        return {res: 'M926 I'+option_name+' V'+encodeStrForCmd(convRes.res)};
     },
     optionSet: function(option_name) {
         var makeRes = this.makeSetOptionGcode(option_name);
@@ -500,7 +628,7 @@ var ConfigTable = React.createClass({
             <table className={controlTableClass} style={{width: '670px'}}>
                 <colgroup>
                     <col span="1" style={{width: '200px'}} />
-                    <col span="1" style={{width: '70px'}} />
+                    <col span="1" style={{width: '75px'}} />
                     <col span="1" style={{width: '150px'}} />
                     <col span="1" />
                 </colgroup>
@@ -529,17 +657,31 @@ var ConfigTable = React.createClass({
 var ConfigRow = React.createClass({
     render: function() {
         var option = this.props.option;
-        var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, option.value);
+        var typeImpl = getOptionTypeImpl(option.type);
+        var valueParsed = typeImpl.convertForDisp(option.value);
+        var valueShown = $has(valueParsed, 'err') ? ('(ERR '+valueParsed.err+') '+option.value) : valueParsed.res;
+        var valueEdit = $has(valueParsed, 'err') ? option.value : valueParsed.res;
+        var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, valueEdit);
         var onClickSet = $bind(this.props.parent, 'optionSet', option.name);
         return (
             <tr>
                 <td><b>{option.name}</b></td>
                 <td>{option.type}</td>
-                <td>{option.value}</td>
+                <td>{valueShown}</td>
                 <td>
                     <div className="input-group">
-                        <input type="text" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
+                        {typeImpl.input.type === 'select' ? (
+                        <select className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
+                                onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress}
+                        >
+                            {$.map(typeImpl.input.options, function(option_value) {
+                                return <option value={option_value}>{option_value}</option>;
+                            })}
+                        </select>
+                        ) : (
+                        <input type={typeImpl.input.type} className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
                                 onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                        )}
                         <span className="input-group-btn">
                             <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                             <button type="button" className={controlButtonClass('warning')} onClick={onClickSet}>Set</button>
