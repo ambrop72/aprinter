@@ -11,36 +11,30 @@
     <script src="jquery/jquery-1.12.1.min.js"></script>
   </head>
   <body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="panel panel-default" style="margin-top: 10px; margin-bottom: 10px">
-                    <div class="panel-heading" style="overflow: auto; padding: 2px">
-                        <div style="float: right" id="buttons2_div"></div>
-                        <div style="float: left" id="buttons1_div"></div>
-                    </div>
-                </div>
+    <div style="height: 100%; display: flex; flex-direction: column; padding: 5px">
+        <div class="panel panel-default" style="margin: 5px">
+            <div class="panel-heading" style="overflow: auto; padding: 5px 2.5px">
+                <div style="float: right" id="buttons2_div"></div>
+                <div style="float: left" id="buttons1_div"></div>
             </div>
         </div>
-        <div class="row">
-            <div class="col-md-12" style="overflow: auto">
-                <div style="float: left; margin-right: 10px">
-                    <div class="panel panel-default control-panel">
-                        <div class="panel-body" id="axes_div"></div>
-                    </div>
-                    <div class="panel panel-default control-panel">
-                        <div class="panel-body" id="heaters_div"></div>
-                    </div>
-                    <div class="panel panel-default control-panel">
-                        <div class="panel-body" id="fans_div"></div>
-                    </div>
-                    <div class="panel panel-default control-panel">
-                        <div class="panel-body" id="speed_div"></div>
-                    </div>
+        <div style="flex-grow: 1; display: flex; flex-direction: row; flex-wrap: wrap">
+            <div style="margin: 5px">
+                <div class="panel panel-default control-panel">
+                    <div class="panel-body" id="axes_div"></div>
                 </div>
-                <div class="panel panel-default control-panel" style="overflow: auto">
-                    <div class="panel-body" id="config_div"></div>
+                <div class="panel panel-default control-panel">
+                    <div class="panel-body" id="heaters_div"></div>
                 </div>
+                <div class="panel panel-default control-panel">
+                    <div class="panel-body" id="fans_div"></div>
+                </div>
+                <div class="panel panel-default control-panel">
+                    <div class="panel-body" id="speed_div"></div>
+                </div>
+            </div>
+            <div style="margin: 5px; display: flex; flex-direction: row" class="panel panel-default control-panel">
+                <div style="display: flex; flex-direction: row" class="panel-body" id="config_div"></div>
             </div>
         </div>
     </div>

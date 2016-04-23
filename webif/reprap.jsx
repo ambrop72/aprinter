@@ -646,7 +646,7 @@ var ConfigTable = React.createClass({
             </colgroup>
         );
         return (
-            <div>
+            <div style={{display: 'flex', flexDirection: 'column'}}>
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
                     <thead>
@@ -661,7 +661,7 @@ var ConfigTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div style={{float: 'left', height: '500px', overflowY: 'scroll', overflowX: 'hidden'}}>
+                <div style={{overflowY: 'scroll', overflowX: 'hidden'}}>
                     <table className={controlTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>
