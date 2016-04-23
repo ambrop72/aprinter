@@ -20,14 +20,25 @@ var controlCancelButtonClass = controlButtonClass('default')+' control-cancel-bu
 
 var removeIcon = <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>;
 
-function controlAllTable(labelText, buttonText, inputAttrs) {
+function controlAllTable(labelText, buttons) {
     return (
         <table className="control-all-table">
             <tbody>
                 <tr>
-                    <td className="control-all-table-td-text">{labelText}</td>
-                    <td className="control-all-table-td-button">
-                        <button type="button" className={controlButtonClass('warning')} {...inputAttrs} >{buttonText}</button>
+                    <td style={{'vertical-align': 'bottom'}}>{labelText}</td>
+                    <td style={{float: 'right'}}>
+                        <div className="btn-group">
+                            {$.map(buttons, function(button) {
+                                var buttonText = button.text;
+                                var inputAttrs = button.attrs;
+                                var buttonClass = $has(button, 'class') ? button.class : 'warning';
+                                var highlighted = $has(button, 'highlighted') ? button.highlighted : false;
+                                var className = controlButtonClass(buttonClass) + (highlighted ? ' control-button-highlight' : '');
+                                return (
+                                    <button type="button" className={className} {...inputAttrs} >{buttonText}</button>
+                                );
+                            })}
+                        </div>
                     </td>
                 </tr>
             </tbody>
@@ -137,7 +148,7 @@ var AxesTable = React.createClass({
                         <th>Axis</th>
                         <th>Planned</th>
                         <th></th>
-                        <th>{controlAllTable('Go to', 'Go', {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo})}</th>
+                        <th>{controlAllTable('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -152,7 +163,7 @@ var AxesTable = React.createClass({
                                 <td>
                                     <div className="input-group">
                                         <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
-                                            onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                                               {...makeEcInputProps(ecInputs)} />
                                         <span className="input-group-btn">
                                             <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                             <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
@@ -234,7 +245,7 @@ var HeatersTable = React.createClass({
                         <th>Heater</th>
                         <th>Actual <span className="notbold">[C]</span></th>
                         <th>Target</th>
-                        <th>{controlAllTable('Control', 'Set', {disabled: !this.props.controller.isEditingAny(), onClick: this.allHeatersSet})}</th>
+                        <th>{controlAllTable('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allHeatersSet}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -252,7 +263,7 @@ var HeatersTable = React.createClass({
                                 <td>
                                     <div className="input-group">
                                         <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+heater.key}
-                                            onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                                               {...makeEcInputProps(ecInputs)} />
                                         <span className="input-group-btn">
                                             <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                             <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'heaterSet', heater.key)}>Set</button>
@@ -335,7 +346,7 @@ var FansTable = React.createClass({
                         <th>Fan</th>
                         <th>Target <span className="notbold">[%]</span></th>
                         <th></th>
-                        <th>{controlAllTable('Control', 'Set', {disabled: !this.props.controller.isEditingAny(), onClick: this.allFansSet})}</th>
+                        <th>{controlAllTable('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allFansSet}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -352,8 +363,7 @@ var FansTable = React.createClass({
                                 <td>
                                     <div className="input-group">
                                         <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+fan.key}
-                                            min="0" max="100"
-                                            onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                                               min="0" max="100" {...makeEcInputProps(ecInputs)} />
                                         <span className="input-group-btn">
                                             <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                             <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'fanSet', fan.key)}>Set</button>
@@ -417,8 +427,7 @@ var SpeedTable = React.createClass({
                         <td>
                             <div className="input-group">
                                 <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target_S"
-                                       min="10" max="1000"
-                                       onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                                       min="10" max="1000" {...makeEcInputProps(ecInputs)} />
                                 <span className="input-group-btn">
                                     <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
                                     <button type="button" className={controlButtonClass('warning')} onClick={this.speedRatioSet}>Set</button>
@@ -622,31 +631,48 @@ var ConfigTable = React.createClass({
             this.props.controller.cancelAll();
         }
     },
+    applyConfig: function() {
+        sendGcode('M930');
+    },
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
+        var width = '670px';
+        var colgroup = (
+            <colgroup>
+                <col span="1" style={{width: '200px'}} />
+                <col span="1" style={{width: '75px'}} />
+                <col span="1" style={{width: '150px'}} />
+                <col span="1" />
+            </colgroup>
+        );
         return (
-            <table className={controlTableClass} style={{width: '670px'}}>
-                <colgroup>
-                    <col span="1" style={{width: '200px'}} />
-                    <col span="1" style={{width: '75px'}} />
-                    <col span="1" style={{width: '150px'}} />
-                    <col span="1" />
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th>Option</th>
-                        <th>Type</th>
-                        <th>Value</th>
-                        <th>{controlAllTable('New value', 'Set', {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet})}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {$.map(this.props.options.arr, function(option) {
-                        var optionName = option.key;
-                        return <ConfigRow key={optionName} ref={optionName} option={option.val} parent={this} />;
-                    }.bind(this))}
-                </tbody>
-            </table>
+            <div>
+                <table className={controlTableClass} style={{width: width}}>
+                    {colgroup}
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            <th>Type</th>
+                            <th>Value</th>
+                            <th>{controlAllTable('New value', [
+                                {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
+                                {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
+                            ])}</th>
+                        </tr>
+                    </thead>
+                </table>
+                <div style={{float: 'left', height: '500px', 'overflow-y': 'scroll', 'overflow-x': 'hidden'}}>
+                    <table className={controlTableClass} style={{width: width}}>
+                        {colgroup}
+                        <tbody>
+                            {$.map(this.props.options.arr, function(option) {
+                                var optionName = option.key;
+                                return <ConfigRow key={optionName} ref={optionName} option={option.val} parent={this} />;
+                            }.bind(this))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         );
     },
     componentDidUpdate: function() {
@@ -659,32 +685,30 @@ var ConfigRow = React.createClass({
         var option = this.props.option;
         var typeImpl = getOptionTypeImpl(option.type);
         var valueParsed = typeImpl.convertForDisp(option.value);
-        var valueShown = $has(valueParsed, 'err') ? ('(ERR '+valueParsed.err+') '+option.value) : valueParsed.res;
-        var valueEdit = $has(valueParsed, 'err') ? option.value : valueParsed.res;
-        var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, valueEdit);
+        var valueConv = $has(valueParsed, 'err') ? option.value : valueParsed.res;
+        var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, valueConv);
         var onClickSet = $bind(this.props.parent, 'optionSet', option.name);
         return (
             <tr>
                 <td><b>{option.name}</b></td>
                 <td>{option.type}</td>
-                <td>{valueShown}</td>
+                <td>{valueConv}</td>
                 <td>
                     <div className="input-group">
                         {typeImpl.input.type === 'select' ? (
                         <select className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
-                                onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress}
-                        >
+                                {...makeEcInputProps(ecInputs)} >
                             {$.map(typeImpl.input.options, function(option_value) {
                                 return <option value={option_value}>{option_value}</option>;
                             })}
                         </select>
                         ) : (
                         <input type={typeImpl.input.type} className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
-                                onChange={ecInputs.onChange} onKeyDown={ecInputs.onKeyDown} onKeyPress={ecInputs.onKeyPress} />
+                               {...makeEcInputProps(ecInputs)} />
                         )}
                         <span className="input-group-btn">
                             <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
-                            <button type="button" className={controlButtonClass('warning')} onClick={onClickSet}>Set</button>
+                            <button type="button" className={controlButtonClass('success')} onClick={onClickSet}>Set</button>
                         </span>
                     </div>
                 </td>
@@ -883,6 +907,10 @@ function RowRefChildComp(child_ref_name) {
     };
 }
 
+function makeEcInputProps(ecInputs) {
+    return {onChange: ecInputs.onChange, onKeyDown: ecInputs.onKeyDown, onKeyPress: ecInputs.onKeyPress};
+}
+
 // Gluing of react classes into page
 
 var ComponentWrapper = React.createClass({
@@ -893,6 +921,7 @@ var ComponentWrapper = React.createClass({
 
 var machine_state = {
     speedRatio: 1,
+    configDirty: false,
     axes:    preprocessObjectForState({}),
     heaters: preprocessObjectForState({}),
     fans:    preprocessObjectForState({})
@@ -925,7 +954,7 @@ function render_buttons2() {
     return <Buttons2 />;
 }
 function render_config() {
-    return <ConfigTable options={machine_options} controller={controller_config} />;
+    return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} />;
 }
 
 var wrapper_axes     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
@@ -942,6 +971,7 @@ function updateStatus() {
     controller_fans.forceUpdateVia(wrapper_fans);
     controller_speed.forceUpdateVia(wrapper_speed);
     wrapper_buttons1.forceUpdate();
+    controller_config.forceUpdateVia(wrapper_config);
 }
 
 function updateConfig() {
@@ -1007,11 +1037,17 @@ StatusUpdater.prototype._timerHandler = function() {
 
 // Status updating
 
+function fixupStateObject(state, name) {
+    return preprocessObjectForState($has(state, name) ? state[name] : {});
+}
+
 var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, function(new_machine_state) {
     machine_state = new_machine_state;
-    machine_state.axes    = preprocessObjectForState(machine_state.axes);
-    machine_state.heaters = preprocessObjectForState(machine_state.heaters);
-    machine_state.fans    = preprocessObjectForState(machine_state.fans);
+    machine_state.speedRatio = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : 1.0;
+    machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : false;
+    machine_state.axes    = fixupStateObject(machine_state, 'axes');
+    machine_state.heaters = fixupStateObject(machine_state, 'heaters');
+    machine_state.fans    = fixupStateObject(machine_state, 'fans');
     updateStatus();
 });
 

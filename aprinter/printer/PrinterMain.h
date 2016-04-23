@@ -2207,6 +2207,7 @@ public:
         TheWatchdog::init(c);
         TheConfigManager::init(c);
         TheConfigCache::init(c);
+        TheConfigManager::clearApplyPending(c);
         ob->unlocked_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::unlocked_timer_handler));
         ob->disable_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::disable_timer_handler));
         ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
@@ -2937,6 +2938,8 @@ public:
         json->addSafeKeyVal("status", JsonSafeChar{status_code});
         json->addSafeKeyVal("speedRatio", JsonDouble{1.0f / o->speed_ratio_rec});
         
+        CallIfExists_get_json_status::template call_void<TheConfigManager>(c, json);
+        
         json->addKeyObject(JsonSafeString{"axes"});
         ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::get_json_status(c, json)));
         json->endObject();
@@ -2961,6 +2964,7 @@ private:
     static void update_configuration (Context c)
     {
         TheConfigCache::update(c);
+        TheConfigManager::clearApplyPending(c);
         ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::forward_update_pos(c)));
         ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::configuration_changed(c)));
     }

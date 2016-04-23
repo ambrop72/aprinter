@@ -52,6 +52,7 @@
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -251,7 +252,6 @@ private:
             return true;
         }
     };
-    
     template <typename Dummy>
     struct TypeSpecific<ConfigTypeMacAddress, Dummy> : public GenericTypeSpecific<MacAddressTypeSpec> {};
     
@@ -296,7 +296,6 @@ private:
             return true;
         }
     };
-    
     template <typename Dummy>
     struct TypeSpecific<ConfigTypeIpAddress, Dummy> : public GenericTypeSpecific<IpAddressTypeSpec> {};
     
@@ -340,6 +339,7 @@ private:
         static void reset_config (Context c)
         {
             auto *o = Object::self(c);
+            
             for (auto i : LoopRange<int>(NumOptions)) {
                 o->values[i] = DefaultTable::readAt(i);
             }
@@ -349,6 +349,8 @@ private:
         static bool get_set_cmd (Context c, TheCommand<This> *cmd, bool get_it, char const *name)
         {
             auto *o = Object::self(c);
+            auto *mo = RuntimeConfigManager::Object::self(c);
+            
             int index = find_option(name);
             if (index < 0) {
                 return true;
@@ -357,6 +359,7 @@ private:
                 TheTypeSpecific::get_value_cmd(c, cmd, o->values[index]);
             } else {
                 TheTypeSpecific::set_value_cmd(c, cmd, &o->values[index], DefaultTable::readAt(index));
+                mo->apply_pending = true;
             }
             return false;
         }
@@ -365,6 +368,7 @@ private:
         static bool dump_options_helper (Context c, TheCommand<This> *cmd, int global_option_index)
         {
             auto *o = Object::self(c);
+            auto *mo = RuntimeConfigManager::Object::self(c);
             AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
             
             if (global_option_index < OptionCounter) {
@@ -380,6 +384,7 @@ private:
         static bool set_by_strings (Context c, char const *name, char const *set_value)
         {
             auto *o = Object::self(c);
+            
             int index = find_option(name);
             if (index < 0) {
                 return true;
@@ -562,7 +567,10 @@ private:
     
     static void reset_all_config (Context c)
     {
+        auto *o = Object::self(c);
+        
         ListForEachForward<TypeGeneralList>([&] APRINTER_TL(type, type::reset_config(c)));
+        o->apply_pending = true;
     }
     
     static void work_dump (Context c)
@@ -645,9 +653,11 @@ public:
     template <typename Option>
     static void setOptionValue (Context c, Option, typename Option::Type value)
     {
+        auto *o = Object::self(c);
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
         *OptionHelper<Option>::value(c) = value;
+        o->apply_pending = true;
     }
     
     template <typename Option>
@@ -660,7 +670,13 @@ public:
     
     static bool setOptionByStrings (Context c, char const *option_name, char const *option_value)
     {
-        return !ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::set_by_strings(c, option_name, option_value)));
+        auto *o = Object::self(c);
+        
+        bool res = !ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::set_by_strings(c, option_name, option_value)));
+        if (res) {
+            o->apply_pending = true;
+        }
+        return res;
     }
     
     static void getOptionString (Context c, int option_index, char *output, size_t output_avail)
@@ -686,6 +702,19 @@ public:
         return TheStoreFeature::start_operation(c, type, false);
     }
     
+    static void clearApplyPending (Context c)
+    {
+        auto *o = Object::self(c);
+        o->apply_pending = false;
+    }
+    
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        auto *o = Object::self(c);
+        json->addSafeKeyVal("configDirty", JsonBool{o->apply_pending});
+    }
+    
     template <typename Option>
     static OptionExpr<Option> e (Option);
     
@@ -700,6 +729,7 @@ public:
         >
     >> {
         int dump_current_option;
+        bool apply_pending;
     };
 };
 
