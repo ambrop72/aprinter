@@ -25,17 +25,17 @@ function controlAllTable(labelText, buttons) {
         <table className="control-all-table">
             <tbody>
                 <tr>
-                    <td style={{'vertical-align': 'bottom'}}>{labelText}</td>
+                    <td style={{verticalAlign: 'bottom'}}>{labelText}</td>
                     <td style={{float: 'right'}}>
                         <div className="btn-group">
-                            {$.map(buttons, function(button) {
+                            {$.map(buttons, function(button, btnIndex) {
                                 var buttonText = button.text;
                                 var inputAttrs = button.attrs;
                                 var buttonClass = $has(button, 'class') ? button.class : 'warning';
                                 var highlighted = $has(button, 'highlighted') ? button.highlighted : false;
                                 var className = controlButtonClass(buttonClass) + (highlighted ? ' control-button-highlight' : '');
                                 return (
-                                    <button type="button" className={className} {...inputAttrs} >{buttonText}</button>
+                                    <button key={btnIndex} type="button" className={className} {...inputAttrs} >{buttonText}</button>
                                 );
                             })}
                         </div>
@@ -661,7 +661,7 @@ var ConfigTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div style={{float: 'left', height: '500px', 'overflow-y': 'scroll', 'overflow-x': 'hidden'}}>
+                <div style={{float: 'left', height: '500px', overflowY: 'scroll', overflowX: 'hidden'}}>
                     <table className={controlTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>
@@ -698,8 +698,8 @@ var ConfigRow = React.createClass({
                         {typeImpl.input.type === 'select' ? (
                         <select className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target"
                                 {...makeEcInputProps(ecInputs)} >
-                            {$.map(typeImpl.input.options, function(option_value) {
-                                return <option value={option_value}>{option_value}</option>;
+                            {$.map(typeImpl.input.options, function(option_value, optionIndex) {
+                                return <option key={optionIndex} value={option_value}>{option_value}</option>;
                             })}
                         </select>
                         ) : (
