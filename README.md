@@ -289,12 +289,12 @@ The TCP console will be available on port 23. You tell Pronterface to connect to
 ### Axes
 
 The standard gcodes for axis motion are implemented:
-- `G0`, `G1`: Linear move. Parameter F is the speed limit in mm/min, parameter T is the speed limit as nominal time (see Maximum speed section).
-  Axis coordinates are given by parameters (e.g. X10 Y20), and lasers can also be controlled (see Lasers section).
-  An optional R parameter specifies which coordinates are to be treated as relative. If R is given, the axes which are included in R will be
+- `G0`, `G1`: Linear move. Parameter `F` is the speed limit in mm/min, parameter `T` is the speed limit as nominal time (see Maximum speed section).
+  Axis coordinates are given by parameters (e.g. `X10 Y20`), and lasers can also be controlled (see Lasers section).
+  An optional `R` parameter specifies which coordinates are to be treated as relative. If `R` is given, the axes which are included in `R` will be
   relative, others will be absolute. For example, a plain `R` will use absolute coordinates for all axes, while `RXY` will
   use relative coordinates for X and Y, and absolute coordinates for other axes. This overrides but does not affect the absolute/relative state
-  controlled by e.g. G90, G91.
+  controlled by e.g. G90, G91. Note that `R` will also cause the specified `F` to not be remembered, unless `F` is included in `R` (e.g. `RXYF`).
 - `G4`: Dwell. The time is specified by parameter P (milliseconds) or S (seconds). A dwell can include laser action (see Lasers section).
 - `G28`: Home axes. Specific axes may be specified to only home those. Without any (recognized) axis specified, all homable axes are homed,
   except virtual axes that are configured to not home by default.

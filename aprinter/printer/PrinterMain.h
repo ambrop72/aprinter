@@ -2002,11 +2002,13 @@ public:
             TheAxis::update_new_pos(c, req, ignore_limits);
         }
         
-        static void collect_axis_mask (char axis_name, PhysVirtAxisMaskType *mask)
+        static bool collect_axis_mask (char axis_name, PhysVirtAxisMaskType *mask)
         {
             if (AMBRO_UNLIKELY(axis_name == TheAxis::AxisName)) {
                 *mask |= AxisMask;
+                return false;
             }
+            return true;
         }
         
         static bool collect_new_pos (Context c, TheCommand *cmd, CommandPartRef part, PhysVirtAxisMaskType axis_relative)
@@ -2432,18 +2434,30 @@ private:
                     
                     move_begin(c);
                     
-                    // Determine absolute/relative interpretation of positions.
+                    // Determine:
+                    // - Which axes need relative interpretation of the position.
+                    // - Whether a specified F parameter should be saved.
+                    
                     PhysVirtAxisMaskType axis_relative = ob->axis_relative;
+                    bool save_f = true;
+                    
                     char const *r_param = cmd->get_command_param_str(c, 'R', nullptr);
                     if (r_param) {
                         axis_relative = 0;
-                        while (*r_param) {
-                            ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::collect_axis_mask(*r_param, &axis_relative)));
-                            r_param++;
+                        save_f = false;
+                        
+                        for (char const *r_ptr = r_param; *r_ptr != '\0'; r_ptr++) {
+                            char r_ch = *r_ptr;
+                            if (ListForBreak<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, return axis::collect_axis_mask(r_ch, &axis_relative)))) {
+                                if (r_ch == 'F') {
+                                    save_f = true;
+                                }
+                            }
                         }
                     }
                     
                     bool seen_t = false;
+                    FpType time_freq_by_max_speed = ob->time_freq_by_max_speed;
                     
                     for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         CommandPartRef part = cmd->getPart(c, i);
@@ -2463,7 +2477,10 @@ private:
                         char code = cmd->getPartCode(c, part);
                         
                         if (!is_dwell && code == 'F') {
-                            ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
+                            time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
+                            if (save_f) {
+                                ob->time_freq_by_max_speed = time_freq_by_max_speed;
+                            }
                         }
                         else if (!is_dwell && code == 'T') {
                             FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() * ob->speed_ratio_rec);
@@ -2480,10 +2497,8 @@ private:
                         }
                     }
                     
-                    if (!is_dwell) {
-                        if (AMBRO_LIKELY(!seen_t)) {
-                            move_set_max_speed_opt(c, ob->time_freq_by_max_speed);
-                        }
+                    if (!is_dwell && !seen_t) {
+                        move_set_max_speed_opt(c, time_freq_by_max_speed);
                     }
                     
                     return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_rapid_move);
