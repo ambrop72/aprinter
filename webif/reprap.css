@@ -56,10 +56,6 @@ html, body {
     white-space: nowrap;
 }
 
-.control-all-table {
-    width: 100%;
-}
-
 .notbold {
     font-weight: normal;
 }

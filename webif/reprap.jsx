@@ -20,29 +20,27 @@ var controlCancelButtonClass = controlButtonClass('default')+' control-cancel-bu
 
 var removeIcon = <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>;
 
-function controlAllTable(labelText, buttons) {
+function controlAllHead(labelText, buttons) {
     return (
-        <table className="control-all-table">
-            <tbody>
-                <tr>
-                    <td style={{verticalAlign: 'bottom'}}>{labelText}</td>
-                    <td style={{float: 'right'}}>
-                        <div className="btn-group">
-                            {$.map(buttons, function(button, btnIndex) {
-                                var buttonText = button.text;
-                                var inputAttrs = button.attrs;
-                                var buttonClass = $has(button, 'class') ? button.class : 'warning';
-                                var highlighted = $has(button, 'highlighted') ? button.highlighted : false;
-                                var className = controlButtonClass(buttonClass) + (highlighted ? ' control-button-highlight' : '');
-                                return (
-                                    <button key={btnIndex} type="button" className={className} {...inputAttrs} >{buttonText}</button>
-                                );
-                            })}
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div className="flex-row">
+            <div style={{display: 'inline-block', alignSelf: 'flex-end'}}>
+                {labelText}
+            </div>
+            <div style={{flexGrow: '1'}}>
+            </div>
+            <div className="btn-group">
+                {$.map(buttons, function(button, btnIndex) {
+                    var buttonText = button.text;
+                    var inputAttrs = button.attrs;
+                    var buttonClass = $has(button, 'class') ? button.class : 'warning';
+                    var highlighted = $has(button, 'highlighted') ? button.highlighted : false;
+                    var className = controlButtonClass(buttonClass) + (highlighted ? ' control-button-highlight' : '');
+                    return (
+                        <button key={btnIndex} type="button" className={className} {...inputAttrs} >{buttonText}</button>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
@@ -148,7 +146,7 @@ var AxesTable = React.createClass({
                         <th>Axis</th>
                         <th>Planned</th>
                         <th></th>
-                        <th>{controlAllTable('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
+                        <th>{controlAllHead('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -245,7 +243,7 @@ var HeatersTable = React.createClass({
                         <th>Heater</th>
                         <th>Actual <span className="notbold">[C]</span></th>
                         <th>Target</th>
-                        <th>{controlAllTable('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allHeatersSet}}])}</th>
+                        <th>{controlAllHead('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allHeatersSet}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -346,7 +344,7 @@ var FansTable = React.createClass({
                         <th>Fan</th>
                         <th>Target <span className="notbold">[%]</span></th>
                         <th></th>
-                        <th>{controlAllTable('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allFansSet}}])}</th>
+                        <th>{controlAllHead('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allFansSet}}])}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -654,7 +652,7 @@ var ConfigTable = React.createClass({
                             <th>Option</th>
                             <th>Type</th>
                             <th>Value</th>
-                            <th>{controlAllTable('New value', [
+                            <th>{controlAllHead('New value', [
                                 {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
                                 {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
                             ])}</th>
