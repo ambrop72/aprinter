@@ -646,7 +646,7 @@ var ConfigTable = React.createClass({
             </colgroup>
         );
         return (
-            <div style={{display: 'flex', flexDirection: 'column'}}>
+            <div className="flex-column">
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
                     <thead>
