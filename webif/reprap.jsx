@@ -8,6 +8,7 @@ var heaterPrecision = 4;
 var fanPrecision = 3;
 var speedPrecision = 4;
 var configPrecision = 15;
+var defaultSpeed = 50;
 
 
 // Commonly used styles/elements
@@ -100,15 +101,30 @@ var AxesTable = React.createClass({
     onInputEnter: function(axis_name) {
         this.axisGo(axis_name);
     },
+    getSpeed: function() {
+        var speed = $toNumber(this.refs.speed.value);
+        if (isNaN(speed) || speed == 0) {
+            return {err: 'Bad speed'};
+        }
+        return {res: speed*60};
+    },
     axisGo: function(axis_name) {
+        var speedRes = this.getSpeed();
+        if ($has(speedRes, 'err')) {
+            return showError(speedRes.err);
+        }
         var target = this.props.controller.getNumberValue(axis_name);
         if (isNaN(target)) {
             return showError('Target value for axis '+axis_name+' is incorrect');
         }
-        sendGcode('G0 R '+axis_name+target.toString());
+        sendGcode('G0 R F'+speedRes.res.toString()+' '+axis_name+target.toString());
         this.props.controller.cancel(axis_name);
     },
     allAxesGo: function() {
+        var speedRes = this.getSpeed();
+        if ($has(speedRes, 'err')) {
+            return showError(speedRes.err);
+        }
         var cmdAxes = '';
         var error = null;
         $.each(this.props.axes.arr, function(idx, axis) {
@@ -127,52 +143,63 @@ var AxesTable = React.createClass({
             return showError(error);
         }
         if (cmdAxes.length !== 0) {
-            sendGcode('G0 R'+cmdAxes);
+            sendGcode('G0 R F'+speedRes.res.toString()+cmdAxes);
             this.props.controller.cancelAll();
         }
     },
     render: function() {
         this.props.controller.rendering(this.props.axes.obj);
         return (
-            <table className={controlTableClass}>
-                <colgroup>
-                    <col span="1" style={{width: '55px'}} />
-                    <col span="1" style={{width: '115px'}} />
-                    <col span="1" />
-                    <col span="1" style={{width: '205px'}} />
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th>Axis</th>
-                        <th>Planned</th>
-                        <th></th>
-                        <th>{controlAllHead('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {$.map(this.props.axes.arr, function(axis) {
-                        var dispPos = axis.val.pos.toPrecision(axisPrecision);
-                        var ecInputs = this.props.controller.getRenderInputs(axis.key, dispPos);
-                        return (
-                            <tr key={axis.key}>
-                                <td><b>{axis.key}</b></td>
-                                <td>{dispPos}</td>
-                                <td></td>
-                                <td>
-                                    <div className="input-group">
-                                        <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
-                                               {...makeEcInputProps(ecInputs)} />
-                                        <span className="input-group-btn">
-                                            <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
-                                            <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
-                                        </span>
-                                    </div>
-                                </td>
-                            </tr>
-                        );
-                    }.bind(this))}
-                </tbody>
-            </table>
+            <div className="flex-column">
+                <div className="flex-row">
+                    <div style={{flexGrow: '1'}}></div>
+                    <div className="form-inline">
+                        <div className="form-group">
+                            <label htmlFor="speed" style={{marginRight: '5px'}}>Speed [unit/s]</label>
+                            <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
+                        </div>
+                    </div>
+                </div>
+                <table className={controlTableClass}>
+                    <colgroup>
+                        <col span="1" style={{width: '55px'}} />
+                        <col span="1" style={{width: '115px'}} />
+                        <col span="1" />
+                        <col span="1" style={{width: '205px'}} />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Axis</th>
+                            <th>Planned</th>
+                            <th></th>
+                            <th>{controlAllHead('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {$.map(this.props.axes.arr, function(axis) {
+                            var dispPos = axis.val.pos.toPrecision(axisPrecision);
+                            var ecInputs = this.props.controller.getRenderInputs(axis.key, dispPos);
+                            return (
+                                <tr key={axis.key}>
+                                    <td><b>{axis.key}</b></td>
+                                    <td>{dispPos}</td>
+                                    <td></td>
+                                    <td>
+                                        <div className="input-group">
+                                            <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
+                                                {...makeEcInputProps(ecInputs)} />
+                                            <span className="input-group-btn">
+                                                <button type="button" className={controlCancelButtonClass} disabled={!ecInputs.editing} onClick={ecInputs.onCancel} aria-label="Cancel">{removeIcon}</button>
+                                                <button type="button" className={controlButtonClass('warning')} onClick={$bind(this, 'axisGo', axis.key)}>Go</button>
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        }.bind(this))}
+                    </tbody>
+                </table>
+            </div>
         );
     },
     componentDidUpdate: function() {
