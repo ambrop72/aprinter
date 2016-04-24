@@ -131,6 +131,14 @@ private:
     using TheLinearPlanner = LinearPlanner<FpType>;
     using Constants = MotionPlannerConstants<Context>;
     
+    using MinSecondsPerStep = decltype(ExprRec(MaxStepsPerCycle() * typename Constants::FCpu()));
+    
+    using CMinSegmentTime = decltype(ExprCast<FpType>(typename Constants::TimeConversion() * MinSecondsPerStep()));
+    
+public:
+    using ConfigExprs = MakeTypeList<CMinSegmentTime>;
+    
+private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheCommon, TheCommon)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ComputeState, ComputeState)
     
@@ -685,7 +693,7 @@ public:
         using DriverSyncMinStepTime = APRINTER_FP_CONST_EXPR(TheAxisDriver::SyncMinStepTime());
         using DriverAsyncMinStepTime = APRINTER_FP_CONST_EXPR(TheAxisDriver::AsyncMinStepTime());
         
-        using SyncMinStepTime = decltype(typename Constants::TimeConversion() * (ExprRec(MaxStepsPerCycle() * typename Constants::FCpu()) + DriverSyncMinStepTime()));
+        using SyncMinStepTime = decltype(typename Constants::TimeConversion() * (MinSecondsPerStep() + DriverSyncMinStepTime()));
         
         using CDistanceFactor = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e()));
         using CCorneringSpeedComputationFactor = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e() / (AxisSpec::CorneringDistance::e() * AxisSpec::DistanceFactor::e())));
@@ -1511,7 +1519,7 @@ private:
             ListFor<AxisCommonList>([&] APRINTER_TL(axis, axis::compute_compute_state(c, entry, &cst)));
             
             FpType sync_steps_time = 0.0f;
-            FpType async_steps_time = 0.0f;
+            FpType async_steps_time = APRINTER_CFG(Config, CMinSegmentTime, c); // ensure a minimum duration even in absence of any axes
             ListFor<AxisCommonList>([&] APRINTER_TL(axis, axis::compute_steps_time(c, entry, &cst, &sync_steps_time, &async_steps_time)));
             FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, FloatMax(sync_steps_time, async_steps_time));
             entry->axes.rel_max_speed_rec = ListForFold<AxisCommonList>(base_rel_max_speed, [&] APRINTER_TLA(axis, (FpType accum), return axis::compute_segment_buffer_entry_speed(accum, c, entry, &cst)));

@@ -2423,12 +2423,16 @@ private:
                 case 0:   // rapid move
                 case 1:   // linear move
                 case 4: { // dwell
+                    bool is_rapid_move = (cmd_number == 0);
+                    bool is_dwell      = (cmd_number == 4);
+                    
                     if (!cmd->tryPlannedCommand(c)) {
                         return;
                     }
                     
                     move_begin(c);
                     
+                    // Determine absolute/relative interpretation of positions.
                     PhysVirtAxisMaskType axis_relative = ob->axis_relative;
                     char const *r_param = cmd->get_command_param_str(c, 'R', nullptr);
                     if (r_param) {
@@ -2439,52 +2443,50 @@ private:
                         }
                     }
                     
-                    FpType dwell_time_ticks = 0.0f;
                     bool seen_t = false;
                     
                     for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         CommandPartRef part = cmd->getPart(c, i);
                         
-                        if (cmd_number != 4 && !ListForBreak<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, return axis::collect_new_pos(c, cmd, part, axis_relative)))) {
+                        // Handle axis positions.
+                        if (!is_dwell && !ListForBreak<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, return axis::collect_new_pos(c, cmd, part, axis_relative)))) {
                             continue;
                         }
                         
+                        // Handle laser energy/density.
                         if (!ListForBreak<LasersList>([&] APRINTER_TL(laser, return laser::collect_new_pos(c, cmd, part)))) {
                             continue;
                         }
                         
+                        // Handle other codes.
+                        
                         char code = cmd->getPartCode(c, part);
                         
-                        if (cmd_number != 4) {
-                            if (code == 'F') {
-                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
+                        if (!is_dwell && code == 'F') {
+                            ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
+                        }
+                        else if (!is_dwell && code == 'T') {
+                            FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() * ob->speed_ratio_rec);
+                            move_set_nominal_time(c, nominal_time_ticks);
+                            seen_t = true;
+                        }
+                        else if (is_dwell && (code == 'P' || code == 'S')) {
+                            FpType dwell_time = cmd->getPartFpValue(c, part);
+                            if (code == 'P') {
+                                dwell_time /= 1000.0f;
                             }
-                            else if (code == 'T') {
-                                FpType nominal_time_ticks = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * (FpType)TimeConversion::value() * ob->speed_ratio_rec);
-                                move_set_nominal_time(c, nominal_time_ticks);
-                                seen_t = true;
-                            }
-                        } else {
-                            if (code == 'P' || code == 'S') {
-                                FpType dwell_time = cmd->getPartFpValue(c, part);
-                                if (code == 'P') {
-                                    dwell_time /= 1000.0f;
-                                }
-                                dwell_time_ticks = FloatMakePosOrPosZero(dwell_time * (FpType)TimeConversion::value());
-                            }
+                            FpType dwell_time_ticks = FloatMakePosOrPosZero(dwell_time * (FpType)TimeConversion::value());
+                            move_set_nominal_time(c, dwell_time_ticks);
                         }
                     }
                     
-                    if (cmd_number != 4) {
+                    if (!is_dwell) {
                         if (AMBRO_LIKELY(!seen_t)) {
                             move_set_max_speed_opt(c, ob->time_freq_by_max_speed);
                         }
-                    } else {
-                        move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
                     }
                     
-                    bool is_positioning_move = (cmd_number == 0);
-                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
+                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_rapid_move);
                 } break;
                 
                 case 28: { // home axes
@@ -2792,7 +2794,7 @@ public:
         o->move_time_freq_by_max_speed = time_freq_by_max_speed * o->speed_ratio_rec;
     }
     
-    static void move_end (Context c, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
+    static void move_end (Context c, TheCommand *err_output, MoveEndCallback callback, bool is_rapid_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
@@ -2809,7 +2811,7 @@ public:
         }
         
         if (TransformFeature::is_splitting(c)) {
-            return TransformFeature::handle_virt_move(c, ob->move_time_freq_by_max_speed, err_output, callback, is_positioning_move);
+            return TransformFeature::handle_virt_move(c, ob->move_time_freq_by_max_speed, err_output, callback, is_rapid_move);
         }
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -2819,7 +2821,7 @@ public:
         if (ob->move_seen_cartesian) {
             FpType distance = FloatSqrt(distance_squared);
             cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * ob->move_time_freq_by_max_speed);
-            ListFor<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_positioning_move)));
+            ListFor<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_rapid_move)));
         } else {
             ListFor<AxesList>([&] APRINTER_TL(axis, axis::limit_axis_move_speed(c, ob->move_time_freq_by_max_speed, cmd)));
         }
