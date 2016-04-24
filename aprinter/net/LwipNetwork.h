@@ -157,8 +157,10 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->net_activated)
         
+        // Set these states first - see comment in netif_link_output.
         o->net_activated = false;
         o->eth_activated = false;
+        
         deinit_netif(c);
         TheEthernet::reset(c);
     }
@@ -1184,15 +1186,17 @@ private:
     {
         Context c;
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->net_activated)
         
         err_t ret = ERR_BUF;
         
         debug_print_pbuf(c, "Tx", p);
         
+        // Note, we may be called from netif_remove where we will see
+        // !o->net_activated && !o->net_activated.
         if (!o->eth_activated) {
             goto out;
         }
+        AMBRO_ASSERT(o->net_activated)
         
         EthernetSendBuffer send_buf;
         send_buf.m_total_len = p->tot_len;

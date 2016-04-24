@@ -22,6 +22,11 @@ openocd -f interface/stlink-v2.cfg -f target/stm32f4x_stlink.cfg -c 'tpiu config
 openocd -f interface/stlink-v2.cfg -f /home/ambro/k20.cfg -c 'tpiu config internal /home/ambro/swo uart off 96000000; init; reset halt'
 # Teensy3 with JTAG:
 openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; reset halt'
+# Duet
+openocd -f interface/stlink-v2.cfg -c "set CPUTAPID 0x2ba01477; source [find target/at91sam3ax_8x.cfg]"
+
+# OpenOCD telnet
+telnet 127.0.0.1 4444
 
 # Read SWO output.
 while true; do swodec --dump-inst < ~/swo; sleep 5; done
