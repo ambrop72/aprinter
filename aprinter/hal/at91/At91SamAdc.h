@@ -170,7 +170,7 @@ private:
         {
             auto *o = Object::self(c);
             if (o->m_poll_timer.isExpired(c)) {
-                ListForEachForward<PinsList>([&] APRINTER_TL(pin, pin::calc_avg(c)));
+                ListFor<PinsList>([&] APRINTER_TL(pin, pin::calc_avg(c)));
                 o->m_poll_timer.addTime(Interval);
             }
         }
@@ -194,14 +194,14 @@ public:
     {
         if (NumPins > 0) {
             AvgFeature::init(c);
-            ListForEachForward<PinsList>([&] APRINTER_TL(pin, pin::init(c)));
+            ListFor<PinsList>([&] APRINTER_TL(pin, pin::init(c)));
             
             memory_barrier();
             
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
-            ADC->ADC_CHER = ListForEachForwardAccRes<PinsList>(0, [&] APRINTER_TLA(pin, (uint32_t accum), return pin::make_pin_mask(accum)));
+            ADC->ADC_CHER = ListForFold<PinsList>(0, [&] APRINTER_TLA(pin, (uint32_t accum), return pin::make_pin_mask(accum)));
             ADC->ADC_MR = ADC_MR_PRESCAL(AdcPrescal) |
                           ((uint32_t)Params::AdcStartup << ADC_MR_STARTUP_Pos) |
                           ((uint32_t)Params::AdcSettling << ADC_MR_SETTLING_Pos) |
@@ -221,7 +221,7 @@ public:
 #elif defined(__SAM3U4E__)
             pmc_enable_periph_clk(ID_ADC12B);
             ADC12B->ADC12B_CHDR = UINT32_MAX;
-            ADC12B->ADC12B_CHER = ListForEachForwardAccRes<PinsList>(0, [&] APRINTER_TLA(pin, (uint32_t accum), return pin::make_pin_mask(accum)));
+            ADC12B->ADC12B_CHER = ListForFold<PinsList>(0, [&] APRINTER_TLA(pin, (uint32_t accum), return pin::make_pin_mask(accum)));
             ADC12B->ADC12B_MR = ADC12B_MR_PRESCAL(AdcPrescal) |
                                 ADC12B_MR_STARTUP(Params::AdcStartup) | ADC12B_MR_SHTIM(Params::AdcShtim);
             ADC12B->ADC12B_IDR = UINT32_MAX;

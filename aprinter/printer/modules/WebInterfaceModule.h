@@ -507,7 +507,7 @@ private:
                     m_state = State::JSONRESP_CUSTOM_TRY;
                     m_custom_req.callback = nullptr;
                     
-                    bool not_handled = ListForEachForwardInterruptible<WebApis>([&] (auto webapi_arg) {
+                    bool not_handled = ListForBreak<WebApis>([&] (auto webapi_arg) {
                         using webapi = typename decltype(webapi_arg)::Type;
                         if (!webapi::handle_web_request(c, m_json_req.req_type, static_cast<TheWebRequest *>(this))) {
                             // Request was accepted, stop trying to dispatch.

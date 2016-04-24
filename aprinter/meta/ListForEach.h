@@ -133,25 +133,25 @@ struct ListForOneHelper<EmptyTypeList, Offset, Ret, IndexType> {
 };
 
 template <typename List, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE void ListForEachForward (Func func, Args... args)
+AMBRO_ALWAYS_INLINE void ListFor (Func func, Args... args)
 {
     return ListForEach<List>::call_forward(func, args...);
 }
 
 template <typename List, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE void ListForEachReverse (Func func, Args... args)
+AMBRO_ALWAYS_INLINE void ListForReverse (Func func, Args... args)
 {
     return ListForEach<List>::call_reverse(func, args...);
 }
 
 template <typename List, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE bool ListForEachForwardInterruptible (Func func, Args... args)
+AMBRO_ALWAYS_INLINE bool ListForBreak (Func func, Args... args)
 {
     return ListForEach<List>::call_forward_interruptible(func, args...);
 }
 
 template <typename List, typename InitialAccRes, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE auto ListForEachForwardAccRes (InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(ListForEach<List>::call_forward_accres(initial_acc_res, func, args...))
+AMBRO_ALWAYS_INLINE auto ListForFold (InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(ListForEach<List>::call_forward_accres(initial_acc_res, func, args...))
 {
     return ListForEach<List>::call_forward_accres(initial_acc_res, func, args...);
 }

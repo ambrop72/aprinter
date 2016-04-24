@@ -58,12 +58,12 @@ private:
 public:
     static void init (Context c)
     {
-        ListForEachForward<HookList>([&] APRINTER_TL(hook, hook::init(c)));
+        ListFor<HookList>([&] APRINTER_TL(hook, hook::init(c)));
     }
     
     static void deinit (Context c)
     {
-        ListForEachForward<HookList>([&] APRINTER_TL(hook, hook::deinit(c)));
+        ListFor<HookList>([&] APRINTER_TL(hook, hook::deinit(c)));
     }
     
     template <typename HookType>

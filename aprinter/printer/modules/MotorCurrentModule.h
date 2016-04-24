@@ -71,7 +71,7 @@ public:
         if (cmd->getCmdNumber(c) == 906) {
             for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                 auto part = cmd->getPart(c, i);
-                ListForEachForward<CurrentAxesList>([&] APRINTER_TL(axis, axis::check_current_axis(c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part))));
+                ListFor<CurrentAxesList>([&] APRINTER_TL(axis, axis::check_current_axis(c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part))));
             }
             cmd->finishCommand(c);
             return false;
@@ -89,7 +89,7 @@ public:
 private:
     static void apply_default (Context c)
     {
-        ListForEachForward<CurrentAxesList>([&] APRINTER_TL(axis, axis::apply_default(c)));
+        ListFor<CurrentAxesList>([&] APRINTER_TL(axis, axis::apply_default(c)));
     }
     
     template <int CurrentAxisIndex>

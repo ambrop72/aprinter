@@ -199,7 +199,7 @@ private:
                     }
                 }
                 TimeType irq_time = getTime(c);
-                ListForEachForward<ChannelsList>([&] APRINTER_TL(channel, channel::irq_helper(c, irq_time)));
+                ListFor<ChannelsList>([&] APRINTER_TL(channel, channel::irq_helper(c, irq_time)));
             }
             
             static uint16_t make_target_time (TimeType time)
@@ -273,10 +273,10 @@ public:
         
         memory_barrier();
         
-        ListForEachForward<MyFtmsList>([&] APRINTER_TL(tc, tc::init(c)));
+        ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init(c)));
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ListForEachForward<MyFtmsList>([&] APRINTER_TL(tc, tc::init_start(c)));
+            ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init_start(c)));
         }
         
         TheDebugObject::init(c);
@@ -287,7 +287,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        ListForEachReverse<MyFtmsList>([&] APRINTER_TL(tc, tc::deinit(c)));
+        ListForReverse<MyFtmsList>([&] APRINTER_TL(tc, tc::deinit(c)));
         
         memory_barrier();
     }

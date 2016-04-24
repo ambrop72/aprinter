@@ -43,38 +43,38 @@ private:
 public:
     static void enable (Context c)
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::enable(c)));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::enable(c)));
     }
     
     static void disable (Context c)
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::disable(c)));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::disable(c)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void setDir (ThisContext c, bool dir)
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::setDir(c, dir)));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::setDir(c, dir)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void stepOn (ThisContext c)
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOn(c)));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOn(c)));
     }
     
     template <typename ThisContext>
     AMBRO_ALWAYS_INLINE
     static void stepOff (ThisContext c)
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOff(c)));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::stepOff(c)));
     }
     
     static void emergency ()
     {
-        ListForEachForward<SteppersList<>>([&] APRINTER_TL(stepper, stepper::emergency()));
+        ListFor<SteppersList<>>([&] APRINTER_TL(stepper, stepper::emergency()));
     }
 };
 

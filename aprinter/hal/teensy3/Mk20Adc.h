@@ -115,7 +115,7 @@ public:
     
     static void adc_isr (InterruptContext<Context> c)
     {
-        ListForEachForwardInterruptible<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
+        ListForBreak<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
     }
     
 private:
@@ -128,7 +128,7 @@ private:
             o->m_current_pin = 0;
             o->m_finished = false;
             
-            ListForEachForward<PinsList>([&] APRINTER_TL(pin, pin::init(c)));
+            ListFor<PinsList>([&] APRINTER_TL(pin, pin::init(c)));
             
             memory_barrier();
             

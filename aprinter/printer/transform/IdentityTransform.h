@@ -42,14 +42,14 @@ public:
     template <typename Src, typename Dst>
     static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        ListForEachForward<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(virt, out_phys)));
+        ListFor<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(virt, out_phys)));
         return true;
     }
     
     template <typename Src, typename Dst>
     static void physToVirt (Context c, Src phys, Dst out_virt)
     {
-        ListForEachForward<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(phys, out_virt)));
+        ListFor<HelperList>([&] APRINTER_TL(helper, helper::copy_coords(phys, out_virt)));
     }
     
 private:

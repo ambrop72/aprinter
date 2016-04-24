@@ -45,7 +45,7 @@ public:
 public:
     static void init (Context c)
     {
-        ListForEachForward<MicroStepAxisList>([&] APRINTER_TL(axis, axis::init(c)));
+        ListFor<MicroStepAxisList>([&] APRINTER_TL(axis, axis::init(c)));
     }
     
 private:

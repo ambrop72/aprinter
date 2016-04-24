@@ -190,7 +190,7 @@ private:
 public:
     static void init (Context c)
     {
-        ListForEachForward<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
+        ListFor<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
         
         TheDebugObject::init(c);
     }
@@ -204,7 +204,7 @@ public:
     {
         TheDebugObject::access(c);
         
-        ListForEachForward<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
+        ListFor<CachedExprStateList>([&] APRINTER_TL(expr, expr::update(c)));
     }
     
     template <typename TheExpr>

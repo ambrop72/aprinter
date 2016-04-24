@@ -96,14 +96,14 @@ public:
     {
         auto *o = Object::self(c);
         o->waiting_heaters = 0;
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::init(c)));
-        ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::init(c)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::init(c)));
+        ListFor<FansList>([&] APRINTER_TL(fan, fan::init(c)));
     }
     
     static void deinit (Context c)
     {
-        ListForEachReverse<FansList>([&] APRINTER_TL(fan, fan::deinit(c)));
-        ListForEachReverse<HeatersList>([&] APRINTER_TL(heater, heater::deinit(c)));
+        ListForReverse<FansList>([&] APRINTER_TL(fan, fan::deinit(c)));
+        ListForReverse<HeatersList>([&] APRINTER_TL(heater, heater::deinit(c)));
     }
     
     static bool check_command (Context c, TheCommand *cmd)
@@ -136,24 +136,24 @@ public:
             handle_cold_extrude_command(c, cmd);
             return false;
         }
-        return ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_command(c, cmd))) &&
-               ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_command(c, cmd)));
+        return ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_command(c, cmd))) &&
+               ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_command(c, cmd)));
     }
     
     static void emergency ()
     {
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::emergency()));
-        ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::emergency()));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::emergency()));
+        ListFor<FansList>([&] APRINTER_TL(fan, fan::emergency()));
     }
     
     static void check_safety (Context c)
     {
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::check_safety(c)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::check_safety(c)));
     }
     
     static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes)
     {
-        return ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_move_interlocks(c, err_output, move_axes)));
+        return ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_move_interlocks(c, err_output, move_axes)));
     }
     
     template <typename TheJsonBuilder>
@@ -161,13 +161,13 @@ public:
     {
         if (NumHeaters > 0) {
             json->addKeyObject(JsonSafeString{"heaters"});
-            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::get_json_status(c, json)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::get_json_status(c, json)));
             json->endObject();
         }
         
         if (NumFans > 0) {
             json->addKeyObject(JsonSafeString{"fans"});
-            ListForEachForward<FansList>([&] APRINTER_TL(fan, fan::get_json_status(c, json)));
+            ListFor<FansList>([&] APRINTER_TL(fan, fan::get_json_status(c, json)));
             json->endObject();
         }
     }
@@ -846,8 +846,8 @@ private:
         if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, false))) &&
-            ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, true)))
+        if (ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, false))) &&
+            ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, true)))
         ) {
             if (NumHeaters > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
@@ -865,7 +865,7 @@ private:
     
     static void print_heaters (Context c, TheOutputStream *cmd)
     {
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::append_value(c, cmd)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::append_value(c, cmd)));
         cmd->reply_append_ch(c, '\n');
     }
     
@@ -875,8 +875,8 @@ private:
         if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, false))) &&
-            ListForEachForwardInterruptible<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, true)))
+        if (ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, false))) &&
+            ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, true)))
         ) {
             if (NumFans > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
@@ -893,14 +893,14 @@ private:
         }
         AMBRO_ASSERT(o->waiting_heaters == 0)
         HeatersMaskType heaters_mask = 0;
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
         o->waiting_heaters = 0;
         o->inrange_heaters = 0;
         o->wait_started_time = Clock::getTime(c);
-        if (!ListForEachForwardInterruptible<HeatersList>([&] APRINTER_TL(heater, return heater::start_wait(c, cmd, heaters_mask)))) {
+        if (!ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::start_wait(c, cmd, heaters_mask)))) {
             cmd->reportError(c, nullptr);
             cmd->finishCommand(c);
-            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
             o->waiting_heaters = 0;
             return;
         }
@@ -915,14 +915,14 @@ private:
     static void handle_print_adc_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::append_adc_value(c, cmd)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::append_adc_value(c, cmd)));
         cmd->reply_append_ch(c, '\n');
         cmd->finishCommand(c, true);
     }
     
     static void handle_clear_error_command (Context c, TheCommand *cmd)
     {
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::clear_error(c, cmd)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::clear_error(c, cmd)));
         cmd->finishCommand(c);
     }
     
@@ -930,16 +930,16 @@ private:
     {
         if (!cmd->find_command_param(c, 'P', nullptr)) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("ColdExtrude:"));
-            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::print_cold_extrude(c, cmd)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::print_cold_extrude(c, cmd)));
             cmd->reply_append_ch(c, '\n');
         } else {
             bool allow = (cmd->get_command_param_uint32(c, 'P', 0) > 0);
             HeatersMaskType heaters_mask = 0;
-            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
             if (heaters_mask == 0) {
                 heaters_mask = AllHeatersMask;
             }
-            ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::set_cold_extrude(c, allow, heaters_mask)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::set_cold_extrude(c, allow, heaters_mask)));
         }
         cmd->finishCommand(c);
     }
@@ -954,7 +954,7 @@ private:
             cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
-        ListForEachForward<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::stop_wait(c)));
         o->waiting_heaters = 0;
         ThePrinterMain::now_inactive(c);
     }

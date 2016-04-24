@@ -98,13 +98,13 @@ public:
             
             static void print_quadratic_corrections (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections)
             {
-                ListForEachForward<QuadraticFactorHelperList>([&] APRINTER_TL(helper, helper::print_quadratic_corrections(c, cmd, corrections)));
+                ListFor<QuadraticFactorHelperList>([&] APRINTER_TL(helper, helper::print_quadratic_corrections(c, cmd, corrections)));
             }
             
             static void add_quadratic_factors_to_row (Context c, LeastSquaresMatrix *matrix, int row)
             {
                 if (quadratic_enabled(c)) {
-                    ListForEachForward<QuadraticFactorHelperList>([&] APRINTER_TL(helper, helper::add_quadratic_factors_to_row(c, matrix, row)));
+                    ListFor<QuadraticFactorHelperList>([&] APRINTER_TL(helper, helper::add_quadratic_factors_to_row(c, matrix, row)));
                 }
             }
             
@@ -116,7 +116,7 @@ public:
             template <typename Src>
             static FpType compute_quadratic_correction_for_point (Context c, Src src, CorrectionsMatrix const *corrections)
             {
-                return ListForEachForwardAccRes<QuadraticFactorHelperList>(0.0f, [&] APRINTER_TLA(helper, (FpType accum), return helper::compute_quadratic_correction_for_point(accum, c, src, corrections)));
+                return ListForFold<QuadraticFactorHelperList>(0.0f, [&] APRINTER_TLA(helper, (FpType accum), return helper::compute_quadratic_correction_for_point(accum, c, src, corrections)));
             }
             
             struct BaseIndices {
@@ -185,7 +185,7 @@ public:
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, (*corrections)++(NumPlatformAxes, 0));
             
-            ListForEachForward<AxisHelperList>([&] APRINTER_TL(helper, helper::print_correction(c, cmd, corrections)));
+            ListFor<AxisHelperList>([&] APRINTER_TL(helper, helper::print_correction(c, cmd, corrections)));
             
             QuadraticFeature::print_quadratic_corrections(c, cmd, corrections);
             
@@ -232,7 +232,7 @@ public:
             
             LeastSquaresMatrix coordinates_matrix;
             
-            ListForEachForward<AxisHelperList>([&] APRINTER_TL(helper, helper::fill_point_coordinates(c, coordinates_matrix--)));
+            ListFor<AxisHelperList>([&] APRINTER_TL(helper, helper::fill_point_coordinates(c, coordinates_matrix--)));
             
             int num_columns = NumBaseFactors + QuadraticFeature::get_num_quadratic_columns(c);
             
@@ -295,7 +295,7 @@ public:
         {
             auto *o = Object::self(c);
             FpType constant_correction = o->corrections++(NumPlatformAxes, 0);
-            FpType linear_correction = ListForEachForwardAccRes<AxisHelperList>(0.0f, [&] APRINTER_TLA(helper, (FpType accum), return helper::calc_correction_contribution(accum, c, src, &o->corrections)));
+            FpType linear_correction = ListForFold<AxisHelperList>(0.0f, [&] APRINTER_TLA(helper, (FpType accum), return helper::calc_correction_contribution(accum, c, src, &o->corrections)));
             FpType quadratic_correction = QuadraticFeature::compute_quadratic_correction_for_point(c, src, &o->corrections);
             return constant_correction + linear_correction + quadratic_correction;
         }
@@ -325,7 +325,7 @@ public:
         static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>)
         {
             FpType correction_value = compute_correction_for_point(c, src);
-            ListForEachForward<VirtAxisHelperList>([&] APRINTER_TL(helper, helper::correct_virt_axis(c, src, dst, correction_value, WrapBool<Reverse>())));
+            ListFor<VirtAxisHelperList>([&] APRINTER_TL(helper, helper::correct_virt_axis(c, src, dst, correction_value, WrapBool<Reverse>())));
         }
         
     public:
@@ -467,7 +467,7 @@ private:
     static void skip_disabled_points_and_detect_end (Context c)
     {
         auto *o = Object::self(c);
-        o->m_current_point = ListForEachForwardAccRes<PointHelperList>(o->m_current_point, [&] APRINTER_TLA(helper, (PointIndexType accum), return helper::skip_point_if_disabled(accum, c)));
+        o->m_current_point = ListForFold<PointHelperList>(o->m_current_point, [&] APRINTER_TLA(helper, (PointIndexType accum), return helper::skip_point_if_disabled(accum, c)));
         if (o->m_current_point >= NumPoints) {
             o->m_current_point = -1;
         }
@@ -542,7 +542,7 @@ private:
             FpType speed;
             switch (o->m_point_state) {
                 case 0: {
-                    ListForEachForward<AxisHelperList>([&] APRINTER_TL(helper, helper::add_axis(c, o->m_current_point)));
+                    ListFor<AxisHelperList>([&] APRINTER_TL(helper, helper::add_axis(c, o->m_current_point)));
                     height = APRINTER_CFG(Config, CProbeStartHeight, c);
                     speed = APRINTER_CFG(Config, CProbeMoveSpeed, c);
                 } break;

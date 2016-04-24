@@ -129,7 +129,7 @@ private:
         
         static int write (Context c)
         {
-            ListForEachForward<OptionsForBlock<(WriteBlockNumber - 1)>>([&] APRINTER_TL(block, block::write(c)));
+            ListFor<OptionsForBlock<(WriteBlockNumber - 1)>>([&] APRINTER_TL(block, block::write(c)));
             return Params::StartBlock + WriteBlockNumber;
         }
     };
@@ -167,7 +167,7 @@ private:
         
         static bool read (Context c)
         {
-            ListForEachForward<OptionsForBlock<(ReadBlockNumber - 1)>>([&] APRINTER_TL(block, block::read(c)));
+            ListFor<OptionsForBlock<(ReadBlockNumber - 1)>>([&] APRINTER_TL(block, block::read(c)));
             return true;
         }
     };

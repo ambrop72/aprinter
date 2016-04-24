@@ -246,7 +246,7 @@ public:
     
     static void adc_isr (AtomicContext<Context> c)
     {
-        ListForEachForwardInterruptible<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
+        ListForBreak<PinsList>([&] APRINTER_TL(pin, return pin::handle_isr(c)));
     }
     
 private:
@@ -268,7 +268,7 @@ private:
             
             memory_barrier();
             
-            MaskType mask = ListForEachForwardAccRes<PinsList>(0, [&] APRINTER_TLA(pin, (MaskType accum), return pin::make_pin_mask(accum)));
+            MaskType mask = ListForFold<PinsList>(0, [&] APRINTER_TLA(pin, (MaskType accum), return pin::make_pin_mask(accum)));
             DIDR0 = mask;
 #ifdef DIDR2
             DIDR2 = mask >> 8;

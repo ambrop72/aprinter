@@ -140,7 +140,7 @@ private:
         static void fill_move_command (Context c, FpType *speed)
         {
             *speed = APRINTER_CFG(Config, CSpeed, c);
-            ListForEachForward<CoordHelperList>([&] APRINTER_TL(helper, helper::fill_coordinate(c)));
+            ListFor<CoordHelperList>([&] APRINTER_TL(helper, helper::fill_coordinate(c)));
         }
         
         static void hook_completed (Context c, bool error)

@@ -51,13 +51,13 @@ public:
     template <typename Src, typename Dst>
     static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        return ListForEachForwardInterruptible<HelpersList>([&] APRINTER_TL(helper, return helper::virt_to_phys(c, virt, out_phys)));
+        return ListForBreak<HelpersList>([&] APRINTER_TL(helper, return helper::virt_to_phys(c, virt, out_phys)));
     }
     
     template <typename Src, typename Dst>
     static void physToVirt (Context c, Src phys, Dst out_virt)
     {
-        ListForEachForward<HelpersList>([&] APRINTER_TL(helper, helper::phys_to_virt(c, phys, out_virt)));
+        ListFor<HelpersList>([&] APRINTER_TL(helper, helper::phys_to_virt(c, phys, out_virt)));
     }
     
 private:

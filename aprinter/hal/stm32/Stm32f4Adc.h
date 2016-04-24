@@ -200,7 +200,7 @@ private:
             AdcDef::adc()->SQR3 = 0;
             AdcDef::adc()->JSQR = 0;
             
-            ListForEachForward<AdcPinList>([&] APRINTER_TL(pin, pin::init(c)));
+            ListFor<AdcPinList>([&] APRINTER_TL(pin, pin::init(c)));
             
             AdcDef::adc()->CR2 |= ADC_CR2_ADON;
         }
@@ -299,12 +299,12 @@ public:
     {
         ADC->CCR = ((uint32_t)AdcPrescalerCode << 16);
         
-        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::init(c)));
+        ListFor<UsedAdcList>([&] APRINTER_TL(adc, adc::init(c)));
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
         NVIC_SetPriority(ADC_IRQn, INTERRUPT_PRIORITY);
         
-        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::start(c)));
+        ListFor<UsedAdcList>([&] APRINTER_TL(adc, adc::start(c)));
         
         memory_barrier();
         NVIC_EnableIRQ(ADC_IRQn);
@@ -319,7 +319,7 @@ public:
         NVIC_DisableIRQ(ADC_IRQn);
         memory_barrier();
         
-        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::deinit(c)));
+        ListFor<UsedAdcList>([&] APRINTER_TL(adc, adc::deinit(c)));
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
     }
@@ -339,7 +339,7 @@ public:
     
     static void handle_irq (InterruptContext<Context> c)
     {
-        ListForEachForward<UsedAdcList>([&] APRINTER_TL(adc, adc::handle_irq(c)));
+        ListFor<UsedAdcList>([&] APRINTER_TL(adc, adc::handle_irq(c)));
     }
     
 public:

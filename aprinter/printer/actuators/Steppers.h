@@ -192,7 +192,7 @@ public:
     {
         auto *o = Object::self(c);
         o->mask = 0;
-        ListForEachForward<SteppersList>([&] APRINTER_TL(stepper, stepper::init(c)));
+        ListFor<SteppersList>([&] APRINTER_TL(stepper, stepper::init(c)));
         TheDebugObject::init(c);
     }
     
@@ -200,7 +200,7 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
-        ListForEachForward<SteppersList>([&] APRINTER_TL(stepper, stepper::deinit(c)));
+        ListFor<SteppersList>([&] APRINTER_TL(stepper, stepper::deinit(c)));
     }
     
 public:

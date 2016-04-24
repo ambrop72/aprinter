@@ -191,10 +191,10 @@ private:
 public:
     static void init (Context c)
     {
-        ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init(c)));
+        ListFor<MyTcsList>([&] APRINTER_TL(tc, tc::init(c)));
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ListForEachForward<MyTcsList>([&] APRINTER_TL(tc, tc::init_start(c)));
+            ListFor<MyTcsList>([&] APRINTER_TL(tc, tc::init_start(c)));
         }
         
         TheDebugObject::init(c);
@@ -204,7 +204,7 @@ public:
     {
         TheDebugObject::deinit(c);
         
-        ListForEachReverse<MyTcsList>([&] APRINTER_TL(tc, tc::deinit(c)));
+        ListForReverse<MyTcsList>([&] APRINTER_TL(tc, tc::deinit(c)));
     }
     
     template <typename ThisContext>

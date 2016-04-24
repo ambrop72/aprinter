@@ -1207,7 +1207,7 @@ private:
             AMBRO_ASSERT(!(mob->axis_relative & AxisMask()))
             TheAxisDriver::init(c);
             HomingFeature::init(c);
-            ListForEachForward<AxisSteppersList>([&] APRINTER_TL(stepper, stepper::init(c)));
+            ListFor<AxisSteppersList>([&] APRINTER_TL(stepper, stepper::init(c)));
             o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
             forward_update_pos(c);
         }
@@ -1334,7 +1334,7 @@ private:
         AMBRO_ALWAYS_INLINE
         static bool planner_prestep_callback (typename TheAxisDriver::CommandCallbackContext c)
         {
-            return !ListForEachForwardInterruptible<ModulesList>([&] APRINTER_TL(module, return module::prestep_callback(c)));
+            return !ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::prestep_callback(c)));
         }
         struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&Axis::planner_prestep_callback) {};
         
@@ -1547,7 +1547,7 @@ public:
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::init(c)));
+            ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::init(c)));
             update_virt_from_phys(c);
             o->virt_update_pending = false;
             o->splitting = false;
@@ -1575,7 +1575,7 @@ public:
                 success = TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
             }
             if (success) {
-                success = ListForEachForwardInterruptible<VirtAxesList>([&] APRINTER_TL(axis, return axis::check_phys_limits(c)));
+                success = ListForBreak<VirtAxesList>([&] APRINTER_TL(axis, return axis::check_phys_limits(c)));
             }
             return success;
         }
@@ -1597,15 +1597,15 @@ public:
             }
             
             FpType distance_squared = 0.0f;
-            ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::prepare_split(c, &distance_squared)));
-            ListForEachForward<SecondaryAxesList>([&] APRINTER_TL(axis, axis::prepare_split(c, &distance_squared)));
+            ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::prepare_split(c, &distance_squared)));
+            ListFor<SecondaryAxesList>([&] APRINTER_TL(axis, axis::prepare_split(c, &distance_squared)));
             FpType distance = FloatSqrt(distance_squared);
             
-            ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_positioning_move)));
-            ListForEachForward<LaserSplitsList>([&] APRINTER_TL(split, split::prepare_split(c)));
+            ListFor<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_positioning_move)));
+            ListFor<LaserSplitsList>([&] APRINTER_TL(split, split::prepare_split(c)));
             
             FpType distance_based_max_v_rec = distance * time_freq_by_max_speed;
-            FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance_based_max_v_rec, [&] APRINTER_TLA(axis, (FpType accum), return axis::limit_virt_axis_speed(accum, c)));
+            FpType base_max_v_rec = ListForFold<VirtAxesList>(distance_based_max_v_rec, [&] APRINTER_TLA(axis, (FpType accum), return axis::limit_virt_axis_speed(accum, c)));
             base_max_v_rec = FloatMax(base_max_v_rec, ThePlanner::getBuffer(c)->axes.rel_max_v_rec);
             if (AMBRO_UNLIKELY(base_max_v_rec != distance_based_max_v_rec)) {
                 time_freq_by_max_speed = base_max_v_rec / distance;
@@ -1680,34 +1680,34 @@ public:
             FpType saved_phys_req_pos[NumAxes];
             
             if (o->splitter.pull(c, &rel_max_v_rec, &o->frac)) {
-                ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::save_req_pos(c, saved_phys_req_pos)));
+                ListFor<AxesList>([&] APRINTER_TL(axis, axis::save_req_pos(c, saved_phys_req_pos)));
                 
                 FpType saved_virt_req_pos[NumVirtAxes];
-                ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::save_req_pos(c, saved_virt_req_pos)));
-                ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, o->frac)));
+                ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::save_req_pos(c, saved_virt_req_pos)));
+                ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, o->frac)));
                 bool transform_success = update_phys_from_virt(c);
-                ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::restore_req_pos(c, saved_virt_req_pos)));
+                ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::restore_req_pos(c, saved_virt_req_pos)));
                 
                 if (!transform_success) {
                     // Compute actual positions based on prev_frac.
-                    ListForEachForward<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac)));
+                    ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac)));
                     update_phys_from_virt(c);
-                    ListForEachForward<SecondaryAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac, saved_phys_req_pos)));
+                    ListFor<SecondaryAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac, saved_phys_req_pos)));
                     return handle_transform_error(c);
                 }
                 
-                ListForEachForward<SecondaryAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, o->frac, saved_phys_req_pos)));
+                ListFor<SecondaryAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, o->frac, saved_phys_req_pos)));
             } else {
                 o->frac = 1.0f;
                 o->splitting = false;
             }
             
             PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
-            ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::do_move(c, false, (FpType *)0, cmd)));
+            ListFor<AxesList>([&] APRINTER_TL(axis, axis::do_move(c, false, (FpType *)0, cmd)));
             if (o->splitting) {
-                ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::restore_req_pos(c, saved_phys_req_pos)));
+                ListFor<AxesList>([&] APRINTER_TL(axis, axis::restore_req_pos(c, saved_phys_req_pos)));
             }
-            ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::write_planner_cmd(c, LaserSplitSrc{c, o->frac, prev_frac}, cmd)));
+            ListFor<LasersList>([&] APRINTER_TL(laser, laser::write_planner_cmd(c, LaserSplitSrc{c, o->frac, prev_frac}, cmd)));
             cmd->axes.rel_max_v_rec = rel_max_v_rec;
             
             ThePlanner::axesCommandDone(c);
@@ -2217,15 +2217,15 @@ public:
         TheSteppers::init(c);
         ob->axis_homing = 0;
         ob->axis_relative = 0;
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::init(c)));
-        ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::init(c)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::init(c)));
+        ListFor<LasersList>([&] APRINTER_TL(laser, laser::init(c)));
         TransformFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
         ob->speed_ratio_rec = 1.0f;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
         TheHookExecutor::init(c);
-        ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::init(c)));
+        ListFor<ModulesList>([&] APRINTER_TL(module, module::init(c)));
         
         print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
         
@@ -2242,10 +2242,10 @@ public:
         if (ob->planner_state != PLANNER_NONE) {
             ThePlanner::deinit(c);
         }
-        ListForEachReverse<ModulesList>([&] APRINTER_TL(module, module::deinit(c)));
+        ListForReverse<ModulesList>([&] APRINTER_TL(module, module::deinit(c)));
         TheHookExecutor::deinit(c);
-        ListForEachReverse<LasersList>([&] APRINTER_TL(laser, laser::deinit(c)));
-        ListForEachReverse<AxesList>([&] APRINTER_TL(axis, axis::deinit(c)));
+        ListForReverse<LasersList>([&] APRINTER_TL(laser, laser::deinit(c)));
+        ListForReverse<AxesList>([&] APRINTER_TL(axis, axis::deinit(c)));
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
         AMBRO_ASSERT(ob->command_stream_list.isEmpty())
@@ -2270,9 +2270,9 @@ public:
     APRINTER_NO_INLINE
     static void emergency ()
     {
-        ListForEachForward<AxesList>([] APRINTER_TL(axis, axis::emergency()));
-        ListForEachForward<LasersList>([] APRINTER_TL(laser, laser::emergency()));
-        ListForEachForward<ModulesList>([] APRINTER_TL(module, module::emergency()));
+        ListFor<AxesList>([] APRINTER_TL(axis, axis::emergency()));
+        ListFor<LasersList>([] APRINTER_TL(laser, laser::emergency()));
+        ListFor<ModulesList>([] APRINTER_TL(module, module::emergency()));
     }
     
     static TheCommand * get_locked (Context c)
@@ -2303,7 +2303,7 @@ private:
         auto *ob = Object::self(c);
         TheDebugObject::access(c);
         
-        ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::check_safety(c)));
+        ListFor<ModulesList>([&] APRINTER_TL(module, module::check_safety(c)));
         TheWatchdog::reset(c);
     }
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
@@ -2340,7 +2340,7 @@ private:
                 default:
                     if (
                         TheConfigManager::checkCommand(c, cmd) &&
-                        ListForEachForwardInterruptible<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd)))
+                        ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd)))
                     ) {
                         goto unknown_command;
                     }
@@ -2365,20 +2365,20 @@ private:
                 case 82:   // extruders to absolute positioning
                 case 83: { // extruders to relative positioning
                     bool relative = (cmd_number == 83);
-                    ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::set_relative_positioning(c, relative, true)));
+                    ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::set_relative_positioning(c, relative, true)));
                     return cmd->finishCommand(c);
                 } break;
                 
                 case 114: {
-                    ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::append_position(c, cmd)));
+                    ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::append_position(c, cmd)));
                     cmd->reply_append_ch(c, '\n');
                     return cmd->finishCommand(c);
                 } break;
                 
                 case 119: {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
-                    ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::m119_append_endstop(c, cmd)));
-                    ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::m119_append_endstop(c, cmd)));
+                    ListFor<AxesList>([&] APRINTER_TL(axis, axis::m119_append_endstop(c, cmd)));
+                    ListFor<ModulesList>([&] APRINTER_TL(module, module::m119_append_endstop(c, cmd)));
                     cmd->reply_append_ch(c, '\n');                    
                     return cmd->finishCommand(c);
                 } break;
@@ -2415,7 +2415,7 @@ private:
             
             case 'G': switch (cmd_number) {
                 default:
-                    if (ListForEachForwardInterruptible<ModulesList>([&] APRINTER_TL(module, return module::check_g_command(c, cmd)))) {
+                    if (ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_g_command(c, cmd)))) {
                         goto unknown_command;
                     }
                     return;
@@ -2434,7 +2434,7 @@ private:
                     if (r_param) {
                         axis_relative = 0;
                         while (*r_param) {
-                            ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::collect_axis_mask(*r_param, &axis_relative)));
+                            ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::collect_axis_mask(*r_param, &axis_relative)));
                             r_param++;
                         }
                     }
@@ -2445,11 +2445,11 @@ private:
                     for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
                         CommandPartRef part = cmd->getPart(c, i);
                         
-                        if (cmd_number != 4 && !ListForEachForwardInterruptible<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, return axis::collect_new_pos(c, cmd, part, axis_relative)))) {
+                        if (cmd_number != 4 && !ListForBreak<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, return axis::collect_new_pos(c, cmd, part, axis_relative)))) {
                             continue;
                         }
                         
-                        if (!ListForEachForwardInterruptible<LasersList>([&] APRINTER_TL(laser, return laser::collect_new_pos(c, cmd, part)))) {
+                        if (!ListForBreak<LasersList>([&] APRINTER_TL(laser, return laser::collect_new_pos(c, cmd, part)))) {
                             continue;
                         }
                         
@@ -2494,7 +2494,7 @@ private:
                     AMBRO_ASSERT(ob->axis_homing == 0)
                     PhysVirtAxisMaskType req_axes = 0;
                     for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
-                        ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::update_homing_mask(c, cmd, &req_axes, cmd->getPart(c, i))));
+                        ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::update_homing_mask(c, cmd, &req_axes, cmd->getPart(c, i))));
                     }
                     if (req_axes == 0) {
                         ob->homing_default = true;
@@ -2505,7 +2505,7 @@ private:
                     }
                     ob->homing_error = false;
                     now_active(c);
-                    ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::start_phys_homing(c)));
+                    ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::start_phys_homing(c)));
                     if (ob->axis_homing == 0) {
                         return phys_homing_finished(c);
                     }
@@ -2514,7 +2514,7 @@ private:
                 case 90:   // absolute positioning
                 case 91: { // relative positioning
                     bool relative = (cmd_number == 91);
-                    ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::set_relative_positioning(c, relative, false)));
+                    ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::set_relative_positioning(c, relative, false)));
                     return cmd->finishCommand(c);
                 } break;
                 
@@ -2526,7 +2526,7 @@ private:
                     }
                     set_position_begin(c);
                     for (auto i : LoopRangeAuto(cmd->getNumParts(c))) {
-                        ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::g92_check_axis(c, cmd, cmd->getPart(c, i))));
+                        ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::g92_check_axis(c, cmd, cmd->getPart(c, i))));
                     }
                     if (!set_position_end(c, cmd)) {
                         cmd->reportError(c, nullptr);
@@ -2646,7 +2646,7 @@ private:
     {
         TheDebugObject::access(c);
         
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper(c, false)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper(c, false)));
     }
     
     static void force_timer_handler (Context c)
@@ -2718,7 +2718,7 @@ private:
         TheDebugObject::access(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::fix_aborted_pos(c)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::fix_aborted_pos(c)));
         TransformFeature::handle_aborted(c);
         ob->custom_planner_deinit_allowed = true;
         
@@ -2728,7 +2728,7 @@ private:
     
     static void planner_underrun_callback (Context c)
     {
-        ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::planner_underrun(c)));
+        ListFor<ModulesList>([&] APRINTER_TL(module, module::planner_underrun(c)));
     }
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
     
@@ -2746,7 +2746,7 @@ public:
         
         save_all_pos_to_old(c);
         
-        ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::prepare_laser_for_move(c)));
+        ListFor<LasersList>([&] APRINTER_TL(laser, laser::prepare_laser_for_move(c)));
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         cmd->axes.rel_max_v_rec = 0.0f;
@@ -2800,7 +2800,7 @@ public:
         AMBRO_ASSERT(err_output)
         AMBRO_ASSERT(callback)
         
-        if (!ListForEachForwardInterruptible<ModulesList>([&] APRINTER_TL(module, return module::check_move_interlocks(c, err_output, ob->move_axes)))) {
+        if (!ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_move_interlocks(c, err_output, ob->move_axes)))) {
             restore_all_pos_from_old(c);
             TransformFeature::correct_after_aborted_move(c);
             ThePlanner::emptyDone(c);
@@ -2814,16 +2814,16 @@ public:
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         FpType distance_squared = 0.0f;
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::do_move(c, true, &distance_squared, cmd)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::do_move(c, true, &distance_squared, cmd)));
         TransformFeature::do_pending_virt_update(c);
         if (ob->move_seen_cartesian) {
             FpType distance = FloatSqrt(distance_squared);
             cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * ob->move_time_freq_by_max_speed);
-            ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_positioning_move)));
+            ListFor<LasersList>([&] APRINTER_TL(laser, laser::handle_automatic_energy(c, distance, is_positioning_move)));
         } else {
-            ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::limit_axis_move_speed(c, ob->move_time_freq_by_max_speed, cmd)));
+            ListFor<AxesList>([&] APRINTER_TL(axis, axis::limit_axis_move_speed(c, ob->move_time_freq_by_max_speed, cmd)));
         }
-        ListForEachForward<LasersList>([&] APRINTER_TL(laser, laser::write_planner_cmd(c, LaserExtraSrc{c}, cmd)));
+        ListFor<LasersList>([&] APRINTER_TL(laser, laser::write_planner_cmd(c, LaserExtraSrc{c}, cmd)));
         ThePlanner::axesCommandDone(c);
         submitted_planner_command(c);
         return callback(c, false);
@@ -2853,7 +2853,7 @@ public:
             return false;
         }
         
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::forward_update_pos(c)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::forward_update_pos(c)));
         return true;
     }
     
@@ -2866,12 +2866,12 @@ private:
     
     static void save_all_pos_to_old (Context c)
     {
-        ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::save_pos_to_old(c)));
+        ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::save_pos_to_old(c)));
     }
     
     static void restore_all_pos_from_old (Context c)
     {
-        ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::restore_pos_from_old(c)));
+        ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::restore_pos_from_old(c)));
     }
     
 public:
@@ -2941,10 +2941,10 @@ public:
         CallIfExists_get_json_status::template call_void<TheConfigManager>(c, json);
         
         json->addKeyObject(JsonSafeString{"axes"});
-        ListForEachForward<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::get_json_status(c, json)));
+        ListFor<PhysVirtAxisHelperList>([&] APRINTER_TL(axis, axis::get_json_status(c, json)));
         json->endObject();
         
-        ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::get_json_status(c, json)));
+        ListFor<ModulesList>([&] APRINTER_TL(module, module::get_json_status(c, json)));
     }
     
 private:
@@ -2965,8 +2965,8 @@ private:
     {
         TheConfigCache::update(c);
         TheConfigManager::clearApplyPending(c);
-        ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::forward_update_pos(c)));
-        ListForEachForward<ModulesList>([&] APRINTER_TL(module, module::configuration_changed(c)));
+        ListFor<AxesList>([&] APRINTER_TL(axis, axis::forward_update_pos(c)));
+        ListFor<ModulesList>([&] APRINTER_TL(module, module::configuration_changed(c)));
     }
     
     static TheCommand * get_command_in_state (Context c, int state, bool must)
@@ -2986,10 +2986,10 @@ private:
     {
         auto num_parts = cmd->getNumParts(c);
         if (num_parts == 0) {
-            ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper(c, enable)));
+            ListFor<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper(c, enable)));
         } else {
             for (auto i : LoopRangeAuto(num_parts)) {
-                ListForEachForward<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper_specific(c, enable, cmd, cmd->getPart(c, i))));
+                ListFor<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper_specific(c, enable, cmd, cmd->getPart(c, i))));
             }
         }
     }

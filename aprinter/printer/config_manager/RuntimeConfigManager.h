@@ -569,7 +569,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        ListForEachForward<TypeGeneralList>([&] APRINTER_TL(type, type::reset_config(c)));
+        ListFor<TypeGeneralList>([&] APRINTER_TL(type, type::reset_config(c)));
         o->apply_pending = true;
     }
     
@@ -597,7 +597,7 @@ private:
         
         TheCommand<> *cmd = ThePrinterMain::get_locked(c);
         cmd->reply_append_pstr(c, AMBRO_PSTR("M926 I"));
-        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::dump_options_helper(c, cmd, o->dump_current_option)));
+        ListForBreak<TypeGeneralList>([&] APRINTER_TL(type, return type::dump_options_helper(c, cmd, o->dump_current_option)));
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         o->dump_current_option++;
@@ -630,7 +630,7 @@ public:
             } else {
                 bool get_it = (cmd_num == GetConfigMCommand);
                 char const *name = cmd->get_command_param_str(c, 'I', "");
-                if (ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_set_cmd(c, cmd, get_it, name)))) {
+                if (ListForBreak<TypeGeneralList>([&] APRINTER_TL(type, return type::get_set_cmd(c, cmd, get_it, name)))) {
                     cmd->reportError(c, AMBRO_PSTR("UnknownOption"));
                 } else if (get_it) {
                     cmd->reply_append_ch(c, '\n');
@@ -672,7 +672,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        bool res = !ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::set_by_strings(c, option_name, option_value)));
+        bool res = !ListForBreak<TypeGeneralList>([&] APRINTER_TL(type, return type::set_by_strings(c, option_name, option_value)));
         if (res) {
             o->apply_pending = true;
         }
@@ -685,7 +685,7 @@ public:
         AMBRO_ASSERT(option_index < NumRuntimeOptions)
         AMBRO_ASSERT(output_avail > 0)
         
-        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_string_helper(c, option_index, output, output_avail)));
+        ListForBreak<TypeGeneralList>([&] APRINTER_TL(type, return type::get_string_helper(c, option_index, output, output_avail)));
     }
     
     static void getOptionType (Context c, int option_index, char const **option_type)
@@ -693,7 +693,7 @@ public:
         AMBRO_ASSERT(option_index >= 0)
         AMBRO_ASSERT(option_index < NumRuntimeOptions)
         
-        ListForEachForwardInterruptible<TypeGeneralList>([&] APRINTER_TL(type, return type::get_type_helper(c, option_index, option_type)));
+        ListForBreak<TypeGeneralList>([&] APRINTER_TL(type, return type::get_type_helper(c, option_index, option_type)));
     }
     
     template <typename TheStoreFeature = StoreFeature>
