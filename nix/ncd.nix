@@ -33,8 +33,8 @@ stdenv.mkDerivation {
   
   src = fetchgit {
     url = https://github.com/ambrop72/badvpn;
-    rev = "f282fbf4d2bcf4747fa4c14cddd83c4d6f4f135f";
-    sha256 = "038dsk89d3yf3pk07w7gkmw588i6178q6x4dv2amdjfgv8mclq37";
+    rev = "3897cdf4aa7deb1fc863cb198fb7381b224ff793";
+    sha256 = "03d695w9574y4dsbqyr69dayjnr3dygpddv4jl2519v4pdaxh6h0";
   };
 
   preConfigure = ''
