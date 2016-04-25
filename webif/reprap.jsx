@@ -155,7 +155,7 @@ var AxesTable = React.createClass({
                     <div style={{flexGrow: '1'}}></div>
                     <div className="form-inline">
                         <div className="form-group">
-                            <label htmlFor="speed" style={{marginRight: '5px'}}>Speed [unit/s]</label>
+                            <label htmlFor="speed" className="btn-right-margin">Speed [unit/s]</label>
                             <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
                         </div>
                     </div>
@@ -610,6 +610,10 @@ function preprocessOptionsList(options) {
     return result;
 }
 
+function updateConfigAfterGcode(status) {
+    configUpdater.requestUpdate();
+}
+
 var ConfigTable = React.createClass({
     componentWillMount: function() {
         this.props.controller.setComponent(this);
@@ -631,7 +635,7 @@ var ConfigTable = React.createClass({
         if ($has(makeRes, 'err')) {
             return showError(makeRes.err);
         }
-        sendGcode(makeRes.res, function(status) { configUpdater.requestUpdate(); });
+        sendGcode(makeRes.res, updateConfigAfterGcode);
         this.props.controller.cancel(option_name);
     },
     allOptionsSet: function() {
@@ -652,12 +656,18 @@ var ConfigTable = React.createClass({
             return showError(error);
         }
         if (cmds.length !== 0) {
-            sendGcodes(cmds, function(status) { configUpdater.requestUpdate(); });
+            sendGcodes(cmds, updateConfigAfterGcode);
             this.props.controller.cancelAll();
         }
     },
     applyConfig: function() {
         sendGcode('M930');
+    },
+    saveConfig: function() {
+        sendGcode('M500');
+    },
+    restoreConfig: function() {
+        sendGcode('M501', updateConfigAfterGcode);
     },
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
@@ -672,6 +682,15 @@ var ConfigTable = React.createClass({
         );
         return (
             <div className="flex-column">
+                <div className="flex-row">
+                    <div style={{flexGrow: '1'}}></div>
+                    <div className="form-inline">
+                        <div className="form-group">
+                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.saveConfig}>Save to SD</button>
+                            <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
+                        </div>
+                    </div>
+                </div>
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
                     <thead>
@@ -686,7 +705,7 @@ var ConfigTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div style={{overflowY: 'scroll', overflowX: 'hidden'}}>
+                <div style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1'}}>
                     <table className={controlTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>

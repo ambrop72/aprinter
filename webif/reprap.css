@@ -69,3 +69,11 @@ html, body {
     display: flex;
     flex-direction: column;
 }
+
+.flex-row>*, .flex-column>* {
+    flex-shrink: 0;
+}
+
+.btn-right-margin {
+    margin-right: 5px;
+}
