@@ -964,8 +964,8 @@ var ComponentWrapper = React.createClass({
 });
 
 var machine_state = {
-    speedRatio: 1,
-    configDirty: false,
+    speedRatio:  null,
+    configDirty: null,
     axes:    preprocessObjectForState({}),
     heaters: preprocessObjectForState({}),
     fans:    preprocessObjectForState({})
@@ -1009,7 +1009,24 @@ var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
 
-function updateStatus() {
+function setNewMachineState(new_machine_state) {
+    machine_state = new_machine_state;
+    machine_state.speedRatio  = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : null;
+    machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : null;
+    machine_state.axes    = fixupStateObject(machine_state, 'axes');
+    machine_state.heaters = fixupStateObject(machine_state, 'heaters');
+    machine_state.fans    = fixupStateObject(machine_state, 'fans');
+}
+
+function machineStateChanged() {
+    document.getElementById('axes_panel').hidden    = (machine_state.axes.arr.length === 0);
+    document.getElementById('heaters_panel').hidden = (machine_state.heaters.arr.length === 0);
+    document.getElementById('fans_panel').hidden    = (machine_state.fans.arr.length === 0);
+    document.getElementById('speed_panel').hidden   = (machine_state.speedRatio === null);
+    document.getElementById('config_panel').hidden  = (machine_state.configDirty === null);
+    
+    configUpdater.setRunning(machine_state.configDirty !== null);
+    
     controller_axes.forceUpdateVia(wrapper_axes);
     controller_heaters.forceUpdateVia(wrapper_heaters);
     controller_fans.forceUpdateVia(wrapper_fans);
@@ -1031,9 +1048,27 @@ function StatusUpdater(reqPath, refreshInterval, handleNewStatus) {
     this._reqestInProgress = false;
     this._needsAnotherUpdate = false;
     this._timerId = null;
+    this._running = false;
 }
 
+StatusUpdater.prototype.setRunning = function(running) {
+    if (running) {
+        if (!this._running) {
+            this._running = true;
+            this.requestUpdate();
+        }
+    } else {
+        if (this._running) {
+            this._running = false;
+            this._stopTimer();
+        }
+    }
+};
+
 StatusUpdater.prototype.requestUpdate = function() {
+    if (!this._running) {
+        return;
+    }
     if (this._reqestInProgress) {
         this._needsAnotherUpdate = true;
     } else {
@@ -1041,12 +1076,17 @@ StatusUpdater.prototype.requestUpdate = function() {
     }
 };
 
-StatusUpdater.prototype._startRequest = function() {
+StatusUpdater.prototype._stopTimer = function() {
     if (this._timerId !== null) {
         clearTimeout(this._timerId);
         this._timerId = null;
     }
+};
+
+StatusUpdater.prototype._startRequest = function() {
+    this._stopTimer();
     this._reqestInProgress = true;
+    this._needsAnotherUpdate = false;
     $.ajax({
         url: this._reqPath,
         dataType: 'json',
@@ -1064,8 +1104,10 @@ StatusUpdater.prototype._startRequest = function() {
 
 StatusUpdater.prototype._requestCompleted = function() {
     this._reqestInProgress = false;
+    if (!this._running) {
+        return;
+    }
     if (this._needsAnotherUpdate) {
-        this._needsAnotherUpdate = false;
         this._startRequest();
     } else {
         this._timerId = setTimeout(this._timerHandler.bind(this), this._refreshInterval);
@@ -1073,7 +1115,7 @@ StatusUpdater.prototype._requestCompleted = function() {
 };
 
 StatusUpdater.prototype._timerHandler = function() {
-    if (!this._reqestInProgress) {
+    if (this._running && !this._reqestInProgress) {
         this._startRequest();
     }
 }
@@ -1086,13 +1128,8 @@ function fixupStateObject(state, name) {
 }
 
 var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, function(new_machine_state) {
-    machine_state = new_machine_state;
-    machine_state.speedRatio = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : 1.0;
-    machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : false;
-    machine_state.axes    = fixupStateObject(machine_state, 'axes');
-    machine_state.heaters = fixupStateObject(machine_state, 'heaters');
-    machine_state.fans    = fixupStateObject(machine_state, 'fans');
-    updateStatus();
+    setNewMachineState(new_machine_state);
+    machineStateChanged();
 });
 
 
@@ -1176,5 +1213,4 @@ function onBtnRefresh() {
 
 // Initial actions
 
-statusUpdater.requestUpdate();
-configUpdater.requestUpdate();
+statusUpdater.setRunning(true);
