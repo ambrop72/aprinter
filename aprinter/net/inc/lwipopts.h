@@ -30,6 +30,15 @@
 //#define APRINTER_TCP_TX_BUF <bytes>
 //#define APRINTER_MEM_ALIGNMENT <bytes>
 
+#ifdef IN_KDEVELOP_PARSER
+#define APRINTER_NUM_TCP_CONN 10
+#define APRINTER_NUM_TCP_CONN_QUEUED 10
+#define APRINTER_NUM_TCP_LISTEN 10
+#define APRINTER_TCP_RX_BUF 8192
+#define APRINTER_TCP_TX_BUF 8192
+#define APRINTER_MEM_ALIGNMENT 4
+#endif
+
 // Simple options, mostly enable/disable.
 #define NO_SYS 1
 #define MEM_ALIGNMENT APRINTER_MEM_ALIGNMENT
