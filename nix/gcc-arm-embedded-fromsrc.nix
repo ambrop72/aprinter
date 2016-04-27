@@ -6,7 +6,7 @@
 , optimizeForSize ? false
 }:
 let
-    gcc_version = "5.3.0";
+    gcc_version = "6.1.0";
     binutils_version = "2.26";
     newlib_version = "2.4.0";
     
@@ -107,7 +107,7 @@ stdenv.mkDerivation {
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2";
-            sha256 = "b84f5592e9218b73dbae612b5253035a7b34a9a1f7688d2e1bfaaf7267d5c4db";
+            sha256 = "09c4c85cabebb971b1de732a0219609f93fc0af5f86f6e437fd8d7f832f1a351";
         })
         (fetchurl {
             url = "ftp://sourceware.org/pub/newlib/newlib-2.4.0.tar.gz";
