@@ -171,7 +171,7 @@ private:
             if (!(mo->homing_axes & PhysVirtAxis::AxisMask)) {
                 return true;
             }
-            set_position(c, home_start_pos(c));
+            set_position(c, home_start_pos(c), true);
             if (!mo->homing_error) {
                 ThePrinterMain::custom_planner_init(c, &o->planner_client, true);
                 o->state = 0;
@@ -180,11 +180,12 @@ private:
             return false;
         }
         
-        static void set_position (Context c, FpType value)
+        static void set_position (Context c, FpType value, bool ignore_phys_limits)
         {
             auto *mo = VirtualHomingModule::Object::self(c);
             
             ThePrinterMain::set_position_begin(c);
+            ThePrinterMain::set_position_ignore_transform_phys_limits(c, ignore_phys_limits);
             ThePrinterMain::template set_position_add_axis<AxisIndex>(c, value);
             if (!ThePrinterMain::set_position_end(c, mo->err_output)) {
                 mo->homing_error = true;
@@ -225,6 +226,7 @@ private:
                     return ThePrinterMain::custom_planner_wait_finished(c);
                 }
                 ThePrinterMain::move_begin(c);
+                ThePrinterMain::move_ignore_transform_phys_limits(c, true);
                 FpType position;
                 FpType speed;
                 bool ignore_limits = false;
@@ -259,7 +261,7 @@ private:
                 
                 ThePrinterMain::custom_planner_deinit(c);
                 if (o->state != 1) {
-                    set_position(c, home_end_pos(c));
+                    set_position(c, home_end_pos(c), false);
                 }
                 
                 if (!mo->homing_error) {

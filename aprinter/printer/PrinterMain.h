@@ -1564,7 +1564,7 @@ public:
             }
         }
         
-        static bool update_phys_from_virt (Context c)
+        static bool update_phys_from_virt (Context c, bool ignore_phys_limits=false)
         {
             bool success;
             if (TheCorrectionService::CorrectionEnabled) {
@@ -1574,10 +1574,16 @@ public:
             } else {
                 success = TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
             }
-            if (success) {
+            if (success && !ignore_phys_limits) {
                 success = ListForBreak<VirtAxesList>([&] APRINTER_TL(axis, return axis::check_phys_limits(c)));
             }
             return success;
+        }
+        
+        static void set_ignore_phys_limits (Context c, bool ignore_limits)
+        {
+            auto *o = Object::self(c);
+            o->ignore_phys_limits = ignore_limits;
         }
         
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, TheCommand *move_err_output, MoveEndCallback callback, bool is_positioning_move)
@@ -1589,7 +1595,7 @@ public:
             o->move_end_callback = callback;
             
             o->virt_update_pending = false;
-            bool transform_success = update_phys_from_virt(c);
+            bool transform_success = update_phys_from_virt(c, o->ignore_phys_limits);
             
             if (!transform_success) {
                 restore_all_pos_from_old(c);
@@ -1685,13 +1691,13 @@ public:
                 FpType saved_virt_req_pos[NumVirtAxes];
                 ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::save_req_pos(c, saved_virt_req_pos)));
                 ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, o->frac)));
-                bool transform_success = update_phys_from_virt(c);
+                bool transform_success = update_phys_from_virt(c, o->ignore_phys_limits);
                 ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::restore_req_pos(c, saved_virt_req_pos)));
                 
                 if (!transform_success) {
                     // Compute actual positions based on prev_frac.
                     ListFor<VirtAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac)));
-                    update_phys_from_virt(c);
+                    update_phys_from_virt(c, true);
                     ListFor<SecondaryAxesList>([&] APRINTER_TL(axis, axis::compute_split(c, prev_frac, saved_phys_req_pos)));
                     return handle_transform_error(c);
                 }
@@ -1737,7 +1743,7 @@ public:
             if (o->splitting) {
                 o->splitting = false;
                 o->virt_update_pending = false;
-                bool transform_success = update_phys_from_virt(c);
+                bool transform_success = update_phys_from_virt(c, o->ignore_phys_limits);
                 if (!transform_success) {
                     err_output->reply_append_error(c, AMBRO_PSTR("Transform"));
                     err_output->reply_poke(c);
@@ -1917,6 +1923,7 @@ public:
         >> {
             bool virt_update_pending;
             bool splitting;
+            bool ignore_phys_limits;
             FpType frac;
             TheSplitter splitter;
             TheCommand *move_err_output;
@@ -1925,6 +1932,7 @@ public:
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
+        static void set_ignore_phys_limits (Context c, bool ignore_limits) {}
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, TheCommand *move_err_output, MoveEndCallback callback, bool is_positioning_move) {}
         static void correct_after_aborted_move (Context c) {}
         template <int PhysAxisIndex>
@@ -2760,6 +2768,7 @@ public:
         o->move_seen_cartesian = false;
         o->move_axes = 0;
         o->move_time_freq_by_max_speed = 0.0f;
+        TransformFeature::set_ignore_phys_limits(c, false);
         
         save_all_pos_to_old(c);
         
@@ -2767,6 +2776,11 @@ public:
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         cmd->axes.rel_max_v_rec = 0.0f;
+    }
+    
+    static void move_ignore_transform_phys_limits (Context c, bool ignore_limits)
+    {
+        TransformFeature::set_ignore_phys_limits(c, ignore_limits);
     }
     
     template <int PhysVirtAxisIndex>
@@ -2852,7 +2866,13 @@ public:
         AMBRO_ASSERT(o->locked)
         AMBRO_ASSERT(!TransformFeature::is_splitting(c))
         
+        TransformFeature::set_ignore_phys_limits(c, false);
         save_all_pos_to_old(c);
+    }
+    
+    static void set_position_ignore_transform_phys_limits (Context c, bool ignore_limits)
+    {
+        TransformFeature::set_ignore_phys_limits(c, ignore_limits);
     }
     
     template <int PhysVirtAxisIndex>
