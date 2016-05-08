@@ -147,15 +147,32 @@ var AxesTable = React.createClass({
             this.props.controller.cancelAll();
         }
     },
+    btnHomeDefault: function() {
+        sendGcode('G28');
+    },
+    btnBedProbing: function() {
+        sendGcode('G32');
+    },
+    btnMotorsOff: function() {
+        sendGcode('M18');
+    },
     render: function() {
         this.props.controller.rendering(this.props.axes.obj);
         return (
             <div className="flex-column">
                 <div className="flex-row">
-                    <div style={{flexGrow: '1'}}></div>
+                    <div style={{flexGrow: '1'}}>
+                        <div className="form-group">
+                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.btnHomeDefault}>Home</button>
+                            {this.props.probe_present &&
+                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.btnBedProbing}>Probe</button>
+                            }
+                            <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
+                        </div>
+                    </div>
                     <div className="form-inline">
                         <div className="form-group">
-                            <label htmlFor="speed" className="btn-right-margin">Speed [unit/s]</label>
+                            <label htmlFor="speed" className="btn-right-margin">Speed [/s]</label>
                             <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
                         </div>
                     </div>
@@ -476,11 +493,6 @@ var SpeedTable = React.createClass({
 var Buttons1 = React.createClass({
     render: function() { return (
         <div>
-            <button type="button" className="btn btn-primary top-btn-margin" onClick={onBtnHomeAxes}>Home axes</button>
-            {this.props.probe_present &&
-            <button type="button" className="btn btn-primary top-btn-margin" onClick={onBtnBedProbing}>Bed probing</button>
-            }
-            <button type="button" className="btn btn-info top-btn-margin" onClick={onBtnMotorsOff}>Motors off</button>
         </div>
     );}
 });
@@ -488,7 +500,7 @@ var Buttons1 = React.createClass({
 var Buttons2 = React.createClass({
     render: function() { return (
         <div>
-            <button type="button" className="btn btn-info top-btn-margin" onClick={onBtnRefresh}>Refresh</button>
+            <button type="button" className="btn btn-info top-btn-margin" onClick={startRefreshAll}>Refresh</button>
         </div>
     );}
 });
@@ -683,13 +695,13 @@ var ConfigTable = React.createClass({
         return (
             <div className="flex-column">
                 <div className="flex-row">
-                    <div style={{flexGrow: '1'}}></div>
                     <div className="form-inline">
                         <div className="form-group">
                             <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.saveConfig}>Save to SD</button>
                             <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
                         </div>
                     </div>
+                    <div style={{flexGrow: '1'}}></div>
                 </div>
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
@@ -980,7 +992,7 @@ var controller_speed   = new EditController(RowRefSameComp('target_'));
 var controller_config  = new EditController(RowRefChildComp('target'));
 
 function render_axes() {
-    return <AxesTable axes={machine_state.axes} controller={controller_axes} />;
+    return <AxesTable axes={machine_state.axes} probe_present={$has(machine_state, 'bedProbe')} controller={controller_axes} />;
 }
 function render_heaters() {
     return <HeatersTable heaters={machine_state.heaters} controller={controller_heaters} />;
@@ -992,7 +1004,7 @@ function render_speed() {
     return <SpeedTable speedRatio={machine_state.speedRatio} controller={controller_speed} />;
 }
 function render_buttons1() {
-    return <Buttons1 probe_present={$has(machine_state, 'bedProbe')} />;
+    return <Buttons1 />;
 }
 function render_buttons2() {
     return <Buttons2 />;
@@ -1031,7 +1043,6 @@ function machineStateChanged() {
     controller_heaters.forceUpdateVia(wrapper_heaters);
     controller_fans.forceUpdateVia(wrapper_fans);
     controller_speed.forceUpdateVia(wrapper_speed);
-    wrapper_buttons1.forceUpdate();
     controller_config.forceUpdateVia(wrapper_config);
 }
 
@@ -1141,6 +1152,14 @@ var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, funct
 });
 
 
+// Refresh all info
+
+function startRefreshAll() {
+    statusUpdater.requestUpdate();
+    configUpdater.requestUpdate();
+}
+
+
 // Gcode execution
 
 var gcodeQueue = [];
@@ -1188,26 +1207,6 @@ function currentGcodeCompleted() {
     if (gcodeQueue.length !== 0) {
         sendNextQueuedGcode();
     }
-}
-
-
-// Handlers for buttons.
-
-function onBtnHomeAxes() {
-    sendGcode('G28');
-}
-
-function onBtnBedProbing() {
-    sendGcode('G32');
-}
-
-function onBtnMotorsOff() {
-    sendGcode('M18');
-}
-
-function onBtnRefresh() {
-    statusUpdater.requestUpdate();
-    configUpdater.requestUpdate();
 }
 
 
