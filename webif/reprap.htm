@@ -33,8 +33,13 @@
                     <div class="panel-body" id="speed_div"></div>
                 </div>
             </div>
-            <div class="panel panel-default control-panel flex-row" style="margin: 5px" id="config_panel" hidden>
-                <div class="panel-body flex-row" id="config_div"></div>
+            <div class="flex-column" style="margin: 5px">
+                <div class="flex-column panel panel-default control-panel" id="gcode_panel">
+                    <div class="panel-body flex-column" id="gcode_div"></div>
+                </div>
+                <div class="flex-column panel panel-default control-panel config-panel" style="flex-shrink: 1" id="config_panel" hidden>
+                    <div class="panel-body flex-column" style="flex-shrink: 1" id="config_div"></div>
+                </div>
             </div>
         </div>
     </div>

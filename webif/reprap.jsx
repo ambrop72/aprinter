@@ -9,6 +9,7 @@ var fanPrecision = 3;
 var speedPrecision = 4;
 var configPrecision = 15;
 var defaultSpeed = 50;
+var gcodeHistorySize = 20;
 
 
 // Commonly used styles/elements
@@ -117,7 +118,7 @@ var AxesTable = React.createClass({
         if (isNaN(target)) {
             return showError('Target value for axis '+axis_name+' is incorrect');
         }
-        sendGcode('G0 R F'+speedRes.res.toString()+' '+axis_name+target.toString());
+        sendGcode('Move axis', 'G0 R F'+speedRes.res.toString()+' '+axis_name+target.toString());
         this.props.controller.cancel(axis_name);
     },
     allAxesGo: function() {
@@ -126,6 +127,7 @@ var AxesTable = React.createClass({
             return showError(speedRes.err);
         }
         var cmdAxes = '';
+        var reasonAxes = [];
         var error = null;
         $.each(this.props.axes.arr, function(idx, axis) {
             var axis_name = axis.key;
@@ -138,23 +140,25 @@ var AxesTable = React.createClass({
                 return;
             }
             cmdAxes += ' '+axis_name+target.toString();
+            reasonAxes.push(axis_name);
         }.bind(this));
         if (error !== null) {
             return showError(error);
         }
         if (cmdAxes.length !== 0) {
-            sendGcode('G0 R F'+speedRes.res.toString()+cmdAxes);
+            var axes = (reasonAxes.length > 1) ? 'axes' : 'axis';
+            sendGcode('Move '+axes, 'G0 R F'+speedRes.res.toString()+cmdAxes);
             this.props.controller.cancelAll();
         }
     },
     btnHomeDefault: function() {
-        sendGcode('G28');
+        sendGcode('Home axes', 'G28');
     },
     btnBedProbing: function() {
-        sendGcode('G32');
+        sendGcode('Probe bed', 'G32');
     },
     btnMotorsOff: function() {
-        sendGcode('M18');
+        sendGcode('Turn motors off', 'M18');
     },
     render: function() {
         this.props.controller.rendering(this.props.axes.obj);
@@ -243,11 +247,11 @@ var HeatersTable = React.createClass({
         if ($has(makeRes, 'err')) {
             return showError(makeRes.err);
         }
-        sendGcode(makeRes.res);
+        sendGcode('Set heater setpoint', makeRes.res);
         this.props.controller.cancel(heater_name);
     },
     heaterOff: function(heater_name) {
-        sendGcode('M104 F '+heater_name+' Snan');
+        sendGcode('Turn off heater', 'M104 F '+heater_name+' Snan');
         this.props.controller.cancel(heater_name);
     },
     allHeatersSet: function() {
@@ -268,7 +272,8 @@ var HeatersTable = React.createClass({
             return showError(error);
         }
         if (cmds.length !== 0) {
-            sendGcodes(cmds);
+            var setpoints = (cmds.length > 1) ? 'setpoints' : 'setpoint';
+            sendGcodes('Set heater '+setpoints, cmds);
             this.props.controller.cancelAll();
         }
     },
@@ -344,11 +349,11 @@ var FansTable = React.createClass({
         if ($has(makeRes, 'err')) {
             return showError(makeRes.err);
         }
-        sendGcode(makeRes.res);
+        sendGcode('Set fan target', makeRes.res);
         this.props.controller.cancel(fan_name);
     },
     fanOff: function(fan_name) {
-        sendGcode('M106 F '+fan_name+' S0');
+        sendGcode('Turn off fan', 'M106 F '+fan_name+' S0');
         this.props.controller.cancel(fan_name);
     },
     allFansSet: function() {
@@ -369,7 +374,8 @@ var FansTable = React.createClass({
             return showError(error);
         }
         if (cmds.length !== 0) {
-            sendGcodes(cmds);
+            var targets = (cmds.length > 1) ? 'targets' : 'target';
+            sendGcodes('Set fan '+targets, cmds);
             this.props.controller.cancelAll();
         }
     },
@@ -437,11 +443,11 @@ var SpeedTable = React.createClass({
         if (isNaN(target)) {
             return showError('Speed ratio value is incorrect');
         }
-        sendGcode('M220 S'+target.toPrecision(speedPrecision+3));
+        sendGcode('Set speed ratio', 'M220 S'+target.toPrecision(speedPrecision+3));
         this.props.controller.cancel('S');
     },
     speedRatioReset: function() {
-        sendGcode('M220 S100');
+        sendGcode('Reset speed ratio', 'M220 S100');
         this.props.controller.cancel('S');
     },
     render: function() {
@@ -622,7 +628,7 @@ function preprocessOptionsList(options) {
     return result;
 }
 
-function updateConfigAfterGcode(status) {
+function updateConfigAfterGcode(entry) {
     configUpdater.requestUpdate();
 }
 
@@ -647,7 +653,7 @@ var ConfigTable = React.createClass({
         if ($has(makeRes, 'err')) {
             return showError(makeRes.err);
         }
-        sendGcode(makeRes.res, updateConfigAfterGcode);
+        sendGcode('Set option', makeRes.res, updateConfigAfterGcode);
         this.props.controller.cancel(option_name);
     },
     allOptionsSet: function() {
@@ -668,18 +674,19 @@ var ConfigTable = React.createClass({
             return showError(error);
         }
         if (cmds.length !== 0) {
-            sendGcodes(cmds, updateConfigAfterGcode);
+            var options = (cmds.length > 1) ? 'options' : 'option';
+            sendGcodes('Set '+options, cmds, updateConfigAfterGcode);
             this.props.controller.cancelAll();
         }
     },
     applyConfig: function() {
-        sendGcode('M930');
+        sendGcode('Apply config', 'M930');
     },
     saveConfig: function() {
-        sendGcode('M500');
+        sendGcode('Save config to SD', 'M500');
     },
     restoreConfig: function() {
-        sendGcode('M501', updateConfigAfterGcode);
+        sendGcode('Restore config from SD', 'M501', updateConfigAfterGcode);
     },
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
@@ -693,7 +700,7 @@ var ConfigTable = React.createClass({
             </colgroup>
         );
         return (
-            <div className="flex-column">
+            <div className="flex-column" style={{flexShrink: '1'}}>
                 <div className="flex-row">
                     <div className="form-inline">
                         <div className="form-group">
@@ -776,6 +783,130 @@ var ConfigRow = React.createClass({
     },
     componentDidUpdate: function() {
         this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
+    }
+});
+
+
+// Gcode execution component
+
+var GcodeTable = React.createClass({
+    render: function() {
+        var width = '670px';
+        var colgroup = (
+            <colgroup>
+                <col span="1" style={{width: '220px'}} />
+                <col span="1" style={{width: '190px'}} />
+                <col span="1" />
+            </colgroup>
+        );
+        return (
+            <div className="flex-column">
+                <table className={controlTableClass} style={{width: width}}>
+                    {colgroup}
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>User interface action</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                </table>
+                <div ref="scroll_div" className="flex-column" style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1', height: '125px'}}>
+                    <div style={{flexGrow: '1'}}></div>
+                    <table className={controlTableClass+' gcode-table'} style={{width: width}}>
+                        {colgroup}
+                        <tbody>
+                            {$.map(this.props.gcodeHistory, function(entry) {
+                                return <GcodeRow key={entry.id} entry={entry} />;
+                            }.bind(this))}
+                            {$.map(this.props.gcodeQueue, function(entry) {
+                                return <GcodeRow key={entry.id} entry={entry} />;
+                            }.bind(this))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex-row">
+                    <GcodeInput width={width} />
+                </div>
+            </div>
+        );
+    },
+    componentDidUpdate: function() {
+        var node = this.refs.scroll_div;
+        node.scrollTop = node.scrollHeight;
+    }
+});
+
+function textToSpans(text) {
+    var lines = text.split('\n');
+    return linesToSpans(lines);
+}
+
+function linesToSpans(lines) {
+    var lineToSpan = function(line) { return (<span>{line}<br /></span>); };
+    return $.map(lines, lineToSpan);
+}
+
+var GcodeRow = React.createClass({
+    render: function() {
+        var entry = this.props.entry;
+        var cmdText = linesToSpans(entry.cmds);
+        var result;
+        if (entry.completed) {
+            if (entry.error === null) {
+                result = textToSpans($.trim(entry.response));
+            } else {
+                result = 'Error: '+entry.error;
+            }
+        } else {
+            result = 'Pending';
+        }
+        return (
+            <tr>
+                <td>{cmdText}</td>
+                <td>{entry.reason}</td>
+                <td>{result}</td>
+            </tr>
+        );
+    },
+    shouldComponentUpdate: function(nextProps, nextState) {
+        return (nextProps.completed !== this.props.completed);
+    }
+});
+
+var GcodeInput = React.createClass({
+    doSendCommand: function() {
+        var cmd = this.state.gcodeInput;
+        if (cmd !== '') {
+            sendGcode('Send command', cmd);
+            this.setState({gcodeInput: ''});
+        }
+    },
+    onSendClick: function() {
+        this.doSendCommand();
+    },
+    onInputChange: function(event) {
+        this.setState({gcodeInput: event.target.value});
+    },
+    onInputKeyPress: function(event) {
+        if (event.key === 'Enter') {
+            this.doSendCommand();
+        }
+    },
+    getInitialState: function() {
+        return {gcodeInput: ''};
+    },
+    render: function() {
+        var sendDisabled = (this.state.gcodeInput === '');
+        return (
+            <div className="input-group" style={{width: this.props.width}}>
+                <input type="text" className={controlInputClass} placeholder="Command to send"
+                       value={this.state.gcodeInput} onChange={this.onInputChange} onKeyPress={this.onInputKeyPress} />
+                <span className="input-group-btn">
+                    <button type="button" className={controlButtonClass('primary')} onClick={this.onSendClick} disabled={sendDisabled}>Send</button>
+                </span>
+            </div>
+        );
     }
 });
 
@@ -1012,6 +1143,9 @@ function render_buttons2() {
 function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} />;
 }
+function render_gcode() {
+    return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;
+}
 
 var wrapper_axes     = ReactDOM.render(<ComponentWrapper render={render_axes} />,     document.getElementById('axes_div'));
 var wrapper_heaters  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
@@ -1020,6 +1154,7 @@ var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} /
 var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
 var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
+var wrapper_gcode    = ReactDOM.render(<ComponentWrapper render={render_gcode} />,    document.getElementById('gcode_div'));
 
 function setNewMachineState(new_machine_state) {
     machine_state = new_machine_state;
@@ -1048,6 +1183,10 @@ function machineStateChanged() {
 
 function updateConfig() {
     controller_config.forceUpdateVia(wrapper_config);
+}
+
+function updateGcode() {
+    wrapper_gcode.forceUpdate();
 }
 
 // Generic status updating
@@ -1163,51 +1302,81 @@ function startRefreshAll() {
 // Gcode execution
 
 var gcodeQueue = [];
+var gcodeHistory = [];
+var gcodeIdCounter = 1;
 
-function sendGcode(cmd, callback) {
-    gcodeQueue.push({cmd: cmd, callback: callback});
+function sendGcode(reason, cmd, callback) {
+    sendGcodes(reason, [cmd], callback);
+}
+
+function sendGcodes(reason, cmds, callback) {
+    var entry = {
+        id: gcodeIdCounter,
+        reason: reason,
+        cmds: cmds,
+        callback: callback,
+        completed: false,
+        error: null,
+        response: null
+    };
+    gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 0 : (gcodeIdCounter+1);
+    gcodeQueue.push(entry);
     if (gcodeQueue.length === 1) {
-        sendNextQueuedGcode();
+        sendNextQueuedGcodes();
     }
+    updateGcode();
 }
 
-function sendGcodes(cmds, callback) {
-    sendGcode(cmds.join('\n'), callback);
-}
-
-function sendNextQueuedGcode() {
+function sendNextQueuedGcodes() {
     var entry = gcodeQueue[0];
-    console.log('>>> '+entry.cmd);
+    var cmds_disp = entry.cmds.join('; ');
+    var cmds_exec = entry.cmds.join('\n')+'\n';
+    console.log('>>> '+cmds_disp);
     $.ajax({
         url: '/rr_gcode',
         type: 'POST',
-        data: entry.cmd + '\n',
+        data: cmds_exec,
         dataType: 'text',
         success: function(response) {
             console.log('<<< '+response);
-            currentGcodeCompleted();
-            statusUpdater.requestUpdate();
-            if (entry.callback) {
-                entry.callback(true);
-            }
+            currentGcodeCompleted(null, response);
         },
         error: function(xhr, status, err) {
-            console.error('/rr_gcode', status, err.toString());
-            currentGcodeCompleted();
-            showError('Error sending gcode: '+entry.cmd);
-            if (entry.callback) {
-                entry.callback(false);
-            }
+            var error_str = err.toString();
+            console.error('/rr_gcode', status, error_str);
+            showError('Command "'+cmds_disp+'" failed: '+error_str);
+            currentGcodeCompleted(error_str, null);
         }
     });
 }
 
-function currentGcodeCompleted() {
-    gcodeQueue.shift();
+function currentGcodeCompleted(error, response) {
+    var entry = gcodeQueue.shift();
+    var callback = entry.callback;
+    
+    entry.callback = null;
+    entry.completed = true;
+    entry.error = error;
+    entry.response = response;
+    
+    gcodeHistory.push(entry);
+    while (gcodeHistory.length > gcodeHistorySize) {
+        gcodeHistory.shift();
+    }
+    
     if (gcodeQueue.length !== 0) {
-        sendNextQueuedGcode();
+        sendNextQueuedGcodes();
+    }
+    
+    updateGcode();
+    
+    statusUpdater.requestUpdate();
+    
+    if (callback) {
+        callback(entry);
     }
 }
+
 
 
 // Initial actions
