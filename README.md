@@ -472,11 +472,39 @@ A laser is configured in the web GUI as follows:
   But make sure your new "Laser port" is selected.
 
 In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to control the laser:
-- **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
-- **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
+- **L** - Total energy emmitted over the segment [Ws]. This is the low level interface to the laser.
+- **M** - Energy density over the segment [Ws/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
 
 The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density.
 If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
+
+Here's an example of how this works. Suppose that LaserPower=MaxPower=100.
+Consider a move "G1 X10 L200", to move X 10mm while emitting 200 units of laser energy.
+See that this move will require the laser to be on (summing all the individual PWM on-times)
+for L / MaxPower = 200 / 100 = 2 seconds. This is true regardless of accelerations and
+possible speed limits of motion axes.
+
+Now let's also assume that the time for the machine to accelerate and decelerate is negligible
+and the speed of X motion is not limited here. In that imaginary case the move would take 2
+seconds with the laser running at full power. Note that while generally imaginary this simple
+case does exist when there is no motion at all.
+
+If we introduce and increase a speed limit for the X axis, then at some point the move may
+have to take longer than 2 seconds because the axis cannot move as fast as we can emit the
+specified energy over the segment. If that happens the power of the laser will be reduced so
+that while the move will take longer than 2 seconds, the total laser on-time will still be 2
+seconds.
+
+When the machine is accelerating and decelerating at the corners of segments, the laser power
+is controlled in real-time so that the distribution of laser energy over the segment is constant.
+For example this does mean that when the machine just starts from zero speed speed or stops at
+zero speed, at that very moment the laser power will also be zero.
+
+Be aware that the precision of the laser control generally is not exact. You should simply
+consider that the laser is controller using hardware PWM, and that the duty cycle of the PWM
+is adjusted by software about every DutyAdjustmentInterval seconds. The lower DutyAdjustmentInterval
+you use, the better the precision will be. Note that the adjustment points are synchronized
+with the start and end of segments.
 
 ## The DeTool g-code postprocessor
 
