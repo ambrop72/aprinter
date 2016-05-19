@@ -82,9 +82,29 @@ html, body {
     vertical-align: top;
 }
 
+.gcode-table>tbody>tr[data-mod2='1'] {
+    background-color:#f9f9f9;
+}
+
+.gcode-table>tbody>tr[data-pending='true'] {
+    background-color: #ffcc00;
+}
+
+.gcode-table>tbody>tr[data-error='true'] {
+    background-color: #ff3333;
+}
+
 .config-panel {
     min-height: 400px;
     max-height: 700px;
+}
+
+h1 {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    margin-left: 5px;
+    font-size: 28px;
+    font-style: italic;
 }
 
 *[hidden] {

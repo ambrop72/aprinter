@@ -19,6 +19,7 @@ var controlInputClass = 'form-control control-input';
 var controlButtonClass = function(type) { return 'btn btn-'+type+' control-button'; }
 var controlEditingClass = 'control-editing';
 var controlCancelButtonClass = controlButtonClass('default')+' control-cancel-button';
+var gcodeTableClass = 'table table-condensed control-table gcode-table';
 
 var removeIcon = <span className="glyphicon glyphicon-remove" style={{verticalAlign: 'middle', marginTop: '-0.1em'}} aria-hidden="true"></span>;
 
@@ -499,6 +500,7 @@ var SpeedTable = React.createClass({
 var Buttons1 = React.createClass({
     render: function() { return (
         <div>
+            <h1>Aprinter Web Interface</h1>
         </div>
     );}
 });
@@ -801,7 +803,7 @@ var GcodeTable = React.createClass({
         );
         return (
             <div className="flex-column">
-                <table className={controlTableClass} style={{width: width}}>
+                <table className={gcodeTableClass} style={{width: width}}>
                     {colgroup}
                     <thead>
                         <tr>
@@ -813,7 +815,7 @@ var GcodeTable = React.createClass({
                 </table>
                 <div ref="scroll_div" className="flex-column" style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1', height: '125px'}}>
                     <div style={{flexGrow: '1'}}></div>
-                    <table className={controlTableClass+' gcode-table'} style={{width: width}}>
+                    <table className={gcodeTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>
                             {$.map(this.props.gcodeHistory, function(entry) {
@@ -852,17 +854,20 @@ var GcodeRow = React.createClass({
         var entry = this.props.entry;
         var cmdText = linesToSpans(entry.cmds);
         var result;
+        var isError = false;
         if (entry.completed) {
             if (entry.error === null) {
                 result = textToSpans($.trim(entry.response));
+                isError = /^Error:/gm.test(entry.response);
             } else {
                 result = 'Error: '+entry.error;
+                isError = true;
             }
         } else {
             result = 'Pending';
         }
         return (
-            <tr>
+            <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={isError}>
                 <td>{cmdText}</td>
                 <td>{entry.reason}</td>
                 <td>{result}</td>
@@ -1319,11 +1324,18 @@ function sendGcodes(reason, cmds, callback) {
         error: null,
         response: null
     };
-    gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 0 : (gcodeIdCounter+1);
     gcodeQueue.push(entry);
+    
+    gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 1 : (gcodeIdCounter+1);
+    
     if (gcodeQueue.length === 1) {
         sendNextQueuedGcodes();
     }
+    
+    while (gcodeQueue.length + gcodeHistory.length > gcodeHistorySize && gcodeHistory.length > 0) {
+        gcodeHistory.shift();
+    }
+    
     updateGcode();
 }
 
@@ -1360,9 +1372,6 @@ function currentGcodeCompleted(error, response) {
     entry.response = response;
     
     gcodeHistory.push(entry);
-    while (gcodeHistory.length > gcodeHistorySize) {
-        gcodeHistory.shift();
-    }
     
     if (gcodeQueue.length !== 0) {
         sendNextQueuedGcodes();
