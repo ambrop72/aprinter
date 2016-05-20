@@ -795,29 +795,26 @@ var ConfigRow = React.createClass({
 
 var GcodeTable = React.createClass({
     render: function() {
-        var width = '670px';
         var colgroup = (
             <colgroup>
-                <col span="1" style={{width: '220px'}} />
                 <col span="1" style={{width: '190px'}} />
                 <col span="1" />
             </colgroup>
         );
         return (
             <div className="flex-column">
-                <table className={gcodeTableClass} style={{width: width}}>
+                <table className={gcodeTableClass}>
                     {colgroup}
                     <thead>
                         <tr>
                             <th>Command</th>
-                            <th>User interface action</th>
                             <th>Result</th>
                         </tr>
                     </thead>
                 </table>
-                <div ref="scroll_div" className="flex-column" style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1', height: '125px'}}>
+                <div ref="scroll_div" className="flex-column" style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1', height: '125px', width: '400px'}}>
                     <div style={{flexGrow: '1'}}></div>
-                    <table className={gcodeTableClass} style={{width: width}}>
+                    <table className={gcodeTableClass} style={{width: '100%'}}>
                         {colgroup}
                         <tbody>
                             {$.map(this.props.gcodeHistory, function(entry) {
@@ -830,7 +827,7 @@ var GcodeTable = React.createClass({
                     </table>
                 </div>
                 <div className="flex-row">
-                    <GcodeInput width={width} />
+                    <GcodeInput />
                 </div>
             </div>
         );
@@ -869,9 +866,8 @@ var GcodeRow = React.createClass({
             result = 'Pending';
         }
         return (
-            <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={isError}>
+            <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={isError} title={'User action: '+entry.reason}>
                 <td>{cmdText}</td>
-                <td>{entry.reason}</td>
                 <td>{result}</td>
             </tr>
         );
@@ -906,7 +902,7 @@ var GcodeInput = React.createClass({
     render: function() {
         var sendDisabled = (this.state.gcodeInput === '');
         return (
-            <div className="input-group" style={{width: this.props.width}}>
+            <div className="input-group gcode-input-group">
                 <input type="text" className={controlInputClass} placeholder="Command to send"
                        value={this.state.gcodeInput} onChange={this.onInputChange} onKeyPress={this.onInputKeyPress} />
                 <span className="input-group-btn">

@@ -116,6 +116,10 @@ html, body {
     background-color: #ff3333;
 }
 
+.gcode-input-group {
+    width: 400px;
+}
+
 .config-panel {
     min-height: 400px;
     max-height: 700px;
