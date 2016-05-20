@@ -165,7 +165,7 @@ var AxesTable = React.createClass({
         this.props.controller.rendering(this.props.axes.obj);
         return (
             <div className="flex-column">
-                <div className="flex-row">
+                <div className="flex-row control-bottom-margin">
                     <div className="form-inline">
                         <div className="form-group">
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnHomeDefault}>Home</button>
