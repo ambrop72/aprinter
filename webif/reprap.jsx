@@ -166,7 +166,7 @@ var AxesTable = React.createClass({
         return (
             <div className="flex-column">
                 <div className="flex-row">
-                    <div style={{flexGrow: '1'}}>
+                    <div className="form-inline">
                         <div className="form-group">
                             <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.btnHomeDefault}>Home</button>
                             {this.props.probe_present &&
@@ -174,6 +174,8 @@ var AxesTable = React.createClass({
                             }
                             <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
                         </div>
+                    </div>
+                    <div style={{flexGrow: '1'}}>
                     </div>
                     <div className="form-inline">
                         <div className="form-group">

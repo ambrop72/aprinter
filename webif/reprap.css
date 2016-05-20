@@ -15,9 +15,15 @@ html, body {
     padding: 6px;
 }
 
-.control-input, .control-button {
-    height: 28px;
-    padding: 3px 12px;
+.control-button, .control-input {
+    height: 24px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.control-button {
+    padding-left: 12px;
+    padding-right: 12px;
 }
 
 .control-button[disabled] {
@@ -50,6 +56,7 @@ html, body {
 
 .control-table>tbody>tr>td {
     vertical-align: middle;
+    padding: 3px 5px;
 }
 
 .control-table>thead>tr>th {
