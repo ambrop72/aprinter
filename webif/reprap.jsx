@@ -168,9 +168,9 @@ var AxesTable = React.createClass({
                 <div className="flex-row">
                     <div className="form-inline">
                         <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.btnHomeDefault}>Home</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnHomeDefault}>Home</button>
                             {this.props.probe_present &&
-                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.btnBedProbing}>Probe</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnBedProbing}>Probe</button>
                             }
                             <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
                         </div>
@@ -179,7 +179,7 @@ var AxesTable = React.createClass({
                     </div>
                     <div className="form-inline">
                         <div className="form-group">
-                            <label htmlFor="speed" className="btn-right-margin">Speed [/s]</label>
+                            <label htmlFor="speed" className="control-right-margin control-label">Speed [/s]</label>
                             <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
                         </div>
                     </div>
@@ -708,7 +708,7 @@ var ConfigTable = React.createClass({
                 <div className="flex-row">
                     <div className="form-inline">
                         <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' btn-right-margin'} onClick={this.saveConfig}>Save to SD</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
                             <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
                         </div>
                     </div>

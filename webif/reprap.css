@@ -81,8 +81,12 @@ html, body {
     flex-shrink: 0;
 }
 
-.btn-right-margin {
+.control-right-margin {
     margin-right: 5px;
+}
+
+.control-label {
+    margin-bottom: 0px;
 }
 
 .gcode-table>tbody>tr>td {
