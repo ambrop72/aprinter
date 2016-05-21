@@ -28,12 +28,11 @@ stdenv.mkDerivation {
     
     src = fetchgit {
         url = https://github.com/PaulStoffregen/cores;
-        rev = "e0fdda191818db356ce111440a19c090a76bb221";
-        sha256 = "11v8bqxalba28cyk4hks44hjj6nnk4xdsyc1zvh55gccdlvmf785";
+        rev = "e31e49bc2060d59caea15b8b7b55482c1c4cbab3";
+        sha256 = "1rhqq7blgsjwywwhfazkvm36bpsa4qz3hnxvgh7cfg3dr9g1v7ip";
     };
     
     patches = [
-        ../patches/teensy-cores-irq.patch
         ../patches/teensy-cores-arduino.patch
     ];
     
