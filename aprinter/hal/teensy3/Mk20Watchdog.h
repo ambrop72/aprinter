@@ -64,8 +64,21 @@ public:
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            // Need to use assembly to do this without any delay in
+            // between stores introduced by the compiler.
+#if 0
             WDOG_REFRESH = UINT16_C(0xA602);
             WDOG_REFRESH = UINT16_C(0xB480);
+#else
+            asm volatile (
+                "strh %[magic1], [%[wdog_refresh]]\n"
+                "strh %[magic2], [%[wdog_refresh]]\n"
+                :
+                : [wdog_refresh] "r" (&WDOG_REFRESH),
+                  [magic1] "r" (UINT16_C(0xA602)),
+                  [magic2] "r" (UINT16_C(0xB480))
+            );
+#endif
         }
     }
     
