@@ -1,0 +1,21 @@
+commit 8cd4703817f4e0d143e4686b101c4f34614040bd
+Author: PaulStoffregen <paul@pjrc.com>
+Date:   Thu Apr 16 03:52:24 2015 -0700
+
+    Use gcc memory barriers in IRQ enable/disable
+
+diff --git a/teensy3/kinetis.h b/teensy3/kinetis.h
+index c9f733d..3801857 100644
+--- a/teensy3/kinetis.h
++++ b/teensy3/kinetis.h
+@@ -2943,8 +2943,8 @@ typedef struct __attribute__((packed)) {
+ 
+ 
+ 
+-#define __disable_irq() __asm__ volatile("CPSID i");
+-#define __enable_irq()	__asm__ volatile("CPSIE i");
++#define __disable_irq() __asm__ volatile("CPSID i":::"memory");
++#define __enable_irq()	__asm__ volatile("CPSIE i":::"memory");
+ 
+ // System Control Space (SCS), ARMv7 ref manual, B3.2, page 708
+ #define SCB_CPUID		(*(const    uint32_t *)0xE000ED00) // CPUID Base Register
