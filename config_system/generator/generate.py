@@ -1198,7 +1198,7 @@ def use_microstep(gen, config, key):
     def option(ms_driver_config):
         gen.add_aprinter_include('printer/microstep/A4988MicroStep.h')
         
-        return 'A4988MicroStepService<{}, {}>'.format(
+        return 'A4988MicroStepService<{}, {}, {}>'.format(
             get_pin(gen, ms_driver_config, 'Ms1Pin'),
             get_pin(gen, ms_driver_config, 'Ms2Pin'),
             get_pin(gen, ms_driver_config, 'Ms3Pin'),
