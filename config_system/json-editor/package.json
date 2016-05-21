@@ -1,0 +1,21 @@
+{
+  "name": "json-editor-aprinter",
+  "version": "0.7.10",
+  "main": "dist/jsoneditor.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "devDependencies": {
+    "grunt-contrib-concat": "~0.3.0",
+    "grunt-contrib-uglify": "~0.2.0",
+    "grunt-contrib-watch": "~0.5.3",
+    "grunt-contrib-jshint": "^0.10.0",
+    "grunt": "~0.4.2"
+  },
+  "scripts": {
+    "build": "npm install && grunt",
+    "start": "grunt watch",
+    "test": "grunt"
+  }
+}

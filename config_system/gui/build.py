@@ -45,6 +45,7 @@ def main():
     # Determine directories.
     src_dir = file_utils.file_dir(__file__)
     libs_dir = os.path.join(src_dir, 'libs')
+    jsoneditor_dir = os.path.join(src_dir, '..', 'json-editor')
     if args.out_dir is not None:
         dist_dir = args.out_dir
     else:
@@ -58,7 +59,7 @@ def main():
     os.mkdir(dist_dir)
     
     # Copy JS libraries.
-    shutil.copyfile(os.path.join(libs_dir, 'jsoneditor.min.js'), os.path.join(dist_dir, 'jsoneditor.js'))
+    shutil.copyfile(os.path.join(jsoneditor_dir, 'dist', 'jsoneditor.min.js'), os.path.join(dist_dir, 'jsoneditor.js'))
     shutil.copyfile(os.path.join(libs_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.js'))
     shutil.copyfile(os.path.join(libs_dir, 'jquery-1.11.2.min.js'), os.path.join(dist_dir, 'jquery.js'))
     
