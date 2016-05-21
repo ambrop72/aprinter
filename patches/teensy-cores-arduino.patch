@@ -1,0 +1,22 @@
+diff --git a/teensy3/usb_serial.h b/teensy3/usb_serial.h
+index a79ecf9..3b8df59 100644
+--- a/teensy3/usb_serial.h
++++ b/teensy3/usb_serial.h
+@@ -66,7 +66,7 @@ extern volatile uint8_t usb_configuration;
+ #define USB_SERIAL_RTS  0x02
+ 
+ // C++ interface
+-#ifdef __cplusplus
++#if defined(__cplusplus) && defined(ARDUINO)
+ #include "Stream.h"
+ class usb_serial_class : public Stream
+ {
+@@ -116,7 +116,7 @@ extern void serialEvent(void);
+ #else  // F_CPU < 20000000
+ 
+ // Allow Arduino programs using Serial to compile, but Serial will do nothing.
+-#ifdef __cplusplus
++#if defined(__cplusplus) && defined(ARDUINO)
+ #include "Stream.h"
+ class usb_serial_class : public Stream
+ {

@@ -32,7 +32,10 @@ stdenv.mkDerivation {
         sha256 = "11v8bqxalba28cyk4hks44hjj6nnk4xdsyc1zvh55gccdlvmf785";
     };
     
-    patches = [ ../patches/teensy-cores-irq.patch ];
+    patches = [
+        ../patches/teensy-cores-irq.patch
+        ../patches/teensy-cores-arduino.patch
+    ];
     
     installPhase = ''
         mkdir -p $out

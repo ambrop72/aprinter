@@ -29,13 +29,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#define OLD_CPLUSPLUS __cplusplus
-#undef __cplusplus
-extern "C" {
 #include <usb_serial.h>
-}
-#define __cplusplus OLD_CPLUSPLUS
-#undef OLD_CPLUSPLUS
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/TypeListUtils.h>
