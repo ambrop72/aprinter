@@ -76,6 +76,14 @@ Instructions for using the web service:
 - Wait some time for the compilation to complete. You will receive a zip with the firmware image.
 - Extract the zip and upload the firmware image to your board.
 
+**WARNING**: When you build firmware from the web interface, it will be built using the Aprinter code
+as it was when the service was built (the `nix-build`) command above. If you make changes to the code
+afterward, you will need to rebuild and restart the service for the changes to be reflected.
+
+Note that this does not apply if you use the command-line method of building firmware.
+However if you change the code of the configuration editor, you will still need to
+rebuild/restart the service.
+
 ## Building manually
 
 It is possible to build without using the web service, given a JSON configuration file.
