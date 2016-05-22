@@ -418,6 +418,13 @@ public:
         memory_barrier();
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            // Note: need to configure the channel and enable interrupt before
+            // configuring CV, If it is done after, stuff breaks, as the first
+            // timer event is missed somehow, for an unknown reason. This way
+            // it probably generates a redundant interrupt immediately but
+            // at least it works.
+            *Channel::csc() = FTM_CSC_MSA | FTM_CSC_CHIE;
+            
             TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
@@ -425,8 +432,6 @@ public:
                 time += now;
             }
             *Channel::cv() = TheMyFtm::TheModeHelper::make_target_time(time);
-            *Channel::csc();
-            *Channel::csc() = FTM_CSC_MSA | FTM_CSC_CHIE;
         }
     }
     
