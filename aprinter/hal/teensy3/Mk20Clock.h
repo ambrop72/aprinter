@@ -47,8 +47,7 @@
 
 template <typename Ftm, int ChannelIndex>
 struct Mk20Clock__IrqCompHelper {
-    template <typename IrqTime>
-    static void call (IrqTime irq_time) {}
+    static void call () {}
 };
 
 #include <aprinter/BeginNamespace.h>
@@ -60,7 +59,6 @@ struct Mk20ClockFTM##ftm_num { \
     static uint32_t volatile * sc () { return &FTM##ftm_num##_SC; } \
     static uint32_t volatile * cnt () { return &FTM##ftm_num##_CNT; } \
     static uint32_t volatile * mod () { return &FTM##ftm_num##_MOD; } \
-    static uint32_t volatile * cntin () { return &FTM##ftm_num##_CNTIN; } \
     static uint32_t const Scgc6Bit = SIM_SCGC6_FTM##ftm_num; \
     static const int Irq = IRQ_FTM##ftm_num; \
     using Channels = channels_list; \
@@ -179,9 +177,9 @@ private:
             
             template <int ChannelIndex>
             struct Channel {
-                static void irq_helper (InterruptContext<Context> c, TimeType irq_time)
+                static void irq_helper (InterruptContext<Context> c)
                 {
-                    Mk20Clock__IrqCompHelper<Ftm, ChannelIndex>::call(irq_time);
+                    Mk20Clock__IrqCompHelper<Ftm, ChannelIndex>::call();
                 }
             };
             
@@ -198,8 +196,7 @@ private:
                         }
                     }
                 }
-                TimeType irq_time = getTime(c);
-                ListFor<ChannelsList>([&] APRINTER_TL(channel, channel::irq_helper(c, irq_time)));
+                ListFor<ChannelsList>([&] APRINTER_TL(channel, channel::irq_helper(c)));
             }
             
             static uint16_t make_target_time (TimeType time)
@@ -230,9 +227,7 @@ private:
             *Ftm::sc();
             *Ftm::sc() = FTM_SC_PS(TheModeHelper::FtmPrescale) | (FtmIndex == 0 ? FTM_SC_TOIE : 0);
             *Ftm::mod() = TheModeHelper::TopVal;
-            *Ftm::cntin() = (FtmIndex == 0) ? 1 : 0;
-            *Ftm::cnt() = 0; // this actually sets CNT to the value in CNTIN above
-            *Ftm::cntin() = 0;
+            // Note: using CNTIN different than 0 is not allowed in Output Compare mode by the specs.
             NVIC_CLEAR_PENDING(Ftm::Irq);
             NVIC_SET_PRIORITY(Ftm::Irq, INTERRUPT_PRIORITY);
             NVIC_ENABLE_IRQ(Ftm::Irq);
@@ -241,6 +236,11 @@ private:
         static void init_start (Context c)
         {
             *Ftm::sc() |= FTM_SC_CLKS(1);
+            
+            // See explanation in init.
+            if (FtmIndex == 0) {
+                while (*MyFtm<0>::Ftm::cnt() == 0);
+            }
         }
         
         static void deinit (Context c)
@@ -274,6 +274,21 @@ public:
         memory_barrier();
         
         ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init(c)));
+        
+        // We need to make sure that timers other than the first timer
+        // (which is used as a reference clock) never count in advance of
+        // the first timer. They must be synchronized in step with or lag
+        // behind the first timer slightly. This ensures that their
+        // channel-match interrupts do not occur before the target time
+        // has been achieved according to the reference, which would
+        // make us lose events.
+        // Typically we would ensure this by starting the first timer
+        // with the initial value 1 and then starting other timers with
+        // the initial value 0 (accounting for possibly different internal
+        // prescaler states of timers). However, this hardware does not allow
+        // configuring the initial value (CNTIN) for Output Compare mode.
+        // Due to this restriction, we start the first timer at 0, wait for
+        // it to increment, then start the other timers at zero.
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init_start(c)));
@@ -456,7 +471,7 @@ public:
         return o->m_time;
     }
     
-    static void irq_handler (InterruptContext<Context> c, TimeType irq_time)
+    static void irq_handler (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);
         
@@ -472,7 +487,7 @@ public:
         
         AMBRO_ASSERT(o->m_running)
         
-        if ((TimeType)(irq_time - o->m_time) < UINT32_C(0x80000000)) {
+        if ((TimeType)(Clock::getTime(c) - o->m_time) < UINT32_C(0x80000000)) {
             if (!Handler::call(c)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -483,7 +498,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = MaxValue<TimeType>((128 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
+    static const TimeType clearance = MaxValue<TimeType>((64 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
     
 public:
     struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
@@ -517,10 +532,9 @@ static_assert( \
 ); \
 template <> \
 struct Mk20Clock__IrqCompHelper<ftm, channel_index> { \
-    template <typename IrqTime> \
-    static void call (IrqTime irq_time) \
+    static void call () \
     { \
-        timer::irq_handler(MakeInterruptContext((context)), irq_time); \
+        timer::irq_handler(MakeInterruptContext((context))); \
     } \
 };
 
