@@ -387,6 +387,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::init(c);
         
+        *Channel::csc() = FTM_CSC_MSA;
+        
+        o->m_cv = 0;
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
@@ -417,12 +420,29 @@ public:
         
         memory_barrier();
         
+        /* IMPORTANT NOTE
+         * 
+         * The CnV register (compare value) is buffered by the hardware and will
+         * only be updated at the next timer period, in our configuration.
+         * 
+         * Also take note of the following detail mentioned in the manual:
+         *   "If FTMEN=0, this write coherency mechanism may be manually reset by
+         *    writing to the CnSC register whether BDM mode is active or not".
+         * 
+         * For us this means that after writing to CnV, the write will effectively
+         * be nullified if we write to CnSC too soon after that!
+         * 
+         * To avoid this issue, we do the following:
+         * - Here in setFirst() we write to CnV only after configuring CnSC.
+         * - Wherever we write to CnV we also store to memory the CnV value
+         *   we are writing.
+         * - In irq_handler, when we write to CnSC to clear the CHF flag, we
+         *   then write the stored CnV value to CnV, since we may just have
+         *   cleared the CnV write buffer before a pending CnV update has completed.
+         */
+        
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            // Note: need to configure the channel and enable interrupt before
-            // configuring CV, If it is done after, stuff breaks, as the first
-            // timer event is missed somehow, for an unknown reason. This way
-            // it probably generates a redundant interrupt immediately but
-            // at least it works.
+            *Channel::csc(); // read so the next write clears the CHF flag
             *Channel::csc() = FTM_CSC_MSA | FTM_CSC_CHIE;
             
             TimeType now = Clock::getTime(lock_c);
@@ -431,7 +451,8 @@ public:
             if (now < UINT32_C(0x80000000)) {
                 time += now;
             }
-            *Channel::cv() = TheMyFtm::TheModeHelper::make_target_time(time);
+            o->m_cv = TheMyFtm::TheModeHelper::make_target_time(time);
+            *Channel::cv() = o->m_cv;
         }
     }
     
@@ -442,6 +463,7 @@ public:
         AMBRO_ASSERT((*Channel::csc() & FTM_CSC_CHIE))
         
         o->m_time = time;
+        
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
             now -= time;
@@ -449,7 +471,8 @@ public:
             if (now < UINT32_C(0x80000000)) {
                 time += now;
             }
-            *Channel::cv() = TheMyFtm::TheModeHelper::make_target_time(time);
+            o->m_cv = TheMyFtm::TheModeHelper::make_target_time(time);
+            *Channel::cv() = o->m_cv;
         }
     }
     
@@ -459,7 +482,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        *Channel::csc() = 0;
+        *Channel::csc() = FTM_CSC_MSA;
         
         memory_barrier();
         
@@ -483,7 +506,10 @@ public:
         uint32_t csc;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             csc = *Channel::csc();
-            *Channel::csc() = (csc & ~FTM_CSC_CHF);
+            if ((csc & FTM_CSC_CHF)) {
+                *Channel::csc() = (csc & ~FTM_CSC_CHF);
+                *Channel::cv() = o->m_cv; // See note in setFirst().
+            }
         }
         
         if (!(csc & FTM_CSC_CHIE)) {
@@ -497,7 +523,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
-                *Channel::csc() = 0;
+                *Channel::csc() = FTM_CSC_MSA;
             }
         }
     }
@@ -508,6 +534,7 @@ private:
 public:
     struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType m_time;
+        uint16_t m_cv;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
 #endif
