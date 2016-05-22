@@ -460,7 +460,7 @@ var SpeedTable = React.createClass({
         return (
             <table className={controlTableClass}>
                 <colgroup>
-                    <col span="1" style={{width: '83px'}} />
+                    <col span="1" style={{width: '130px'}} />
                     <col span="1" />
                     <col span="1" style={{width: '200px'}} />
                 </colgroup>
