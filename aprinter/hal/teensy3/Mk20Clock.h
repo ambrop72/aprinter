@@ -59,6 +59,7 @@ struct Mk20ClockFTM##ftm_num { \
     static uint32_t volatile * sc () { return &FTM##ftm_num##_SC; } \
     static uint32_t volatile * cnt () { return &FTM##ftm_num##_CNT; } \
     static uint32_t volatile * mod () { return &FTM##ftm_num##_MOD; } \
+    static uint32_t volatile * cntin () { return &FTM##ftm_num##_CNTIN; } \
     static uint32_t const Scgc6Bit = SIM_SCGC6_FTM##ftm_num; \
     static const int Irq = IRQ_FTM##ftm_num; \
     using Channels = channels_list; \
@@ -191,6 +192,8 @@ private:
                     AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         uint32_t sc = *Ftm::sc();
                         if (sc & FTM_SC_TOF) {
+                            // Handle timer overflow - clear the overflow flag and
+                            // increment m_offset by the period of the timer.
                             *Ftm::sc() = sc & ~FTM_SC_TOF;
                             Object::self(c)->m_offset += (uint32_t)TopVal + 1;
                         }
@@ -227,7 +230,7 @@ private:
             *Ftm::sc();
             *Ftm::sc() = FTM_SC_PS(TheModeHelper::FtmPrescale) | (FtmIndex == 0 ? FTM_SC_TOIE : 0);
             *Ftm::mod() = TheModeHelper::TopVal;
-            // Note: using CNTIN different than 0 is not allowed in Output Compare mode by the specs.
+            *Ftm::cntin() = 0;
             NVIC_CLEAR_PENDING(Ftm::Irq);
             NVIC_SET_PRIORITY(Ftm::Irq, INTERRUPT_PRIORITY);
             NVIC_ENABLE_IRQ(Ftm::Irq);
@@ -236,11 +239,6 @@ private:
         static void init_start (Context c)
         {
             *Ftm::sc() |= FTM_SC_CLKS(1);
-            
-            // See explanation in init.
-            if (FtmIndex == 0) {
-                while (*MyFtm<0>::Ftm::cnt() == 0);
-            }
         }
         
         static void deinit (Context c)
@@ -269,26 +267,26 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->m_offset = 0;
+        // Important notes regarding synchronization:
+        // - We start the timers to run from zero value, in order.
+        //   This guarantees that all timers run late or equal to the
+        //   "first timer plus one tick". The plus-one-tick is needed due
+        //   to possibly different states of the prescalers.
+        // - We implement 32-bit getTime() based on this "first timer plus
+        //   one tick", by maintaining an offset from timer overflow
+        //   interrupts. Note, we implement the plus-one simply by
+        //   initializing the offset to 1.
+        // - When checking for interrupt-timer expiration in interrupt
+        //   handlers, we check if getTime() is greater or equal to the
+        //   target time. It follows that when an interrupt-timer is supposed
+        //   to expire, the expiration check passes. This is essential,
+        //   so we don't miss the expiration.
+        
+        o->m_offset = 1;
         
         memory_barrier();
         
         ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init(c)));
-        
-        // We need to make sure that timers other than the first timer
-        // (which is used as a reference clock) never count in advance of
-        // the first timer. They must be synchronized in step with or lag
-        // behind the first timer slightly. This ensures that their
-        // channel-match interrupts do not occur before the target time
-        // has been achieved according to the reference, which would
-        // make us lose events.
-        // Typically we would ensure this by starting the first timer
-        // with the initial value 1 and then starting other timers with
-        // the initial value 0 (accounting for possibly different internal
-        // prescaler states of timers). However, this hardware does not allow
-        // configuring the initial value (CNTIN) for Output Compare mode.
-        // Due to this restriction, we start the first timer at 0, wait for
-        // it to increment, then start the other timers at zero.
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ListFor<MyFtmsList>([&] APRINTER_TL(tc, tc::init_start(c)));
@@ -317,13 +315,20 @@ public:
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             offset = o->m_offset;
             low = *MyFtm<0>::Ftm::cnt();
+            // If the overflow flag is not seen, "offset" and "low" are consistent.
+            // If the overflow flag is seen, we need corrections:
+            // - "offset" needs to be assumed to be TopVal+1 larger since m_offset
+            //   has not yet been updated due to timer overflow interrupt,
+            // - "low" needs to be re-read from "cnt", to account for the
+            //   possibility that the overflow occurred just in between reading "cnt"
+            //   and checking the overflow flag.
             if (*MyFtm<0>::Ftm::sc() & FTM_SC_TOF) {
                 offset += (uint32_t)MyFtm<0>::TheModeHelper::TopVal + 1;
                 low = *MyFtm<0>::Ftm::cnt();
             }
         }
         
-        return (offset | low);
+        return (offset + low);
     }
     
     template <typename Ftm>
