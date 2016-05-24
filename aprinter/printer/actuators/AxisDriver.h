@@ -507,9 +507,14 @@ private:
         
         static_assert(TimeFixedType::maxValue().bitsValue() * Clock::time_unit <= DelayClockUtils::WorkingTimeSpan, "Fast clock is too fast");
         
-        static DelayTimeType const MinDirSetTicks   = 1e-6 * DelayParams::DirSetTime::value()   * DelayClockUtils::time_freq + 0.99;
-        static DelayTimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * DelayClockUtils::time_freq + 0.99;
-        static DelayTimeType const MinStepLowTicks  = 1e-6 * DelayParams::StepLowTime::value()  * DelayClockUtils::time_freq + 0.99;
+        // Note +1.99 to assure we do actually wait at least that much not lesser:
+        // - +0.99 so that we effectively round up to an integer number of ticks (not down).
+        // - +1.0 because waitSafe() only waits for the clock to increment by at least the
+        //   requested number of ticks, which could takes less time than that number of
+        //   clock periods.
+        static DelayTimeType const MinDirSetTicks   = 1e-6 * DelayParams::DirSetTime::value()   * DelayClockUtils::time_freq + 1.99;
+        static DelayTimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * DelayClockUtils::time_freq + 1.99;
+        static DelayTimeType const MinStepLowTicks  = 1e-6 * DelayParams::StepLowTime::value()  * DelayClockUtils::time_freq + 1.99;
         
         static constexpr double MinStepTimeFactor = 1.2;
         
