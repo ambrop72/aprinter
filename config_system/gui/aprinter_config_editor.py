@@ -203,6 +203,13 @@ def platform_Teensy3():
                 } for i in range(2) for j in range({0: 8, 1: 2}[i])
             ])
         ]),
+        ce.OneOf(key='fast_clock', title='Fast clock', choices=[
+            ce.Compound('NoClock', title='Disabled', attrs=[]),
+            ce.Compound('Mk20Clock', title='Enabled', attrs=[
+                ce.Integer(key='prescaler', title='Prescaler'),
+                ce.String(key='primary_timer', title='Timer'),
+            ]),
+        ]),
         ce.Compound('Mk20Adc', key='adc', title='ADC', collapsable=True, attrs=[
             ce.Integer(key='AdcADiv', title='AdcADiv'),
         ]),
