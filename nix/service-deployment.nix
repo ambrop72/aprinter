@@ -27,7 +27,6 @@ let
     accessKeyId = "mine";
     aprinterInstances = { pkgs, ... }: [
         { name = "default"; path = "/"; src = pkgs.stdenv.lib.cleanSource ./..; }
-        { name = "old";     path = "/old"; src = pkgs.stdenv.lib.cleanSource /home/ambro/dev/aprinter-old; }
     ];
     nixpkgsPath = <nixpkgs>;
     nixpkgsHost = (import nixpkgsPath) {};
