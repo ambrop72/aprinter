@@ -65,11 +65,6 @@ function preprocessObjectForState(obj) {
     };
 }
 
-function showError(error_str) {
-    // TODO: This should be something user-visible like a popup.
-    console.error(error_str);
-}
-
 function $has(obj, prop) {
     return Object.prototype.hasOwnProperty.call(obj, prop);
 }
@@ -114,22 +109,19 @@ var AxesTable = React.createClass({
         return {res: speed*60};
     },
     axisGo: function(axis_name) {
+        var action = 'Move axis';
         var speedRes = this.getSpeed();
         if ($has(speedRes, 'err')) {
-            return showError(speedRes.err);
+            return showError(action, speedRes.err, null);
         }
         var target = this.props.controller.getNumberValue(axis_name);
         if (isNaN(target)) {
-            return showError('Target value for axis '+axis_name+' is incorrect');
+            return showError(action, 'Target value for axis '+axis_name+' is incorrect', null);
         }
-        sendGcode('Move axis', 'G0 R F'+speedRes.res.toString()+' '+axis_name+target.toString());
+        sendGcode(action, 'G0 R F'+speedRes.res.toString()+' '+axis_name+target.toString());
         this.props.controller.cancel(axis_name);
     },
     allAxesGo: function() {
-        var speedRes = this.getSpeed();
-        if ($has(speedRes, 'err')) {
-            return showError(speedRes.err);
-        }
         var cmdAxes = '';
         var reasonAxes = [];
         var error = null;
@@ -138,20 +130,25 @@ var AxesTable = React.createClass({
             if (!this.props.controller.isEditing(axis_name)) {
                 return;
             }
+            reasonAxes.push(axis_name);
             var target = this.props.controller.getNumberValue(axis_name);
             if (isNaN(target)) {
                 if (error === null) error = 'Target value for axis '+axis_name+' is incorrect';
                 return;
             }
             cmdAxes += ' '+axis_name+target.toString();
-            reasonAxes.push(axis_name);
         }.bind(this));
+        var axes = (reasonAxes.length > 1) ? 'axes' : 'axis';
+        var action = 'Move '+axes;
         if (error !== null) {
-            return showError(error);
+            return showError(action, error, null);
+        }
+        var speedRes = this.getSpeed();
+        if ($has(speedRes, 'err')) {
+            return showError(action, speedRes.err, null);
         }
         if (cmdAxes.length !== 0) {
-            var axes = (reasonAxes.length > 1) ? 'axes' : 'axis';
-            sendGcode('Move '+axes, 'G0 R F'+speedRes.res.toString()+cmdAxes);
+            sendGcode(action, 'G0 R F'+speedRes.res.toString()+cmdAxes);
             this.props.controller.cancelAll();
         }
     },
@@ -249,11 +246,12 @@ var HeatersTable = React.createClass({
         return {res: 'M104 F '+heater_name+' S'+target.toString()};
     },
     heaterSet: function(heater_name) {
+        var action = 'Set heater setpoint';
         var makeRes = this.makeSetHeaterGcode(heater_name);
         if ($has(makeRes, 'err')) {
-            return showError(makeRes.err);
+            return showError(action, makeRes.err, null);
         }
-        sendGcode('Set heater setpoint', makeRes.res);
+        sendGcode(action, makeRes.res);
         this.props.controller.cancel(heater_name);
     },
     heaterOff: function(heater_name) {
@@ -263,9 +261,11 @@ var HeatersTable = React.createClass({
     allHeatersSet: function() {
         var cmds = [];
         var error = null;
+        var reasonHeaters = [];
         $.each(this.props.heaters.arr, function(idx, heater) {
             var heater_name = heater.key;
             if (this.props.controller.isEditing(heater_name)) {
+                reasonHeaters.push(heater_name);
                 var makeRes = this.makeSetHeaterGcode(heater_name);
                 if ($has(makeRes, 'err')) {
                     if (error === null) error = makeRes.err;
@@ -274,12 +274,13 @@ var HeatersTable = React.createClass({
                 cmds.push(makeRes.res);
             }
         }.bind(this));
+        var setpoints = (reasonHeaters.length > 1) ? 'setpoints' : 'setpoint';
+        var action = 'Set heater '+setpoints;
         if (error !== null) {
-            return showError(error);
+            return showError(action, error, null);
         }
         if (cmds.length !== 0) {
-            var setpoints = (cmds.length > 1) ? 'setpoints' : 'setpoint';
-            sendGcodes('Set heater '+setpoints, cmds);
+            sendGcodes(action, cmds);
             this.props.controller.cancelAll();
         }
     },
@@ -351,11 +352,12 @@ var FansTable = React.createClass({
         return {res: 'M106 F '+fan_name+' S'+(target/100*255).toPrecision(fanPrecision+3)};
     },
     fanSet: function(fan_name) {
+        var action = 'Set fan target';
         var makeRes = this.makeSetFanGcode(fan_name);
         if ($has(makeRes, 'err')) {
-            return showError(makeRes.err);
+            return showError(action, makeRes.err, null);
         }
-        sendGcode('Set fan target', makeRes.res);
+        sendGcode(action, makeRes.res);
         this.props.controller.cancel(fan_name);
     },
     fanOff: function(fan_name) {
@@ -365,9 +367,11 @@ var FansTable = React.createClass({
     allFansSet: function() {
         var cmds = [];
         var error = null;
+        var reasonFans = [];
         $.each(this.props.fans.arr, function(idx, fan) {
             var fan_name = fan.key;
             if (this.props.controller.isEditing(fan_name)) {
+                reasonFans.push(fan_name);
                 var makeRes = this.makeSetFanGcode(fan_name);
                 if ($has(makeRes, 'err')) {
                     if (error === null) error = makeRes.err;
@@ -376,12 +380,13 @@ var FansTable = React.createClass({
                 cmds.push(makeRes.res);
             }
         }.bind(this));
+        var targets = (reasonFans.length > 1) ? 'targets' : 'target';
+        var action = 'Set fan '+targets;
         if (error !== null) {
-            return showError(error);
+            return showError(action, error, null);
         }
         if (cmds.length !== 0) {
-            var targets = (cmds.length > 1) ? 'targets' : 'target';
-            sendGcodes('Set fan '+targets, cmds);
+            sendGcodes(action, cmds);
             this.props.controller.cancelAll();
         }
     },
@@ -445,11 +450,12 @@ var SpeedTable = React.createClass({
         this.speedRatioSet();
     },
     speedRatioSet: function() {
+        var action = 'Set speed ratio';
         var target = this.props.controller.getNumberValue('S');
         if (isNaN(target)) {
-            return showError('Speed ratio value is incorrect');
+            return showError(action, 'Speed ratio value is incorrect', null);
         }
-        sendGcode('Set speed ratio', 'M220 S'+target.toPrecision(speedPrecision+3));
+        sendGcode(action, 'M220 S'+target.toPrecision(speedPrecision+3));
         this.props.controller.cancel('S');
     },
     speedRatioReset: function() {
@@ -500,18 +506,17 @@ var SpeedTable = React.createClass({
 });
 
 
-// Buttons at the top row
+// Panel at the top
 
-var Buttons1 = React.createClass({
-    render: function() { return (
-        <div>
-            <h1>Aprinter Web Interface</h1>
-        </div>
-    );}
-});
-
-var Buttons2 = React.createClass({
+var TopPanel = React.createClass({
     render: function() {
+        var cmdStatusClass = '';
+        var cmdStatusText = '';
+        if (this.props.gcodeQueue.length > 0) {
+            var entry = this.props.gcodeQueue[0];
+            cmdStatusClass = 'constatus-waitresp';
+            cmdStatusText = 'Executing: '+entry.reason;
+        }
         var condition = this.props.statusUpdater.getCondition();
         var statusText = '';
         var statusClass = '';
@@ -524,8 +529,13 @@ var Buttons2 = React.createClass({
             statusClass = 'constatus-error';
         }
         return (
-            <div>
-                <span className={'control-right-margin constatus '+statusClass}>{statusText}</span>
+            <div className="flex-row" style={{alignItems: 'center'}}>
+                <h1>Aprinter Web Interface</h1>
+                <div className="toppanel-spacediv"></div>
+                <span className={'constatus '+cmdStatusClass}>{cmdStatusText}</span>
+                <div style={{flexGrow: '1'}}></div>
+                <span className={'constatus '+statusClass}>{statusText}</span>
+                <div className="toppanel-spacediv"></div>
                 <button type="button" className="btn btn-info top-btn-margin" onClick={startRefreshAll}>Refresh</button>
             </div>
         );
@@ -670,19 +680,22 @@ var ConfigTable = React.createClass({
         return {res: 'M926 I'+option_name+' V'+encodeStrForCmd(convRes.res)};
     },
     optionSet: function(option_name) {
+        var action = 'Set option';
         var makeRes = this.makeSetOptionGcode(option_name);
         if ($has(makeRes, 'err')) {
-            return showError(makeRes.err);
+            return showError(action, makeRes.err, null);
         }
-        sendGcode('Set option', makeRes.res, updateConfigAfterGcode);
+        sendGcode(action, makeRes.res, updateConfigAfterGcode);
         this.props.controller.cancel(option_name);
     },
     allOptionsSet: function() {
         var cmds = [];
         var error = null;
+        var reasonOptions = [];
         $.each(this.props.options.arr, function(idx, option) {
             var option_name = option.key;
             if (this.props.controller.isEditing(option_name)) {
+                reasonOptions.push(option_name);
                 var makeRes = this.makeSetOptionGcode(option_name);
                 if ($has(makeRes, 'err')) {
                     if (error === null) error = makeRes.err;
@@ -691,12 +704,13 @@ var ConfigTable = React.createClass({
                 cmds.push(makeRes.res);
             }
         }.bind(this));
+        var options = (reasonOptions.length > 1) ? 'options' : 'option';
+        var action = 'Set '+options;
         if (error !== null) {
-            return showError(error);
+            return showError(action, error, null);
         }
         if (cmds.length !== 0) {
-            var options = (cmds.length > 1) ? 'options' : 'option';
-            sendGcodes('Set '+options, cmds, updateConfigAfterGcode);
+            sendGcodes(action, cmds, updateConfigAfterGcode);
             this.props.controller.cancelAll();
         }
     },
@@ -1299,11 +1313,12 @@ function sendNextQueuedGcodes() {
         success: function(response) {
             currentGcodeCompleted(null, response);
         },
-        error: function(xhr, status, err) {
-            var error_str = err.toString();
-            // TODO: showError should also be done when error is on application level.
-            showError('Command "'+cmds_disp+'" failed: '+error_str);
-            currentGcodeCompleted(error_str, null);
+        error: function(xhr, status, error) {
+            var status_str = status+'';
+            var error_str = error+'';
+            var join_str = (status_str === '' || error_str === '') ? '' : ': ';
+            var final_error = status_str+join_str+error_str;
+            currentGcodeCompleted(final_error, null);
         }
     });
 }
@@ -1320,6 +1335,19 @@ function currentGcodeCompleted(error, response) {
     
     gcodeHistory.push(entry);
     
+    if (entry.isError) {
+        var head_str;
+        var body_str;
+        if (entry.error !== null) {
+            head_str = 'Communication error';
+            body_str = entry.error;
+        } else {
+            head_str = 'The machine responded with:';
+            body_str = entry.response;
+        }
+        showError(entry.reason, head_str, body_str);
+    }
+    
     if (gcodeQueue.length !== 0) {
         sendNextQueuedGcodes();
     }
@@ -1330,6 +1358,33 @@ function currentGcodeCompleted(error, response) {
     
     if (callback) {
         callback(entry);
+    }
+}
+
+
+// Error message display
+
+var modalIsOpen = false;
+
+function showError(action_str, head_str, body_str) {
+    var haveHead = (head_str !== null);
+    var haveBody = (body_str !== null);
+    console.error('Error in '+action_str+'.'+(haveHead?' '+head_str:'')+(haveBody?'\n'+body_str:''));
+    if (modalIsOpen) {
+        // TODO
+    } else {
+        var labelText = 'Error in "'+action_str+'".'+(haveHead ? '\n'+head_str : '');
+        var modal_label = document.getElementById('error_modal_label');
+        modal_label.innerText = labelText;
+        var modal_body = document.getElementById('error_modal_body');
+        modal_body.hidden = !haveBody;
+        modal_body.innerText = (haveBody ? body_str : '');
+        modalIsOpen = true;
+        $('#error_modal').modal({});
+        $('#error_modal').on('hidden.bs.modal', function() {
+            modal_body.innerText = '';
+            modalIsOpen = false;
+        });
     }
 }
 
@@ -1349,7 +1404,7 @@ function handleNewStatus(new_machine_state) {
 }
 
 function handleStatusCondition() {
-    wrapper_buttons2.forceUpdate();
+    wrapper_toppanel.forceUpdate();
 }
 
 var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, statusWaitingRespTime, handleNewStatus, handleStatusCondition);
@@ -1405,11 +1460,8 @@ function render_fans() {
 function render_speed() {
     return <SpeedTable speedRatio={machine_state.speedRatio} controller={controller_speed} />;
 }
-function render_buttons1() {
-    return <Buttons1 />;
-}
-function render_buttons2() {
-    return <Buttons2 statusUpdater={statusUpdater} />;
+function render_toppanel() {
+    return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} />;
 }
 function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
@@ -1422,8 +1474,7 @@ var wrapper_axes     = ReactDOM.render(<ComponentWrapper render={render_axes} />
 var wrapper_heaters  = ReactDOM.render(<ComponentWrapper render={render_heaters} />,  document.getElementById('heaters_div'));
 var wrapper_fans     = ReactDOM.render(<ComponentWrapper render={render_fans} />,     document.getElementById('fans_div'));
 var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
-var wrapper_buttons1 = ReactDOM.render(<ComponentWrapper render={render_buttons1} />, document.getElementById('buttons1_div'));
-var wrapper_buttons2 = ReactDOM.render(<ComponentWrapper render={render_buttons2} />, document.getElementById('buttons2_div'));
+var wrapper_toppanel = ReactDOM.render(<ComponentWrapper render={render_toppanel} />, document.getElementById('toppanel_div'));
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
 var wrapper_gcode    = ReactDOM.render(<ComponentWrapper render={render_gcode} />,    document.getElementById('gcode_div'));
 
@@ -1457,6 +1508,7 @@ function updateConfig() {
 }
 
 function updateGcode() {
+    wrapper_toppanel.forceUpdate();
     wrapper_gcode.forceUpdate();
 }
 

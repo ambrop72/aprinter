@@ -143,6 +143,10 @@ html, body {
     color: #ff6666;
 }
 
+.toppanel-spacediv {
+    min-width: 20px;
+}
+
 h1 {
     margin-top: 0px;
     margin-bottom: 0px;
