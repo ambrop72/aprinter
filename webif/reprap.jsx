@@ -67,7 +67,7 @@ function preprocessObjectForState(obj) {
 
 function showError(error_str) {
     // TODO: This should be something user-visible like a popup.
-    console.log('ERROR: '+error_str);
+    console.error(error_str);
 }
 
 function $has(obj, prop) {
@@ -650,7 +650,7 @@ function preprocessOptionsList(options) {
 }
 
 function updateConfigAfterGcode(entry) {
-    configUpdater.requestUpdate();
+    configUpdater.requestUpdate(false);
 }
 
 var ConfigTable = React.createClass({
@@ -885,21 +885,11 @@ var GcodeRow = React.createClass({
     render: function() {
         var entry = this.props.entry;
         var cmdText = linesToSpans(entry.cmds);
-        var result;
-        var isError = false;
-        if (entry.completed) {
-            if (entry.error === null) {
-                result = textToSpans($.trim(entry.response));
-                isError = /^Error:/gm.test(entry.response);
-            } else {
-                result = 'Error: '+entry.error;
-                isError = true;
-            }
-        } else {
-            result = 'Pending';
-        }
+        var result = !entry.completed     ? 'Pending' :
+                     entry.error === null ? textToSpans($.trim(entry.response)) :
+                                            'Error: '+entry.error
         return (
-            <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={isError} title={'User action: '+entry.reason}>
+            <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={entry.isError} title={'User action: '+entry.reason}>
                 <td>{cmdText}</td>
                 <td>{result}</td>
             </tr>
@@ -1146,9 +1136,9 @@ function StatusUpdater(reqPath, refreshInterval, waitingRespTime, handleNewStatu
     this._reqestInProgress = false;
     this._needsAnotherUpdate = false;
     this._timerId = null;
+    this._waitingTimerId = null;
     this._running = false;
     this._condition = 'Disabled';
-    this._waitingTimerId = null;
 }
 
 StatusUpdater.prototype.getCondition = function() {
@@ -1159,14 +1149,12 @@ StatusUpdater.prototype.setRunning = function(running) {
     if (running) {
         if (!this._running) {
             this._running = true;
-            this._condition = 'WaitingResponse';
-            this.requestUpdate();
-            this._handleCondition();
+            this.requestUpdate(true);
         }
     } else {
         if (this._running) {
             this._running = false;
-            this._condition = 'Disabled';
+            this._changeCondition('Disabled');
             this._stopTimer();
             this._stopWaitingTimer();
             this._handleCondition();
@@ -1174,9 +1162,13 @@ StatusUpdater.prototype.setRunning = function(running) {
     }
 };
 
-StatusUpdater.prototype.requestUpdate = function() {
+StatusUpdater.prototype.requestUpdate = function(setWaiting) {
     if (!this._running) {
         return;
+    }
+    if (setWaiting) {
+        this._changeCondition('WaitingResponse');
+        this._stopWaitingTimer();
     }
     if (this._reqestInProgress) {
         this._needsAnotherUpdate = true;
@@ -1212,7 +1204,6 @@ StatusUpdater.prototype._startRequest = function() {
             this._requestCompleted(true, new_status);
         }.bind(this),
         error: function(xhr, status, err) {
-            console.error(this._reqPath, status, err.toString());
             this._requestCompleted(false, null);
         }.bind(this)
     });
@@ -1224,15 +1215,13 @@ StatusUpdater.prototype._requestCompleted = function(success, new_status) {
         return;
     }
     this._stopWaitingTimer();
-    var old_condition = this._condition;
-    this._condition = success ? 'Okay' : 'Error';
+    if (!(this._condition === 'WaitingResponse' && this._needsAnotherUpdate)) {
+        this._changeCondition(success ? 'Okay' : 'Error');
+    }
     if (this._needsAnotherUpdate) {
         this._startRequest();
     } else {
         this._timerId = setTimeout(this._timerHandler.bind(this), this._refreshInterval);
-    }
-    if (this._condition !== old_condition) {
-        this._handleCondition();
     }
     if (success) {
         this._handleNewStatus(new_status);
@@ -1249,12 +1238,15 @@ StatusUpdater.prototype._waitingTimerHandler = function() {
     if (this._running && this._waitingTimerId !== null) {
         this._waitingTimerId = null;
         if (this._condition !== 'Error') {
-            var old_condition = this._condition;
-            this._condition = 'WaitingResponse';
-            if (this._condition !== old_condition) {
-                this._handleCondition();
-            }
+            this._changeCondition('WaitingResponse');
         }
+    }
+}
+
+StatusUpdater.prototype._changeCondition = function(condition) {
+    if (this._condition !== condition) {
+        this._condition = condition;
+        this._handleCondition();
     }
 }
 
@@ -1277,7 +1269,8 @@ function sendGcodes(reason, cmds, callback) {
         callback: callback,
         completed: false,
         error: null,
-        response: null
+        response: null,
+        isError: false,
     };
     gcodeQueue.push(entry);
     
@@ -1308,7 +1301,6 @@ function sendNextQueuedGcodes() {
         },
         error: function(xhr, status, err) {
             var error_str = err.toString();
-            console.error('/rr_gcode', status, error_str);
             // TODO: showError should also be done when error is on application level.
             showError('Command "'+cmds_disp+'" failed: '+error_str);
             currentGcodeCompleted(error_str, null);
@@ -1324,6 +1316,7 @@ function currentGcodeCompleted(error, response) {
     entry.completed = true;
     entry.error = error;
     entry.response = response;
+    entry.isError = error !== null || /^Error:/gm.test(response);
     
     gcodeHistory.push(entry);
     
@@ -1333,7 +1326,7 @@ function currentGcodeCompleted(error, response) {
     
     updateGcode();
     
-    statusUpdater.requestUpdate();
+    statusUpdater.requestUpdate(false);
     
     if (callback) {
         callback(entry);
@@ -1351,7 +1344,7 @@ function handleNewStatus(new_machine_state) {
     setNewMachineState(new_machine_state);
     machineStateChanged();
     if (configUpdater.getCondition() === 'Error') {
-        configUpdater.requestUpdate();
+        configUpdater.requestUpdate(false);
     }
 }
 
@@ -1468,8 +1461,8 @@ function updateGcode() {
 }
 
 function startRefreshAll() {
-    statusUpdater.requestUpdate();
-    configUpdater.requestUpdate();
+    statusUpdater.requestUpdate(true);
+    configUpdater.requestUpdate(true);
 }
 
 
