@@ -125,6 +125,24 @@ html, body {
     max-height: 700px;
 }
 
+.constatus {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.constatus-control {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.constatus-waitresp {
+    color: #ffcc00;
+}
+
+.constatus-error {
+    color: #ff6666;
+}
+
 h1 {
     margin-top: 0px;
     margin-bottom: 0px;

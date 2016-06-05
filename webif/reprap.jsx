@@ -3,6 +3,8 @@
 
 var statusRefreshInterval = 2000;
 var configRefreshInterval = 120000;
+var statusWaitingRespTime = 1000;
+var configWaitingRespTime = 1500;
 var axisPrecision = 6;
 var heaterPrecision = 4;
 var fanPrecision = 3;
@@ -64,6 +66,7 @@ function preprocessObjectForState(obj) {
 }
 
 function showError(error_str) {
+    // TODO: This should be something user-visible like a popup.
     console.log('ERROR: '+error_str);
 }
 
@@ -508,11 +511,25 @@ var Buttons1 = React.createClass({
 });
 
 var Buttons2 = React.createClass({
-    render: function() { return (
-        <div>
-            <button type="button" className="btn btn-info top-btn-margin" onClick={startRefreshAll}>Refresh</button>
-        </div>
-    );}
+    render: function() {
+        var condition = this.props.statusUpdater.getCondition();
+        var statusText = '';
+        var statusClass = '';
+        if (condition === 'WaitingResponse') {
+            statusText = 'Waiting for machine status';
+            statusClass = 'constatus-waitresp';
+        }
+        else if (condition === 'Error') {
+            statusText = 'Communication error';
+            statusClass = 'constatus-error';
+        }
+        return (
+            <div>
+                <span className={'control-right-margin constatus '+statusClass}>{statusText}</span>
+                <button type="button" className="btn btn-info top-btn-margin" onClick={startRefreshAll}>Refresh</button>
+            </div>
+        );
+    }
 });
 
 
@@ -694,6 +711,17 @@ var ConfigTable = React.createClass({
     },
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
+        var condition = this.props.configUpdater.getCondition();
+        var statusText = '';
+        var statusClass = '';
+        if (condition === 'WaitingResponse') {
+            statusText = 'Waiting for current configuration';
+            statusClass = 'constatus-waitresp';
+        }
+        else if (condition === 'Error') {
+            statusText = 'Error refreshing configuration';
+            statusClass = 'constatus-error';
+        }
         var width = '670px';
         var colgroup = (
             <colgroup>
@@ -713,6 +741,11 @@ var ConfigTable = React.createClass({
                         </div>
                     </div>
                     <div style={{flexGrow: '1'}}></div>
+                    <div className="form-inline">
+                        <div className="form-group">
+                            <span className={'constatus-control '+statusClass}>{statusText}</span>
+                        </div>
+                    </div>
                 </div>
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
@@ -1101,7 +1134,249 @@ function makeEcInputProps(ecInputs) {
     return {onChange: ecInputs.onChange, onKeyDown: ecInputs.onKeyDown, onKeyPress: ecInputs.onKeyPress};
 }
 
-// Gluing of react classes into page
+
+// Generic status updating
+
+function StatusUpdater(reqPath, refreshInterval, waitingRespTime, handleNewStatus, handleCondition) {
+    this._reqPath = reqPath;
+    this._refreshInterval = refreshInterval;
+    this._waitingRespTime = waitingRespTime;
+    this._handleNewStatus = handleNewStatus;
+    this._handleCondition = handleCondition;
+    this._reqestInProgress = false;
+    this._needsAnotherUpdate = false;
+    this._timerId = null;
+    this._running = false;
+    this._condition = 'Disabled';
+    this._waitingTimerId = null;
+}
+
+StatusUpdater.prototype.getCondition = function() {
+    return this._condition;
+};
+
+StatusUpdater.prototype.setRunning = function(running) {
+    if (running) {
+        if (!this._running) {
+            this._running = true;
+            this._condition = 'WaitingResponse';
+            this.requestUpdate();
+            this._handleCondition();
+        }
+    } else {
+        if (this._running) {
+            this._running = false;
+            this._condition = 'Disabled';
+            this._stopTimer();
+            this._stopWaitingTimer();
+            this._handleCondition();
+        }
+    }
+};
+
+StatusUpdater.prototype.requestUpdate = function() {
+    if (!this._running) {
+        return;
+    }
+    if (this._reqestInProgress) {
+        this._needsAnotherUpdate = true;
+    } else {
+        this._startRequest();
+    }
+};
+
+StatusUpdater.prototype._stopTimer = function() {
+    if (this._timerId !== null) {
+        clearTimeout(this._timerId);
+        this._timerId = null;
+    }
+};
+
+StatusUpdater.prototype._stopWaitingTimer = function() {
+    if (this._waitingTimerId !== null) {
+        clearTimeout(this._waitingTimerId);
+        this._waitingTimerId = null;
+    }
+};
+
+StatusUpdater.prototype._startRequest = function() {
+    this._stopTimer();
+    this._reqestInProgress = true;
+    this._needsAnotherUpdate = false;
+    this._waitingTimerId = setTimeout(this._waitingTimerHandler.bind(this), this._waitingRespTime);
+    $.ajax({
+        url: this._reqPath,
+        dataType: 'json',
+        cache: false,
+        success: function(new_status) {
+            this._requestCompleted(true, new_status);
+        }.bind(this),
+        error: function(xhr, status, err) {
+            console.error(this._reqPath, status, err.toString());
+            this._requestCompleted(false, null);
+        }.bind(this)
+    });
+};
+
+StatusUpdater.prototype._requestCompleted = function(success, new_status) {
+    this._reqestInProgress = false;
+    if (!this._running) {
+        return;
+    }
+    this._stopWaitingTimer();
+    var old_condition = this._condition;
+    this._condition = success ? 'Okay' : 'Error';
+    if (this._needsAnotherUpdate) {
+        this._startRequest();
+    } else {
+        this._timerId = setTimeout(this._timerHandler.bind(this), this._refreshInterval);
+    }
+    if (this._condition !== old_condition) {
+        this._handleCondition();
+    }
+    if (success) {
+        this._handleNewStatus(new_status);
+    }
+};
+
+StatusUpdater.prototype._timerHandler = function() {
+    if (this._running && !this._reqestInProgress) {
+        this._startRequest();
+    }
+}
+
+StatusUpdater.prototype._waitingTimerHandler = function() {
+    if (this._running && this._waitingTimerId !== null) {
+        this._waitingTimerId = null;
+        if (this._condition !== 'Error') {
+            var old_condition = this._condition;
+            this._condition = 'WaitingResponse';
+            if (this._condition !== old_condition) {
+                this._handleCondition();
+            }
+        }
+    }
+}
+
+
+// Gcode execution
+
+var gcodeQueue = [];
+var gcodeHistory = [];
+var gcodeIdCounter = 1;
+
+function sendGcode(reason, cmd, callback) {
+    sendGcodes(reason, [cmd], callback);
+}
+
+function sendGcodes(reason, cmds, callback) {
+    var entry = {
+        id: gcodeIdCounter,
+        reason: reason,
+        cmds: cmds,
+        callback: callback,
+        completed: false,
+        error: null,
+        response: null
+    };
+    gcodeQueue.push(entry);
+    
+    gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 1 : (gcodeIdCounter+1);
+    
+    if (gcodeQueue.length === 1) {
+        sendNextQueuedGcodes();
+    }
+    
+    while (gcodeQueue.length + gcodeHistory.length > gcodeHistorySize && gcodeHistory.length > 0) {
+        gcodeHistory.shift();
+    }
+    
+    updateGcode();
+}
+
+function sendNextQueuedGcodes() {
+    var entry = gcodeQueue[0];
+    var cmds_disp = entry.cmds.join('; ');
+    var cmds_exec = entry.cmds.join('\n')+'\n';
+    $.ajax({
+        url: '/rr_gcode',
+        type: 'POST',
+        data: cmds_exec,
+        dataType: 'text',
+        success: function(response) {
+            currentGcodeCompleted(null, response);
+        },
+        error: function(xhr, status, err) {
+            var error_str = err.toString();
+            console.error('/rr_gcode', status, error_str);
+            // TODO: showError should also be done when error is on application level.
+            showError('Command "'+cmds_disp+'" failed: '+error_str);
+            currentGcodeCompleted(error_str, null);
+        }
+    });
+}
+
+function currentGcodeCompleted(error, response) {
+    var entry = gcodeQueue.shift();
+    var callback = entry.callback;
+    
+    entry.callback = null;
+    entry.completed = true;
+    entry.error = error;
+    entry.response = response;
+    
+    gcodeHistory.push(entry);
+    
+    if (gcodeQueue.length !== 0) {
+        sendNextQueuedGcodes();
+    }
+    
+    updateGcode();
+    
+    statusUpdater.requestUpdate();
+    
+    if (callback) {
+        callback(entry);
+    }
+}
+
+
+// Status updating
+
+function fixupStateObject(state, name) {
+    return preprocessObjectForState($has(state, name) ? state[name] : {});
+}
+
+function handleNewStatus(new_machine_state) {
+    setNewMachineState(new_machine_state);
+    machineStateChanged();
+    if (configUpdater.getCondition() === 'Error') {
+        configUpdater.requestUpdate();
+    }
+}
+
+function handleStatusCondition() {
+    wrapper_buttons2.forceUpdate();
+}
+
+var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, statusWaitingRespTime, handleNewStatus, handleStatusCondition);
+
+
+// Configuration updating
+
+function handleNewConfig(new_config) {
+    machine_options = preprocessObjectForState(preprocessOptionsList(new_config.options));
+    updateConfig();
+}
+
+function handleConfigCondition() {
+    updateConfig();
+}
+
+var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, configWaitingRespTime, handleNewConfig, handleConfigCondition);
+
+
+// Gluing things together
 
 var ComponentWrapper = React.createClass({
     render: function() {
@@ -1141,10 +1416,10 @@ function render_buttons1() {
     return <Buttons1 />;
 }
 function render_buttons2() {
-    return <Buttons2 />;
+    return <Buttons2 statusUpdater={statusUpdater} />;
 }
 function render_config() {
-    return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} />;
+    return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_gcode() {
     return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;
@@ -1192,198 +1467,10 @@ function updateGcode() {
     wrapper_gcode.forceUpdate();
 }
 
-// Generic status updating
-
-function StatusUpdater(reqPath, refreshInterval, handleNewStatus) {
-    this._reqPath = reqPath;
-    this._refreshInterval = refreshInterval;
-    this._handleNewStatus = handleNewStatus;
-    this._reqestInProgress = false;
-    this._needsAnotherUpdate = false;
-    this._timerId = null;
-    this._running = false;
-}
-
-StatusUpdater.prototype.setRunning = function(running) {
-    if (running) {
-        if (!this._running) {
-            this._running = true;
-            this.requestUpdate();
-        }
-    } else {
-        if (this._running) {
-            this._running = false;
-            this._stopTimer();
-        }
-    }
-};
-
-StatusUpdater.prototype.requestUpdate = function() {
-    if (!this._running) {
-        return;
-    }
-    if (this._reqestInProgress) {
-        this._needsAnotherUpdate = true;
-    } else {
-        this._startRequest();
-    }
-};
-
-StatusUpdater.prototype._stopTimer = function() {
-    if (this._timerId !== null) {
-        clearTimeout(this._timerId);
-        this._timerId = null;
-    }
-};
-
-StatusUpdater.prototype._startRequest = function() {
-    this._stopTimer();
-    this._reqestInProgress = true;
-    this._needsAnotherUpdate = false;
-    $.ajax({
-        url: this._reqPath,
-        dataType: 'json',
-        cache: false,
-        success: function(new_status) {
-            this._requestCompleted();
-            this._handleNewStatus(new_status);
-        }.bind(this),
-        error: function(xhr, status, err) {
-            console.error(this._reqPath, status, err.toString());
-            this._requestCompleted();
-        }.bind(this)
-    });
-};
-
-StatusUpdater.prototype._requestCompleted = function() {
-    this._reqestInProgress = false;
-    if (!this._running) {
-        return;
-    }
-    if (this._needsAnotherUpdate) {
-        this._startRequest();
-    } else {
-        this._timerId = setTimeout(this._timerHandler.bind(this), this._refreshInterval);
-    }
-};
-
-StatusUpdater.prototype._timerHandler = function() {
-    if (this._running && !this._reqestInProgress) {
-        this._startRequest();
-    }
-}
-
-
-// Status updating
-
-function fixupStateObject(state, name) {
-    return preprocessObjectForState($has(state, name) ? state[name] : {});
-}
-
-var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, function(new_machine_state) {
-    setNewMachineState(new_machine_state);
-    machineStateChanged();
-});
-
-
-// Configuration updating
-
-var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, function(new_config) {
-    machine_options = preprocessObjectForState(preprocessOptionsList(new_config.options));
-    updateConfig();
-});
-
-
-// Refresh all info
-
 function startRefreshAll() {
     statusUpdater.requestUpdate();
     configUpdater.requestUpdate();
 }
-
-
-// Gcode execution
-
-var gcodeQueue = [];
-var gcodeHistory = [];
-var gcodeIdCounter = 1;
-
-function sendGcode(reason, cmd, callback) {
-    sendGcodes(reason, [cmd], callback);
-}
-
-function sendGcodes(reason, cmds, callback) {
-    var entry = {
-        id: gcodeIdCounter,
-        reason: reason,
-        cmds: cmds,
-        callback: callback,
-        completed: false,
-        error: null,
-        response: null
-    };
-    gcodeQueue.push(entry);
-    
-    gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 1 : (gcodeIdCounter+1);
-    
-    if (gcodeQueue.length === 1) {
-        sendNextQueuedGcodes();
-    }
-    
-    while (gcodeQueue.length + gcodeHistory.length > gcodeHistorySize && gcodeHistory.length > 0) {
-        gcodeHistory.shift();
-    }
-    
-    updateGcode();
-}
-
-function sendNextQueuedGcodes() {
-    var entry = gcodeQueue[0];
-    var cmds_disp = entry.cmds.join('; ');
-    var cmds_exec = entry.cmds.join('\n')+'\n';
-    console.log('>>> '+cmds_disp);
-    $.ajax({
-        url: '/rr_gcode',
-        type: 'POST',
-        data: cmds_exec,
-        dataType: 'text',
-        success: function(response) {
-            console.log('<<< '+response);
-            currentGcodeCompleted(null, response);
-        },
-        error: function(xhr, status, err) {
-            var error_str = err.toString();
-            console.error('/rr_gcode', status, error_str);
-            showError('Command "'+cmds_disp+'" failed: '+error_str);
-            currentGcodeCompleted(error_str, null);
-        }
-    });
-}
-
-function currentGcodeCompleted(error, response) {
-    var entry = gcodeQueue.shift();
-    var callback = entry.callback;
-    
-    entry.callback = null;
-    entry.completed = true;
-    entry.error = error;
-    entry.response = response;
-    
-    gcodeHistory.push(entry);
-    
-    if (gcodeQueue.length !== 0) {
-        sendNextQueuedGcodes();
-    }
-    
-    updateGcode();
-    
-    statusUpdater.requestUpdate();
-    
-    if (callback) {
-        callback(entry);
-    }
-}
-
 
 
 // Initial actions
