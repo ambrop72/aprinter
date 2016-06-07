@@ -1365,28 +1365,54 @@ function currentGcodeCompleted(error, response) {
 // Error message display
 
 var modalIsOpen = false;
+var errorDialogQueue = [];
+
+var errorModal = $('#error_modal');
+var modalLabel = document.getElementById('error_modal_label');
+var modalBody = document.getElementById('error_modal_body');
 
 function showError(action_str, head_str, body_str) {
     var haveHead = (head_str !== null);
     var haveBody = (body_str !== null);
+    
     console.error('Error in '+action_str+'.'+(haveHead?' '+head_str:'')+(haveBody?'\n'+body_str:''));
+    
     if (modalIsOpen) {
-        // TODO
-    } else {
-        var labelText = 'Error in "'+action_str+'".'+(haveHead ? '\n'+head_str : '');
-        var modal_label = document.getElementById('error_modal_label');
-        modal_label.innerText = labelText;
-        var modal_body = document.getElementById('error_modal_body');
-        modal_body.hidden = !haveBody;
-        modal_body.innerText = (haveBody ? body_str : '');
-        modalIsOpen = true;
-        $('#error_modal').modal({});
-        $('#error_modal').on('hidden.bs.modal', function() {
-            modal_body.innerText = '';
-            modalIsOpen = false;
+        errorDialogQueue.push({
+            action_str: action_str,
+            head_str: head_str,
+            body_str: body_str,
         });
+    } else {
+        _showErrorDialog(action_str, head_str, body_str);
     }
 }
+
+function _showErrorDialog(action_str, head_str, body_str) {
+    var haveHead = (head_str !== null);
+    var haveBody = (body_str !== null);
+    
+    var labelText = 'Error in "'+action_str+'".'+(haveHead ? '\n'+head_str : '');
+    
+    modalLabel.innerText = labelText;
+    modalBody.innerText = (haveBody ? body_str : '');
+    modalBody.hidden = !haveBody;
+    errorModal.modal({});
+    
+    modalIsOpen = true;
+}
+
+errorModal.on('hidden.bs.modal', function() {
+    modalLabel.innerText = '';
+    modalBody.innerText = '';
+    
+    modalIsOpen = false;
+    
+    if (errorDialogQueue.length > 0) {
+        var entry = errorDialogQueue.shift();
+        _showErrorDialog(entry.action_str, entry.head_str, entry.body_str);
+    }
+});
 
 
 // Status updating
