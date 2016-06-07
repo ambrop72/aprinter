@@ -136,11 +136,11 @@ html, body {
 }
 
 .constatus-waitresp {
-    color: #ffcc00;
+    color: #EEBF00;
 }
 
 .constatus-error {
-    color: #ff6666;
+    color: #EE0000;
 }
 
 .toppanel-spacediv {
