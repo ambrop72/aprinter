@@ -536,7 +536,7 @@ var TopPanel = React.createClass({
                 <div style={{flexGrow: '1'}}></div>
                 <span className={'constatus '+statusClass}>{statusText}</span>
                 <div className="toppanel-spacediv"></div>
-                <button type="button" className="btn btn-info top-btn-margin" onClick={startRefreshAll}>Refresh</button>
+                <button type="button" className={controlButtonClass('info')+' top-btn-margin'} onClick={startRefreshAll}>Refresh</button>
             </div>
         );
     }
