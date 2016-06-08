@@ -77,8 +77,14 @@ rec {
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
+    /* TypeScript compiler. */
+    typescript = pkgs.callPackage ./typescript.nix {};
+    
+    /* Typescript type definitions. */
+    definitelyTyped = pkgs.callPackage ./definitely-typed.nix {};
+    
     /* Builds the web interface. */
-    aprinterWebif = pkgs.callPackage ./webif.nix { inherit aprinterSource; };
+    aprinterWebif = pkgs.callPackage ./webif.nix { inherit aprinterSource typescript definitelyTyped; };
     
     /* Hosts the web interface locally while proxying API requests to a device. */
     aprinterWebifTest = pkgs.callPackage ./webif-test.nix { inherit aprinterWebif ncd; };

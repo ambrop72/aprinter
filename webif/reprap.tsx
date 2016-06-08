@@ -54,7 +54,7 @@ function controlAllHead(labelText, buttons) {
 
 function orderObject(obj) {
     var arr = $.map(obj, function(val, key) { return {key: key, val: val}; });
-    arr.sort(function(x, y) { return (x.key > y.key) - (x.key < y.key); });
+    arr.sort(function(x, y) { return +(x.key > y.key) - +(x.key < y.key); });
     return arr;
 }
 
