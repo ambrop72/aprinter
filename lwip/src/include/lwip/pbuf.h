@@ -1,3 +1,8 @@
+/**
+ * @file
+ * pbuf API
+ */
+
 /*
  * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
  * All rights reserved. 
@@ -68,6 +73,8 @@ typedef enum {
   PBUF_RAW
 } pbuf_layer;
 
+/** Enumeration of pbuf types
+ */
 typedef enum {
   /** pbuf data is stored in ROM, i.e. struct pbuf and its payload are located in
       totally different memory areas. Since it points to ROM, payload does not
@@ -101,6 +108,8 @@ typedef enum {
 /** indicates this pbuf includes a TCP FIN flag */
 #define PBUF_FLAG_TCP_FIN   0x20U
 
+/** Main payload buffer struct
+ */
 struct pbuf {
   /** next pbuf in singly linked pbuf chain */
   struct pbuf *next;
