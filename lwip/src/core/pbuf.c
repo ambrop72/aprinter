@@ -272,7 +272,7 @@ pbuf_alloc_pool(pbuf_layer layer, u16_t length, u16_t min_first_len)
 #if LWIP_SUPPORT_CUSTOM_PBUF
 /** Initialize a custom pbuf (already allocated).
  *
- * @param layer flag to define header size
+ * @param l flag to define header size
  * @param length size of the pbuf's payload
  * @param type type of the pbuf (only used to treat the pbuf accordingly, as
  *        this function allocates no memory)
@@ -934,6 +934,7 @@ pbuf_take(struct pbuf *buf, const void *dataptr, u16_t len)
  * @param buf pbuf to fill with data
  * @param dataptr application supplied data buffer
  * @param len length of the application supplied data buffer
+ * @param offset offset in pbuf where to copy dataptr to
  *
  * @return ERR_OK if successful, ERR_MEM if the pbuf is not big enough
  */
