@@ -747,7 +747,7 @@ var ConfigTable = React.createClass({
         );
         return (
             <div className="flex-column" style={{flexShrink: '1'}}>
-                <div className="flex-row">
+                <div className="flex-row control-bottom-margin">
                     <div className="form-inline">
                         <div className="form-group">
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
@@ -836,6 +836,70 @@ var ConfigRow = React.createClass({
         this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
     }
 });
+
+
+// SD-card tab
+
+var SdCardTab = React.createClass({
+    doMount: function() {
+        sendGcode('Mount SD-card', 'M21');
+    },
+    doUnmount: function() {
+        sendGcode('Unmount SD-card', 'M22');
+    },
+    doMountRw: function() {
+        sendGcode('Mount SD-card read-write', 'M21 W');
+    },
+    doRemountRo: function() {
+        sendGcode('Remount SD-card read-only', 'M22 R');
+    },
+    render: function() {
+        var sdcard = this.props.sdcard;
+        var canMount = (sdcard !== null && sdcard.mntState === 'NotMounted');
+        var canUnmount = (sdcard !== null && sdcard.mntState === 'Mounted');
+        var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
+        var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
+        var stateText = (sdcard === null) ? 'Disabled' : (translateMntState(sdcard.mntState) + (sdcard.mntState === 'Mounted' ? ', '+translateRwState(sdcard.rwState) : ''));
+        return (
+            <div className="flex-column" style={{flexShrink: '1'}}>
+                <div className="flex-row control-bottom-margin">
+                    <div className="form-inline">
+                        <div className="form-group">
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
+                            <button type="button" className={controlButtonClass('primary')}                         disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
+                        </div>
+                    </div>
+                    <div style={{flexGrow: '1'}}></div>
+                </div>
+                <div className="flex-row control-bottom-margin">
+                    <div className="form-inline">
+                        <div className="form-group">
+                            <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
+                            <output id="sdcard_state" className={controlInputClass} style={{width: '240px'}} value={stateText} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+});
+
+function translateMntState(mntState) {
+    if (mntState === 'NotMounted') return 'Not mounted';
+    if (mntState === 'Mounting')   return 'Mounting';
+    if (mntState === 'Mounted')    return 'Mounted';
+    return mntState;
+}
+
+function translateRwState(rwState) {
+    if (rwState === 'ReadOnly')     return 'Read-only';
+    if (rwState === 'MountingRW')   return 'Mounting read-write';
+    if (rwState === 'ReadWrite')    return 'Read-write';
+    if (rwState === 'RemountingRO') return 'Remounting read-only';
+    return rwState;
+}
 
 
 // Gcode execution component
@@ -1461,6 +1525,7 @@ var ComponentWrapper = React.createClass({
 var machine_state = {
     speedRatio:  null,
     configDirty: null,
+    sdcard:      null,
     axes:    preprocessObjectForState({}),
     heaters: preprocessObjectForState({}),
     fans:    preprocessObjectForState({})
@@ -1492,6 +1557,9 @@ function render_toppanel() {
 function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
+function render_sdcard() {
+    return <SdCardTab sdcard={machine_state.sdcard} />;
+}
 function render_gcode() {
     return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;
 }
@@ -1502,12 +1570,14 @@ var wrapper_fans     = ReactDOM.render(<ComponentWrapper render={render_fans} />
 var wrapper_speed    = ReactDOM.render(<ComponentWrapper render={render_speed} />,    document.getElementById('speed_div'));
 var wrapper_toppanel = ReactDOM.render(<ComponentWrapper render={render_toppanel} />, document.getElementById('toppanel_div'));
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
+var wrapper_sdcard   = ReactDOM.render(<ComponentWrapper render={render_sdcard} />,   document.getElementById('sdcard_div'));
 var wrapper_gcode    = ReactDOM.render(<ComponentWrapper render={render_gcode} />,    document.getElementById('gcode_div'));
 
 function setNewMachineState(new_machine_state) {
     machine_state = new_machine_state;
     machine_state.speedRatio  = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : null;
     machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : null;
+    machine_state.sdcard      = $has(machine_state, 'sdcard') ? machine_state.sdcard : null
     machine_state.axes    = fixupStateObject(machine_state, 'axes');
     machine_state.heaters = fixupStateObject(machine_state, 'heaters');
     machine_state.fans    = fixupStateObject(machine_state, 'fans');
@@ -1518,7 +1588,10 @@ function machineStateChanged() {
     document.getElementById('heaters_panel').hidden = (machine_state.heaters.arr.length === 0);
     document.getElementById('fans_panel').hidden    = (machine_state.fans.arr.length === 0);
     document.getElementById('speed_panel').hidden   = (machine_state.speedRatio === null);
-    document.getElementById('config_panel').hidden  = (machine_state.configDirty === null);
+    document.getElementById('config_tab').hidden    = (machine_state.configDirty === null);
+    document.getElementById('sdcard_tab').hidden    = (machine_state.sdcard === null);
+    
+    updateTabs();
     
     configUpdater.setRunning(machine_state.configDirty !== null);
     
@@ -1527,6 +1600,8 @@ function machineStateChanged() {
     controller_fans.forceUpdateVia(wrapper_fans);
     controller_speed.forceUpdateVia(wrapper_speed);
     controller_config.forceUpdateVia(wrapper_config);
+    
+    wrapper_sdcard.forceUpdate();
 }
 
 function updateConfig() {
@@ -1541,6 +1616,18 @@ function updateGcode() {
 function startRefreshAll() {
     statusUpdater.requestUpdate(true);
     configUpdater.requestUpdate(true);
+}
+
+function updateTabs() {
+    // If there is no tab selected and there is at least one non-hidden tab,
+    // activate the first non-hidden tab.
+    var active_tab = $('#main_tabs_ul>.active');
+    if (active_tab.length == 0) {
+        var nonhidden_tabs = $('#main_tabs_ul>*:not([hidden])');
+        if (nonhidden_tabs.length > 0) {
+            nonhidden_tabs.first().find('>a').tab('show');
+        }
+    }
 }
 
 

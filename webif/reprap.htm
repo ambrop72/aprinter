@@ -36,8 +36,23 @@
                 </div>
             </div>
             <div class="flex-column" style="margin: 5px">
-                <div class="flex-column panel panel-default control-panel config-panel" style="flex-shrink: 1" id="config_panel" hidden>
-                    <div class="panel-body flex-column" style="flex-shrink: 1" id="config_div"></div>
+                <div class="flex-column panel panel-default control-panel config-panel" style="flex-shrink: 1">
+                    <div class="panel-body flex-column" style="flex-shrink: 1">
+                        <ul class="nav nav-tabs control-tabs" role="tablist" id="main_tabs_ul">
+                            <li role="presentation" hidden id="config_tab">
+                                <a href="#config_div" aria-controls="config_div" role="tab" data-toggle="tab">Configuration</a>
+                            </li>
+                            <li role="presentation" hidden id="sdcard_tab">
+                                <a href="#sdcard_div" aria-controls="sdcard_div" role="tab" data-toggle="tab">SD card</a>
+                            </li>
+                        </ul>
+                        <div class="flex-column tab-content control-tabcontent" style="flex-shrink: 1">
+                            <div role="tabpanel" class="tab-pane flex-column" style="flex-shrink: 1" id="config_div">
+                            </div>
+                            <div role="tabpanel" class="tab-pane flex-column" style="flex-shrink: 1" id="sdcard_div">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -147,6 +147,19 @@ html, body {
     min-width: 20px;
 }
 
+.control-tabs {
+    margin-bottom: 5px;
+}
+
+.control-tabs>li>a {
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
+.control-tabcontent>.active {
+    display: flex;
+}
+
 h1 {
     margin-top: 0px;
     margin-bottom: 0px;
@@ -156,5 +169,9 @@ h1 {
 }
 
 *[hidden] {
+    display: none;
+}
+
+.nav>li[hidden] {
     display: none;
 }
