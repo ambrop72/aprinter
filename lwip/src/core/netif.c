@@ -59,6 +59,9 @@
 #if LWIP_IPV6_MLD
 #include "lwip/mld6.h"
 #endif /* LWIP_IPV6_MLD */
+#if LWIP_IPV6
+#include "lwip/nd6.h"
+#endif
 
 #if LWIP_NETIF_STATUS_CALLBACK
 #define NETIF_STATUS_CALLBACK(n) do{ if (n->status_callback) { (n->status_callback)(n); }}while(0)
@@ -551,6 +554,11 @@ void netif_set_down(struct netif *netif)
       etharp_cleanup_netif(netif);
     }
 #endif /* LWIP_IPV4 && LWIP_ARP */
+
+#if LWIP_IPV6
+    nd6_cleanup_netif(netif);
+#endif /* LWIP_IPV6 */
+
     NETIF_STATUS_CALLBACK(netif);
   }
 }
