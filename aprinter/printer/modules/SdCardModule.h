@@ -45,6 +45,7 @@
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/GcodeCommand.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -132,6 +133,14 @@ public:
         
         // Let the Input module implement its own commands.
         return TheInput::checkCommand(c, cmd);
+    }
+    
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        json->addKeyObject(JsonSafeString{"sdcard"});
+        TheInput::get_json_status(c, json);
+        json->endObject();
     }
     
     template <typename This=SdCardModule>

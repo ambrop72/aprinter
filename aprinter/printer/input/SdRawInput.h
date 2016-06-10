@@ -160,6 +160,11 @@ public:
         return true;
     }
     
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+    }
+    
     using GetSdCard = TheSdCard;
     
 private:

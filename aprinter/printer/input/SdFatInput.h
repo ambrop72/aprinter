@@ -45,6 +45,7 @@
 #include <aprinter/fs/BlockAccess.h>
 #include <aprinter/fs/PartitionTable.h>
 #include <aprinter/fs/BlockRange.h>
+#include <aprinter/printer/utils/JsonBuilder.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -214,6 +215,35 @@ public:
             return false;
         }
         return true;
+    }
+    
+    template <typename TheJsonBuilder>
+    static void get_json_status (Context c, TheJsonBuilder *json)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        
+        char const *mntState;
+        switch (o->init_state) {
+            case INIT_STATE_INACTIVE:    mntState = "NotMounted"; break;
+            case INIT_STATE_ACTIVATE_SD:
+            case INIT_STATE_READ_MBR:
+            case INIT_STATE_INIT_FS:     mntState = "Mounting";   break;
+            default:                     mntState = "Mounted";    break;
+        }
+        
+        char const *rwState = "NotMounted";
+        if (o->init_state == INIT_STATE_DONE) {
+            switch (o->write_mount_state) {
+                case WRITEMOUNT_STATE_NOT_MOUNTED: rwState = "ReadOnly";     break;
+                case WRITEMOUNT_STATE_MOUNTING:    rwState = "MountingRW";   break;
+                case WRITEMOUNT_STATE_MOUNTED:     rwState = "ReadWrite";    break;
+                default:                           rwState = "RemountingRO"; break;
+            }
+        }
+        
+        json->addSafeKeyVal("mntState", JsonSafeString{mntState});
+        json->addSafeKeyVal("rwState", JsonSafeString{rwState});
     }
     
     using GetSdCard = typename TheBlockAccess::GetSd;
