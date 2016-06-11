@@ -79,6 +79,14 @@ function $toNumber(val) {
     return val - 0;
 }
 
+function $startsWith(data, start) {
+    return data.substring(0, start.length) === start;
+}
+
+function $endsWith(data, end) {
+    return data.substring(data.length - end.length, data.length) === end;
+}
+
 function encodeStrForCmd(val) {
     return encodeURIComponent(val).replace(/%/g, "\\");
 }
@@ -889,7 +897,7 @@ var SdCardTab = React.createClass({
         }
     },
     doNavigateTo: function(desiredDir) {
-        if (desiredDir.startsWith('/')) {
+        if ($startsWith(desiredDir, '/')) {
             desiredDir = removeRedundantSlashesInDir(desiredDir);
             if (this.state.desiredDir !== desiredDir) {
                 this.setState({desiredDir: desiredDir});
@@ -905,7 +913,7 @@ var SdCardTab = React.createClass({
         var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
         var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
         var stateText = (sdcard === null) ? 'Disabled' : (translateMntState(sdcard.mntState) + (sdcard.mntState === 'Mounted' ? ', '+translateRwState(sdcard.rwState) : ''));
-        var canNavigate = this.state.desiredDir.startsWith('/');
+        var canNavigate = $startsWith(this.state.desiredDir, '/');
         var loadedDir = this.props.controller.getLoadedDir();
         var loadedResult = this.props.controller.getLoadedResult();
         var canGoUp = (loadedDir !== null && loadedResult.dir !== '/');
@@ -994,7 +1002,7 @@ var SdCardDirList = React.createClass({
                         </colgroup>
                         <tbody>
                             {$.map(files_sorted, function(file, file_idx) {
-                                var is_dir = file.startsWith('*');
+                                var is_dir = $startsWith(file, '*');
                                 var file_type;
                                 var file_name;
                                 if (is_dir) {
@@ -1004,7 +1012,7 @@ var SdCardDirList = React.createClass({
                                     file_type = 'File';
                                     file_name = file;
                                 }
-                                var file_path = dir+(dir.endsWith('/')?'':'/')+file_name;
+                                var file_path = dir+($endsWith(dir, '/')?'':'/')+file_name;
                                 var a_attrs = is_dir ?
                                     {href: 'javascript:void(0)', onClick: this.onDirClicked.bind(this, file_path)} :
                                     {href: sdRootAccessPrefix+file_path, target: '_blank'};
