@@ -157,6 +157,10 @@ html, body {
     width: 400px;
 }
 
+.gcode-panel {
+    max-height: 400px;
+}
+
 .main-panel {
     min-height: 400px;
     max-height: 700px;

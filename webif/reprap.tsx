@@ -917,7 +917,7 @@ var GcodeTable = React.createClass({
             </colgroup>
         );
         return (
-            <div className="flex-column">
+            <div className="flex-column flex-grow1">
                 <table className={gcodeTableClass}>
                     {colgroup}
                     <thead>
@@ -927,7 +927,7 @@ var GcodeTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div ref="scroll_div" className="flex-column" style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1', height: '125px', width: '400px'}}>
+                <div ref="scroll_div" className="flex-column flex-shrink1 flex-grow1" style={{overflowY: 'scroll', height: '120px', width: '400px'}}>
                     <div style={{flexGrow: '1'}}></div>
                     <table className={gcodeTableClass} style={{width: '100%'}}>
                         {colgroup}
