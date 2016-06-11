@@ -12,6 +12,7 @@ var speedPrecision = 4;
 var configPrecision = 15;
 var defaultSpeed = 50;
 var gcodeHistorySize = 20;
+var sdRootAccessPrefix = '/sdcard';
 
 
 // Commonly used styles/elements
@@ -89,6 +90,13 @@ function removeTrailingZerosInNumStr(num_str) {
     return num_str.replace(/(\.|(\.[0-9]*[1-9]))0*$/, function(match, p1, p2) {
         return typeof(p2) === 'string' ? p2 : '';
     });
+}
+
+function makeAjaxErrorStr(status, error) {
+    var status_str = status+'';
+    var error_str = error+'';
+    var join_str = (status_str === '' || error_str === '') ? '' : ': ';
+    return status_str+join_str+error_str;
 }
 
 
@@ -775,7 +783,7 @@ var ConfigTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div style={{overflowY: 'scroll', overflowX: 'hidden', flexShrink: '1'}}>
+                <div className="flex-shrink1" style={{overflowY: 'scroll'}}>
                     <table className={controlTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>
@@ -841,6 +849,11 @@ var ConfigRow = React.createClass({
 // SD-card tab
 
 var SdCardTab = React.createClass({
+    getInitialState: function() {
+        return {
+            desiredDir: '/',
+        };
+    },
     doMount: function() {
         sendGcode('Mount SD-card', 'M21');
     },
@@ -853,6 +866,38 @@ var SdCardTab = React.createClass({
     doRemountRo: function() {
         sendGcode('Remount SD-card read-only', 'M22 R');
     },
+    onDirInputChange: function(event) {
+        this.setState({desiredDir: event.target.value});
+    },
+    onDirInputKeyPress: function(event) {
+        if (event.key === 'Enter') {
+            this.doNavigateTo(this.state.desiredDir);
+        }
+    },
+    onDirGoClick: function() {
+        this.doNavigateTo(this.state.desiredDir);
+    },
+    onDirUpClick: function() {
+        var loadedDir = this.props.controller.getLoadedDir();
+        var loadedResult = this.props.controller.getLoadedResult();
+        if (loadedDir !== null && loadedResult.dir !== '/') {
+            var parentDir = loadedResult.dir.replace(/\/[^\/]+$/, '');
+            if (parentDir === '') {
+                parentDir = '/';
+            }
+            this.doNavigateTo(parentDir);
+        }
+    },
+    doNavigateTo: function(desiredDir) {
+        if (desiredDir.startsWith('/')) {
+            desiredDir = removeRedundantSlashesInDir(desiredDir);
+            if (this.state.desiredDir !== desiredDir) {
+                this.setState({desiredDir: desiredDir});
+            }
+            this.props.controller.requestDir(desiredDir);
+            this.forceUpdate();
+        }
+    },
     render: function() {
         var sdcard = this.props.sdcard;
         var canMount = (sdcard !== null && sdcard.mntState === 'NotMounted');
@@ -860,33 +905,125 @@ var SdCardTab = React.createClass({
         var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
         var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
         var stateText = (sdcard === null) ? 'Disabled' : (translateMntState(sdcard.mntState) + (sdcard.mntState === 'Mounted' ? ', '+translateRwState(sdcard.rwState) : ''));
+        var canNavigate = this.state.desiredDir.startsWith('/');
+        var loadedDir = this.props.controller.getLoadedDir();
+        var loadedResult = this.props.controller.getLoadedResult();
+        var canGoUp = (loadedDir !== null && loadedResult.dir !== '/');
+        var loadingDir = this.props.controller.getLoadingDir();
         return (
-            <div className="flex-column" style={{flexShrink: '1'}}>
+            <div className="flex-column flex-shrink1 flex-grow1 min-height0 sdcard-tab">
                 <div className="flex-row control-bottom-margin">
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
-                            <output id="sdcard_state" className={controlInputClass} style={{width: '240px'}} value={stateText} />
-                        </div>
+                    <div>
+                        <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
+                        <span id="sdcard_state">{stateText}</span>
+                    </div>
+                    <div className="flex-grow1">
+                    </div>
+                    <div>
+                        {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
                     </div>
                 </div>
                 <div className="flex-row">
                     <div className="form-inline">
                         <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
-                            <button type="button" className={controlButtonClass('primary')}                         disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
+                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
+                            <button type="button" className={controlButtonClass('primary')}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
                         </div>
                     </div>
-                    <div style={{flexGrow: '1'}}></div>
+                    <div className="flex-grow1"></div>
                 </div>
                 <div className="divider"></div>
-                <div>
-                    <span>TODO</span>
+                <div className="control-bottom-margin" style={{display: 'table', width: '100%'}}>
+                    <div style={{display: 'table-cell', 'width': '100%'}}>
+                        <div className="input-group control-right-margin">
+                            <label htmlFor="sdcard_set_dir" className="input-group-addon control-ig-label">Directory</label>
+                            <input id="sdcard_set_dir" type="text" className={controlInputClass} placeholder="Directory to list"
+                                value={this.state.desiredDir} onChange={this.onDirInputChange} onKeyPress={this.onDirInputKeyPress} />
+                            <span className="input-group-btn">
+                                <button type="button" className={controlButtonClass('primary')} disabled={!canNavigate} onClick={this.onDirGoClick}>Load</button>
+                            </span>
+                        </div>
+                    </div>
+                    <span style={{display: 'table-cell', width: '1%', verticalAlign: 'middle'}}>
+                        <button type="button" className={controlButtonClass('primary')} disabled={!canGoUp} onClick={this.onDirUpClick}>Up</button>
+                    </span>
+                </div>
+                {(loadedDir === null) ? null : (
+                    <SdCardDirList dirlist={loadedResult} navigateTo={this.doNavigateTo} controller={this.props.controller} />
+                )}
+            </div>
+        );
+    }
+});
+
+var SdCardDirList = React.createClass({
+    onDirClicked: function(dir_path) {
+        this.props.navigateTo(dir_path);
+    },
+    shouldComponentUpdate: function(nextProps, nextState) {
+        return this.props.controller.isDirty();
+    },
+    render: function() {
+        this.props.controller.clearDirty();
+        var type_width = '80px';
+        var files_sorted = Array.prototype.slice.call(this.props.dirlist.files).sort();
+        var dir = this.props.dirlist.dir;
+        return (
+            <div className="flex-column flex-shrink1 flex-grow1 min-height0">
+                <table className={controlTableClass} style={{width: '100%'}}>
+                    <colgroup>
+                        <col span="1" style={{width: type_width}} />
+                        <col span="1" style={{width: '60px'}} />
+                        <col span="1" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Name</th>
+                            <th style={{textAlign: 'right'}}>{this.props.dirlist.dir}</th>
+                        </tr>
+                    </thead>
+                </table>
+                <div ref="scroll_div" className="flex-shrink1 flex-grow1" style={{overflowY: 'scroll'}}>
+                    <table className={controlTableClass} style={{width: '100%'}}>
+                        <colgroup>
+                            <col span="1" style={{width: type_width}} />
+                            <col span="1" />
+                        </colgroup>
+                        <tbody>
+                            {$.map(files_sorted, function(file, file_idx) {
+                                var is_dir = file.startsWith('*');
+                                var file_type;
+                                var file_name;
+                                if (is_dir) {
+                                    file_type = 'Directory';
+                                    file_name = file.substring(1);
+                                } else {
+                                    file_type = 'File';
+                                    file_name = file;
+                                }
+                                var file_path = dir+(dir.endsWith('/')?'':'/')+file_name;
+                                var a_attrs = is_dir ?
+                                    {href: 'javascript:void(0)', onClick: this.onDirClicked.bind(this, file_path)} :
+                                    {href: sdRootAccessPrefix+file_path, target: '_blank'};
+                                return (
+                                    <tr key={file_path} className="dirlist-row">
+                                        <td>{file_type}</td>
+                                        <td className="control-table-link"><a {...a_attrs}>{file_name}</a></td>
+                                    </tr>
+                                );
+                            }.bind(this))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         );
+    },
+    componentDidUpdate: function() {
+        var node = this.refs.scroll_div;
+        node.scrollTop = 0;
     }
 });
 
@@ -903,6 +1040,14 @@ function translateRwState(rwState) {
     if (rwState === 'ReadWrite')    return 'Read-write';
     if (rwState === 'RemountingRO') return 'Remounting read-only';
     return rwState;
+}
+
+function removeRedundantSlashesInDir(str) {
+    str = str.replace(/\/\/+/g, '/');
+    if (str.length > 1) {
+        str = str.replace(/\/$/, '');
+    }
+    return str;
 }
 
 
@@ -1382,11 +1527,7 @@ function sendNextQueuedGcodes() {
             currentGcodeCompleted(null, response);
         },
         error: function(xhr, status, error) {
-            var status_str = status+'';
-            var error_str = error+'';
-            var join_str = (status_str === '' || error_str === '') ? '' : ': ';
-            var final_error = status_str+join_str+error_str;
-            currentGcodeCompleted(final_error, null);
+            currentGcodeCompleted(makeAjaxErrorStr(status, error), null);
         }
     });
 }
@@ -1483,6 +1624,95 @@ errorModal.on('hidden.bs.modal', function() {
 });
 
 
+// Directory list controller.
+
+class DirListController {
+    private _handle_dir_loaded: () => void;
+    private _requested_dir: string;
+    private _need_rerequest: boolean;
+    private _update_status_then: boolean;
+    private _loaded_dir: string;
+    private _loaded_result: any;
+    private _is_dirty: boolean;
+    
+    constructor(handle_dir_loaded: () => void) {
+        this._handle_dir_loaded = handle_dir_loaded;
+        this._requested_dir = null;
+        this._need_rerequest = false;
+        this._update_status_then = false;
+        this._loaded_dir = null;
+        this._loaded_result = null;
+        this._is_dirty = true;
+    }
+    
+    requestDir(requested_dir: string) {
+        var old_dir = this._requested_dir;
+        this._requested_dir = requested_dir;
+        if (old_dir !== null) {
+            this._need_rerequest = true;
+        } else {
+            this._startRequest();
+        }
+    }
+    
+    getLoadingDir(): string {
+        return this._requested_dir;
+    }
+    
+    getLoadedDir(): string {
+        return this._loaded_dir;
+    }
+    
+    getLoadedResult(): any {
+        return this._loaded_result;
+    }
+    
+    isDirty(): boolean {
+        return this._is_dirty;
+    }
+    
+    clearDirty() {
+        this._is_dirty = false;
+    }
+    
+    private _startRequest() {
+        this._need_rerequest = false;
+        this._update_status_then = (machine_state.sdcard !== null && machine_state.sdcard.mntState !== 'Mounted');
+        $.ajax({
+            url: '/rr_files?flagDirs=1&dir='+encodeURIComponent(this._requested_dir),
+            dataType: 'json',
+            cache: false,
+            success: function(files_resp) {
+                this._requestCompleted(true, files_resp, null);
+            }.bind(this),
+            error: function(xhr, status, error) {
+                this._requestCompleted(false, null, makeAjaxErrorStr(status, error));
+            }.bind(this)
+        });
+    }
+    
+    private _requestCompleted(success: boolean, files_resp: any, error: string) {
+        if (this._update_status_then) {
+            statusUpdater.requestUpdate(false);
+        }
+        if (this._need_rerequest) {
+            this._startRequest();
+            return;
+        }
+        var requested_dir = this._requested_dir;
+        this._requested_dir = null;
+        if (!success) {
+            showError('Load directory '+requested_dir, error, null);
+            return;
+        }
+        this._loaded_dir = requested_dir;
+        this._loaded_result = files_resp;
+        this._is_dirty = true;
+        this._handle_dir_loaded();
+    }
+}
+
+
 // Status updating
 
 function fixupStateObject(state, name) {
@@ -1516,6 +1746,15 @@ function handleConfigCondition() {
 }
 
 var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, configWaitingRespTime, handleNewConfig, handleConfigCondition);
+
+
+// Instantiating the dirlist controller
+
+function handleDirLoaded() {
+    wrapper_sdcard.forceUpdate();
+}
+
+var controller_dirlist = new DirListController(handleDirLoaded);
 
 
 // Gluing things together
@@ -1562,7 +1801,7 @@ function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_sdcard() {
-    return <SdCardTab sdcard={machine_state.sdcard} />;
+    return <SdCardTab sdcard={machine_state.sdcard} controller={controller_dirlist} />;
 }
 function render_gcode() {
     return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;

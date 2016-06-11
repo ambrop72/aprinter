@@ -60,7 +60,8 @@ let
             mode http
             bind ${testHost}:${toString testPort}
             acl rr_api path_beg -i /rr_
-            use_backend device if rr_api
+            acl sdcard path_beg -i /sdcard/
+            use_backend device if rr_api or sdcard
             default_backend lighty
 
         backend device
