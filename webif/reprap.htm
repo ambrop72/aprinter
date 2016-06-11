@@ -12,32 +12,32 @@
     <script src='bootstrap/js/bootstrap.min.js'></script>
   </head>
   <body>
-    <div class="flex-column" style="height: 100%; padding: 5px">
-        <div class="panel panel-default" style="margin: 5px">
-            <div class="panel-heading" style="overflow: auto; padding: 5px 2.5px" id="toppanel_div">
+    <div class="flex-column content-div">
+        <div class="panel panel-default all-panel-margin">
+            <div class="panel-heading top-panel" id="toppanel_div">
             </div>
         </div>
-        <div class="flex-row" style="flex-grow: 1; flex-shrink: 1; flex-wrap: wrap">
-            <div style="margin: 5px">
-                <div class="panel panel-default control-panel" id="axes_panel" hidden>
+        <div class="flex-row flex-grow1 flex-shrink1 flex-wrap">
+            <div class="flex-column">
+                <div class="panel panel-default control-panel all-panel-margin" id="axes_panel" hidden>
                     <div class="panel-body" id="axes_div"></div>
                 </div>
-                <div class="panel panel-default control-panel" id="heaters_panel" hidden>
+                <div class="panel panel-default control-panel all-panel-margin" id="heaters_panel" hidden>
                     <div class="panel-body" id="heaters_div"></div>
                 </div>
-                <div class="panel panel-default control-panel" id="fans_panel" hidden>
+                <div class="panel panel-default control-panel all-panel-margin" id="fans_panel" hidden>
                     <div class="panel-body" id="fans_div"></div>
                 </div>
-                <div class="panel panel-default control-panel" id="speed_panel" hidden>
+                <div class="panel panel-default control-panel all-panel-margin" id="speed_panel" hidden>
                     <div class="panel-body" id="speed_div"></div>
                 </div>
-                <div class="panel panel-default control-panel" id="gcode_panel">
+                <div class="panel panel-default control-panel all-panel-margin" id="gcode_panel">
                     <div class="panel-body" id="gcode_div"></div>
                 </div>
             </div>
-            <div class="flex-column" style="margin: 5px">
-                <div class="flex-column panel panel-default control-panel config-panel" style="flex-shrink: 1">
-                    <div class="panel-body flex-column" style="flex-shrink: 1">
+            <div class="flex-column">
+                <div class="panel panel-default control-panel main-panel flex-column flex-shrink1 all-panel-margin">
+                    <div class="panel-heading control-tabs-panel-heading flex-column">
                         <ul class="nav nav-tabs control-tabs" role="tablist" id="main_tabs_ul">
                             <li role="presentation" hidden id="config_tab">
                                 <a href="#config_div" aria-controls="config_div" role="tab" data-toggle="tab">Configuration</a>
@@ -46,10 +46,12 @@
                                 <a href="#sdcard_div" aria-controls="sdcard_div" role="tab" data-toggle="tab">SD card</a>
                             </li>
                         </ul>
-                        <div class="flex-column tab-content control-tabcontent" style="flex-shrink: 1">
-                            <div role="tabpanel" class="tab-pane flex-column" style="flex-shrink: 1" id="config_div">
+                    </div>
+                    <div class="panel-body flex-column flex-shrink1">
+                        <div class="tab-content control-tabcontent flex-column flex-shrink1">
+                            <div role="tabpanel" class="tab-pane flex-column flex-shrink1" id="config_div">
                             </div>
-                            <div role="tabpanel" class="tab-pane flex-column" style="flex-shrink: 1" id="sdcard_div">
+                            <div role="tabpanel" class="tab-pane flex-column flex-shrink1" id="sdcard_div">
                             </div>
                         </div>
                     </div>

@@ -2,13 +2,22 @@ html, body {
     height: 100%;
 }
 
-.top-btn-margin {
-    margin: 0px 2.5px;
+.all-panel-margin {
+    margin: 5px;
 }
 
-.control-panel {
-    margin-top: 0px;
-    margin-bottom: 10px;
+.content-div {
+    height: 100%;
+    padding: 5px;
+}
+
+.top-panel {
+    overflow: auto;
+    padding: 5px 2.5px;
+}
+
+.top-btn-margin {
+    margin: 0px 2.5px;
 }
 
 .control-panel>div {
@@ -92,6 +101,18 @@ html, body {
     flex-shrink: 0;
 }
 
+.flex-grow1 {
+    flex-grow: 1;
+}
+
+.flex-shrink1 {
+    flex-shrink: 1;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
 .control-right-margin {
     margin-right: 5px;
 }
@@ -120,7 +141,7 @@ html, body {
     width: 400px;
 }
 
-.config-panel {
+.main-panel {
     min-height: 400px;
     max-height: 700px;
 }
@@ -147,8 +168,13 @@ html, body {
     min-width: 20px;
 }
 
+.control-panel>.control-tabs-panel-heading {
+    padding-bottom: 0px;
+}
+
 .control-tabs {
-    margin-bottom: 5px;
+    margin-bottom: 0px;
+    border-bottom: 0px;
 }
 
 .control-tabs>li>a {
