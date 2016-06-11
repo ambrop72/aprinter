@@ -80,7 +80,19 @@ html, body {
 }
 
 .control-bottom-margin {
-    margin-bottom: 3px;
+    margin-bottom: 4px;
+}
+
+.divider {
+    height: 1px;
+    width: 100%;
+    display: block;
+    overflow: hidden;
+    background-color: #e5e5e5;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 0px;
+    margin-right: 0px;
 }
 
 .notbold {
@@ -111,6 +123,10 @@ html, body {
 
 .flex-wrap {
     flex-wrap: wrap;
+}
+
+.min-height0 {
+    min-height: 0;
 }
 
 .control-right-margin {

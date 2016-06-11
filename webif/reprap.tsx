@@ -746,7 +746,7 @@ var ConfigTable = React.createClass({
             </colgroup>
         );
         return (
-            <div className="flex-column" style={{flexShrink: '1'}}>
+            <div className="flex-column min-height0 flex-shrink1">
                 <div className="flex-row control-bottom-margin">
                     <div className="form-inline">
                         <div className="form-group">
@@ -865,6 +865,14 @@ var SdCardTab = React.createClass({
                 <div className="flex-row control-bottom-margin">
                     <div className="form-inline">
                         <div className="form-group">
+                            <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
+                            <output id="sdcard_state" className={controlInputClass} style={{width: '240px'}} value={stateText} />
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-row">
+                    <div className="form-inline">
+                        <div className="form-group">
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
                             <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
@@ -873,13 +881,9 @@ var SdCardTab = React.createClass({
                     </div>
                     <div style={{flexGrow: '1'}}></div>
                 </div>
-                <div className="flex-row control-bottom-margin">
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
-                            <output id="sdcard_state" className={controlInputClass} style={{width: '240px'}} value={stateText} />
-                        </div>
-                    </div>
+                <div className="divider"></div>
+                <div>
+                    <span>TODO</span>
                 </div>
             </div>
         );
