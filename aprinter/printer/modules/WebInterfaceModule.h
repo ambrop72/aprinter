@@ -68,6 +68,7 @@ private:
     
 private:
     static constexpr char const * WebRootPath() { return "www"; }
+    static constexpr char const * RootAccessPath() { return "/sdcard/"; }
     static constexpr char const * IndexPage() { return "reprap.htm"; }
     static constexpr char const * UploadBasePath() { return nullptr; }
     
@@ -218,8 +219,17 @@ private:
             }
             
             if (path.ptr[0] == '/') {
-                char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
-                return state->acceptGetFileRequest(c, request, file_path);
+                char const *base_dir = WebRootPath();
+                char const *file_path;
+                if (path.equalTo("/")) {
+                    file_path = IndexPage();
+                } else if (path.removePrefix(RootAccessPath())) {
+                    base_dir = nullptr;
+                    file_path = path.ptr;
+                } else {
+                    file_path = path.ptr + 1;
+                }
+                return state->acceptGetFileRequest(c, request, file_path, base_dir);
             }
         }
         else if (!strcmp(method, "POST")) {
@@ -354,14 +364,14 @@ private:
         }
         
     public:
-        void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
+        void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path, char const *base_dir)
         {
             accept_request_common(c, request);
             
             m_file_path = file_path;
             m_state = State::READ_OPEN;
             init_file(c);
-            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
+            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, base_dir);
         }
         
         void acceptUploadFileRequest (Context c, TheRequestInterface *request, char const *file_path)
