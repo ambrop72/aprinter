@@ -33,6 +33,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/Lock.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
@@ -129,7 +130,10 @@ private:
         
         static void init (Context c)
         {
+            auto *o = Object::self(c);
+            
             Context::Pins::template setInput<typename HomingSpec::EndPin, typename HomingSpec::EndPinInputMode>(c);
+            o->endstop_check_enabled = false;
         }
         
         static void m119_append_endstop (Context c, TheCommand *cmd)
@@ -145,7 +149,14 @@ private:
         AMBRO_ALWAYS_INLINE
         static bool prestep_callback (CallbackContext c)
         {
-            return !endstop_is_triggered(c);
+            auto *o = Object::self(c);
+            
+            bool endstop_check_enabled;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                endstop_check_enabled = o->endstop_check_enabled;
+            }
+            
+            return !(endstop_check_enabled && endstop_is_triggered(c));
         }
         
         template <typename ThisContext>
@@ -176,6 +187,9 @@ private:
                 ThePrinterMain::custom_planner_init(c, &o->planner_client, true);
                 o->state = 0;
                 o->command_sent = false;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    o->endstop_check_enabled = true;
+                }
             }
             return false;
         }
@@ -274,6 +288,9 @@ private:
                 }
                 
                 if (mo->homing_error || o->state == 2) {
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                        o->endstop_check_enabled = false;
+                    }
                     mo->homing_axes &= ~PhysVirtAxis::AxisMask;
                     mo->event.prependNowNotAlready(c);
                     return;
@@ -301,6 +318,7 @@ private:
             VirtHomingPlannerClient planner_client;
             uint8_t state;
             bool command_sent;
+            bool endstop_check_enabled;
         };
     };
     using VirtHomingAxisList = IndexElemList<VirtHomingAxisParamsList, VirtHomingAxis>;
