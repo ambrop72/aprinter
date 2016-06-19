@@ -545,7 +545,7 @@ var TopPanel = React.createClass({
             statusClass = 'constatus-error';
         }
         return (
-            <div className="flex-row" style={{alignItems: 'center'}}>
+            <div className="flex-row flex-align-center">
                 <h1>Aprinter Web Interface</h1>
                 <div className="toppanel-spacediv"></div>
                 <span className={'constatus '+cmdStatusClass}>{cmdStatusText}</span>
@@ -762,7 +762,7 @@ var ConfigTable = React.createClass({
             </colgroup>
         );
         return (
-            <div className="flex-column min-height0 flex-shrink1">
+            <div className="flex-column min-height0 flex-shrink1 flex-grow1">
                 <div className="flex-row control-bottom-margin">
                     <div className="form-inline">
                         <div className="form-group">
@@ -791,7 +791,7 @@ var ConfigTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div className="flex-shrink1" style={{overflowY: 'scroll'}}>
+                <div className="flex-shrink1 flex-grow1 config-options-area" style={{overflowY: 'scroll'}}>
                     <table className={controlTableClass} style={{width: width}}>
                         {colgroup}
                         <tbody>
@@ -860,6 +860,8 @@ var SdCardTab = React.createClass({
     getInitialState: function() {
         return {
             desiredDir: '/',
+            uploadFileName: null,
+            destinationPath: '/upload.gcode',
         };
     },
     doMount: function() {
@@ -886,38 +888,105 @@ var SdCardTab = React.createClass({
         this.doNavigateTo(this.state.desiredDir);
     },
     onDirUpClick: function() {
-        var loadedDir = this.props.controller.getLoadedDir();
-        var loadedResult = this.props.controller.getLoadedResult();
+        var controller_dirlist = this.props.controller_dirlist;
+        var loadedDir = controller_dirlist.getLoadedDir();
+        var loadedResult = controller_dirlist.getLoadedResult();
         if (loadedDir !== null && loadedResult.dir !== '/') {
-            var parentDir = loadedResult.dir.replace(/\/[^\/]+$/, '');
-            if (parentDir === '') {
-                parentDir = '/';
-            }
+            var parentDir = getParentDirectory(loadedResult.dir);
             this.doNavigateTo(parentDir);
         }
     },
     doNavigateTo: function(desiredDir) {
         if ($startsWith(desiredDir, '/')) {
-            desiredDir = removeRedundantSlashesInDir(desiredDir);
+            desiredDir = removeRedundantSlashes(desiredDir);
             if (this.state.desiredDir !== desiredDir) {
                 this.setState({desiredDir: desiredDir});
             }
-            this.props.controller.requestDir(desiredDir);
+            this.props.controller_dirlist.requestDir(desiredDir);
             this.forceUpdate();
+        }
+    },
+    onFileInputChange: function(event) {
+        var uploadFileName = (event.target.files.length > 0) ? event.target.files[0].name : null;
+        this.setState({uploadFileName: uploadFileName});
+        this.props.controller_upload.clearResult();
+    },
+    onDestinationInputChange: function(event) {
+        this.setState({destinationPath: event.target.value});
+        this.props.controller_upload.clearResult();
+    },
+    onUploadClick: function(event) {
+        var controller_upload = this.props.controller_upload;
+        if (!controller_upload.isUploading() && this.refs.file_input.files.length > 0 && isDestPathValid(this.state.destinationPath)) {
+            var file = this.refs.file_input.files[0];
+            controller_upload.startUpload(file.name, removeRedundantSlashes(this.state.destinationPath), file);
+            this.forceUpdate();
+        }
+    },
+    setDestinationPath: function(file_path) {
+        this.setState({destinationPath: file_path});
+    },
+    componentDidUpdate: function() {
+        var controller_upload = this.props.controller_upload;
+        if (controller_upload.isResultPending()) {
+            controller_upload.ackResult();
+            var dest_path = controller_upload.getDestinationPath();
+            var loaded_dir = this.props.controller_dirlist.getLoadedDir();
+            if (loaded_dir !== null && pathIsInDirectory(dest_path, loaded_dir)) {
+                this.doNavigateTo(loaded_dir);
+            }
+            if (controller_upload.getUploadError() === null) {
+                this.refs.file_input.value = null;
+                this.setState({uploadFileName: null});
+            }
         }
     },
     render: function() {
         var sdcard = this.props.sdcard;
+        var controller_dirlist = this.props.controller_dirlist;
+        var controller_upload = this.props.controller_upload;
+        
         var canMount = (sdcard !== null && sdcard.mntState === 'NotMounted');
         var canUnmount = (sdcard !== null && sdcard.mntState === 'Mounted');
         var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
         var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
         var stateText = (sdcard === null) ? 'Disabled' : (translateMntState(sdcard.mntState) + (sdcard.mntState === 'Mounted' ? ', '+translateRwState(sdcard.rwState) : ''));
+        
         var canNavigate = $startsWith(this.state.desiredDir, '/');
-        var loadedDir = this.props.controller.getLoadedDir();
-        var loadedResult = this.props.controller.getLoadedResult();
+        var loadedDir = controller_dirlist.getLoadedDir();
+        var loadedResult = controller_dirlist.getLoadedResult();
         var canGoUp = (loadedDir !== null && loadedResult.dir !== '/');
-        var loadingDir = this.props.controller.getLoadingDir();
+        var loadingDir = controller_dirlist.getLoadingDir();
+        
+        var uploadFileText = (this.state.uploadFileName !== null) ? this.state.uploadFileName : 'No file chosen';
+        var uploadFileClass = (this.state.uploadFileName !== null) ? 'label-info' : 'label-default';
+        var isUploading = controller_upload.isUploading();
+        var canUpload = (!isUploading && this.state.uploadFileName !== null && isDestPathValid(this.state.destinationPath));
+        
+        var uploadStatus;
+        var uploadStatusClass;
+        if (isUploading) {
+            var srcFileName = controller_upload.getSourceFileName();
+            var destPath = controller_upload.getDestinationPath();
+            var totalBytes = controller_upload.getTotalBytes();
+            var uploadedBytes = controller_upload.getUploadedBytes();
+            var percent = ((totalBytes == 0 ? 0 : (uploadedBytes / totalBytes)) * 100.0).toFixed(0);
+            uploadStatus = 'Uploading '+srcFileName+' to '+destPath+' ('+percent+'%, '+uploadedBytes+'/'+totalBytes+')';
+            uploadStatusClass = 'upload-status-running';
+        }
+        else if (controller_upload.haveResult()) {
+            var srcFileName = controller_upload.getSourceFileName();
+            var destPath = controller_upload.getDestinationPath();
+            var error = controller_upload.getUploadError();
+            var result = (error !== null) ? ('failed: '+error) : 'succeeded';
+            uploadStatus = 'Upload of '+srcFileName+' to '+destPath+' '+result+'.';
+            uploadStatusClass = (error !== null) ? 'upload-status-error' : 'upload-status-success';
+        }
+        else {
+            uploadStatus = 'Upload not started.';
+            uploadStatusClass = '';
+        }
+        
         return (
             <div className="flex-column flex-shrink1 flex-grow1 min-height0 sdcard-tab">
                 <div className="flex-row control-bottom-margin">
@@ -943,14 +1012,37 @@ var SdCardTab = React.createClass({
                     <div className="flex-grow1"></div>
                 </div>
                 <div className="divider"></div>
+                <div className="flex-column">
+                    <div className="flex-row control-bottom-margin">
+                        <div>
+                            <label className="btn btn-default btn-file control-button control-right-margin">
+                                Select file to upload
+                                <input ref="file_input" type="file" style={{display: 'none'}} onChange={this.onFileInputChange} />
+                            </label>
+                            <span className={'label '+uploadFileClass}>{uploadFileText}</span>
+                        </div>
+                    </div>
+                    <div className="flex-row flex-align-center control-bottom-margin">
+                        <label htmlFor="upload_path" className="control-label control-right-margin">Save to</label>
+                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '300px'}}
+                               value={this.state.destinationPath} onChange={this.onDestinationInputChange}
+                               placeholder="Destination file path" />
+                        <button type="button" className={controlButtonClass('primary')} onClick={this.onUploadClick} disabled={!canUpload}>Upload</button>
+                    </div>
+                    <div className="flex-row flex-align-center">
+                        <label htmlFor="upload_status" className="control-label control-right-margin">Status:</label>
+                        <span id="upload_status" className={uploadStatusClass+ ' flex-shrink1'}>{uploadStatus}</span>
+                    </div>
+                </div>
+                <div className="divider"></div>
                 <div className="control-bottom-margin" style={{display: 'table', width: '100%'}}>
                     <div style={{display: 'table-cell', 'width': '100%'}}>
                         <div className="input-group control-right-margin">
-                            <label htmlFor="sdcard_set_dir" className="input-group-addon control-ig-label">Directory</label>
+                            <label htmlFor="sdcard_set_dir" className="input-group-addon control-ig-label">Show directory</label>
                             <input id="sdcard_set_dir" type="text" className={controlInputClass} placeholder="Directory to list"
-                                value={this.state.desiredDir} onChange={this.onDirInputChange} onKeyPress={this.onDirInputKeyPress} />
+                                   value={this.state.desiredDir} onChange={this.onDirInputChange} onKeyPress={this.onDirInputKeyPress} />
                             <span className="input-group-btn">
-                                <button type="button" className={controlButtonClass('primary')} disabled={!canNavigate} onClick={this.onDirGoClick}>Load</button>
+                                <button type="button" className={controlButtonClass('primary')} disabled={!canNavigate} onClick={this.onDirGoClick}>Show</button>
                             </span>
                         </div>
                     </div>
@@ -958,9 +1050,7 @@ var SdCardTab = React.createClass({
                         <button type="button" className={controlButtonClass('primary')} disabled={!canGoUp} onClick={this.onDirUpClick}>Up</button>
                     </span>
                 </div>
-                {(loadedDir === null) ? null : (
-                    <SdCardDirList dirlist={loadedResult} navigateTo={this.doNavigateTo} controller={this.props.controller} />
-                )}
+                <SdCardDirList dirlist={loadedResult} navigateTo={this.doNavigateTo} saveTo={this.setDestinationPath} controller={this.props.controller_dirlist} />
             </div>
         );
     }
@@ -970,14 +1060,21 @@ var SdCardDirList = React.createClass({
     onDirClicked: function(dir_path) {
         this.props.navigateTo(dir_path);
     },
+    onUploadOverClicked: function(file_path) {
+        this.props.saveTo(file_path);
+    },
     shouldComponentUpdate: function(nextProps, nextState) {
         return this.props.controller.isDirty();
     },
     render: function() {
         this.props.controller.clearDirty();
         var type_width = '80px';
-        var files_sorted = Array.prototype.slice.call(this.props.dirlist.files).sort();
-        var dir = this.props.dirlist.dir;
+        var dirlist = this.props.dirlist;
+        if (dirlist === null) {
+            dirlist = {dir: 'No directory shown', files: []};
+        }
+        var files_sorted = Array.prototype.slice.call(dirlist.files).sort();
+        var dir = dirlist.dir;
         return (
             <div className="flex-column flex-shrink1 flex-grow1 min-height0">
                 <table className={controlTableClass} style={{width: '100%'}}>
@@ -990,11 +1087,11 @@ var SdCardDirList = React.createClass({
                         <tr>
                             <th>Type</th>
                             <th>Name</th>
-                            <th style={{textAlign: 'right'}}>{this.props.dirlist.dir}</th>
+                            <th style={{textAlign: 'right'}}>{dirlist.dir}</th>
                         </tr>
                     </thead>
                 </table>
-                <div ref="scroll_div" className="flex-shrink1 flex-grow1" style={{overflowY: 'scroll'}}>
+                <div ref="scroll_div" className="flex-shrink1 flex-grow1 dir-list-area" style={{overflowY: 'scroll'}}>
                     <table className={controlTableClass} style={{width: '100%'}}>
                         <colgroup>
                             <col span="1" style={{width: type_width}} />
@@ -1013,13 +1110,22 @@ var SdCardDirList = React.createClass({
                                     file_name = file;
                                 }
                                 var file_path = dir+($endsWith(dir, '/')?'':'/')+file_name;
-                                var a_attrs = is_dir ?
-                                    {href: 'javascript:void(0)', onClick: this.onDirClicked.bind(this, file_path)} :
-                                    {href: sdRootAccessPrefix+file_path, target: '_blank'};
                                 return (
                                     <tr key={file_path} className="dirlist-row">
                                         <td>{file_type}</td>
-                                        <td className="control-table-link"><a {...a_attrs}>{file_name}</a></td>
+                                        {is_dir ? (
+                                            <td className="control-table-link">
+                                                <a href="javascript:void(0)" onClick={this.onDirClicked.bind(this, file_path)}>{file_name}</a>
+                                            </td>
+                                        ) : (
+                                            <td>
+                                                <div className="flex-row">
+                                                    <div className="flex-grow1 files-right-margin">{file_name}</div>
+                                                    <a className="files-right-margin" href={sdRootAccessPrefix+file_path} target="_blank">Download</a>
+                                                    <a href="javascript:void(0)" onClick={this.onUploadOverClicked.bind(this, file_path)}>Upload over</a>
+                                                </div>
+                                            </td>
+                                        )}
                                     </tr>
                                 );
                             }.bind(this))}
@@ -1050,12 +1156,26 @@ function translateRwState(rwState) {
     return rwState;
 }
 
-function removeRedundantSlashesInDir(str) {
+function removeRedundantSlashes(str) {
     str = str.replace(/\/\/+/g, '/');
     if (str.length > 1) {
         str = str.replace(/\/$/, '');
     }
     return str;
+}
+
+function isDestPathValid(str: string) {
+    return ($startsWith(str, '/') && !$endsWith(str, '/'));
+}
+
+function pathIsInDirectory(path: string, dir_path: string) {
+    var dir_prefix = $endsWith(dir_path, '/') ? dir_path : dir_path+'/';
+    return $startsWith(path, dir_prefix);
+}
+
+function getParentDirectory(path: string) {
+    var parentDir = path.replace(/\/[^\/]+$/, '');
+    return (path !== '' && parentDir === '') ? '/' : parentDir;
 }
 
 
@@ -1721,6 +1841,136 @@ class DirListController {
 }
 
 
+// File upload controller
+
+class FileUploadController {
+    private _handle_update: () => void;
+    private _uploading: boolean;
+    private _sourceFileName: string;
+    private _destinationPath: string;
+    private _totalBytes: number;
+    private _uploadedBytes: number;
+    private _resultPending: boolean;
+    private _haveResult: boolean;
+    private _uploadError: string;
+    
+    constructor(handle_update: () => void) {
+        this._handle_update = handle_update;
+        this._uploading = false;
+        this._sourceFileName = null;
+        this._destinationPath = null;
+        this._totalBytes = 0;
+        this._uploadedBytes = 0;
+        this._resultPending = false;
+        this._haveResult = false;
+        this._uploadError = null;
+    }
+    
+    isUploading(): boolean {
+        return this._uploading;
+    }
+    
+    getSourceFileName(): string {
+        return this._sourceFileName;
+    }
+    
+    getDestinationPath(): string {
+        return this._destinationPath;
+    }
+    
+    getTotalBytes(): number {
+        return this._totalBytes;
+    }
+    
+    getUploadedBytes(): number {
+        return this._uploadedBytes;
+    }
+    
+    isResultPending(): boolean {
+        return this._resultPending;
+    }
+    
+    haveResult(): boolean {
+        return this._haveResult;
+    }
+    
+    getUploadError(): string {
+        return this._uploadError;
+    }
+    
+    ackResult() {
+        console.assert(this._resultPending);
+        
+        this._resultPending = false;
+    }
+    
+    clearResult() {
+        if (!this._uploading) {
+            this._sourceFileName = null;
+            this._destinationPath = null;
+            this._resultPending = false;
+            this._haveResult = false;
+            this._uploadError = null;
+        }
+    }
+    
+    startUpload(sourceFileName: string, destinationPath: string, data: Blob) {
+        console.assert(!this._uploading);
+        
+        this.clearResult();
+        
+        this._uploading = true;
+        this._sourceFileName = sourceFileName;
+        this._destinationPath = destinationPath;
+        this._totalBytes = data.size;
+        this._uploadedBytes = 0;
+        
+        $.ajax({
+            type: 'POST',
+            url: '/rr_upload?name='+encodeURIComponent(destinationPath),
+            data: data,
+            processData: false,
+            contentType: false,
+            xhr: function() {
+                var xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener("progress", function(evt) {
+                    if (this._uploading) {
+                        if (evt.lengthComputable) {
+                            this._totalBytes = evt.total;
+                        }
+                        this._uploadedBytes = evt.loaded;
+                        
+                        this._handle_update();
+                    }
+                }.bind(this), false);
+                return xhr;
+            }.bind(this),
+            success: function(result) {
+                this._requestCompleted(null);
+            }.bind(this),
+            error: function(xhr, status, error) {
+                this._requestCompleted(makeAjaxErrorStr(status, error));
+            }.bind(this),
+        });
+    }
+    
+    private _requestCompleted(error: string) {
+        console.assert(this._uploading);
+        
+        if (error !== null) {
+            showError('Upload file '+this._sourceFileName+' to '+this._destinationPath, error, null);
+        }
+        
+        this._uploading = false;
+        this._resultPending = true;
+        this._haveResult = true;
+        this._uploadError = error;
+        
+        this._handle_update();
+    }
+}
+
+
 // Status updating
 
 function fixupStateObject(state, name) {
@@ -1763,6 +2013,15 @@ function handleDirLoaded() {
 }
 
 var controller_dirlist = new DirListController(handleDirLoaded);
+
+
+// Instantiating the file upload controller
+
+function handleUploadUpdate() {
+    wrapper_sdcard.forceUpdate();
+}
+
+var controller_upload = new FileUploadController(handleUploadUpdate);
 
 
 // Gluing things together
@@ -1809,7 +2068,7 @@ function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_sdcard() {
-    return <SdCardTab sdcard={machine_state.sdcard} controller={controller_dirlist} />;
+    return <SdCardTab sdcard={machine_state.sdcard} controller_dirlist={controller_dirlist} controller_upload={controller_upload} />;
 }
 function render_gcode() {
     return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;

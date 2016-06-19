@@ -54,7 +54,7 @@ html, body {
 }
 
 .control-editing {
-    background-color: #ffcc00;
+    background-color: Gold;
 }
 
 .control-table {
@@ -99,8 +99,8 @@ html, body {
     display: block;
     overflow: hidden;
     background-color: #e5e5e5;
-    margin-top: 4px;
-    margin-bottom: 4px;
+    margin-top: 7px;
+    margin-bottom: 7px;
     margin-left: 0px;
     margin-right: 0px;
 }
@@ -135,6 +135,10 @@ html, body {
     flex-wrap: wrap;
 }
 
+.flex-align-center {
+    align-items: center;
+}
+
 .min-height0 {
     min-height: 0;
 }
@@ -152,15 +156,15 @@ html, body {
 }
 
 .gcode-table>tbody>tr[data-mod2='1'] {
-    background-color:#f9f9f9;
+    background-color: #f9f9f9;
 }
 
 .gcode-table>tbody>tr[data-pending='true'] {
-    background-color: #ffcc00;
+    background-color: Gold;
 }
 
 .gcode-table>tbody>tr[data-error='true'] {
-    background-color: #ff3333;
+    background-color: OrangeRed;
 }
 
 .gcode-input-group {
@@ -172,8 +176,8 @@ html, body {
 }
 
 .main-panel {
-    min-height: 400px;
-    max-height: 700px;
+    min-height: 250px;
+    max-height: 1000px;
 }
 
 .constatus {
@@ -187,11 +191,11 @@ html, body {
 }
 
 .constatus-waitresp {
-    color: #EEBF00;
+    color: Orange;
 }
 
 .constatus-error {
-    color: #EE0000;
+    color: Red;
 }
 
 .toppanel-spacediv {
@@ -217,11 +221,38 @@ html, body {
 }
 
 .sdcard-tab {
-    width: 550px;
+    width: 600px;
 }
 
 .dirlist-loading-text {
     font-weight: bold;
+}
+
+.files-right-margin {
+    margin-right: 7px;
+}
+
+.upload-status-running {
+    font-weight: bold;
+    color: Orange;
+}
+
+.upload-status-success {
+    font-weight: bold;
+    color: Green;
+}
+
+.upload-status-error {
+    font-weight: bold;
+    color: Red;
+}
+
+.config-options-area {
+    height: 400px;
+}
+
+.dir-list-area {
+    height: 300px;
 }
 
 h1 {
