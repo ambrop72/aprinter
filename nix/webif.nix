@@ -1,17 +1,28 @@
-{ stdenv, fetchurl, unzip, typescript, definitelyTyped, aprinterSource }:
+{ stdenv, fetchurl, unzip, typescript, definitelyTyped, aprinterSource
+, useDebugReact ? false
+}:
 let
     jquery = fetchurl {
         url = https://code.jquery.com/jquery-2.2.4.min.js;
         sha256 = "13jglpbvm4cjqpbi82fsq8bi0b0ynwxd1nh8yvc19zqzyjb5vf05";
     };
-    react = fetchurl {
+    
+    react = fetchurl (if useDebugReact then {
+        url = https://fb.me/react-15.1.0.js;
+        sha256 = "1jvxwx7cvmi5wyd6p0jbghl27nlicd6x7l53bsc9xy3sjc128kv7";
+    } else  {
         url = https://fb.me/react-15.1.0.min.js;
         sha256 = "1xgwxsm26qcjjr03181hynzj64y028i6x22s0xdaw7mxvaf67zzm";
-    };
-    reactDom = fetchurl {
+    });
+    
+    reactDom = fetchurl (if useDebugReact then {
+        url = https://fb.me/react-dom-15.1.0.js;
+        sha256 = "07mrwxmrzarhrva3djp3ld717lhi9pi18aw2wlh434qbsvxnwc5i";
+    } else {
         url = https://fb.me/react-dom-15.1.0.min.js;
         sha256 = "07jbb8f4ky1p9nzmfmxq65w278p0lnlm0pra02qmxmyqh2zhp5sq";
-    };
+    });
+    
     bootstrap = fetchurl {
         url = https://github.com/twbs/bootstrap/releases/download/v3.3.6/bootstrap-3.3.6-dist.zip;
         sha256 = "05h3i83fwknqzdzm339ngjif0k87g4qx5jqgspnf8yjnshww4yj1";
