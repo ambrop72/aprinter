@@ -91,14 +91,19 @@ rec {
     
     /* This is used by the service deployment expression to ensure that the
      * build dependencies are already in the Nix store. */
-    buildDeps = [
-        avrgcclibc
+    buildDepsArmCommon = [
         gcc-arm-embedded-fromsrc
-        clang-arm-embedded
-        gcc-arm-embedded-fromsrc-optsize
-        clang-arm-embedded-optize
         asf
         stm32cubef4
         teensyCores
     ];
+    buildDepsArmUncommon = [
+        gcc-arm-embedded-fromsrc-optsize
+        clang-arm-embedded
+        clang-arm-embedded-optize
+    ];
+    buildDepsAvr = [
+        avrgcclibc
+    ];
+    buildDeps = buildDepsArmCommon ++ buildDepsArmUncommon ++ buildDepsAvr;
 }
