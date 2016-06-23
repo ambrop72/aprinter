@@ -182,23 +182,14 @@ var AxesTable = React.createClass({
         return (
             <div className="flex-column">
                 <div className="flex-row control-bottom-margin">
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnHomeDefault}>Home</button>
-                            {this.props.probe_present &&
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnBedProbing}>Probe</button>
-                            }
-                            <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
-                        </div>
-                    </div>
-                    <div style={{flexGrow: '1'}}>
-                    </div>
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <label htmlFor="speed" className="control-right-margin control-label">Speed [/s]</label>
-                            <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
-                        </div>
-                    </div>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnHomeDefault}>Home</button>
+                    {this.props.probe_present &&
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.btnBedProbing}>Probe</button>
+                    }
+                    <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
+                    <div className="flex-grow1"></div>
+                    <label htmlFor="speed" className="control-right-margin control-label">Speed [/s]</label>
+                    <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
                 </div>
                 <table className={controlTableClass}>
                     <colgroup>
@@ -764,18 +755,10 @@ var ConfigTable = React.createClass({
         return (
             <div className="flex-column min-height0 flex-shrink1 flex-grow1">
                 <div className="flex-row control-bottom-margin">
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
-                            <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
-                        </div>
-                    </div>
-                    <div style={{flexGrow: '1'}}></div>
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <span className={'constatus-control '+statusClass}>{statusText}</span>
-                        </div>
-                    </div>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
+                    <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
+                    <div className="flex-grow1"></div>
+                    <span className={'constatus-control '+statusClass}>{statusText}</span>
                 </div>
                 <table className={controlTableClass} style={{width: width}}>
                     {colgroup}
@@ -1001,14 +984,10 @@ var SdCardTab = React.createClass({
                     </div>
                 </div>
                 <div className="flex-row">
-                    <div className="form-inline">
-                        <div className="form-group">
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
-                            <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
-                            <button type="button" className={controlButtonClass('primary')}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
-                        </div>
-                    </div>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
+                    <button type="button" className={controlButtonClass('primary')}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
                     <div className="flex-grow1"></div>
                 </div>
                 <div className="divider"></div>
