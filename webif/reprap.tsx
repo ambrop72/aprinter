@@ -527,6 +527,18 @@ var TopPanel = React.createClass({
             cmdStatusClass = 'constatus-waitresp';
             cmdStatusText = 'Executing: '+entry.reason;
         }
+        
+        var activeStatusClass = '';
+        var activeStatusText = '';
+        if (this.props.active === true) {
+            activeStatusClass = 'activestatus-active';
+            activeStatusText = 'Active';
+        }
+        else if (this.props.active === false) {
+            activeStatusClass = 'activestatus-inactive';
+            activeStatusText = 'Inactive';
+        }
+        
         var condition = this.props.statusUpdater.getCondition();
         var statusText = '';
         var statusClass = '';
@@ -538,9 +550,12 @@ var TopPanel = React.createClass({
             statusText = 'Communication error';
             statusClass = 'constatus-error';
         }
+        
         return (
             <div className="flex-row flex-align-center">
                 <h1>Aprinter Web Interface</h1>
+                <div className="toppanel-spacediv"></div>
+                <span className={'activestatus '+activeStatusClass}>{activeStatusText}</span>
                 <div className="toppanel-spacediv"></div>
                 <span className={'constatus '+cmdStatusClass}>{cmdStatusText}</span>
                 <div style={{flexGrow: '1'}}></div>
@@ -2072,6 +2087,7 @@ var ComponentWrapper = React.createClass({
 });
 
 var machine_state = {
+    active:      null,
     speedRatio:  null,
     configDirty: null,
     sdcard:      null,
@@ -2101,7 +2117,7 @@ function render_speed() {
     return <SpeedTable speedRatio={machine_state.speedRatio} controller={controller_speed} />;
 }
 function render_toppanel() {
-    return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} />;
+    return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} active={machine_state.active} />;
 }
 function render_config() {
     return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
@@ -2124,6 +2140,7 @@ var wrapper_gcode    = ReactDOM.render(<ComponentWrapper render={render_gcode} /
 
 function setNewMachineState(new_machine_state) {
     machine_state = new_machine_state;
+    machine_state.active      = $has(machine_state, 'active') ? machine_state.active : null;
     machine_state.speedRatio  = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : null;
     machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : null;
     machine_state.sdcard      = $has(machine_state, 'sdcard') ? machine_state.sdcard : null
@@ -2150,6 +2167,7 @@ function machineStateChanged() {
     controller_speed.forceUpdateVia(wrapper_speed);
     controller_config.forceUpdateVia(wrapper_config);
     
+    wrapper_toppanel.forceUpdate();
     wrapper_sdcard.forceUpdate();
 }
 

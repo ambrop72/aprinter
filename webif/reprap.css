@@ -180,7 +180,7 @@ html, body {
     max-height: 1000px;
 }
 
-.constatus {
+.constatus, .activestatus {
     font-size: 16px;
     font-weight: bold;
 }
@@ -190,7 +190,11 @@ html, body {
     font-weight: bold;
 }
 
-.constatus-waitresp {
+.activestatus-inactive {
+    color: Green;
+}
+
+.constatus-waitresp, .activestatus-active {
     color: Orange;
 }
 
