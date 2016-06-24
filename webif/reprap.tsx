@@ -1252,12 +1252,26 @@ function linesToSpans(lines) {
 }
 
 var GcodeRow = React.createClass({
+    shouldComponentUpdate: function(nextProps, nextState) {
+        return this.props.entry.dirty;
+    },
+    componentDidUpdate: function() {
+        this.props.entry.dirty = false;
+    },
     render: function() {
         var entry = this.props.entry;
         var cmdText = linesToSpans(entry.cmds);
-        var result = !entry.completed     ? 'Pending' :
-                     entry.error === null ? textToSpans($.trim(entry.response)) :
-                                            'Error: '+entry.error
+        
+        var result = $.trim(entry.response);
+        var resultExtra = !entry.completed ? '(pending)' : (entry.error !== null) ? 'Error: '+entry.error : null;
+        if (resultExtra !== null) {
+            if (result.length !== 0) {
+                result += '\n';
+            }
+            result += resultExtra;
+        }
+        result = textToSpans(result);
+        
         return (
             <tr data-mod2={entry.id%2} data-pending={!entry.completed} data-error={entry.isError} title={'User action: '+entry.reason}>
                 <td>{cmdText}</td>
@@ -1265,9 +1279,7 @@ var GcodeRow = React.createClass({
             </tr>
         );
     },
-    shouldComponentUpdate: function(nextProps, nextState) {
-        return (nextProps.completed !== this.props.completed);
-    }
+    
 });
 
 var GcodeInput = React.createClass({
@@ -1566,6 +1578,7 @@ StatusUpdater.prototype._startRequest = function() {
     this._reqestInProgress = true;
     this._needsAnotherUpdate = false;
     this._waitingTimerId = setTimeout(this._waitingTimerHandler.bind(this), this._waitingRespTime);
+    
     $.ajax({
         url: this._reqPath,
         dataType: 'json',
@@ -1639,15 +1652,16 @@ function sendGcodes(reason, cmds, callback) {
         callback: callback,
         completed: false,
         error: null,
-        response: null,
+        response: '',
         isError: false,
+        dirty: true,
     };
     gcodeQueue.push(entry);
     
     gcodeIdCounter = (gcodeIdCounter >= 1000000) ? 1 : (gcodeIdCounter+1);
     
     if (gcodeQueue.length === 1) {
-        sendNextQueuedGcodes();
+        _sendNextQueuedGcodes();
     }
     
     while (gcodeQueue.length + gcodeHistory.length > gcodeHistorySize && gcodeHistory.length > 0) {
@@ -1657,33 +1671,62 @@ function sendGcodes(reason, cmds, callback) {
     updateGcode();
 }
 
-function sendNextQueuedGcodes() {
+function _sendNextQueuedGcodes() {
     var entry = gcodeQueue[0];
     var cmds_disp = entry.cmds.join('; ');
     var cmds_exec = entry.cmds.join('\n')+'\n';
-    $.ajax({
-        url: '/rr_gcode',
-        type: 'POST',
-        data: cmds_exec,
-        dataType: 'text',
-        success: function(response) {
-            currentGcodeCompleted(null, response);
-        },
-        error: function(xhr, status, error) {
-            currentGcodeCompleted(makeAjaxErrorStr(status, error), null);
-        }
-    });
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/rr_gcode', true);
+    xhr.setRequestHeader('Content-Type', 'text/plain');
+    xhr.addEventListener('progress', evt => _gcodeXhrProgressEvent(entry, xhr, evt), false);
+    xhr.addEventListener('load', evt => _gcodeXhrLoadEvent(entry, xhr, evt), false);
+    xhr.addEventListener('error', evt => _gcodeXhrErrorEvent(entry, evt), false);
+    xhr.send(cmds_exec);
 }
 
-function currentGcodeCompleted(error, response) {
+function _checkGcodeRequestInProgress(entry) {
+    return (gcodeQueue.length > 0 && gcodeQueue[0] === entry);
+}
+
+function _gcodeXhrProgressEvent(entry, xhr, evt) {
+    if (!_checkGcodeRequestInProgress(entry)) {
+        return;
+    }
+    
+    if (xhr.responseText !== null) {
+        entry.response = xhr.responseText;
+        entry.dirty = true;
+        
+        updateGcode();
+    }
+}
+
+function _gcodeXhrLoadEvent(entry, xhr, evt) {
+    var error = (xhr.status === 200) ? null : ''+xhr.status+' '+xhr.statusText;
+    _currentGcodeCompleted(entry, error, xhr.responseText);
+}
+
+function _gcodeXhrErrorEvent(entry, evt) {
+    _currentGcodeCompleted(entry, 'Network error', null);
+}
+
+function _currentGcodeCompleted(entry, error, response) {
+    if (!_checkGcodeRequestInProgress(entry)) {
+        return;
+    }
+    
     var entry = gcodeQueue.shift();
     var callback = entry.callback;
     
     entry.callback = null;
     entry.completed = true;
     entry.error = error;
-    entry.response = response;
-    entry.isError = error !== null || /^Error:/gm.test(response);
+    if (response !== null) {
+        entry.response = response;
+    }
+    entry.isError = error !== null || /^Error:/gm.test(entry.response);
+    entry.dirty = true;
     
     gcodeHistory.push(entry);
     
@@ -1701,7 +1744,7 @@ function currentGcodeCompleted(error, response) {
     }
     
     if (gcodeQueue.length !== 0) {
-        sendNextQueuedGcodes();
+        _sendNextQueuedGcodes();
     }
     
     updateGcode();
@@ -1860,6 +1903,7 @@ class DirListController {
     private _startRequest() {
         this._need_rerequest = false;
         this._update_status_then = (machine_state.sdcard !== null && machine_state.sdcard.mntState !== 'Mounted');
+        
         $.ajax({
             url: '/rr_files?flagDirs=1&dir='+encodeURIComponent(this._requested_dir),
             dataType: 'json',
@@ -1986,17 +2030,8 @@ class FileUploadController {
             processData: false,
             contentType: false,
             xhr: function() {
-                var xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener("progress", function(evt) {
-                    if (this._uploading) {
-                        if (evt.lengthComputable) {
-                            this._totalBytes = evt.total;
-                        }
-                        this._uploadedBytes = evt.loaded;
-                        
-                        this._handle_update();
-                    }
-                }.bind(this), false);
+                var xhr = $.ajaxSettings.xhr();
+                xhr.upload.addEventListener('progress', evt => this._responseProgress(evt), false);
                 return xhr;
             }.bind(this),
             success: function(result) {
@@ -2006,6 +2041,17 @@ class FileUploadController {
                 this._requestCompleted(makeAjaxErrorStr(status, error));
             }.bind(this),
         });
+    }
+    
+    private _responseProgress(evt) {
+        if (this._uploading) {
+            if (evt.lengthComputable) {
+                this._totalBytes = evt.total;
+            }
+            this._uploadedBytes = evt.loaded;
+            
+            this._handle_update();
+        }
     }
     
     private _requestCompleted(error: string) {

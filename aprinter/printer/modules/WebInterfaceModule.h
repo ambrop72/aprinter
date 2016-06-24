@@ -76,7 +76,7 @@ private:
         typename Params::HttpServerNetParams,
         128,   // MaxRequestLineLength
         64,    // MaxHeaderLineLength
-        250,   // ExpectedResponseLength
+        283,   // ExpectedResponseLength
         10000, // MaxRequestHeadLength
         256,   // MaxChunkHeaderLength
         1024,  // MaxTrailerLength
@@ -833,6 +833,13 @@ private:
             m_output_pos = 0;
             
             m_client->m_request->adoptRequestBody(c);
+            
+            // Some browsers would fail to pass returned data to the javascript code
+            // until some initial part of the response has been received. Adding this
+            // header to the response works around the problem.
+            // See: http://stackoverflow.com/a/26165175/1020667
+            m_client->m_request->setResponseExtraHeaders(c, "X-Content-Type-Options: nosniff\r\n");
+            
             m_client->m_request->adoptResponseBody(c);
             
             m_client->m_request->controlRequestBodyTimeout(c, true);

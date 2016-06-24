@@ -306,6 +306,7 @@ private:
             m_close_connection = !Params::Net::AllowPersistent;
             m_resp_status = nullptr;
             m_resp_content_type = nullptr;
+            m_resp_extra_headers = nullptr;
             m_user_accepting_request_body = false;
             m_assuming_timeout = false;
             
@@ -1010,7 +1011,7 @@ private:
             
             // Send an error response if desired and possible.
             if (resp_status && m_send_state == OneOf(SendState::INVALID, SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
-                send_response(c, resp_status, true, nullptr, true);
+                send_response(c, resp_status, true, nullptr, nullptr, true);
             }
             
             // Disconnect the client after all data has been sent.
@@ -1022,7 +1023,8 @@ private:
             m_send_event.prependNow(c);
         }
         
-        void send_response (Context c, char const *resp_status, bool send_status_as_body, char const *content_type=nullptr, bool connection_close=false)
+        void send_response (Context c, char const *resp_status, bool send_status_as_body,
+                            char const *content_type, char const *extra_headers, bool connection_close)
         {
             if (!resp_status) {
                 resp_status = HttpStatusCodes::Okay();
@@ -1048,7 +1050,11 @@ private:
             } else {
                 send_string(c, "Transfer-Encoding: chunked");
             }
-            send_string(c, "\r\n\r\n");
+            send_string(c, "\r\n");
+            if (extra_headers) {
+                send_string(c, extra_headers);
+            }
+            send_string(c, "\r\n");
             
             // If desired send the status as the response body.
             if (send_status_as_body) {
@@ -1066,7 +1072,7 @@ private:
             if (m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
-                send_response(c, m_resp_status, true, nullptr, m_close_connection);
+                send_response(c, m_resp_status, true, nullptr, nullptr, m_close_connection);
                 
                 // Close sending on the connection if needed.
                 if (m_close_connection) {
@@ -1273,6 +1279,14 @@ private:
             m_resp_content_type = content_type;
         }
         
+        void setResponseExtraHeaders (Context c, char const *extra_headers)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD))
+            
+            m_resp_extra_headers = extra_headers;
+        }
+        
         // If delay_response==true, this should be called once again
         // with delay_response==false, to send the delayed response head.
         // The provideResponseBodyData() must not be called before
@@ -1286,7 +1300,7 @@ private:
             
             // Send the response head, unless delay is requested.
             if (!delay_response) {
-                send_response(c, m_resp_status, false, m_resp_content_type, m_close_connection);
+                send_response(c, m_resp_status, false, m_resp_content_type, m_resp_extra_headers, m_close_connection);
             }
             
             // The user will now be producing the response body,
@@ -1408,6 +1422,7 @@ private:
         char const *m_request_method;
         char const *m_resp_status;
         char const *m_resp_content_type;
+        char const *m_resp_extra_headers;
         State m_state;
         RecvState m_recv_state;
         SendState m_send_state;
