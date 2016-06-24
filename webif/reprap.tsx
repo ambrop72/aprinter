@@ -88,7 +88,10 @@ function $endsWith(data, end) {
 }
 
 function encodeStrForCmd(val) {
-    return encodeURIComponent(val).replace(/%/g, "\\");
+    val = encodeURIComponent(val);   // URI encoding
+    val = val.replace(/%/g, '\\');   // Change % to \
+    val = val.replace(/\\2F/g, '/'); // Unescape forward-slashes
+    return val;
 }
 
 function removeTrailingZerosInNumStr(num_str) {
@@ -948,6 +951,7 @@ var SdCardTab = React.createClass({
         
         var uploadStatus;
         var uploadStatusClass;
+        var uploadedFile = null;
         if (isUploading) {
             var srcFileName = controller_upload.getSourceFileName();
             var destPath = controller_upload.getDestinationPath();
@@ -964,6 +968,9 @@ var SdCardTab = React.createClass({
             var result = (error !== null) ? ('failed: '+error) : 'succeeded';
             uploadStatus = 'Upload of '+srcFileName+' to '+destPath+' '+result+'.';
             uploadStatusClass = (error !== null) ? 'upload-status-error' : 'upload-status-success';
+            if (error === null) {
+                uploadedFile = destPath;
+            }
         }
         else {
             uploadStatus = 'Upload not started.';
@@ -1010,7 +1017,13 @@ var SdCardTab = React.createClass({
                     </div>
                     <div className="flex-row flex-align-center">
                         <label htmlFor="upload_status" className="control-label control-right-margin">Status:</label>
-                        <span id="upload_status" className={uploadStatusClass+ ' flex-shrink1'}>{uploadStatus}</span>
+                        <span id="upload_status" className={uploadStatusClass+ ' flex-shrink1'}>
+                            {uploadStatus}
+                            {(uploadedFile === null) ? null : ' '}
+                            {(uploadedFile === null) ? null : (
+                            <a href="javascript:void(0)" onClick={() => executeSdCardFile(uploadedFile)}>Execute</a>
+                            )}
+                        </span>
                     </div>
                 </div>
                 <div className="divider"></div>
@@ -1047,7 +1060,7 @@ var SdCardDirList = React.createClass({
     },
     render: function() {
         this.props.controller.clearDirty();
-        var type_width = '80px';
+        var type_width = '65px';
         var dirlist = this.props.dirlist;
         if (dirlist === null) {
             dirlist = {dir: 'No directory shown', files: []};
@@ -1082,7 +1095,7 @@ var SdCardDirList = React.createClass({
                                 var file_type;
                                 var file_name;
                                 if (is_dir) {
-                                    file_type = 'Directory';
+                                    file_type = 'Folder';
                                     file_name = file.substring(1);
                                 } else {
                                     file_type = 'File';
@@ -1101,7 +1114,8 @@ var SdCardDirList = React.createClass({
                                                 <div className="flex-row">
                                                     <div className="flex-grow1 files-right-margin">{file_name}</div>
                                                     <a className="files-right-margin" href={sdRootAccessPrefix+file_path} target="_blank">Download</a>
-                                                    <a href="javascript:void(0)" onClick={this.onUploadOverClicked.bind(this, file_path)}>Upload over</a>
+                                                    <a className="files-right-margin" href="javascript:void(0)" onClick={this.onUploadOverClicked.bind(this, file_path)}>Upload over</a>
+                                                    <a href="javascript:void(0)" onClick={() => executeSdCardFile(file_path)}>Execute</a>
                                                 </div>
                                             </td>
                                         )}
@@ -1155,6 +1169,13 @@ function pathIsInDirectory(path: string, dir_path: string) {
 function getParentDirectory(path: string) {
     var parentDir = path.replace(/\/[^\/]+$/, '');
     return (path !== '' && parentDir === '') ? '/' : parentDir;
+}
+
+function executeSdCardFile(file_path) {
+    showConfirmDialog('Are you sure you want the machine to execute this file?', file_path, 'Cancel', 'Execute', () => {
+        var cmd = 'M32 F'+encodeStrForCmd(file_path);
+        sendGcode('Execute file', cmd);
+    });
 }
 
 
@@ -1680,55 +1701,94 @@ function currentGcodeCompleted(error, response) {
 
 // Error message display
 
-var modalIsOpen = false;
-var errorDialogQueue = [];
+//var dialogIsOpen = false;
+var currentDialogInfo = null;
+var dialogQueue = [];
 
-var errorModal = $('#error_modal');
-var modalLabel = document.getElementById('error_modal_label');
-var modalBody = document.getElementById('error_modal_body');
+var dialogModal = $('#dialog_modal');
+var dialogModalLabel   = document.getElementById('dialog_modal_label');
+var dialogModalBody    = document.getElementById('dialog_modal_body');
+var dialogModalClose   = document.getElementById('dialog_modal_close');
+var dialogModalConfirm = document.getElementById('dialog_modal_confirm');
 
-function showError(action_str, head_str, body_str) {
+function showError(action_str: string, head_str: string, body_str: string = null) {
     var haveHead = (head_str !== null);
     var haveBody = (body_str !== null);
     
     console.error('Error in '+action_str+'.'+(haveHead?' '+head_str:'')+(haveBody?'\n'+body_str:''));
     
-    if (modalIsOpen) {
-        errorDialogQueue.push({
-            action_str: action_str,
-            head_str: head_str,
-            body_str: body_str,
-        });
+    var label_str = 'Error in "'+action_str+'".'+(haveHead ? '\n'+head_str : '');
+    
+    _queueDialog({
+        label_str: label_str,
+        body_str: body_str,
+        close_text: 'Close',
+        confirm_text: null,
+        confirm_action: null,
+    });
+}
+
+function showConfirmDialog(label_str: string, body_str: string, cancel_text: string, confirm_text: string, confirm_action: () => void) {
+    _queueDialog({
+        label_str: label_str,
+        body_str: body_str,
+        close_text: cancel_text,
+        confirm_text: confirm_text,
+        confirm_action: confirm_action,
+    });
+}
+
+function _queueDialog(info) {
+    if (currentDialogInfo === null) {
+        _showDialog(info);
     } else {
-        _showErrorDialog(action_str, head_str, body_str);
+        dialogQueue.push(info);
     }
 }
 
-function _showErrorDialog(action_str, head_str, body_str) {
-    var haveHead = (head_str !== null);
-    var haveBody = (body_str !== null);
+function _showDialog(info) {
+    var haveBody = info.body_str !== null;
     
-    var labelText = 'Error in "'+action_str+'".'+(haveHead ? '\n'+head_str : '');
+    dialogModalLabel.innerText = info.label_str;
+    dialogModalBody.innerText = haveBody ? info.body_str : '';
+    dialogModalBody.hidden = !haveBody;
+    dialogModalClose.innerText = info.close_text;
+    dialogModalConfirm.hidden = info.confirm_action === null;
+    dialogModalConfirm.innerText = (info.confirm_text === null) ? 'Confirm' : info.confirm_text;
+    dialogModalConfirm.onclick = () => _dialogConfirmClicked(info);
     
-    modalLabel.innerText = labelText;
-    modalBody.innerText = (haveBody ? body_str : '');
-    modalBody.hidden = !haveBody;
-    errorModal.modal({});
+    dialogModal.modal({});
     
-    modalIsOpen = true;
+    currentDialogInfo = info;
 }
 
-errorModal.on('hidden.bs.modal', function() {
-    modalLabel.innerText = '';
-    modalBody.innerText = '';
+dialogModal.on('hidden.bs.modal', function() {
+    dialogModalLabel.innerText = '';
+    dialogModalBody.innerText = '';
+    dialogModalConfirm.innerText = '';
+    dialogModalConfirm.onclick = null;
     
-    modalIsOpen = false;
+    currentDialogInfo = null;
     
-    if (errorDialogQueue.length > 0) {
-        var entry = errorDialogQueue.shift();
-        _showErrorDialog(entry.action_str, entry.head_str, entry.body_str);
+    if (dialogQueue.length > 0) {
+        var info = dialogQueue.shift();
+        _showDialog(info);
     }
 });
+
+function _dialogConfirmClicked(info) {
+    if (currentDialogInfo !== info) {
+        return;
+    }
+    
+    dialogModal.modal('hide');
+    
+    if (info.confirm_action !== null) {
+        var confirm_action = info.confirm_action;
+        info.confirm_action = null;
+        confirm_action();
+    }
+}
 
 
 // Directory list controller.
