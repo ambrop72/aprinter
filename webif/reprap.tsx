@@ -5,6 +5,7 @@ var statusRefreshInterval = 2000;
 var configRefreshInterval = 120000;
 var statusWaitingRespTime = 1000;
 var configWaitingRespTime = 1500;
+var updateConfigAfterSendingGcodeTime = 200;
 var axisPrecision = 6;
 var heaterPrecision = 4;
 var fanPrecision = 3;
@@ -1639,6 +1640,7 @@ StatusUpdater.prototype._changeCondition = function(condition) {
 var gcodeQueue = [];
 var gcodeHistory = [];
 var gcodeIdCounter = 1;
+var gcodeStatusUpdateTimer = null;
 
 function sendGcode(reason, cmd, callback) {
     sendGcodes(reason, [cmd], callback);
@@ -1683,10 +1685,21 @@ function _sendNextQueuedGcodes() {
     xhr.addEventListener('load', evt => _gcodeXhrLoadEvent(entry, xhr, evt), false);
     xhr.addEventListener('error', evt => _gcodeXhrErrorEvent(entry, evt), false);
     xhr.send(cmds_exec);
+    
+    // Start a timer to request an updated machine status shortly,
+    // unless the gcode completes sooner. The intention is that
+    // the active/inactive status on the top-panel doesn't display
+    // "inactive" for too long after the command made the machine active.
+    gcodeStatusUpdateTimer = setTimeout(_gcodeStatusUpdateTimerHandler, updateConfigAfterSendingGcodeTime);
 }
 
 function _checkGcodeRequestInProgress(entry) {
     return (gcodeQueue.length > 0 && gcodeQueue[0] === entry);
+}
+
+function _gcodeStatusUpdateTimerHandler() {
+    gcodeStatusUpdateTimer = null;
+    statusUpdater.requestUpdate(false);
 }
 
 function _gcodeXhrProgressEvent(entry, xhr, evt) {
@@ -1714,6 +1727,11 @@ function _gcodeXhrErrorEvent(entry, evt) {
 function _currentGcodeCompleted(entry, error, response) {
     if (!_checkGcodeRequestInProgress(entry)) {
         return;
+    }
+    
+    if (gcodeStatusUpdateTimer !== null) {
+        clearTimeout(gcodeStatusUpdateTimer);
+        gcodeStatusUpdateTimer = null;
     }
     
     var entry = gcodeQueue.shift();
