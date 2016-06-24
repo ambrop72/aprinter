@@ -5,6 +5,9 @@ nix-build nix/ -A aprinterService -o ~/aprinter-service && ~/aprinter-service/bi
 # Build firmware.
 python -B config_system/generator/generate.py --config ~/Downloads/aprinter_config.json | nix-build - -o ~/aprinter-build
 
+# Build web interface (for copying to SD-card).
+nix-build nix/ -A aprinterWebif -o ~/aprinter-webif
+
 # Flash various boards.
 python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.bin -t duet
 python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.bin -t arduino_due
