@@ -1006,15 +1006,14 @@ var SdCardTab = React.createClass({
                         {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
                     </div>
                 </div>
-                <div className="flex-row">
+                <div className="flex-row control-bottom-margin">
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
                     <button type="button" className={controlButtonClass('primary')}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
                     <div className="flex-grow1"></div>
                 </div>
-                <div className="divider"></div>
-                <div className="flex-column">
+                <div className="flex-column control-bottom-margin">
                     <div className="flex-row control-bottom-margin">
                         <div>
                             <label className="btn btn-default btn-file control-button control-right-margin">
@@ -1042,7 +1041,6 @@ var SdCardTab = React.createClass({
                         </span>
                     </div>
                 </div>
-                <div className="divider"></div>
                 <div className="control-bottom-margin" style={{display: 'table', width: '100%'}}>
                     <div style={{display: 'table-cell', 'width': '100%'}}>
                         <div className="input-group control-right-margin">
@@ -1188,7 +1186,7 @@ function getParentDirectory(path: string) {
 }
 
 function executeSdCardFile(file_path) {
-    showConfirmDialog('Are you sure you want the machine to execute this file?', file_path, 'Cancel', 'Execute', () => {
+    showConfirmDialog('Confirm execution of file from SD-card', file_path, 'Cancel', 'Execute', () => {
         var cmd = 'M32 F'+encodeStrForCmd(file_path);
         sendGcode('Execute file', cmd);
     });

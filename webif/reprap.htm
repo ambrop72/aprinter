@@ -12,12 +12,12 @@
     <script src='bootstrap/js/bootstrap.min.js'></script>
   </head>
   <body>
-    <div class="flex-column content-div">
-        <div class="panel panel-default all-panel-margin">
-            <div class="panel-heading top-panel" id="toppanel_div">
+    <div class="flex-column window-div">
+        <div class="panel panel-default top-panel">
+            <div class="panel-heading top-panel-head" id="toppanel_div">
             </div>
         </div>
-        <div class="flex-row flex-shrink1 flex-grow1 flex-wrap">
+        <div class="flex-row flex-shrink1 flex-grow1 flex-wrap content-div">
             <div class="flex-column">
                 <div class="panel panel-default control-panel all-panel-margin" id="axes_panel" hidden>
                     <div class="panel-body" id="axes_div"></div>
@@ -37,7 +37,7 @@
             </div>
             <div class="flex-column">
                 <div class="panel panel-default control-panel main-panel flex-column flex-shrink1 flex-grow1 all-panel-margin">
-                    <div class="panel-heading control-tabs-panel-heading flex-column">
+                    <div class="panel-heading flex-column control-tabs-panel-heading">
                         <ul class="nav nav-tabs control-tabs" role="tablist" id="main_tabs_ul">
                             <li role="presentation" hidden id="config_tab">
                                 <a href="#config_div" aria-controls="config_div" role="tab" data-toggle="tab">Configuration</a>

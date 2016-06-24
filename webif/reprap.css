@@ -2,22 +2,33 @@ html, body {
     height: 100%;
 }
 
-.all-panel-margin {
-    margin: 5px;
-}
-
-.content-div {
+.window-div {
     height: 100%;
-    padding: 5px;
 }
 
 .top-panel {
-    overflow: auto;
-    padding: 5px 2.5px;
+    margin: 0;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
 }
 
 .top-btn-margin {
     margin: 0px 2.5px;
+}
+
+.content-div {
+    padding: 3px;
+}
+
+.all-panel-margin {
+    margin: 3px;
+}
+
+.top-panel-head {
+    overflow: auto;
+    padding: 5px 2.5px;
 }
 
 .control-panel>div {
@@ -91,18 +102,6 @@ html, body {
 
 .control-bottom-margin {
     margin-bottom: 4px;
-}
-
-.divider {
-    height: 1px;
-    width: 100%;
-    display: block;
-    overflow: hidden;
-    background-color: #e5e5e5;
-    margin-top: 7px;
-    margin-bottom: 7px;
-    margin-left: 0px;
-    margin-right: 0px;
 }
 
 .notbold {
@@ -207,7 +206,8 @@ html, body {
 }
 
 .control-panel>.control-tabs-panel-heading {
-    padding-bottom: 0px;
+    padding-bottom: 0;
+    padding-top: 2px;
 }
 
 .control-tabs {
@@ -225,7 +225,7 @@ html, body {
 }
 
 .sdcard-tab {
-    width: 600px;
+    width: 550px;
 }
 
 .dirlist-loading-text {
