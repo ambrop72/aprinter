@@ -2233,6 +2233,7 @@ public:
         ob->time_freq_by_max_speed = 0.0f;
         ob->speed_ratio_rec = 1.0f;
         ob->locked = false;
+        ob->active = false;
         ob->planner_state = PLANNER_NONE;
         TheHookExecutor::init(c);
         ListFor<ModulesList>([&] APRINTER_TL(module, module::init(c)));
@@ -2630,6 +2631,7 @@ public:
     {
         auto *ob = Object::self(c);
         
+        ob->active = true;
         ob->disable_timer.unset(c);
         TheBlinker::setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * TimeConversion::value()));
     }
@@ -2638,8 +2640,8 @@ public:
     {
         auto *ob = Object::self(c);
         
-        TimeType now = Clock::getTime(c);
-        ob->disable_timer.appendAt(c, now + APRINTER_CFG(Config, CInactiveTimeTicks, c));
+        ob->active = false;
+        ob->disable_timer.appendAfter(c, APRINTER_CFG(Config, CInactiveTimeTicks, c));
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
@@ -2650,8 +2652,7 @@ private:
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
-        TimeType force_time = Clock::getTime(c) + APRINTER_CFG(Config, CForceTimeoutTicks, c);
-        ob->force_timer.appendAt(c, force_time);
+        ob->force_timer.appendAfter(c, APRINTER_CFG(Config, CForceTimeoutTicks, c));
     }
     
     static void unlocked_timer_handler (Context c)
@@ -2669,7 +2670,9 @@ private:
     
     static void disable_timer_handler (Context c)
     {
+        auto *ob = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(!ob->active)
         
         ListFor<AxesList>([&] APRINTER_TL(axis, axis::enable_disable_stepper(c, false)));
     }
@@ -2964,15 +2967,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        char status_code = 'I';
-        if (o->planner_state != OneOf(PLANNER_NONE, PLANNER_CUSTOM)) {
-            status_code = (o->planner_state == PLANNER_STOPPING) ? 'D' : ThePlanner::getStatusCode(c);
-        }
-        if (status_code == 'I' && o->locked) {
-            status_code = 'B';
-        }
-        
-        json->addSafeKeyVal("status", JsonSafeChar{status_code});
+        json->addSafeKeyVal("active", JsonBool{o->active});
         json->addSafeKeyVal("speedRatio", JsonDouble{1.0f / o->speed_ratio_rec});
         
         CallIfExists_get_json_status::template call_void<TheConfigManager>(c, json);
@@ -3093,6 +3088,7 @@ public:
         FpType move_time_freq_by_max_speed;
         size_t msg_length;
         bool locked : 1;
+        bool active : 1;
         uint8_t planner_state : 3;
         bool m_planning_pull_pending : 1;
         bool move_seen_cartesian : 1;
