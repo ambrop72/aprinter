@@ -226,16 +226,18 @@ The following SD-card related commands are implemented:
 
 - M21 - Initialize the SD card. On success the root directory will become the current directory.
 - M22 - Deinitialize the SD card.
-- M20 - List the contents of the current directory.
-- M23 D\<dir\> - Change the current directory (<dir> must be a directory in the current directory, or ..).
-- M23 R - Change to root directory.
-- M23 F\<file\> - Select file for printing (<file> must be a file in the current directory).
+- M20 [D\<dir\>] - List the contents of the current directory (no D diven) or a specific directory (D given).
+- M23 D\<dir\> - Change the current directory.
+- M23 R - Change to root directory (equivalent to M23 D/).
+- M23 F\<file\> - Select file for printing, but don't start.
 - M32 F\<file\> - Select file and start printing.
 - M24 - Start or resume SD printing.
 - M25 - Pause SD printing. Note that pause automatically happens at end of file.
 - M26 - Rewind the current file to the beginning.
-- M28 F\<file\> - Start writing commands to a file (in the current directory).
+- M28 F\<file\> - Start writing commands to a file.
 - M29 - Stop writing commands to file.
+
+Directory and file paths may be absolute (starting with `/`), otherwise they are treated as relative to the current directory.
 
 When passing a file or directory name to a command, any spaces in the name have to be replaced with the escape sequence `\20`, because a space would be parsed as a delimiter between command parameters.
 

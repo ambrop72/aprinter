@@ -40,6 +40,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/TransferVector.h>
+#include <aprinter/base/OneOf.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
@@ -85,6 +86,7 @@ private:
     };
     enum ListingState {
         LISTING_STATE_INACTIVE,
+        LISTING_STATE_DIRLIST_OPEN,
         LISTING_STATE_DIRLIST,
         LISTING_STATE_CHDIR,
         LISTING_STATE_OPEN
@@ -270,7 +272,7 @@ private:
         if (o->listing_state == LISTING_STATE_DIRLIST) {
             o->listing_u.dirlist.dir_lister.deinit(c);
         }
-        if (o->listing_state == LISTING_STATE_OPEN || o->listing_state == LISTING_STATE_CHDIR) {
+        if (o->listing_state == OneOf(LISTING_STATE_DIRLIST_OPEN, LISTING_STATE_CHDIR, LISTING_STATE_OPEN)) {
             o->listing_u.open_or_chdir.opener.deinit(c);
         }
         if (o->file_state != FILE_STATE_INACTIVE) {
@@ -604,39 +606,38 @@ private:
                 break;
             }
             
-            if (is_dirlist) {
-                o->listing_state = LISTING_STATE_DIRLIST;
-                o->listing_u.dirlist.cur_name = nullptr;
-                o->listing_u.dirlist.length_error = false;
-                o->listing_u.dirlist.dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-                o->listing_u.dirlist.dir_lister.requestEntry(c);
-            } else {
-                if (!start_stream && cmd->find_command_param(c, 'R', nullptr)) {
-                    fs_o->current_directory = TheFs::getRootEntry(c);
-                    break;
-                }
-                
-                char const *find_name;
-                uint8_t listing_state;
-                typename TheFs::EntryType entry_type;
-                
-                if (!start_stream && (find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
-                    listing_state = LISTING_STATE_CHDIR;
-                    entry_type = TheFs::EntryType::DIR_TYPE;
-                }
-                else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
-                    listing_state = LISTING_STATE_OPEN;
-                    entry_type = TheFs::EntryType::FILE_TYPE;
-                }
-                else {
-                    cmd->reportError(c, AMBRO_PSTR("BadParams"));
-                    break;
-                }
-                
-                o->listing_state = listing_state;
-                o->open_start_stream = start_stream;
-                o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
+            if (!is_dirlist && !start_stream && cmd->find_command_param(c, 'R', nullptr)) {
+                fs_o->current_directory = TheFs::getRootEntry(c);
+                break;
             }
+            
+            char const *find_name;
+            uint8_t listing_state;
+            typename TheFs::EntryType entry_type;
+            
+            if (is_dirlist) {
+                find_name = cmd->get_command_param_str(c, 'D', "");
+                listing_state = LISTING_STATE_DIRLIST_OPEN;
+                entry_type = TheFs::EntryType::DIR_TYPE;
+            }
+            else if (!is_dirlist && !start_stream && (find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
+                listing_state = LISTING_STATE_CHDIR;
+                entry_type = TheFs::EntryType::DIR_TYPE;
+            }
+            else if (!is_dirlist && (find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
+                listing_state = LISTING_STATE_OPEN;
+                entry_type = TheFs::EntryType::FILE_TYPE;
+            }
+            else {
+                cmd->reportError(c, AMBRO_PSTR("BadParams"));
+                break;
+            }
+            
+            typename TheFs::FsEntry base_dir = (find_name[0] == '/') ? TheFs::getRootEntry(c) : fs_o->current_directory;
+            
+            o->listing_state = listing_state;
+            o->open_start_stream = start_stream;
+            o->listing_u.open_or_chdir.opener.init(c, base_dir, entry_type, find_name, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
             
             return;
         } while (false);
@@ -683,7 +684,7 @@ private:
         auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        AMBRO_ASSERT(o->listing_state == LISTING_STATE_CHDIR || o->listing_state == LISTING_STATE_OPEN)
+        AMBRO_ASSERT(o->listing_state == OneOf(LISTING_STATE_DIRLIST_OPEN, LISTING_STATE_CHDIR, LISTING_STATE_OPEN))
         
         AMBRO_PGM_P errstr = nullptr;
         do {
@@ -692,9 +693,19 @@ private:
                 break;
             }
             
-            if (o->listing_state == LISTING_STATE_CHDIR) {
+            if (o->listing_state == LISTING_STATE_DIRLIST_OPEN) {
+                o->listing_u.open_or_chdir.opener.deinit(c);
+                o->listing_state = LISTING_STATE_DIRLIST;
+                o->listing_u.dirlist.cur_name = nullptr;
+                o->listing_u.dirlist.length_error = false;
+                o->listing_u.dirlist.dir_lister.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->listing_u.dirlist.dir_lister.requestEntry(c);
+                return;
+            }
+            else if (o->listing_state == LISTING_STATE_CHDIR) {
                 fs_o->current_directory = entry;
-            } else {
+            }
+            else {
                 if (o->file_state >= FILE_STATE_RUNNING) {
                     errstr = AMBRO_PSTR("SdPrintRunning");
                     break;
@@ -1011,7 +1022,7 @@ public:
         AccessInterface
     >> {
         uint8_t init_state : 3;
-        uint8_t listing_state : 2;
+        uint8_t listing_state : 3;
         uint8_t file_state : 2;
         uint8_t file_eof : 1;
         uint8_t write_mount_state : 2;
