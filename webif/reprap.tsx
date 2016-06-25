@@ -916,8 +916,13 @@ var SdCardTab = React.createClass({
     },
     onFileInputChange: function(event) {
         var uploadFileName = (event.target.files.length > 0) ? event.target.files[0].name : null;
-        this.setState({uploadFileName: uploadFileName});
-        this.props.controller_upload.clearResult();
+        // IE raises this event when we manually clear the file-input after
+        // a completed upload (in componentDidUpdate), so we need this check
+        // so that the success message does not disappear immediately.
+        if (uploadFileName !== null) {
+            this.setState({uploadFileName: uploadFileName});
+            this.props.controller_upload.clearResult();
+        }
     },
     onDestinationInputChange: function(event) {
         this.setState({destinationPath: event.target.value});
