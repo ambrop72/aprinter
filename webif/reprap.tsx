@@ -197,7 +197,7 @@ var AxesTable = React.createClass({
                     <button type="button" className={controlButtonClass('primary')} onClick={this.btnMotorsOff}>Motors off</button>
                     <div className="flex-grow1"></div>
                     <label htmlFor="speed" className="control-right-margin control-label">Speed [/s]</label>
-                    <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '80px'}} defaultValue={defaultSpeed} />
+                    <input ref="speed" id="speed" type="number" className={controlInputClass} style={{width: '60px'}} defaultValue={defaultSpeed} />
                 </div>
                 <table className={controlTableClass}>
                     <colgroup>
@@ -299,9 +299,9 @@ var HeatersTable = React.createClass({
             <table className={controlTableClass}>
                 <colgroup>
                     <col span="1" style={{width: '55px'}} />
-                    <col span="1" style={{width: '65px'}} />
-                    <col span="1" style={{width: '80px'}} />
-                    <col span="1" style={{width: '180px'}} />
+                    <col span="1" style={{width: '60px'}} />
+                    <col span="1" style={{width: '78px'}} />
+                    <col span="1" style={{width: '185px'}} />
                 </colgroup>
                 <thead>
                     <tr>

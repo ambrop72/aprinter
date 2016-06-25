@@ -160,7 +160,7 @@ html, body {
 
 .main-controls-container {
     flex-grow: 0.6;
-    width: 415px;
+    width: 410px;
     max-width: 500px;
 }
 
