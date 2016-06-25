@@ -152,6 +152,10 @@ body:-ms-fullscreen {
     min-height: 0;
 }
 
+.width0 {
+    width: 0;
+}
+
 .scroll-y {
     overflow-y: scroll;
 }
@@ -278,6 +282,11 @@ body:-ms-fullscreen {
 
 .config-options-area {
     height: 400px;
+}
+
+.config-options-table>tbody>tr>td {
+    word-wrap: break-word;
+    vertical-align: top;
 }
 
 .dir-list-area {

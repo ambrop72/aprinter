@@ -557,7 +557,7 @@ var TopPanel = React.createClass({
                 <span className={'activestatus '+activeStatusClass}>{activeStatusText}</span>
                 <div className="toppanel-spacediv"></div>
                 <span className={'constatus '+cmdStatusClass}>{cmdStatusText}</span>
-                <div style={{flexGrow: '1'}}></div>
+                <div className="flex-grow1"></div>
                 <span className={'constatus '+statusClass}>{statusText}</span>
                 <div className="toppanel-spacediv"></div>
                 <button type="button" className={controlButtonClass('info')+' top-btn-margin'} onClick={startRefreshAll}>Refresh</button>
@@ -777,7 +777,7 @@ var ConfigTab = React.createClass({
             <colgroup>
                 <col span="1" style={{width: '192px'}} />
                 <col span="1" style={{width: '72px'}} />
-                <col span="1" style={{width: '232px'}} />
+                <col span="1" style={{width: '230px'}} />
             </colgroup>
         );
         
@@ -808,7 +808,7 @@ var ConfigTab = React.createClass({
                     <div className="scroll-y" style={{visibility: 'hidden'}} />
                 </div>
                 <div className="flex-shrink1 flex-grow1 scroll-y config-options-area">
-                    <table className={controlTableClass}>
+                    <table className={controlTableClass+' config-options-table'}>
                         {colgroup}
                         <tbody>
                             {$.map(this.props.options.arr, function(option) {
@@ -1028,7 +1028,7 @@ var SdCardTab = React.createClass({
                             <span className={'label '+uploadFileClass}>{uploadFileText}</span>
                         </div>
                         <label htmlFor="upload_path" className="control-label control-right-margin">Save to</label>
-                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '160px'}}
+                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '150px'}}
                                value={this.state.destinationPath} onChange={this.onDestinationInputChange}
                                placeholder="Destination file path" />
                         <button type="button" className={controlButtonClass('primary')} onClick={this.onUploadClick} disabled={!canUpload}>Upload</button>
@@ -1122,7 +1122,7 @@ var SdCardDirList = React.createClass({
                                 var file_path = dir+($endsWith(dir, '/')?'':'/')+file_name;
                                 return (
                                     <tr key={file_path} className="dirlist-row">
-                                        <td>{file_type}</td>
+                                        <td style={{verticalAlign: 'top'}}>{file_type}</td>
                                         {is_dir ? (
                                             <td className="control-table-link">
                                                 <a href="javascript:void(0)" onClick={this.onDirClicked.bind(this, file_path)}>{file_name}</a>
@@ -1130,7 +1130,7 @@ var SdCardDirList = React.createClass({
                                         ) : (
                                             <td>
                                                 <div className="flex-row">
-                                                    <div className="flex-grow1 files-right-margin">{file_name}</div>
+                                                    <div className="flex-grow1 width0 files-right-margin">{file_name}</div>
                                                     <a className="files-right-margin" href={sdRootAccessPrefix+file_path} target="_blank">Download</a>
                                                     <a className="files-right-margin" href="javascript:void(0)" onClick={this.onUploadOverClicked.bind(this, file_path)}>Upload over</a>
                                                     <a href="javascript:void(0)" onClick={() => executeSdCardFile(file_path)}>Execute</a>
