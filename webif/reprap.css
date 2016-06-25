@@ -1,9 +1,19 @@
-html, body {
+html, body, .window-div {
+    width: 100%;
     height: 100%;
 }
 
-.window-div {
-    height: 100%;
+body:fullscreen {
+    background-color: black;
+}
+body:-webkit-full-screen {
+    background-color: black;
+}
+body:-moz-full-screen {
+    background-color: black;
+}
+body:-ms-fullscreen {
+    background-color: black;
 }
 
 .top-panel {

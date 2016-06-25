@@ -547,6 +547,9 @@ var TopPanel = React.createClass({
             statusClass = 'constatus-error';
         }
         
+        var fullscreenIcon = this.props.is_fullscreen ? 'glyphicon-unchecked' : 'glyphicon-fullscreen';
+        var fullscreenAction = this.props.is_fullscreen ? leaveFullscreen : goFullscreen;
+        
         return (
             <div className="flex-row flex-align-center">
                 <h1>Aprinter Web Interface</h1>
@@ -558,6 +561,9 @@ var TopPanel = React.createClass({
                 <span className={'constatus '+statusClass}>{statusText}</span>
                 <div className="toppanel-spacediv"></div>
                 <button type="button" className={controlButtonClass('info')+' top-btn-margin'} onClick={startRefreshAll}>Refresh</button>
+                <button type="button" className={controlButtonClass('default')+' top-btn-margin'} onClick={() => fullscreenAction()}>
+                    <span className={'glyphicon '+fullscreenIcon}></span>
+                </button>
             </div>
         );
     }
@@ -2127,6 +2133,38 @@ function handleUploadUpdate() {
 var controller_upload = new FileUploadController(handleUploadUpdate);
 
 
+// Fullscreen logic
+
+var fullscreen_elem = document.body;
+
+function isFullscreen() {
+    var fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    return fullscreenElement ? true : false;
+}
+
+function goFullscreen() {
+    var requestFullscreen = fullscreen_elem.requestFullscreen || fullscreen_elem.webkitRequestFullscreen || fullscreen_elem.mozRequestFullScreen || fullscreen_elem.msRequestFullscreen;
+    if (requestFullscreen) {
+        requestFullscreen.call(fullscreen_elem);
+    }
+}
+
+function leaveFullscreen() {
+    var exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exitFullscreen) {
+        exitFullscreen.call(document);
+    }
+}
+
+function onFullscreenChange(evt) {
+    console.log('onFullscreenChange');
+    wrapper_toppanel.forceUpdate();
+}
+for (var eventName of ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']) {
+    document.addEventListener(eventName, onFullscreenChange, false);
+}
+
+
 // Gluing things together
 
 var ComponentWrapper = React.createClass({
@@ -2166,7 +2204,7 @@ function render_speed() {
     return <SpeedTable speedRatio={machine_state.speedRatio} controller={controller_speed} />;
 }
 function render_toppanel() {
-    return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} active={machine_state.active} />;
+    return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} active={machine_state.active} is_fullscreen={isFullscreen()} />;
 }
 function render_config() {
     return <ConfigTab options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
