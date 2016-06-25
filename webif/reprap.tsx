@@ -892,7 +892,7 @@ var SdCardTab = React.createClass({
             this.doNavigateTo(this.state.desiredDir);
         }
     },
-    onDirGoClick: function() {
+    navigateToDesiredDir: function() {
         this.doNavigateTo(this.state.desiredDir);
     },
     onDirUpClick: function() {
@@ -1047,7 +1047,7 @@ var SdCardTab = React.createClass({
                             <input id="sdcard_set_dir" type="text" className={controlInputClass} placeholder="Directory to list"
                                    value={this.state.desiredDir} onChange={this.onDirInputChange} onKeyPress={this.onDirInputKeyPress} />
                             <span className="input-group-btn">
-                                <button type="button" className={controlButtonClass('primary')} disabled={!canNavigate} onClick={this.onDirGoClick}>Show</button>
+                                <button type="button" className={controlButtonClass('primary')} disabled={!canNavigate} onClick={this.navigateToDesiredDir}>Show</button>
                             </span>
                         </div>
                     </div>
@@ -1873,6 +1873,7 @@ class DirListController {
     private _loaded_dir: string;
     private _loaded_result: any;
     private _is_dirty: boolean;
+    private _ever_requested: boolean;
     
     constructor(handle_dir_loaded: () => void) {
         this._handle_dir_loaded = handle_dir_loaded;
@@ -1882,6 +1883,7 @@ class DirListController {
         this._loaded_dir = null;
         this._loaded_result = null;
         this._is_dirty = true;
+        this._ever_requested = false;
     }
     
     requestDir(requested_dir: string) {
@@ -1906,6 +1908,10 @@ class DirListController {
         return this._loaded_result;
     }
     
+    getEverRequested(): boolean {
+        return this._ever_requested;
+    }
+    
     isDirty(): boolean {
         return this._is_dirty;
     }
@@ -1917,6 +1923,7 @@ class DirListController {
     private _startRequest() {
         this._need_rerequest = false;
         this._update_status_then = (machine_state.sdcard !== null && machine_state.sdcard.mntState !== 'Mounted');
+        this._ever_requested = true;
         
         $.ajax({
             url: '/rr_files?flagDirs=1&dir='+encodeURIComponent(this._requested_dir),
@@ -2215,7 +2222,7 @@ function render_config() {
     return <ConfigTab options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_sdcard() {
-    return <SdCardTab sdcard={machine_state.sdcard} controller_dirlist={controller_dirlist} controller_upload={controller_upload} />;
+    return <SdCardTab ref="component" sdcard={machine_state.sdcard} controller_dirlist={controller_dirlist} controller_upload={controller_upload} />;
 }
 function render_gcode() {
     return <GcodeTable gcodeHistory={gcodeHistory} gcodeQueue={gcodeQueue} />;
@@ -2261,6 +2268,10 @@ function machineStateChanged() {
     
     wrapper_toppanel.forceUpdate();
     wrapper_sdcard.forceUpdate();
+    
+    if (machine_state.sdcard !== null && !controller_dirlist.getEverRequested()) {
+        wrapper_sdcard.refs.component.navigateToDesiredDir();
+    }
 }
 
 function updateConfig() {
