@@ -686,7 +686,7 @@ function preprocessOptionsList(options) {
 }
 
 function updateConfigAfterGcode(entry) {
-    configUpdater.requestUpdate(false);
+    configUpdater.requestUpdate(true);
 }
 
 var ConfigTab = React.createClass({
