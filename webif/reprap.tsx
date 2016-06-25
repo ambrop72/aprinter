@@ -2169,7 +2169,6 @@ function leaveFullscreen() {
 }
 
 function onFullscreenChange(evt) {
-    console.log('onFullscreenChange');
     wrapper_toppanel.forceUpdate();
 }
 for (var eventName of ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange']) {
