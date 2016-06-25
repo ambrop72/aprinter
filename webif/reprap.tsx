@@ -609,6 +609,7 @@ function normalizeMacAddr(input) {
 
 var ConfigTypes = {
     'bool': {
+        display: 'bool',
         input: {type: 'select', options: ['false', 'true']},
         convertForDisp: function(string) {
             if (string !== '0' && string !== '1') {
@@ -624,6 +625,7 @@ var ConfigTypes = {
         }
     },
     'double': {
+        display: 'double',
         input: {type: 'number'},
         convertForDisp: function(string) {
             var num = Number(string);
@@ -637,6 +639,7 @@ var ConfigTypes = {
         }
     },
     'ip_addr': {
+        display: 'ip-addr',
         input: {type: 'text'},
         convertForDisp: function(string) {
             return normalizeIpAddr(string);
@@ -646,6 +649,7 @@ var ConfigTypes = {
         }
     },
     'mac_addr': {
+        display: 'mac-addr',
         input: {type: 'text'},
         convertForDisp: function(string) {
             return normalizeMacAddr(string);
@@ -655,6 +659,7 @@ var ConfigTypes = {
         }
     },
     'text': {
+        display: 'unknown',
         input: {type: 'text'},
         convertForDisp: function(string) {
             return {res: string};
@@ -684,7 +689,7 @@ function updateConfigAfterGcode(entry) {
     configUpdater.requestUpdate(false);
 }
 
-var ConfigTable = React.createClass({
+var ConfigTab = React.createClass({
     componentWillMount: function() {
         this.props.controller.setComponent(this);
     },
@@ -744,6 +749,9 @@ var ConfigTable = React.createClass({
     restoreConfig: function() {
         sendGcode('Restore config from SD', 'M501', updateConfigAfterGcode);
     },
+    componentDidUpdate: function() {
+        this.props.controller.componentDidUpdate(this.props.options.obj);
+    },
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
         var condition = this.props.configUpdater.getCondition();
@@ -761,14 +769,14 @@ var ConfigTable = React.createClass({
         
         var colgroup = (
             <colgroup>
-                <col span="1" style={{width: '198px'}} />
-                <col span="1" style={{width: '75px'}} />
-                <col span="1" style={{width: '240px'}} />
+                <col span="1" style={{width: '192px'}} />
+                <col span="1" style={{width: '72px'}} />
+                <col span="1" style={{width: '232px'}} />
             </colgroup>
         );
         
         return (
-            <div className="flex-column flex-grow1 config-tab">
+            <div className="flex-column flex-shrink1 flex-grow1 min-height0">
                 <div className="flex-row control-bottom-margin">
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
                     <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
@@ -801,9 +809,6 @@ var ConfigTable = React.createClass({
                 </div>
             </div>
         );
-    },
-    componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate(this.props.options.obj);
     }
 });
 
@@ -825,7 +830,7 @@ var ConfigRow = React.createClass({
         return (
             <tr>
                 <td><b>{option.name}</b></td>
-                <td>{option.type}</td>
+                <td>{typeImpl.display}</td>
                 <td>
                     <div className="input-group">
                         {typeImpl.input.type === 'select' ? (
@@ -947,7 +952,7 @@ var SdCardTab = React.createClass({
         var canUnmount = (sdcard !== null && sdcard.mntState === 'Mounted');
         var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
         var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
-        var stateText = (sdcard === null) ? 'Disabled' : (translateMntState(sdcard.mntState) + (sdcard.mntState === 'Mounted' ? ', '+translateRwState(sdcard.rwState) : ''));
+        var stateText = (sdcard === null) ? 'Disabled' : ((sdcard.mntState === 'Mounted') ? translateRwState(sdcard.rwState) : translateMntState(sdcard.mntState));
         
         var canNavigate = $startsWith(this.state.desiredDir, '/');
         var loadedDir = controller_dirlist.getLoadedDir();
@@ -989,24 +994,13 @@ var SdCardTab = React.createClass({
         }
         
         return (
-            <div className="flex-column flex-grow1 sdcard-tab">
-                <div className="flex-row control-bottom-margin">
-                    <div>
-                        <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
-                        <span id="sdcard_state">{stateText}</span>
-                    </div>
-                    <div className="flex-grow1">
-                    </div>
-                    <div>
-                        {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
-                    </div>
-                </div>
+            <div className="flex-column flex-shrink1 flex-grow1 min-height0">
                 <div className="flex-row control-bottom-margin">
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
-                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount Read-Only</button>
-                    <button type="button" className={controlButtonClass('primary')}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount Read-Write</button>
-                    <div className="flex-grow1"></div>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount R/O</button>
+                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount R/W</button>
+                    <span className="flex-grow1 sdcard-state">{stateText}</span>
                 </div>
                 <div className="flex-column control-bottom-margin">
                     <div className="flex-row flex-align-center control-bottom-margin">
@@ -1031,6 +1025,8 @@ var SdCardTab = React.createClass({
                             <a href="javascript:void(0)" onClick={() => executeSdCardFile(uploadedFile)}>Execute</a>
                             )}
                         </span>
+                        <div className="flex-grow1"></div>
+                        {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
                     </div>
                 </div>
                 <div className="control-bottom-margin" style={{display: 'table', width: '100%'}}>
@@ -1143,15 +1139,14 @@ var SdCardDirList = React.createClass({
 function translateMntState(mntState) {
     if (mntState === 'NotMounted') return 'Not mounted';
     if (mntState === 'Mounting')   return 'Mounting';
-    if (mntState === 'Mounted')    return 'Mounted';
     return mntState;
 }
 
 function translateRwState(rwState) {
-    if (rwState === 'ReadOnly')     return 'Read-only';
-    if (rwState === 'MountingRW')   return 'Mounting read-write';
-    if (rwState === 'ReadWrite')    return 'Read-write';
-    if (rwState === 'RemountingRO') return 'Remounting read-only';
+    if (rwState === 'ReadOnly')     return 'Mounted R/O';
+    if (rwState === 'MountingRW')   return 'Mounting R/W';
+    if (rwState === 'ReadWrite')    return 'Mounted R/W';
+    if (rwState === 'RemountingRO') return 'Remounting R/O';
     return rwState;
 }
 
@@ -2174,7 +2169,7 @@ function render_toppanel() {
     return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} active={machine_state.active} />;
 }
 function render_config() {
-    return <ConfigTable options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
+    return <ConfigTab options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_sdcard() {
     return <SdCardTab sdcard={machine_state.sdcard} controller_dirlist={controller_dirlist} controller_upload={controller_upload} />;

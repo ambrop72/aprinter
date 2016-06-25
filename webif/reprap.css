@@ -27,7 +27,7 @@ html, body {
 }
 
 .top-panel-head {
-    overflow: auto;
+    overflow: hidden;
     padding: 5px 2.5px;
 }
 
@@ -55,7 +55,7 @@ html, body {
 }
 
 .control-input {
-    padding-left: 7px;
+    padding-left: 6px;
     padding-right: 3px;
 }
 
@@ -159,9 +159,14 @@ html, body {
 }
 
 .main-controls-container {
-    flex-grow: 0.4;
+    flex-grow: 0.6;
     width: 415px;
-    max-width: 450px;
+    max-width: 500px;
+}
+
+.main-panel-container {
+    width: 528px;
+    max-width: 700px;
 }
 
 .gcode-table>tbody>tr>td {
@@ -186,10 +191,6 @@ html, body {
 
 .gcode-panel {
     max-height: 400px;
-}
-
-.main-panel-container {
-    max-width: 700px;
 }
 
 .main-panel {
@@ -242,10 +243,6 @@ html, body {
     display: flex;
 }
 
-.sdcard-tab, .config-tab {
-    width: 530px;
-}
-
 .dirlist-loading-text {
     font-weight: bold;
 }
@@ -280,6 +277,11 @@ html, body {
 .gcode-table-area {
     height: 120px;
     width: 100%;
+}
+
+.sdcard-state {
+    font-weight: bold;
+    text-align: center;
 }
 
 h1 {
