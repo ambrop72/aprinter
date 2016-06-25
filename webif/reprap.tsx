@@ -1202,21 +1202,26 @@ var GcodeTable = React.createClass({
     render: function() {
         var colgroup = (
             <colgroup>
-                <col span="1" style={{width: '190px'}} />
-                <col span="1" />
+                <col span="1" style={{width: '162px'}} />
+                <col span="1" style={{width: '200px'}} />
             </colgroup>
         );
         return (
             <div className="flex-column flex-grow1">
-                <table className={gcodeTableClass}>
-                    {colgroup}
-                    <thead>
-                        <tr>
-                            <th>Command</th>
-                            <th>Result</th>
-                        </tr>
-                    </thead>
-                </table>
+                 <div className="flex-row">
+                    <div className="flex-grow1" style={{width: 0}}>
+                        <table className={gcodeTableClass}>
+                            {colgroup}
+                            <thead>
+                                <tr>
+                                    <th>Command</th>
+                                    <th>Result</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div className="scroll-y" style={{visibility: 'hidden'}} />
+                </div>
                 <div ref="scroll_div" className="flex-column flex-shrink1 flex-grow1 scroll-y gcode-table-area">
                     <div style={{flexGrow: '1'}}></div>
                     <table className={gcodeTableClass} style={{width: '100%'}}>
