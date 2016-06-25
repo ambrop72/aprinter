@@ -789,19 +789,24 @@ var ConfigTab = React.createClass({
                     <div className="flex-grow1"></div>
                     <span className={'constatus-control '+statusClass}>{statusText}</span>
                 </div>
-                <table className={controlTableClass}>
-                    {colgroup}
-                    <thead>
-                        <tr>
-                            <th>Option</th>
-                            <th>Type</th>
-                            <th>{controlAllHead('Value', [
-                                {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
-                                {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
-                            ])}</th>
-                        </tr>
-                    </thead>
-                </table>
+                <div className="flex-row">
+                    <div className="flex-grow1" style={{width: 0}}>
+                        <table className={controlTableClass}>
+                            {colgroup}
+                            <thead>
+                                <tr>
+                                    <th>Option</th>
+                                    <th>Type</th>
+                                    <th>{controlAllHead('Value', [
+                                        {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
+                                        {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
+                                    ])}</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div className="scroll-y" style={{visibility: 'hidden'}} />
+                </div>
                 <div className="flex-shrink1 flex-grow1 scroll-y config-options-area">
                     <table className={controlTableClass}>
                         {colgroup}
