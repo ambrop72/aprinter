@@ -70,7 +70,7 @@ html, body {
 
 .control-table {
     table-layout: fixed;
-    width: 400px;
+    width: 100%;
     margin-bottom: 0px;
 }
 
@@ -142,12 +142,26 @@ html, body {
     min-height: 0;
 }
 
+.scroll-y {
+    overflow-y: scroll;
+}
+
+.autoscroll-y {
+    overflow-y: auto;
+}
+
 .control-right-margin {
     margin-right: 5px;
 }
 
 .control-label {
     margin-bottom: 0px;
+}
+
+.main-controls-container {
+    flex-grow: 0.4;
+    width: 415px;
+    max-width: 450px;
 }
 
 .gcode-table>tbody>tr>td {
@@ -167,11 +181,15 @@ html, body {
 }
 
 .gcode-input-group {
-    width: 400px;
+    width: 100%;
 }
 
 .gcode-panel {
     max-height: 400px;
+}
+
+.main-panel-container {
+    max-width: 700px;
 }
 
 .main-panel {
@@ -224,8 +242,8 @@ html, body {
     display: flex;
 }
 
-.sdcard-tab {
-    width: 550px;
+.sdcard-tab, .config-tab {
+    width: 530px;
 }
 
 .dirlist-loading-text {
@@ -257,6 +275,11 @@ html, body {
 
 .dir-list-area {
     height: 300px;
+}
+
+.gcode-table-area {
+    height: 120px;
+    width: 100%;
 }
 
 h1 {

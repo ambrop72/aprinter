@@ -181,8 +181,12 @@ var AxesTable = React.createClass({
     btnMotorsOff: function() {
         sendGcode('Turn motors off', 'M18');
     },
+    componentDidUpdate: function() {
+        this.props.controller.componentDidUpdate(this.props.axes.obj);
+    },
     render: function() {
         this.props.controller.rendering(this.props.axes.obj);
+        
         return (
             <div className="flex-column">
                 <div className="flex-row control-bottom-margin">
@@ -199,14 +203,12 @@ var AxesTable = React.createClass({
                     <colgroup>
                         <col span="1" style={{width: '55px'}} />
                         <col span="1" style={{width: '115px'}} />
-                        <col span="1" />
                         <col span="1" style={{width: '205px'}} />
                     </colgroup>
                     <thead>
                         <tr>
                             <th>Axis</th>
                             <th>Planned</th>
-                            <th></th>
                             <th>{controlAllHead('Go to', [{text: 'Go', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allAxesGo}}])}</th>
                         </tr>
                     </thead>
@@ -218,7 +220,6 @@ var AxesTable = React.createClass({
                                 <tr key={axis.key}>
                                     <td><b>{axis.key}</b></td>
                                     <td>{dispPos}</td>
-                                    <td></td>
                                     <td>
                                         <div className="input-group">
                                             <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
@@ -236,9 +237,6 @@ var AxesTable = React.createClass({
                 </table>
             </div>
         );
-    },
-    componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate(this.props.axes.obj);
     }
 });
 
@@ -300,15 +298,15 @@ var HeatersTable = React.createClass({
         return (
             <table className={controlTableClass}>
                 <colgroup>
-                    <col span="1" style={{width: '60px'}} />
+                    <col span="1" style={{width: '55px'}} />
+                    <col span="1" style={{width: '65px'}} />
                     <col span="1" style={{width: '80px'}} />
-                    <col span="1" />
-                    <col span="1" style={{width: '200px'}} />
+                    <col span="1" style={{width: '180px'}} />
                 </colgroup>
                 <thead>
                     <tr>
                         <th>Heater</th>
-                        <th>Actual <span className="notbold">[C]</span></th>
+                        <th>Actual</th>
                         <th>Target</th>
                         <th>{controlAllHead('Control', [{text: 'Set', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allHeatersSet}}])}</th>
                     </tr>
@@ -473,6 +471,9 @@ var SpeedTable = React.createClass({
         sendGcode('Reset speed ratio', 'M220 S100');
         this.props.controller.cancel('S');
     },
+    componentDidUpdate: function() {
+        this.props.controller.componentDidUpdate({'S': null});
+    },
     render: function() {
         this.props.controller.rendering({'S': null});
         var dispRatio = (this.props.speedRatio*100).toPrecision(speedPrecision);
@@ -480,21 +481,18 @@ var SpeedTable = React.createClass({
         return (
             <table className={controlTableClass}>
                 <colgroup>
-                    <col span="1" style={{width: '130px'}} />
-                    <col span="1" />
+                    <col span="1" style={{width: '170px'}} />
                     <col span="1" style={{width: '200px'}} />
                 </colgroup>
                 <thead>
                     <tr>
                         <th>Speed ratio <span className="notbold">[%]</span></th>
-                        <th></th>
                         <th>Control</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>{dispRatio}</td>
-                        <td></td>
                         <td>
                             <div className="input-group">
                                 <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref="target_S"
@@ -510,9 +508,6 @@ var SpeedTable = React.createClass({
                 </tbody>
             </table>
         );
-    },
-    componentDidUpdate: function() {
-        this.props.controller.componentDidUpdate({'S': null});
     }
 });
 
@@ -752,6 +747,7 @@ var ConfigTable = React.createClass({
     render: function() {
         this.props.controller.rendering(this.props.options.obj);
         var condition = this.props.configUpdater.getCondition();
+        
         var statusText = '';
         var statusClass = '';
         if (condition === 'WaitingResponse') {
@@ -762,39 +758,38 @@ var ConfigTable = React.createClass({
             statusText = 'Error refreshing configuration';
             statusClass = 'constatus-error';
         }
-        var width = '670px';
+        
         var colgroup = (
             <colgroup>
-                <col span="1" style={{width: '200px'}} />
+                <col span="1" style={{width: '198px'}} />
                 <col span="1" style={{width: '75px'}} />
-                <col span="1" style={{width: '150px'}} />
-                <col span="1" />
+                <col span="1" style={{width: '240px'}} />
             </colgroup>
         );
+        
         return (
-            <div className="flex-column min-height0 flex-shrink1 flex-grow1">
+            <div className="flex-column flex-grow1 config-tab">
                 <div className="flex-row control-bottom-margin">
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'} onClick={this.saveConfig}>Save to SD</button>
                     <button type="button" className={controlButtonClass('primary')} onClick={this.restoreConfig}>Restore from SD</button>
                     <div className="flex-grow1"></div>
                     <span className={'constatus-control '+statusClass}>{statusText}</span>
                 </div>
-                <table className={controlTableClass} style={{width: width}}>
+                <table className={controlTableClass}>
                     {colgroup}
                     <thead>
                         <tr>
                             <th>Option</th>
                             <th>Type</th>
-                            <th>Value</th>
-                            <th>{controlAllHead('New value', [
+                            <th>{controlAllHead('Value', [
                                 {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
                                 {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
                             ])}</th>
                         </tr>
                     </thead>
                 </table>
-                <div className="flex-shrink1 flex-grow1 config-options-area" style={{overflowY: 'scroll'}}>
-                    <table className={controlTableClass} style={{width: width}}>
+                <div className="flex-shrink1 flex-grow1 scroll-y config-options-area">
+                    <table className={controlTableClass}>
                         {colgroup}
                         <tbody>
                             {$.map(this.props.options.arr, function(option) {
@@ -813,6 +808,12 @@ var ConfigTable = React.createClass({
 });
 
 var ConfigRow = React.createClass({
+    shouldComponentUpdate: function(nextProps, nextState) {
+        return this.props.parent.props.controller.rowIsDirty(this.props.option.name);
+    },
+    componentDidUpdate: function() {
+        this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
+    },
     render: function() {
         var option = this.props.option;
         var typeImpl = getOptionTypeImpl(option.type);
@@ -820,11 +821,11 @@ var ConfigRow = React.createClass({
         var valueConv = $has(valueParsed, 'err') ? option.value : valueParsed.res;
         var ecInputs = this.props.parent.props.controller.getRenderInputs(option.name, valueConv);
         var onClickSet = $bind(this.props.parent, 'optionSet', option.name);
+        
         return (
             <tr>
                 <td><b>{option.name}</b></td>
                 <td>{option.type}</td>
-                <td>{valueConv}</td>
                 <td>
                     <div className="input-group">
                         {typeImpl.input.type === 'select' ? (
@@ -846,12 +847,6 @@ var ConfigRow = React.createClass({
                 </td>
             </tr>
         );
-    },
-    shouldComponentUpdate: function(nextProps, nextState) {
-        return this.props.parent.props.controller.rowIsDirty(this.props.option.name);
-    },
-    componentDidUpdate: function() {
-        this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
     }
 });
 
@@ -994,7 +989,7 @@ var SdCardTab = React.createClass({
         }
         
         return (
-            <div className="flex-column flex-shrink1 flex-grow1 min-height0 sdcard-tab">
+            <div className="flex-column flex-grow1 sdcard-tab">
                 <div className="flex-row control-bottom-margin">
                     <div>
                         <label htmlFor="sdcard_state" className="control-right-margin control-label">State:</label>
@@ -1014,25 +1009,22 @@ var SdCardTab = React.createClass({
                     <div className="flex-grow1"></div>
                 </div>
                 <div className="flex-column control-bottom-margin">
-                    <div className="flex-row control-bottom-margin">
-                        <div>
+                    <div className="flex-row flex-align-center control-bottom-margin">
+                        <div className="control-right-margin">
                             <label className="btn btn-default btn-file control-button control-right-margin">
-                                Select file to upload
+                                Select file
                                 <input ref="file_input" type="file" style={{display: 'none'}} onChange={this.onFileInputChange} />
                             </label>
                             <span className={'label '+uploadFileClass}>{uploadFileText}</span>
                         </div>
-                    </div>
-                    <div className="flex-row flex-align-center control-bottom-margin">
                         <label htmlFor="upload_path" className="control-label control-right-margin">Save to</label>
-                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '300px'}}
+                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '160px'}}
                                value={this.state.destinationPath} onChange={this.onDestinationInputChange}
                                placeholder="Destination file path" />
                         <button type="button" className={controlButtonClass('primary')} onClick={this.onUploadClick} disabled={!canUpload}>Upload</button>
                     </div>
                     <div className="flex-row flex-align-center">
-                        <label htmlFor="upload_status" className="control-label control-right-margin">Status:</label>
-                        <span id="upload_status" className={uploadStatusClass+ ' flex-shrink1'}>
+                        <span className={uploadStatusClass+ ' flex-shrink1'}>
                             {uploadStatus}
                             {(uploadedFile === null) ? null : ' '}
                             {(uploadedFile === null) ? null : (
@@ -1083,7 +1075,7 @@ var SdCardDirList = React.createClass({
         var dir = dirlist.dir;
         return (
             <div className="flex-column flex-shrink1 flex-grow1 min-height0">
-                <table className={controlTableClass} style={{width: '100%'}}>
+                <table className={controlTableClass}>
                     <colgroup>
                         <col span="1" style={{width: type_width}} />
                         <col span="1" style={{width: '60px'}} />
@@ -1097,8 +1089,8 @@ var SdCardDirList = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div ref="scroll_div" className="flex-shrink1 flex-grow1 dir-list-area" style={{overflowY: 'scroll'}}>
-                    <table className={controlTableClass} style={{width: '100%'}}>
+                <div ref="scroll_div" className="flex-shrink1 flex-grow1 scroll-y dir-list-area">
+                    <table className={controlTableClass}>
                         <colgroup>
                             <col span="1" style={{width: type_width}} />
                             <col span="1" />
@@ -1214,7 +1206,7 @@ var GcodeTable = React.createClass({
                         </tr>
                     </thead>
                 </table>
-                <div ref="scroll_div" className="flex-column flex-shrink1 flex-grow1" style={{overflowY: 'scroll', height: '120px', width: '400px'}}>
+                <div ref="scroll_div" className="flex-column flex-shrink1 flex-grow1 scroll-y gcode-table-area">
                     <div style={{flexGrow: '1'}}></div>
                     <table className={gcodeTableClass} style={{width: '100%'}}>
                         {colgroup}
