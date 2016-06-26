@@ -775,7 +775,7 @@ var ConfigTab = React.createClass({
         
         var colgroup = (
             <colgroup>
-                <col span="1" style={{width: '192px'}} />
+                <col span="1" style={{width: '188px'}} />
                 <col span="1" style={{width: '72px'}} />
                 <col span="1" style={{width: '230px'}} />
             </colgroup>
