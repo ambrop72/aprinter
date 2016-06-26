@@ -479,19 +479,15 @@ var SpeedTable = React.createClass({
         var dispRatio = (this.props.speedRatio*100).toPrecision(speedPrecision);
         var ecInputs = this.props.controller.getRenderInputs('S', dispRatio);
         return (
-            <table className={controlTableClass}>
+            <table className={controlTableClass+' table-noheader'}>
                 <colgroup>
-                    <col span="1" style={{width: '170px'}} />
-                    <col span="1" style={{width: '200px'}} />
+                    <col span="1" style={{width: '120px'}} />
+                    <col span="1" style={{width: '50px'}} />
+                    <col span="1" style={{width: '195px'}} />
                 </colgroup>
-                <thead>
-                    <tr>
-                        <th>Speed ratio <span className="notbold">[%]</span></th>
-                        <th>Control</th>
-                    </tr>
-                </thead>
                 <tbody>
                     <tr>
+                        <td className="parameter-table-name">Speed ratio <span className="notbold">[%]</span></td>
                         <td>{dispRatio}</td>
                         <td>
                             <div className="input-group">
@@ -823,7 +819,7 @@ var ConfigTab = React.createClass({
                     <div className="scroll-y" style={{visibility: 'hidden'}} />
                 </div>
                 <div className="flex-shrink1 flex-grow1 scroll-y config-options-area">
-                    <table className={controlTableClass+' config-options-table'}>
+                    <table className={controlTableClass+' table-noheader config-options-table'}>
                         {colgroup}
                         <tbody>
                             {$.map(this.props.options.arr, function(option) {
@@ -1180,7 +1176,7 @@ var SdCardDirList = React.createClass({
                     </thead>
                 </table>
                 <div ref="scroll_div" className="flex-shrink1 flex-grow1 scroll-y dir-list-area">
-                    <table className={controlTableClass}>
+                    <table className={controlTableClass+' table-noheader'}>
                         <colgroup>
                             {this.props.compact ? null : <col span="1" style={{width: type_width}} />}
                             <col span="1" />

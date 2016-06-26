@@ -16,6 +16,10 @@ body:-ms-fullscreen {
     background-color: black;
 }
 
+.table-noheader>tbody>tr:first-child>td {
+    border-top: 0;
+}
+
 .top-panel {
     margin: 0;
     border-top: 0;
@@ -318,6 +322,10 @@ body:-ms-fullscreen {
 
 .fixed-width-button {
     width: 130px;
+}
+
+.parameter-table-name {
+    font-weight: bold;
 }
 
 h1 {
