@@ -10,6 +10,8 @@
     <script src="react/react-dom.js"></script>
     <script src="jquery/jquery.js"></script>
     <script src='bootstrap/js/bootstrap.min.js'></script>
+    <script src='requirejs/require.js'></script>
+    <script src='ResizeSensor/resize-sensor.js'></script>
   </head>
   <body>
     <div id="window-div" class="flex-column window-div">
@@ -48,7 +50,7 @@
                         </ul>
                     </div>
                     <div class="panel-body flex-column flex-shrink1 flex-grow1 min-height0">
-                        <div class="tab-content control-tabcontent flex-column flex-shrink1 flex-grow1 min-height0">
+                        <div class="tab-content control-tabcontent flex-column flex-shrink1 flex-grow1 min-height0" id="tab_content_div">
                             <div role="tabpanel" class="tab-pane flex-column flex-shrink1 flex-grow1 min-height0" id="sdcard_div">
                             </div>
                             <div role="tabpanel" class="tab-pane flex-column flex-shrink1 flex-grow1 min-height0" id="config_div">

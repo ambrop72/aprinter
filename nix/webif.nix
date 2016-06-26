@@ -28,6 +28,11 @@ let
         sha256 = "05h3i83fwknqzdzm339ngjif0k87g4qx5jqgspnf8yjnshww4yj1";
     };
     
+    requirejs = fetchurl {
+        url = http://requirejs.org/docs/release/2.2.0/minified/require.js;
+        sha256 = "1nlf1f37rj4c95pw041gj3qrgpwsavdxi7s6arwdlzmll5jk0y4b";
+    };
+
 in
 stdenv.mkDerivation {
     name = "aprinter-webif";
@@ -50,6 +55,12 @@ stdenv.mkDerivation {
         
         unzip -q ${bootstrap} -d $out/
         mv $out/bootstrap-*-dist $out/bootstrap
+        
+        mkdir $out/requirejs
+        cp ${requirejs} $out/requirejs/require.js
+        
+        mkdir $out/ResizeSensor
+        cat ${aprinterSource}/webif/ResizeSensor/*.js > $out/ResizeSensor/resize-sensor.js
         
         tsc \
             --allowSyntheticDefaultImports \

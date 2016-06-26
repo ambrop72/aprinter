@@ -172,7 +172,7 @@ body:-ms-fullscreen {
 }
 
 .main-panel-container {
-    width: 528px;
+    width: 455px;
     max-width: 700px;
 }
 
@@ -314,6 +314,10 @@ body:-ms-fullscreen {
 
 .items-margin>div>* {
     margin: 2px 2.5px;
+}
+
+.fixed-width-button {
+    width: 130px;
 }
 
 h1 {

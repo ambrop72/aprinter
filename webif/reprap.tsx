@@ -696,6 +696,11 @@ function updateConfigAfterGcode(entry) {
 }
 
 var ConfigTab = React.createClass({
+    getInitialState: function() {
+        return {
+            compact: false,
+        };
+    },
     componentWillMount: function() {
         this.props.controller.setComponent(this);
     },
@@ -755,6 +760,12 @@ var ConfigTab = React.createClass({
     restoreConfig: function() {
         sendGcode('Restore config from SD', 'M501', updateConfigAfterGcode);
     },
+    onContainerResized: function(width) {
+        var compact = width < 520;
+        if (this.state.compact !== compact) {
+            this.setState({compact: compact});
+        }
+    },
     componentDidUpdate: function() {
         this.props.controller.componentDidUpdate(this.props.options.obj);
     },
@@ -776,7 +787,9 @@ var ConfigTab = React.createClass({
         var colgroup = (
             <colgroup>
                 <col span="1" style={{width: '188px'}} />
+                {this.state.compact ? null : (
                 <col span="1" style={{width: '72px'}} />
+                )}
                 <col span="1" style={{width: '230px'}} />
             </colgroup>
         );
@@ -796,7 +809,9 @@ var ConfigTab = React.createClass({
                             <thead>
                                 <tr>
                                     <th>Option</th>
-                                    <th>Type</th>
+                                    {this.state.compact ? null : (
+                                        <th>Type</th>
+                                    )}
                                     <th>{controlAllHead('Value', [
                                         {text: 'Set', class: 'success', attrs: {disabled: !this.props.controller.isEditingAny(), onClick: this.allOptionsSet}},
                                         {text: 'Apply', highlighted: this.props.configDirty, attrs: {disabled: !this.props.configDirty, onClick: this.applyConfig}}
@@ -813,7 +828,7 @@ var ConfigTab = React.createClass({
                         <tbody>
                             {$.map(this.props.options.arr, function(option) {
                                 var optionName = option.key;
-                                return <ConfigRow key={optionName} ref={optionName} option={option.val} parent={this} />;
+                                return <ConfigRow key={optionName} ref={optionName} option={option.val} compact={this.state.compact} parent={this} />;
                             }.bind(this))}
                         </tbody>
                     </table>
@@ -825,7 +840,7 @@ var ConfigTab = React.createClass({
 
 var ConfigRow = React.createClass({
     shouldComponentUpdate: function(nextProps, nextState) {
-        return this.props.parent.props.controller.rowIsDirty(this.props.option.name);
+        return this.props.parent.props.controller.rowIsDirty(this.props.option.name) || nextProps.compact !== this.props.compact;
     },
     componentDidUpdate: function() {
         this.props.parent.props.controller.rowComponentDidUpdate(this.props.option.name);
@@ -841,7 +856,9 @@ var ConfigRow = React.createClass({
         return (
             <tr>
                 <td><b>{option.name}</b></td>
+                {this.props.compact ? null : (
                 <td>{typeImpl.display}</td>
+                )}
                 <td>
                     <div className="input-group">
                         {typeImpl.input.type === 'select' ? (
@@ -875,6 +892,7 @@ var SdCardTab = React.createClass({
             desiredDir: '/',
             uploadFileName: null,
             destinationPath: '/upload.gcode',
+            compact: false,
         };
     },
     doMount: function() {
@@ -944,6 +962,12 @@ var SdCardTab = React.createClass({
     setDestinationPath: function(file_path) {
         this.setState({destinationPath: file_path});
     },
+    onContainerResized: function(width) {
+        var compact = width < 520;
+        if (this.state.compact !== compact) {
+            this.setState({compact: compact});
+        }
+    },
     componentDidUpdate: function() {
         var controller_upload = this.props.controller_upload;
         if (controller_upload.isResultPending()) {
@@ -964,10 +988,60 @@ var SdCardTab = React.createClass({
         var controller_dirlist = this.props.controller_dirlist;
         var controller_upload = this.props.controller_upload;
         
-        var canMount = (sdcard !== null && sdcard.mntState === 'NotMounted');
         var canUnmount = (sdcard !== null && sdcard.mntState === 'Mounted');
+        var canMount = (sdcard !== null && sdcard.mntState === 'NotMounted');
+        var canRemountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
         var canMountRw = (sdcard !== null && (sdcard.mntState === 'NotMounted' || (sdcard.mntState === 'Mounted' && sdcard.rwState === 'ReadOnly')));
-        var canUnmountRo = (sdcard !== null && sdcard.mntState === 'Mounted' && sdcard.rwState == 'ReadWrite');
+        
+        var unmountText = 'Unmount';
+        var mountText = 'Mount';
+        var remountRoText = 'Remount R/O';
+        var mountRwText = 'Mount R/W';
+        
+        var mountButtons;
+        if (!this.state.compact) {
+            mountButtons = [
+                <button key="btn_unmount"   type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>{unmountText}</button>,
+                <button key="btn_mount"     type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>{mountText}</button>,
+                <button key="btn_remountro" type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canRemountRo} onClick={this.doRemountRo}>{remountRoText}</button>,
+                <button key="btn_mountrw"   type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMountRw}   onClick={this.doMountRw}>{mountRwText}</button>
+            ];
+        } else {
+            var useMountButton = sdcard === null || sdcard.mntState === 'NotMounted' || sdcard.mntState === 'Mounting';
+            var useMountRwButton = useMountButton || (sdcard.mntState === 'Mounted' && (sdcard.rwState === 'ReadOnly' || sdcard.rwState === 'MountingRW'));
+            
+            var mnText;
+            var mnAction;
+            var mnEnabled;
+            if (useMountButton) {
+                mnText = mountText;
+                mnAction = this.doMount;
+                mnEnabled = canMount;
+            } else {
+                mnText = unmountText;
+                mnAction = this.doUnmount;
+                mnEnabled = canUnmount;
+            }
+            
+            var rwText;
+            var rwAction;
+            var rwEnabled;
+            if (useMountRwButton) {
+                rwText = mountRwText;
+                rwAction = this.doMountRw;
+                rwEnabled = canMountRw;
+            } else {
+                rwText = remountRoText;
+                rwAction = this.doRemountRo;
+                rwEnabled = canRemountRo;
+            }
+            
+            mountButtons = [
+                <button key="btn_mn" type="button" className={controlButtonClass('primary')+' fixed-width-button control-right-margin'} disabled={!mnEnabled} onClick={mnAction}>{mnText}</button>,
+                <button key="btn_rw" type="button" className={controlButtonClass('primary')+' fixed-width-button control-right-margin'} disabled={!rwEnabled} onClick={rwAction}>{rwText}</button>
+            ];
+        }
+        
         var stateText = (sdcard === null) ? 'Disabled' : ((sdcard.mntState === 'Mounted') ? translateRwState(sdcard.rwState) : translateMntState(sdcard.mntState));
         
         var canNavigate = $startsWith(this.state.desiredDir, '/');
@@ -1010,12 +1084,9 @@ var SdCardTab = React.createClass({
         }
         
         return (
-            <div className="flex-column flex-shrink1 flex-grow1 min-height0">
+            <div className="flex-column flex-shrink1 flex-grow1 min-height0" ref="self">
                 <div className="flex-row control-bottom-margin">
-                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmount}   onClick={this.doUnmount}>Unmount</button>
-                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canMount}     onClick={this.doMount}>Mount</button>
-                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'} disabled={!canUnmountRo} onClick={this.doRemountRo}>Remount R/O</button>
-                    <button type="button" className={controlButtonClass('primary')+' control-right-margin'}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount R/W</button>
+                    {mountButtons}
                     <span className="flex-grow1 sdcard-state">{stateText}</span>
                 </div>
                 <div className="control-bottom-margin items-margin">
@@ -1062,7 +1133,7 @@ var SdCardTab = React.createClass({
                         <button type="button" className={controlButtonClass('primary')} disabled={!canGoUp} onClick={this.onDirUpClick}>Up</button>
                     </span>
                 </div>
-                <SdCardDirList dirlist={loadedResult} navigateTo={this.doNavigateTo} saveTo={this.setDestinationPath} controller={this.props.controller_dirlist} />
+                <SdCardDirList dirlist={loadedResult} compact={this.state.compact} navigateTo={this.doNavigateTo} saveTo={this.setDestinationPath} controller={this.props.controller_dirlist} />
             </div>
         );
     }
@@ -1076,10 +1147,14 @@ var SdCardDirList = React.createClass({
         this.props.saveTo(file_path);
     },
     shouldComponentUpdate: function(nextProps, nextState) {
-        return this.props.controller.isDirty();
+        return this.props.controller.isDirty() || nextProps.compact !== this.props.compact;
+    },
+    componentDidUpdate: function() {
+        this.refs.scroll_div.scrollTop = 0;;
     },
     render: function() {
         this.props.controller.clearDirty();
+        
         var type_width = '65px';
         var dirlist = this.props.dirlist;
         if (dirlist === null) {
@@ -1087,17 +1162,18 @@ var SdCardDirList = React.createClass({
         }
         var files_sorted = Array.prototype.slice.call(dirlist.files).sort();
         var dir = dirlist.dir;
+        
         return (
             <div className="flex-column flex-shrink1 flex-grow1 min-height0">
                 <table className={controlTableClass}>
                     <colgroup>
-                        <col span="1" style={{width: type_width}} />
+                        {this.props.compact ? null : <col span="1" style={{width: type_width}} />}
                         <col span="1" style={{width: '60px'}} />
                         <col span="1" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th>Type</th>
+                            {this.props.compact ? null : <th>Type</th>}
                             <th>Name</th>
                             <th style={{textAlign: 'right'}}>{dirlist.dir}</th>
                         </tr>
@@ -1106,7 +1182,7 @@ var SdCardDirList = React.createClass({
                 <div ref="scroll_div" className="flex-shrink1 flex-grow1 scroll-y dir-list-area">
                     <table className={controlTableClass}>
                         <colgroup>
-                            <col span="1" style={{width: type_width}} />
+                            {this.props.compact ? null : <col span="1" style={{width: type_width}} />}
                             <col span="1" />
                         </colgroup>
                         <tbody>
@@ -1124,7 +1200,7 @@ var SdCardDirList = React.createClass({
                                 var file_path = dir+($endsWith(dir, '/')?'':'/')+file_name;
                                 return (
                                     <tr key={file_path} className="dirlist-row">
-                                        <td style={{verticalAlign: 'top'}}>{file_type}</td>
+                                        {this.props.compact ? null : <td style={{verticalAlign: 'top'}}>{file_type}</td>}
                                         {is_dir ? (
                                             <td className="control-table-link">
                                                 <a href="javascript:void(0)" onClick={this.onDirClicked.bind(this, file_path)}>{file_name}</a>
@@ -1147,10 +1223,6 @@ var SdCardDirList = React.createClass({
                 </div>
             </div>
         );
-    },
-    componentDidUpdate: function() {
-        var node = this.refs.scroll_div;
-        node.scrollTop = 0;
     }
 });
 
@@ -1408,11 +1480,6 @@ EditController.prototype.updateTable = function() {
 
 EditController.prototype.updateRow = function(id) {
     this._row_ref.updateRow(this._comp, id);
-};
-
-EditController.prototype.forceUpdateVia = function(update_comp) {
-    this.markDirtyAllRows();
-    update_comp.forceUpdate();
 };
 
 EditController.prototype.cancel = function(id) {
@@ -2106,13 +2173,50 @@ class FileUploadController {
 
 // Status updating
 
-function fixupStateObject(state, name) {
-    return preprocessObjectForState($has(state, name) ? state[name] : {});
-}
+var machine_state = {
+    active:      null,
+    speedRatio:  null,
+    configDirty: null,
+    sdcard:      null,
+    axes:    preprocessObjectForState({}),
+    heaters: preprocessObjectForState({}),
+    fans:    preprocessObjectForState({})
+};
 
 function handleNewStatus(new_machine_state) {
-    setNewMachineState(new_machine_state);
-    machineStateChanged();
+    machine_state = new_machine_state;
+    machine_state.active      = $has(machine_state, 'active') ? machine_state.active : null;
+    machine_state.speedRatio  = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : null;
+    machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : null;
+    machine_state.sdcard      = $has(machine_state, 'sdcard') ? machine_state.sdcard : null
+    machine_state.axes    = fixupStateObject(machine_state, 'axes');
+    machine_state.heaters = fixupStateObject(machine_state, 'heaters');
+    machine_state.fans    = fixupStateObject(machine_state, 'fans');
+    
+    document.getElementById('axes_panel').hidden    = (machine_state.axes.arr.length === 0);
+    document.getElementById('heaters_panel').hidden = (machine_state.heaters.arr.length === 0);
+    document.getElementById('fans_panel').hidden    = (machine_state.fans.arr.length === 0);
+    document.getElementById('speed_panel').hidden   = (machine_state.speedRatio === null);
+    document.getElementById('config_tab').hidden    = (machine_state.configDirty === null);
+    document.getElementById('sdcard_tab').hidden    = (machine_state.sdcard === null);
+    
+    updateTabs();
+    
+    configUpdater.setRunning(machine_state.configDirty !== null);
+    
+    markDirtyAndForceUpdate(controller_axes,    wrapper_axes);
+    markDirtyAndForceUpdate(controller_heaters, wrapper_heaters);
+    markDirtyAndForceUpdate(controller_fans,    wrapper_fans);
+    markDirtyAndForceUpdate(controller_speed,   wrapper_speed);
+    
+    wrapper_config.forceUpdate();
+    wrapper_toppanel.forceUpdate();
+    wrapper_sdcard.forceUpdate();
+    
+    if (machine_state.sdcard !== null && !controller_dirlist.getEverRequested()) {
+        wrapper_sdcard.refs.component.navigateToDesiredDir();
+    }
+
     if (configUpdater.getCondition() === 'Error') {
         configUpdater.requestUpdate(false);
     }
@@ -2124,16 +2228,34 @@ function handleStatusCondition() {
 
 var statusUpdater = new StatusUpdater('/rr_status', statusRefreshInterval, statusWaitingRespTime, handleNewStatus, handleStatusCondition);
 
+function fixupStateObject(state, name) {
+    return preprocessObjectForState($has(state, name) ? state[name] : {});
+}
+
+function updateTabs() {
+    // If there is no tab selected and there is at least one non-hidden tab,
+    // activate the first non-hidden tab.
+    var active_tab = $('#main_tabs_ul>.active');
+    if (active_tab.length == 0) {
+        var nonhidden_tabs = $('#main_tabs_ul>*:not([hidden])');
+        if (nonhidden_tabs.length > 0) {
+            nonhidden_tabs.first().find('>a').tab('show');
+        }
+    }
+}
+
 
 // Configuration updating
 
+var machine_options = preprocessObjectForState({});
+
 function handleNewConfig(new_config) {
     machine_options = preprocessObjectForState(preprocessOptionsList(new_config.options));
-    updateConfig();
+    markDirtyAndForceUpdate(controller_config, wrapper_config);
 }
 
 function handleConfigCondition() {
-    updateConfig();
+    wrapper_config.forceUpdate();
 }
 
 var configUpdater = new StatusUpdater('/rr_config', configRefreshInterval, configWaitingRespTime, handleNewConfig, handleConfigCondition);
@@ -2188,31 +2310,59 @@ for (var eventName of ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscr
 }
 
 
-// Gluing things together
+// Observing elements width to make them adapt themselves to available space
 
-var ComponentWrapper = React.createClass({
-    render: function() {
-        return this.props.render();
+var tab_content_div = document.getElementById('tab_content_div');
+
+function refreshTabsWidth() {
+    var width = tab_content_div.offsetWidth;
+    if (width !== 0) {
+        wrapper_sdcard.refs.component.onContainerResized(width);
+        wrapper_config.refs.component.onContainerResized(width);
     }
+}
+
+require(['droplet/ResizeSensor/ResizeSensorApi'], (ResizeSensorApi) => {
+    ResizeSensorApi.create(tab_content_div, refreshTabsWidth);
 });
 
-var machine_state = {
-    active:      null,
-    speedRatio:  null,
-    configDirty: null,
-    sdcard:      null,
-    axes:    preprocessObjectForState({}),
-    heaters: preprocessObjectForState({}),
-    fans:    preprocessObjectForState({})
-};
+setInterval(refreshTabsWidth, 2000);
 
-var machine_options = preprocessObjectForState({});
+
+// Instantiating edit controllers
 
 var controller_axes    = new EditController(RowRefSameComp('target_'));
 var controller_heaters = new EditController(RowRefSameComp('target_'));
 var controller_fans    = new EditController(RowRefSameComp('target_'));
 var controller_speed   = new EditController(RowRefSameComp('target_'));
 var controller_config  = new EditController(RowRefChildComp('target'));
+
+
+// Misc functions connecting things
+
+function markDirtyAndForceUpdate(controller, component) {
+    controller.markDirtyAllRows();
+    component.forceUpdate();
+}
+
+function updateGcode() {
+    wrapper_toppanel.forceUpdate();
+    wrapper_gcode.forceUpdate();
+}
+
+function startRefreshAll() {
+    statusUpdater.requestUpdate(true);
+    configUpdater.requestUpdate(true);
+}
+
+
+// Instantiating React components
+
+var ComponentWrapper = React.createClass({
+    render: function() {
+        return this.props.render();
+    }
+});
 
 function render_axes() {
     return <AxesTable axes={machine_state.axes} probe_present={$has(machine_state, 'bedProbe')} controller={controller_axes} />;
@@ -2230,7 +2380,7 @@ function render_toppanel() {
     return <TopPanel statusUpdater={statusUpdater} gcodeQueue={gcodeQueue} active={machine_state.active} is_fullscreen={isFullscreen()} />;
 }
 function render_config() {
-    return <ConfigTab options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
+    return <ConfigTab ref="component" options={machine_options} configDirty={machine_state.configDirty} controller={controller_config} configUpdater={configUpdater} />;
 }
 function render_sdcard() {
     return <SdCardTab ref="component" sdcard={machine_state.sdcard} controller_dirlist={controller_dirlist} controller_upload={controller_upload} />;
@@ -2247,69 +2397,6 @@ var wrapper_toppanel = ReactDOM.render(<ComponentWrapper render={render_toppanel
 var wrapper_config   = ReactDOM.render(<ComponentWrapper render={render_config} />,   document.getElementById('config_div'));
 var wrapper_sdcard   = ReactDOM.render(<ComponentWrapper render={render_sdcard} />,   document.getElementById('sdcard_div'));
 var wrapper_gcode    = ReactDOM.render(<ComponentWrapper render={render_gcode} />,    document.getElementById('gcode_div'));
-
-function setNewMachineState(new_machine_state) {
-    machine_state = new_machine_state;
-    machine_state.active      = $has(machine_state, 'active') ? machine_state.active : null;
-    machine_state.speedRatio  = $has(machine_state, 'speedRatio') ? machine_state.speedRatio : null;
-    machine_state.configDirty = $has(machine_state, 'configDirty') ? machine_state.configDirty : null;
-    machine_state.sdcard      = $has(machine_state, 'sdcard') ? machine_state.sdcard : null
-    machine_state.axes    = fixupStateObject(machine_state, 'axes');
-    machine_state.heaters = fixupStateObject(machine_state, 'heaters');
-    machine_state.fans    = fixupStateObject(machine_state, 'fans');
-}
-
-function machineStateChanged() {
-    document.getElementById('axes_panel').hidden    = (machine_state.axes.arr.length === 0);
-    document.getElementById('heaters_panel').hidden = (machine_state.heaters.arr.length === 0);
-    document.getElementById('fans_panel').hidden    = (machine_state.fans.arr.length === 0);
-    document.getElementById('speed_panel').hidden   = (machine_state.speedRatio === null);
-    document.getElementById('config_tab').hidden    = (machine_state.configDirty === null);
-    document.getElementById('sdcard_tab').hidden    = (machine_state.sdcard === null);
-    
-    updateTabs();
-    
-    configUpdater.setRunning(machine_state.configDirty !== null);
-    
-    controller_axes.forceUpdateVia(wrapper_axes);
-    controller_heaters.forceUpdateVia(wrapper_heaters);
-    controller_fans.forceUpdateVia(wrapper_fans);
-    controller_speed.forceUpdateVia(wrapper_speed);
-    controller_config.forceUpdateVia(wrapper_config);
-    
-    wrapper_toppanel.forceUpdate();
-    wrapper_sdcard.forceUpdate();
-    
-    if (machine_state.sdcard !== null && !controller_dirlist.getEverRequested()) {
-        wrapper_sdcard.refs.component.navigateToDesiredDir();
-    }
-}
-
-function updateConfig() {
-    controller_config.forceUpdateVia(wrapper_config);
-}
-
-function updateGcode() {
-    wrapper_toppanel.forceUpdate();
-    wrapper_gcode.forceUpdate();
-}
-
-function startRefreshAll() {
-    statusUpdater.requestUpdate(true);
-    configUpdater.requestUpdate(true);
-}
-
-function updateTabs() {
-    // If there is no tab selected and there is at least one non-hidden tab,
-    // activate the first non-hidden tab.
-    var active_tab = $('#main_tabs_ul>.active');
-    if (active_tab.length == 0) {
-        var nonhidden_tabs = $('#main_tabs_ul>*:not([hidden])');
-        if (nonhidden_tabs.length > 0) {
-            nonhidden_tabs.first().find('>a').tab('show');
-        }
-    }
-}
 
 
 // Initial actions

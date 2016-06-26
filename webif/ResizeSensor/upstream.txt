@@ -1,0 +1,2 @@
+https://github.com/procurios/ResizeSensor
+revision 1427336dd9537fac7619a94bd2b73969e25fcf90
