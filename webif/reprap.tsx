@@ -1018,8 +1018,8 @@ var SdCardTab = React.createClass({
                     <button type="button" className={controlButtonClass('primary')+' control-right-margin'}                         disabled={!canMountRw}   onClick={this.doMountRw}>Mount R/W</button>
                     <span className="flex-grow1 sdcard-state">{stateText}</span>
                 </div>
-                <div className="flex-column control-bottom-margin">
-                    <div className="flex-row flex-align-center control-bottom-margin">
+                <div className="control-bottom-margin items-margin">
+                    <div className="flex-row flex-align-center flex-wrap">
                         <div className="control-right-margin">
                             <label className="btn btn-default btn-file control-button control-right-margin">
                                 Select file
@@ -1027,23 +1027,25 @@ var SdCardTab = React.createClass({
                             </label>
                             <span className={'label '+uploadFileClass}>{uploadFileText}</span>
                         </div>
-                        <label htmlFor="upload_path" className="control-label control-right-margin">Save to</label>
-                        <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '150px'}}
-                               value={this.state.destinationPath} onChange={this.onDestinationInputChange}
-                               placeholder="Destination file path" />
-                        <button type="button" className={controlButtonClass('primary')} onClick={this.onUploadClick} disabled={!canUpload}>Upload</button>
+                        <div className="flex-grow1 flex-row flex-align-center">
+                            <label htmlFor="upload_path" className="control-label control-right-margin">Save to</label>
+                            <input type="text" className={controlInputClass+' flex-grow1 control-right-margin'} style={{width: '150px'}}
+                                value={this.state.destinationPath} onChange={this.onDestinationInputChange}
+                                placeholder="Destination file path" />
+                            <button type="button" className={controlButtonClass('primary')} onClick={this.onUploadClick} disabled={!canUpload}>Upload</button>
+                        </div>
                     </div>
-                    <div className="flex-row flex-align-center">
-                        <span className={uploadStatusClass+ ' flex-shrink1'}>
-                            {uploadStatus}
-                            {(uploadedFile === null) ? null : ' '}
-                            {(uploadedFile === null) ? null : (
-                            <a href="javascript:void(0)" onClick={() => executeSdCardFile(uploadedFile)}>Execute</a>
-                            )}
-                        </span>
-                        <div className="flex-grow1"></div>
-                        {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
-                    </div>
+                </div>
+                <div className="flex-row flex-align-center control-bottom-margin">
+                    <span className={uploadStatusClass+ ' flex-shrink1'}>
+                        {uploadStatus}
+                        {(uploadedFile === null) ? null : ' '}
+                        {(uploadedFile === null) ? null : (
+                        <a href="javascript:void(0)" onClick={() => executeSdCardFile(uploadedFile)}>Execute</a>
+                        )}
+                    </span>
+                    <div className="flex-grow1"></div>
+                    {(loadingDir === null) ? null : <span className='dirlist-loading-text constatus-waitresp'>Loading directory {loadingDir}</span>}
                 </div>
                 <div className="control-bottom-margin" style={{display: 'table', width: '100%'}}>
                     <div style={{display: 'table-cell', 'width': '100%'}}>

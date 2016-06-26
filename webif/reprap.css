@@ -110,9 +110,6 @@ body:-ms-fullscreen {
     padding-right: 5px;
 }
 
-.control-bottom-margin {
-    margin-bottom: 4px;
-}
 
 .notbold {
     font-weight: normal;
@@ -162,10 +159,6 @@ body:-ms-fullscreen {
 
 .autoscroll-y {
     overflow-y: auto;
-}
-
-.control-right-margin {
-    margin-right: 5px;
 }
 
 .control-label {
@@ -301,6 +294,26 @@ body:-ms-fullscreen {
 .sdcard-state {
     font-weight: bold;
     text-align: center;
+}
+
+.control-bottom-margin {
+    margin-bottom: 4px;
+}
+
+.control-right-margin {
+    margin-right: 5px;
+}
+
+.items-margin {
+    padding: 0px;
+}
+
+.items-margin>div {
+    margin: -2px -2.5px;
+}
+
+.items-margin>div>* {
+    margin: 2px 2.5px;
 }
 
 h1 {
