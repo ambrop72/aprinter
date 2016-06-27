@@ -794,7 +794,7 @@ udp_sendto_if_src(struct udp_pcb *pcb, struct pbuf *p,
   err = ip_output_if_src(PCB_ISIPV6(pcb), q, src_ip, dst_ip, ttl, pcb->tos, ip_proto, netif);
   NETIF_SET_HWADDRHINT(netif, NULL);
 
-  /* TODO: must this be increased even if error occurred? */
+  /* @todo: must this be increased even if error occurred? */
   MIB2_STATS_INC(mib2.udpoutdatagrams);
 
   /* did we chain a separate header pbuf earlier? */
