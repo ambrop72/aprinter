@@ -152,7 +152,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
                 (r->len >= hlen + sizeof(struct icmp_echo_hdr)));
     /* copy the ip header */
     MEMCPY(r->payload, iphdr_in, hlen);
-    /* switch r->payload back to icmp header */
+    /* switch r->payload back to icmp header (cannot fail) */
     if (pbuf_header(r, -hlen)) {
       LWIP_ASSERT("icmp_input: moving r->payload to icmp header failed\n", 0);
       pbuf_free(r);
@@ -160,7 +160,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
     }
     /* copy the rest of the packet without ip header */
     if (pbuf_copy(r, p) != ERR_OK) {
-      LWIP_ASSERT("icmp_input: copying to new pbuf failed\n", 0);
+      LWIP_DEBUGF(ICMP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("icmp_input: copying to new pbuf failed"));
       pbuf_free(r);
       goto icmperr;
     }
@@ -173,7 +173,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
      * setting the icmp type to ECHO_RESPONSE and updating the checksum. */
     iecho = (struct icmp_echo_hdr *)p->payload;
     if (pbuf_header(p, hlen)) {
-      LWIP_ASSERT("Can't move over header in packet", 0);
+      LWIP_DEBUGF(ICMP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("Can't move over header in packet"));
     } else {
       err_t ret;
       struct ip_hdr *iphdr = (struct ip_hdr*)p->payload;
@@ -203,7 +203,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
       IPH_CHKSUM_SET(iphdr, 0);
 #if CHECKSUM_GEN_IP
       IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_IP) {
-        IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, IP_HLEN));
+        IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, hlen));
       }
 #endif /* CHECKSUM_GEN_IP */
 
