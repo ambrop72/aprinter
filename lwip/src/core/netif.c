@@ -69,12 +69,6 @@
 #define NETIF_STATUS_CALLBACK(n)
 #endif /* LWIP_NETIF_STATUS_CALLBACK */
 
-#if LWIP_NETIF_LINK_CALLBACK
-#define NETIF_LINK_CALLBACK(n) do{ if (n->link_callback) { (n->link_callback)(n); }}while(0)
-#else
-#define NETIF_LINK_CALLBACK(n)
-#endif /* LWIP_NETIF_LINK_CALLBACK */
-
 struct netif *netif_list;
 struct netif *netif_default;
 
@@ -212,9 +206,6 @@ netif_add(struct netif *netif,
 #if LWIP_NETIF_STATUS_CALLBACK
   netif->status_callback = NULL;
 #endif /* LWIP_NETIF_STATUS_CALLBACK */
-#if LWIP_NETIF_LINK_CALLBACK
-  netif->link_callback = NULL;
-#endif /* LWIP_NETIF_LINK_CALLBACK */
 #if LWIP_IGMP
   netif->igmp_mac_filter = NULL;
 #endif /* LWIP_IGMP */
@@ -348,11 +339,6 @@ netif_remove(struct netif *netif)
     }
   }
   mib2_netif_removed(netif);
-#if LWIP_NETIF_REMOVE_CALLBACK
-  if (netif->remove_callback) {
-    netif->remove_callback(netif);
-  }
-#endif /* LWIP_NETIF_REMOVE_CALLBACK */
   LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
 }
 
@@ -570,17 +556,6 @@ netif_set_status_callback(struct netif *netif, netif_status_callback_fn status_c
 }
 #endif /* LWIP_NETIF_STATUS_CALLBACK */
 
-#if LWIP_NETIF_REMOVE_CALLBACK
-/**
- * Set callback to be called when the interface has been removed
- */
-void
-netif_set_remove_callback(struct netif *netif, netif_status_callback_fn remove_callback)
-{
-  netif->remove_callback = remove_callback;
-}
-#endif /* LWIP_NETIF_REMOVE_CALLBACK */
-
 /**
  * Called by a driver when its link goes up
  */
@@ -599,7 +574,6 @@ netif_set_link_up(struct netif *netif)
     if (netif->flags & NETIF_FLAG_UP) {
       netif_issue_reports(netif, NETIF_REPORT_TYPE_IPV4|NETIF_REPORT_TYPE_IPV6);
     }
-    NETIF_LINK_CALLBACK(netif);
   }
 }
 
@@ -611,20 +585,8 @@ netif_set_link_down(struct netif *netif )
 {
   if (netif->flags & NETIF_FLAG_LINK_UP) {
     netif->flags &= ~NETIF_FLAG_LINK_UP;
-    NETIF_LINK_CALLBACK(netif);
   }
 }
-
-#if LWIP_NETIF_LINK_CALLBACK
-/**
- * Set callback to be called when link is brought up/down
- */
-void
-netif_set_link_callback(struct netif *netif, netif_status_callback_fn link_callback)
-{
-  netif->link_callback = link_callback;
-}
-#endif /* LWIP_NETIF_LINK_CALLBACK */
 
 #if ENABLE_LOOPBACK
 /**
