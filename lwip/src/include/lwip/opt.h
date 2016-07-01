@@ -843,15 +843,6 @@
 #define SO_REUSE                        0
 #endif
 
-/**
- * SO_REUSE_RXTOALL==1: Pass a copy of incoming broadcast/multicast packets
- * to all local matches if SO_REUSEADDR is turned on.
- * WARNING: Adds a memcpy for every packet if passing to more than one pcb!
- */
-#ifndef SO_REUSE_RXTOALL
-#define SO_REUSE_RXTOALL                0
-#endif
-
 /*
    ----------------------------------
    ---------- Pbuf options ----------
