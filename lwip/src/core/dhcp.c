@@ -695,64 +695,6 @@ dhcp_start(struct netif *netif)
   return result;
 }
 
-/**
- * Inform a DHCP server of our manual configuration.
- *
- * This informs DHCP servers of our fixed IP address configuration
- * by sending an INFORM message. It does not involve DHCP address
- * configuration, it is just here to be nice to the network.
- *
- * @param netif The lwIP network interface
- */
-void
-dhcp_inform(struct netif *netif)
-{
-  struct dhcp dhcp;
-  err_t result = ERR_OK;
-  struct udp_pcb *pcb;
-
-  LWIP_ERROR("netif != NULL", (netif != NULL), return;);
-
-  memset(&dhcp, 0, sizeof(struct dhcp));
-  dhcp_set_state(&dhcp, DHCP_STATE_INFORMING);
-
-  if ((netif->dhcp != NULL) && (netif->dhcp->pcb != NULL)) {
-    /* re-use existing pcb */
-    pcb = netif->dhcp->pcb;
-  } else {
-    pcb = udp_new();
-    if (pcb == NULL) {
-      LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcp_inform(): could not obtain pcb"));
-      return;
-    }
-    dhcp.pcb = pcb;
-    ip_set_option(dhcp.pcb, SOF_BROADCAST);
-    udp_bind(dhcp.pcb, IP_ADDR_ANY, DHCP_CLIENT_PORT);
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_inform(): created new udp pcb\n"));
-  }
-  /* create and initialize the DHCP message header */
-  result = dhcp_create_msg(netif, &dhcp, DHCP_INFORM);
-  if (result == ERR_OK) {
-    dhcp_option(&dhcp, DHCP_OPTION_MAX_MSG_SIZE, DHCP_OPTION_MAX_MSG_SIZE_LEN);
-    dhcp_option_short(&dhcp, DHCP_MAX_MSG_LEN(netif));
-
-    dhcp_option_trailer(&dhcp);
-
-    pbuf_realloc(dhcp.p_out, sizeof(struct dhcp_msg) - DHCP_OPTIONS_LEN + dhcp.options_out_len);
-
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_inform: INFORMING\n"));
-    udp_sendto_if(pcb, dhcp.p_out, IP_ADDR_BROADCAST, DHCP_SERVER_PORT, netif);
-    dhcp_delete_msg(&dhcp);
-  } else {
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("dhcp_inform: could not allocate DHCP request\n"));
-  }
-
-  if (dhcp.pcb != NULL) {
-    /* otherwise, the existing pcb was used */
-    udp_remove(dhcp.pcb);
-  }
-}
-
 /** Handle a possible change in the network configuration.
  *
  * This enters the REBOOTING state to verify that the currently bound
