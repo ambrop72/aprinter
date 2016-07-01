@@ -149,7 +149,6 @@ stats_display(void)
   ICMP6_STATS_DISPLAY();
   UDP_STATS_DISPLAY();
   TCP_STATS_DISPLAY();
-  MEM_STATS_DISPLAY();
   for (i = 0; i < MEMP_MAX; i++) {
     MEMP_STATS_DISPLAY(i);
   }
