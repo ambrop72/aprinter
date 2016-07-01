@@ -299,10 +299,6 @@ netif_set_addr(struct netif *netif, const ip4_addr_t *ipaddr, const ip4_addr_t *
 void
 netif_remove(struct netif *netif)
 {
-  if (netif == NULL) {
-    return;
-  }
-
 #if LWIP_IPV4
   if (!ip4_addr_isany_val(*netif_ip4_addr(netif))) {
 #if LWIP_TCP
@@ -570,9 +566,7 @@ void netif_set_down(struct netif *netif)
 void
 netif_set_status_callback(struct netif *netif, netif_status_callback_fn status_callback)
 {
-  if (netif) {
-    netif->status_callback = status_callback;
-  }
+  netif->status_callback = status_callback;
 }
 #endif /* LWIP_NETIF_STATUS_CALLBACK */
 
@@ -583,9 +577,7 @@ netif_set_status_callback(struct netif *netif, netif_status_callback_fn status_c
 void
 netif_set_remove_callback(struct netif *netif, netif_status_callback_fn remove_callback)
 {
-  if (netif) {
-    netif->remove_callback = remove_callback;
-  }
+  netif->remove_callback = remove_callback;
 }
 #endif /* LWIP_NETIF_REMOVE_CALLBACK */
 
@@ -630,9 +622,7 @@ netif_set_link_down(struct netif *netif )
 void
 netif_set_link_callback(struct netif *netif, netif_status_callback_fn link_callback)
 {
-  if (netif) {
-    netif->link_callback = link_callback;
-  }
+  netif->link_callback = link_callback;
 }
 #endif /* LWIP_NETIF_LINK_CALLBACK */
 
