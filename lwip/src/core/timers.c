@@ -355,43 +355,6 @@ sys_timeout(u32_t msecs, sys_timeout_handler handler, void *arg)
   }
 }
 
-/**
- * Go through timeout list (for this task only) and remove the first matching
- * entry (subsequent entries remain untouched), even though the timeout has not
- * triggered yet.
- *
- * @param handler callback function that would be called by the timeout
- * @param arg callback argument that would be passed to handler
-*/
-void
-sys_untimeout(sys_timeout_handler handler, void *arg)
-{
-  struct sys_timeo *prev_t, *t;
-
-  if (next_timeout == NULL) {
-    return;
-  }
-
-  for (t = next_timeout, prev_t = NULL; t != NULL; prev_t = t, t = t->next) {
-    if ((t->h == handler) && (t->arg == arg)) {
-      /* We have a match */
-      /* Unlink from previous in list */
-      if (prev_t == NULL) {
-        next_timeout = t->next;
-      } else {
-        prev_t->next = t->next;
-      }
-      /* If not the last one, add time of this one back to next */
-      if (t->next != NULL) {
-        t->next->time += t->time;
-      }
-      memp_free(MEMP_SYS_TIMEOUT, t);
-      return;
-    }
-  }
-  return;
-}
-
 /** Handle timeouts for NO_SYS==1 (i.e. without using
  * tcpip_thread/sys_timeouts_mbox_fetch(). Uses sys_now() to call timeout
  * handler functions when timeouts expire.
