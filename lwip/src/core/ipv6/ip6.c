@@ -303,15 +303,7 @@ ip6_forward(struct pbuf *p, struct ip6_hdr *iphdr, struct netif *inp)
   /* Find network interface where to forward this IP packet to. */
   netif = ip6_route(IP6_ADDR_ANY6, ip6_current_dest_addr());
   if (netif == NULL) {
-    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: no route for %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
-        IP6_ADDR_BLOCK1(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK2(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK3(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK4(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK5(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK6(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK7(ip6_current_dest_addr()),
-        IP6_ADDR_BLOCK8(ip6_current_dest_addr())));
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: no route for " ip6_addr_print_fmt "\n", ip6_addr_print_vals(ip6_current_dest_addr())));
 #if LWIP_ICMP6
     /* Don't send ICMP messages in response to ICMP messages */
     if (IP6H_NEXTH(iphdr) != IP6_NEXTH_ICMP6) {
@@ -356,15 +348,7 @@ ip6_forward(struct pbuf *p, struct ip6_hdr *iphdr, struct netif *inp)
     return;
   }
 
-  LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: forwarding packet to %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
-      IP6_ADDR_BLOCK1(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK2(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK3(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK4(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK5(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK6(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK7(ip6_current_dest_addr()),
-      IP6_ADDR_BLOCK8(ip6_current_dest_addr())));
+  LWIP_DEBUGF(IP6_DEBUG, ("ip6_forward: forwarding packet to " ip6_addr_print_fmt "\n", ip6_addr_print_vals(ip6_current_dest_addr())));
 
   /* transmit pbuf on chosen interface */
   netif->output_ip6(netif, p, ip6_current_dest_addr());
@@ -957,15 +941,7 @@ ip6_output(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
   }
 
   if (netif == NULL) {
-    LWIP_DEBUGF(IP6_DEBUG, ("ip6_output: no route for %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
-        IP6_ADDR_BLOCK1(dest),
-        IP6_ADDR_BLOCK2(dest),
-        IP6_ADDR_BLOCK3(dest),
-        IP6_ADDR_BLOCK4(dest),
-        IP6_ADDR_BLOCK5(dest),
-        IP6_ADDR_BLOCK6(dest),
-        IP6_ADDR_BLOCK7(dest),
-        IP6_ADDR_BLOCK8(dest)));
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_output: no route for" ip6_addr_print_fmt "\n", ip6_addr_print_vals(dest)));
     IP6_STATS_INC(ip6.rterr);
     return ERR_RTE;
   }
@@ -1016,15 +992,7 @@ ip6_output_hinted(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
   }
 
   if (netif == NULL) {
-    LWIP_DEBUGF(IP6_DEBUG, ("ip6_output: no route for %"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F":%"X16_F"\n",
-        IP6_ADDR_BLOCK1(dest),
-        IP6_ADDR_BLOCK2(dest),
-        IP6_ADDR_BLOCK3(dest),
-        IP6_ADDR_BLOCK4(dest),
-        IP6_ADDR_BLOCK5(dest),
-        IP6_ADDR_BLOCK6(dest),
-        IP6_ADDR_BLOCK7(dest),
-        IP6_ADDR_BLOCK8(dest)));
+    LWIP_DEBUGF(IP6_DEBUG, ("ip6_output: no route for " ip6_addr_print_fmt "\n", ip6_addr_print_vals(dest)));
     IP6_STATS_INC(ip6.rterr);
     return ERR_RTE;
   }

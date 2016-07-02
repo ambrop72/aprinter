@@ -68,7 +68,6 @@ PACK_STRUCT_END
 typedef struct ip6_addr ip6_addr_t;
 typedef struct ip6_addr_packed ip6_addr_p_t;
 
-
 #if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 /** Set an IPv6 partial address given by byte-parts. */
 #define IP6_ADDR_PART(ip6addr, index, a,b,c,d) \
@@ -244,29 +243,26 @@ Little-endian version, stored in network order (no htonl). */
 #define ip6_addr_ispreferred(addr_state) (addr_state == IP6_ADDR_PREFERRED)
 #define ip6_addr_isdeprecated(addr_state) (addr_state == IP6_ADDR_DEPRECATED)
 
+#define ip6_addr_print_fmt "%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F
+
+#define ip6_addr_print_vals(ipaddr) \
+  IP6_ADDR_BLOCK1(ipaddr), \
+  IP6_ADDR_BLOCK2(ipaddr), \
+  IP6_ADDR_BLOCK3(ipaddr), \
+  IP6_ADDR_BLOCK4(ipaddr), \
+  IP6_ADDR_BLOCK5(ipaddr), \
+  IP6_ADDR_BLOCK6(ipaddr), \
+  IP6_ADDR_BLOCK7(ipaddr), \
+  IP6_ADDR_BLOCK8(ipaddr)
+
 #define ip6_addr_debug_print_parts(debug, a, b, c, d, e, f, g, h) \
-  LWIP_DEBUGF(debug, ("%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F, \
-                      a, b, c, d, e, f, g, h))
+  LWIP_DEBUGF(debug, (ip6_addr_print_fmt, a, b, c, d, e, f, g, h))
+
 #define ip6_addr_debug_print(debug, ipaddr) \
-  ip6_addr_debug_print_parts(debug, \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK1(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK2(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK3(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK4(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK5(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK6(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK7(ipaddr) : 0),    \
-                      (u16_t)((ipaddr) != NULL ? IP6_ADDR_BLOCK8(ipaddr) : 0))
+  ip6_addr_debug_print_parts(debug, ip6_addr_print_vals(ipaddr))
+
 #define ip6_addr_debug_print_val(debug, ipaddr) \
-  ip6_addr_debug_print_parts(debug, \
-                      IP6_ADDR_BLOCK1(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK2(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK3(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK4(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK5(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK6(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK7(&(ipaddr)),    \
-                      IP6_ADDR_BLOCK8(&(ipaddr)))
+  ip6_addr_debug_print_parts(debug, ip6_addr_print_vals(&(ipaddr)))
 
 #define IP6ADDR_STRLEN_MAX    46
 
