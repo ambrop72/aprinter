@@ -1078,7 +1078,7 @@ private:
         
         memset(&o->netif, 0, sizeof(o->netif));
         
-        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, (void *)params, &LwipNetwork::netif_if_init, nullptr);
+        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, (void *)params, &LwipNetwork::netif_if_init);
         netif_set_up(&o->netif);
         netif_set_default(&o->netif);
         
