@@ -170,20 +170,6 @@ void mib2_udp_unbind(struct udp_pcb *pcb);
 #define mib2_udp_unbind(pcb)
 #endif /* LWIP_MIB2_CALLBACKS */
 
-/* for source-code compatibility reasons only, can be removed (not used internally) */
-#define NETIF_INIT_SNMP                MIB2_INIT_NETIF
-#define snmp_add_ifinoctets(ni,value)  MIB2_STATS_NETIF_ADD(ni, ifinoctets, value)
-#define snmp_inc_ifinucastpkts(ni)     MIB2_STATS_NETIF_INC(ni, ifinucastpkts)
-#define snmp_inc_ifinnucastpkts(ni)    MIB2_STATS_NETIF_INC(ni, ifinnucastpkts)
-#define snmp_inc_ifindiscards(ni)      MIB2_STATS_NETIF_INC(ni, ifindiscards)
-#define snmp_inc_ifinerrors(ni)        MIB2_STATS_NETIF_INC(ni, ifinerrors)
-#define snmp_inc_ifinunknownprotos(ni) MIB2_STATS_NETIF_INC(ni, ifinunknownprotos)
-#define snmp_add_ifoutoctets(ni,value) MIB2_STATS_NETIF_ADD(ni, ifoutoctets, value)
-#define snmp_inc_ifoutucastpkts(ni)    MIB2_STATS_NETIF_INC(ni, ifoutucastpkts)
-#define snmp_inc_ifoutnucastpkts(ni)   MIB2_STATS_NETIF_INC(ni, ifoutnucastpkts)
-#define snmp_inc_ifoutdiscards(ni)     MIB2_STATS_NETIF_INC(ni, ifoutdiscards)
-#define snmp_inc_ifouterrors(ni)       MIB2_STATS_NETIF_INC(ni, ifouterrors)
-
 #ifdef __cplusplus
 }
 #endif
