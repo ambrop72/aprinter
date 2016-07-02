@@ -63,13 +63,13 @@ void aprinter_lwip_platform_diag (char const *fmt, ...);
 #define X8_F "02" PRIx8
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define BYTE_ORDER LITTLE_ENDIAN
+#define LWIP_BYTE_ORDER LWIP_LITTLE_ENDIAN
 #define LWIP_PLATFORM_BYTESWAP 1
 #define LWIP_PLATFORM_HTONS(x) __builtin_bswap16(x)
 #define LWIP_PLATFORM_HTONL(x) __builtin_bswap32(x)
 
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define BYTE_ORDER BIG_ENDIAN
+#define LWIP_BYTE_ORDER LWIP_BIG_ENDIAN
 #define LWIP_PLATFORM_BYTESWAP 1
 #define LWIP_PLATFORM_HTONS(x) (x)
 #define LWIP_PLATFORM_HTONL(x) (x)

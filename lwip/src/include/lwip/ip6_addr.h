@@ -69,7 +69,7 @@ typedef struct ip6_addr ip6_addr_t;
 typedef struct ip6_addr_packed ip6_addr_p_t;
 
 
-#if BYTE_ORDER == BIG_ENDIAN
+#if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 /** Set an IPv6 partial address given by byte-parts. */
 #define IP6_ADDR_PART(ip6addr, index, a,b,c,d) \
   (ip6addr)->addr[index] = ((u32_t)((a) & 0xff) << 24) | \

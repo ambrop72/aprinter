@@ -37,13 +37,8 @@
 #ifndef LWIP_HDR_ARCH_H
 #define LWIP_HDR_ARCH_H
 
-#ifndef LITTLE_ENDIAN
-#define LITTLE_ENDIAN 1234
-#endif
-
-#ifndef BIG_ENDIAN
-#define BIG_ENDIAN 4321
-#endif
+#define LWIP_LITTLE_ENDIAN 1234
+#define LWIP_BIG_ENDIAN 4321
 
 // Have this here because this header doesn't include other lwip headers.
 #ifdef __cplusplus

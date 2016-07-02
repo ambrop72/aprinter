@@ -60,8 +60,8 @@
 /* Compile-time sanity checks for configuration errors.
  * These can be done independently of LWIP_DEBUG, without penalty.
  */
-#ifndef BYTE_ORDER
-  #error "BYTE_ORDER is not defined, you have to define it in your cc.h"
+#ifndef LWIP_BYTE_ORDER
+  #error "LWIP_BYTE_ORDER is not defined, you have to define it in your cc.h"
 #endif
 #if (!IP_SOF_BROADCAST && IP_SOF_BROADCAST_RECV)
   #error "If you want to use broadcast filter per pcb on recv operations, you have to define IP_SOF_BROADCAST=1 in your lwipopts.h"

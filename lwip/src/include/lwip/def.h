@@ -56,7 +56,7 @@ LWIP_EXTERN_C_BEGIN
 #define LWIP_ARRAYSIZE(x) (sizeof(x)/sizeof((x)[0]))
 
 /* Endianess-optimized shifting of two u8_t to create one u16_t */
-#if BYTE_ORDER == LITTLE_ENDIAN
+#if LWIP_BYTE_ORDER == LWIP_LITTLE_ENDIAN
 #define LWIP_MAKE_U16(a, b) ((a << 8) | b)
 #else
 #define LWIP_MAKE_U16(a, b) ((b << 8) | a)
@@ -66,7 +66,7 @@ LWIP_EXTERN_C_BEGIN
 #define LWIP_PLATFORM_BYTESWAP 0
 #endif
 
-#if BYTE_ORDER == BIG_ENDIAN
+#if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 #define lwip_htons(x) (x)
 #define lwip_ntohs(x) (x)
 #define lwip_htonl(x) (x)
@@ -75,7 +75,7 @@ LWIP_EXTERN_C_BEGIN
 #define PP_NTOHS(x) (x)
 #define PP_HTONL(x) (x)
 #define PP_NTOHL(x) (x)
-#else /* BYTE_ORDER != BIG_ENDIAN */
+#else /* LWIP_BYTE_ORDER != LWIP_BIG_ENDIAN */
 #if LWIP_PLATFORM_BYTESWAP
 #define lwip_htons(x) LWIP_PLATFORM_HTONS(x)
 #define lwip_ntohs(x) LWIP_PLATFORM_HTONS(x)
@@ -99,7 +99,7 @@ u32_t lwip_ntohl(u32_t x);
                      (((x) & 0xff000000UL) >> 24))
 #define PP_NTOHL(x) PP_HTONL(x)
 
-#endif /* BYTE_ORDER == BIG_ENDIAN */
+#endif /* LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN */
 
 LWIP_EXTERN_C_END
 

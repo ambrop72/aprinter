@@ -118,7 +118,7 @@ struct netif;
 #define IP_LOOPBACKNET      127                 /* official! */
 
 
-#if BYTE_ORDER == BIG_ENDIAN
+#if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 /** Set an IP address given by the four byte-parts */
 #define IP4_ADDR(ipaddr, a,b,c,d) \
         (ipaddr)->addr = ((u32_t)((a) & 0xff) << 24) | \
