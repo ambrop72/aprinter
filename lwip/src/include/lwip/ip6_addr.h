@@ -157,8 +157,6 @@ Little-endian version, stored in network order (no htonl). */
                                     ((addr1)->addr[2] == (addr2)->addr[2]) && \
                                     ((addr1)->addr[3] == (addr2)->addr[3]))
 
-#define ip6_get_subnet_id(ip6addr)   (lwip_htonl((ip6addr)->addr[2]) & 0x0000ffffUL)
-
 #define ip6_addr_isany_val(ip6addr) (((ip6addr).addr[0] == 0) && \
                                      ((ip6addr).addr[1] == 0) && \
                                      ((ip6addr).addr[2] == 0) && \
@@ -181,20 +179,6 @@ Little-endian version, stored in network order (no htonl). */
 #define ip6_addr_isipv6mappedipv4(ip6addr) (((ip6addr)->addr[0] == 0) && ((ip6addr)->addr[1] == 0) && (((ip6addr)->addr[2]) == PP_HTONL(0x0000FFFFUL)))
 
 #define ip6_addr_ismulticast(ip6addr) (((ip6addr)->addr[0] & PP_HTONL(0xff000000UL)) == PP_HTONL(0xff000000UL))
-#define ip6_addr_multicast_transient_flag(ip6addr)  ((ip6addr)->addr[0] & PP_HTONL(0x00100000UL))
-#define ip6_addr_multicast_prefix_flag(ip6addr)     ((ip6addr)->addr[0] & PP_HTONL(0x00200000UL))
-#define ip6_addr_multicast_rendezvous_flag(ip6addr) ((ip6addr)->addr[0] & PP_HTONL(0x00400000UL))
-#define ip6_addr_multicast_scope(ip6addr) ((lwip_htonl((ip6addr)->addr[0]) >> 16) & 0xf)
-#define IP6_MULTICAST_SCOPE_RESERVED            0x0
-#define IP6_MULTICAST_SCOPE_RESERVED0           0x0
-#define IP6_MULTICAST_SCOPE_INTERFACE_LOCAL     0x1
-#define IP6_MULTICAST_SCOPE_LINK_LOCAL          0x2
-#define IP6_MULTICAST_SCOPE_RESERVED3           0x3
-#define IP6_MULTICAST_SCOPE_ADMIN_LOCAL         0x4
-#define IP6_MULTICAST_SCOPE_SITE_LOCAL          0x5
-#define IP6_MULTICAST_SCOPE_ORGANIZATION_LOCAL  0x8
-#define IP6_MULTICAST_SCOPE_GLOBAL              0xe
-#define IP6_MULTICAST_SCOPE_RESERVEDF           0xf
 #define ip6_addr_ismulticast_iflocal(ip6addr) (((ip6addr)->addr[0] & PP_HTONL(0xff8f0000UL)) == PP_HTONL(0xff010000UL))
 #define ip6_addr_ismulticast_linklocal(ip6addr) (((ip6addr)->addr[0] & PP_HTONL(0xff8f0000UL)) == PP_HTONL(0xff020000UL))
 #define ip6_addr_ismulticast_adminlocal(ip6addr) (((ip6addr)->addr[0] & PP_HTONL(0xff8f0000UL)) == PP_HTONL(0xff040000UL))
@@ -288,7 +272,6 @@ Little-endian version, stored in network order (no htonl). */
 
 int ip6addr_aton(const char *cp, ip6_addr_t *addr);
 /** returns ptr to static buffer; not reentrant! */
-char *ip6addr_ntoa(const ip6_addr_t *addr);
 char *ip6addr_ntoa_r(const ip6_addr_t *addr, char *buf, int buflen);
 
 LWIP_EXTERN_C_END

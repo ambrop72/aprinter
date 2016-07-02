@@ -92,31 +92,10 @@ struct netif;
 #define IP_CLASSA(a)        ((((u32_t)(a)) & 0x80000000UL) == 0)
 #define IP_CLASSA_NET       0xff000000
 #define IP_CLASSA_NSHIFT    24
-#define IP_CLASSA_HOST      (0xffffffff & ~IP_CLASSA_NET)
-#define IP_CLASSA_MAX       128
-
-#define IP_CLASSB(a)        ((((u32_t)(a)) & 0xc0000000UL) == 0x80000000UL)
-#define IP_CLASSB_NET       0xffff0000
-#define IP_CLASSB_NSHIFT    16
-#define IP_CLASSB_HOST      (0xffffffff & ~IP_CLASSB_NET)
-#define IP_CLASSB_MAX       65536
-
-#define IP_CLASSC(a)        ((((u32_t)(a)) & 0xe0000000UL) == 0xc0000000UL)
-#define IP_CLASSC_NET       0xffffff00
-#define IP_CLASSC_NSHIFT    8
-#define IP_CLASSC_HOST      (0xffffffff & ~IP_CLASSC_NET)
-
-#define IP_CLASSD(a)        (((u32_t)(a) & 0xf0000000UL) == 0xe0000000UL)
-#define IP_CLASSD_NET       0xf0000000          /* These ones aren't really */
-#define IP_CLASSD_NSHIFT    28                  /*   net and host fields, but */
-#define IP_CLASSD_HOST      0x0fffffff          /*   routing needn't know. */
-#define IP_MULTICAST(a)     IP_CLASSD(a)
 
 #define IP_EXPERIMENTAL(a)  (((u32_t)(a) & 0xf0000000UL) == 0xf0000000UL)
-#define IP_BADCLASS(a)      (((u32_t)(a) & 0xf0000000UL) == 0xf0000000UL)
 
 #define IP_LOOPBACKNET      127                 /* official! */
-
 
 #if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 /** Set an IP address given by the four byte-parts */
@@ -189,9 +168,6 @@ struct netif;
 #define ip4_addr_isbroadcast(addr1, netif) ip4_addr_isbroadcast_u32((addr1)->addr, netif)
 u8_t ip4_addr_isbroadcast_u32(u32_t addr, const struct netif *netif);
 
-#define ip_addr_netmask_valid(netmask) ip4_addr_netmask_valid((netmask)->addr)
-u8_t ip4_addr_netmask_valid(u32_t netmask);
-
 #define ip4_addr_ismulticast(addr1) (((addr1)->addr & PP_HTONL(0xf0000000UL)) == PP_HTONL(0xe0000000UL))
 
 #define ip4_addr_islinklocal(addr1) (((addr1)->addr & PP_HTONL(0xffff0000UL)) == PP_HTONL(0xa9fe0000UL))
@@ -225,13 +201,7 @@ u8_t ip4_addr_netmask_valid(u32_t netmask);
 
 #define IP4ADDR_STRLEN_MAX  16
 
-/** For backwards compatibility */
-#define ip_ntoa(ipaddr)  ipaddr_ntoa(ipaddr)
-
-u32_t ipaddr_addr(const char *cp);
 int ip4addr_aton(const char *cp, ip4_addr_t *addr);
-/** returns ptr to static buffer; not reentrant! */
-char *ip4addr_ntoa(const ip4_addr_t *addr);
 char *ip4addr_ntoa_r(const ip4_addr_t *addr, char *buf, int buflen);
 
 LWIP_EXTERN_C_END

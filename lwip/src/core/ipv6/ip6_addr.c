@@ -165,21 +165,6 @@ ip6addr_aton(const char *cp, ip6_addr_t *addr)
 
 /**
  * Convert numeric IPv6 address into ASCII representation.
- * returns ptr to static buffer; not reentrant!
- *
- * @param addr ip6 address in network order to convert
- * @return pointer to a global static (!) buffer that holds the ASCII
- *         representation of addr
- */
-char *
-ip6addr_ntoa(const ip6_addr_t *addr)
-{
-  static char str[40];
-  return ip6addr_ntoa_r(addr, str, 40);
-}
-
-/**
- * Same as ipaddr_ntoa, but reentrant since a user-supplied buffer is used.
  *
  * @param addr ip6 address in network order to convert
  * @param buf target buffer where the string is stored

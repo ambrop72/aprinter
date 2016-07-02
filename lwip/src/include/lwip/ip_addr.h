@@ -144,8 +144,6 @@ typedef struct _ip_addr {
 #define ip_addr_debug_print_val(debug, ipaddr) do { if(IP_IS_V6_VAL(ipaddr)) { \
   ip6_addr_debug_print_val(debug, *ip_2_ip6(&(ipaddr))); } else { \
   ip4_addr_debug_print_val(debug, *ip_2_ip4(&(ipaddr))); }}while(0)
-#define ipaddr_ntoa(addr)   (((addr) == NULL) ? "NULL" : \
-  ((IP_IS_V6(addr)) ? ip6addr_ntoa(ip_2_ip6(addr)) : ip4addr_ntoa(ip_2_ip4(addr))))
 #define ipaddr_ntoa_r(addr, buf, buflen)   (((addr) == NULL) ? "NULL" : \
   ((IP_IS_V6(addr)) ? ip6addr_ntoa_r(ip_2_ip6(addr), buf, buflen) : ip4addr_ntoa_r(ip_2_ip4(addr), buf, buflen)))
 int ipaddr_aton(const char *cp, ip_addr_t *addr);
@@ -189,7 +187,6 @@ typedef ip4_addr_t ip_addr_t;
 #define ip_addr_ismulticast(ipaddr)             ip4_addr_ismulticast(ipaddr)
 #define ip_addr_debug_print(debug, ipaddr)      ip4_addr_debug_print(debug, ipaddr)
 #define ip_addr_debug_print_val(debug, ipaddr)  ip4_addr_debug_print_val(debug, ipaddr)
-#define ipaddr_ntoa(ipaddr)                     ip4addr_ntoa(ipaddr)
 #define ipaddr_ntoa_r(ipaddr, buf, buflen)      ip4addr_ntoa_r(ipaddr, buf, buflen)
 #define ipaddr_aton(cp, addr)                   ip4addr_aton(cp, addr)
 
@@ -226,7 +223,6 @@ typedef ip6_addr_t ip_addr_t;
 #define ip_addr_ismulticast(ipaddr)             ip6_addr_ismulticast(ipaddr)
 #define ip_addr_debug_print(debug, ipaddr)      ip6_addr_debug_print(debug, ipaddr)
 #define ip_addr_debug_print_val(debug, ipaddr)  ip6_addr_debug_print_val(debug, ipaddr)
-#define ipaddr_ntoa(ipaddr)                     ip6addr_ntoa(ipaddr)
 #define ipaddr_ntoa_r(ipaddr, buf, buflen)      ip6addr_ntoa_r(ipaddr, buf, buflen)
 #define ipaddr_aton(cp, addr)                   ip6addr_aton(cp, addr)
 

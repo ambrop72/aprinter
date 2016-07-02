@@ -84,34 +84,6 @@ ip4_addr_isbroadcast_u32(u32_t addr, const struct netif *netif)
   }
 }
 
-/** Checks if a netmask is valid (starting with ones, then only zeros)
- *
- * @param netmask the IPv4 netmask to check (in network byte order!)
- * @return 1 if the netmask is valid, 0 if it is not
- */
-u8_t
-ip4_addr_netmask_valid(u32_t netmask)
-{
-  u32_t mask;
-  u32_t nm_hostorder = lwip_htonl(netmask);
-
-  /* first, check for the first zero */
-  for (mask = 1UL << 31 ; mask != 0; mask >>= 1) {
-    if ((nm_hostorder & mask) == 0) {
-      break;
-    }
-  }
-  /* then check that there is no one */
-  for (; mask != 0; mask >>= 1) {
-    if ((nm_hostorder & mask) != 0) {
-      /* there is a one after the first zero -> invalid */
-      return 0;
-    }
-  }
-  /* no one after the first zero -> valid */
-  return 1;
-}
-
 /* Here for now until needed in other places in lwIP */
 #ifndef isprint
 #define in_range(c, lo, up)  ((u8_t)c >= lo && (u8_t)c <= up)
@@ -121,24 +93,6 @@ ip4_addr_netmask_valid(u32_t netmask)
 #define islower(c)           in_range(c, 'a', 'z')
 #define isspace(c)           (c == ' ' || c == '\f' || c == '\n' || c == '\r' || c == '\t' || c == '\v')
 #endif
-
-/**
- * Ascii internet address interpretation routine.
- * The value returned is in network order.
- *
- * @param cp IP address in ascii representation (e.g. "127.0.0.1")
- * @return ip address in network order
- */
-u32_t
-ipaddr_addr(const char *cp)
-{
-  ip4_addr_t val;
-
-  if (ip4addr_aton(cp, &val)) {
-    return ip4_addr_get_u32(&val);
-  }
-  return (IPADDR_NONE);
-}
 
 /**
  * Check whether "cp" is a valid ascii representation
@@ -267,21 +221,6 @@ ip4addr_aton(const char *cp, ip4_addr_t *addr)
 
 /**
  * Convert numeric IP address into decimal dotted ASCII representation.
- * returns ptr to static buffer; not reentrant!
- *
- * @param addr ip address in network order to convert
- * @return pointer to a global static (!) buffer that holds the ASCII
- *         representation of addr
- */
-char*
-ip4addr_ntoa(const ip4_addr_t *addr)
-{
-  static char str[IP4ADDR_STRLEN_MAX];
-  return ip4addr_ntoa_r(addr, str, IP4ADDR_STRLEN_MAX);
-}
-
-/**
- * Same as ipaddr_ntoa, but reentrant since a user-supplied buffer is used.
  *
  * @param addr ip address in network order to convert
  * @param buf target buffer where the string is stored
