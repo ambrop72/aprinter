@@ -308,7 +308,7 @@ icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
   struct ip_hdr *iphdr;
   /* we can use the echo header here */
   struct icmp_echo_hdr *icmphdr;
-  ip4_addr_t iphdr_src;
+  ip4_addr_t iphdr_src, iphdr_dst;
   struct netif *netif;
 
   /* ICMP header + IP header + 8 bytes of data */
@@ -338,15 +338,8 @@ icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
           IP_HLEN + ICMP_DEST_UNREACH_DATASIZE);
 
   ip4_addr_copy(iphdr_src, iphdr->src);
-#ifdef LWIP_HOOK_IP4_ROUTE_SRC
-  {
-    ip4_addr_t iphdr_dst;
-    ip4_addr_copy(iphdr_dst, iphdr->dest);
-    netif = ip4_route_src(&iphdr_src, &iphdr_dst);
-  }
-#else
-  netif = ip4_route(&iphdr_src);
-#endif
+  ip4_addr_copy(iphdr_dst, iphdr->dest);
+  netif = ip4_route_src(&iphdr_src, &iphdr_dst);
   if (netif != NULL) {
     /* calculate checksum */
     icmphdr->chksum = 0;
