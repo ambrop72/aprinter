@@ -622,37 +622,6 @@ etharp_cleanup_netif(struct netif *netif)
   }
 }
 
-/**
- * Finds (stable) ethernet/IP address pair from ARP table
- * using interface and IP address index.
- * @note the addresses in the ARP table are in network order!
- *
- * @param netif points to interface index
- * @param ipaddr points to the (network order) IP address index
- * @param eth_ret points to return pointer
- * @param ip_ret points to return pointer
- * @return table index if found, -1 otherwise
- */
-s8_t
-etharp_find_addr(struct netif *netif, const ip4_addr_t *ipaddr,
-         struct eth_addr **eth_ret, const ip4_addr_t **ip_ret)
-{
-  s8_t i;
-
-  LWIP_ASSERT("eth_ret != NULL && ip_ret != NULL",
-    eth_ret != NULL && ip_ret != NULL);
-
-  LWIP_UNUSED_ARG(netif);
-
-  i = etharp_find_entry(ipaddr, ETHARP_FLAG_FIND_ONLY, netif);
-  if ((i >= 0) && (arp_table[i].state >= ETHARP_STATE_STABLE)) {
-      *eth_ret = &arp_table[i].ethaddr;
-      *ip_ret = &arp_table[i].ipaddr;
-      return i;
-  }
-  return -1;
-}
-
 #if ETHARP_TRUST_IP_MAC
 /**
  * Updates the ARP table using the given IP packet.
