@@ -49,8 +49,6 @@
 #define LWIP_NETIF_HOSTNAME 1
 #define LWIP_RAW 0
 #define LWIP_DHCP 1
-#define LWIP_NETCONN 0
-#define LWIP_SOCKET 0
 #define LWIP_STATS 0
 #define LWIP_NETIF_STATUS_CALLBACK 1
 #define LWIP_DISABLE_TCP_SANITY_CHECKS 1
@@ -91,10 +89,6 @@
 // number of pending and established connections.
 #define TCP_LISTEN_BACKLOG 1
 
-// Oversize can be disabled since it does nothing when tcp_write()
-// is called without TCP_WRITE_FLAG_COPY.
-#define TCP_OVERSIZE 0
-
 // TCP Maximum Segment Size, use the Ethernet value.
 #define TCP_MSS 1460
 
@@ -104,11 +98,6 @@
 // how large they are.
 #define TCP_WND APRINTER_TCP_RX_BUF
 #define TCP_SND_BUF APRINTER_TCP_TX_BUF
-
-// Disable queuing of received out-of-sequence segments.
-// This must be disabled because our RX code expects pbufs fed into the stack
-// to be immediately freed, never queued.
-#define TCP_QUEUE_OOSEQ 0
 
 // Estimate how many TCP segments are needed to fully utilize the TX buffer space.
 #define APRINTER_NUM_TCP_DATA_SEG ((TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS)
