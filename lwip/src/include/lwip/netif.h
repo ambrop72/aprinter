@@ -120,13 +120,6 @@ struct netif;
  * @param netif The netif to initialize
  */
 typedef err_t (*netif_init_fn)(struct netif *netif);
-/** Function prototype for netif->input functions. This function is saved as 'input'
- * callback function in the netif struct. Call it when a packet has been received.
- *
- * @param p The received packet, copied into a pbuf
- * @param inp The netif which received the packet
- */
-typedef err_t (*netif_input_fn)(struct pbuf *p, struct netif *inp);
 
 #if LWIP_IPV4
 /** Function prototype for netif->output functions. Called by lwIP when a packet
@@ -194,9 +187,6 @@ struct netif {
    * @see ip6_addr.h */
   u8_t ip6_addr_state[LWIP_IPV6_NUM_ADDRESSES];
 #endif /* LWIP_IPV6 */
-  /** This function is called by the network device driver
-   *  to pass a packet up the TCP/IP stack. */
-  netif_input_fn input;
 #if LWIP_IPV4
   /** This function is called by the IP module when it wants
    *  to send a packet on the interface. This function typically
@@ -305,7 +295,7 @@ struct netif *netif_add(struct netif *netif,
 #if LWIP_IPV4
                         const ip4_addr_t *ipaddr, const ip4_addr_t *netmask, const ip4_addr_t *gw,
 #endif /* LWIP_IPV4 */
-                        void *state, netif_init_fn init, netif_input_fn input);
+                        void *state, netif_init_fn init);
 #if LWIP_IPV4
 void netif_set_addr(struct netif *netif, const ip4_addr_t *ipaddr, const ip4_addr_t *netmask,
                     const ip4_addr_t *gw);

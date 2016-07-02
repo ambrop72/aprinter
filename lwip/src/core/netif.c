@@ -137,7 +137,7 @@ netif_init(void)
 #define LOOPIF_ADDRINIT
 #endif /* LWIP_IPV4 */
 
-  netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init, ip_input);
+  netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init);
 
 #if LWIP_IPV6
   IP_ADDR6(loop_netif.ip6_addr, 0, 0, 0, PP_HTONL(0x00000001UL));
@@ -159,8 +159,6 @@ netif_init(void)
  * @param gw default gateway IP address for the new netif
  * @param state opaque data passed to the new netif
  * @param init callback function that initializes the interface
- * @param input callback function that is called to pass
- * ingress packets up in the protocol layer stack.
  *
  * @return netif, or NULL if failed.
  */
@@ -169,7 +167,7 @@ netif_add(struct netif *netif,
 #if LWIP_IPV4
           const ip4_addr_t *ipaddr, const ip4_addr_t *netmask, const ip4_addr_t *gw,
 #endif /* LWIP_IPV4 */
-          void *state, netif_init_fn init, netif_input_fn input)
+          void *state, netif_init_fn init)
 {
 #if LWIP_IPV6
   u32_t i;
@@ -220,7 +218,6 @@ netif_add(struct netif *netif,
   /* remember netif specific state information data */
   netif->state = state;
   netif->num = netif_num++;
-  netif->input = input;
   NETIF_SET_HWADDRHINT(netif, NULL);
 #if ENABLE_LOOPBACK && LWIP_LOOPBACK_MAX_PBUFS
   netif->loop_cnt_current = 0;
@@ -591,11 +588,11 @@ netif_set_link_down(struct netif *netif )
 #if ENABLE_LOOPBACK
 /**
  * Send an IP packet to be received on the same netif (loopif-like).
- * The pbuf is simply copied and handed back to netif->input.
- * In multithreaded mode, this is done directly since netif->input must put
+ * The pbuf is simply copied and handed back to ip_input.
+ * In multithreaded mode, this is done directly since ip_input must put
  * the packet on a queue.
  * In callback mode, the packet is put on an internal queue and is fed to
- * netif->input by netif_poll().
+ * ip_input by netif_poll().
  *
  * @param netif the lwip network interface structure
  * @param p the (IP) packet to 'send'
@@ -701,7 +698,7 @@ netif_loop_output_ipv6(struct netif *netif, struct pbuf *p, const ip6_addr_t* ad
 /**
  * Call netif_poll() in the main loop of your application. This is to prevent
  * reentering non-reentrant functions like tcp_input(). Packets passed to
- * netif_loop_output() are put on a list that is passed to netif->input() by
+ * netif_loop_output() are put on a list that is passed to ip_input() by
  * netif_poll().
  */
 void
