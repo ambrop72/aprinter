@@ -37,17 +37,13 @@
 #ifndef LWIP_HDR_INIT_H
 #define LWIP_HDR_INIT_H
 
-#include "lwip/opt.h"
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /* Modules initialization */
 void lwip_init(void);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_INIT_H */

@@ -38,10 +38,9 @@
 #define LWIP_HDR_MEM_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** Calculate memory size for an aligned buffer - returns the next highest
  * multiple of MEM_ALIGNMENT (e.g. LWIP_MEM_ALIGN_SIZE(3) and
@@ -58,8 +57,6 @@ extern "C" {
 #define LWIP_MEM_ALIGN(addr) ((void *)(((mem_ptr_t)(addr) + MEM_ALIGNMENT - 1) & ~(mem_ptr_t)(MEM_ALIGNMENT-1)))
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_MEM_H */

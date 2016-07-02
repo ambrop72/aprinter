@@ -37,11 +37,9 @@
 #define LWIP_HDR_ERR_H
 
 #include "lwip/opt.h"
-#include "lwip/arch.h"
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** Define LWIP_ERR_T in cc.h if you want to use
  *  a different type for your platform (must be signed). */
@@ -81,8 +79,6 @@ typedef s8_t err_t;
 extern const char *lwip_strerr(err_t err);
 #endif /* LWIP_DEBUG */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_ERR_H */

@@ -46,22 +46,17 @@
 
 #if LWIP_IPV6 && LWIP_ETHERNET /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip6.h"
 #include "lwip/ip6_addr.h"
 #include "lwip/netif.h"
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+LWIP_EXTERN_C_BEGIN
 
 err_t ethip6_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV6 && LWIP_ETHERNET */
 

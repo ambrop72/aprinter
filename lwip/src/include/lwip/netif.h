@@ -41,11 +41,9 @@
 
 #define ENABLE_LOOPBACK (LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF)
 
-#include "lwip/err.h"
-
-#include "lwip/ip_addr.h"
-
 #include "lwip/def.h"
+#include "lwip/err.h"
+#include "lwip/ip_addr.h"
 #include "lwip/pbuf.h"
 #include "lwip/stats.h"
 
@@ -53,9 +51,7 @@
 struct dhcp;
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /* Throughout this file, IP addresses are expected to be in
  * the same byte order as in IP_PCB. */
@@ -370,8 +366,6 @@ err_t netif_add_ip6_address(struct netif *netif, const ip6_addr_t *ip6addr, s8_t
 #define NETIF_SET_HWADDRHINT(netif, hint)
 #endif /* LWIP_NETIF_HWADDRHINT */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_NETIF_H */

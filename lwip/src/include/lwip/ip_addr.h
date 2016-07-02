@@ -39,13 +39,10 @@
 
 #include "lwip/opt.h"
 #include "lwip/def.h"
-
 #include "lwip/ip4_addr.h"
 #include "lwip/ip6_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #if LWIP_IPV4 && LWIP_IPV6
 /** A union struct for both IP version's addresses.
@@ -276,8 +273,6 @@ extern const ip_addr_t ip6_addr_any;
 
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_IP_ADDR_H__ */

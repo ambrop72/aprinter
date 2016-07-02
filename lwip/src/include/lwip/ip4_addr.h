@@ -42,9 +42,7 @@
 
 #if LWIP_IPV4
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /* This is the aligned version of ip4_addr_t,
    used as local variable, on the stack, etc. */
@@ -236,9 +234,7 @@ int ip4addr_aton(const char *cp, ip4_addr_t *addr);
 char *ip4addr_ntoa(const ip4_addr_t *addr);
 char *ip4addr_ntoa_r(const ip4_addr_t *addr, char *buf, int buflen);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV4 */
 

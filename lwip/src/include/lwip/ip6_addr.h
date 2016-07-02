@@ -46,11 +46,9 @@
 
 #if LWIP_IPV6  /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+LWIP_EXTERN_C_BEGIN
 
 /** This is the aligned version of ip6_addr_t,
     used as local variable, on the stack, etc. */
@@ -143,7 +141,6 @@ Little-endian version, stored in network order (no htonl). */
                                         (dest)->addr[1] = (src) == NULL ? 0 : htonl((src)->addr[1]); \
                                         (dest)->addr[2] = (src) == NULL ? 0 : htonl((src)->addr[2]); \
                                         (dest)->addr[3] = (src) == NULL ? 0 : htonl((src)->addr[3]);}while(0)
-
 
 /**
  * Determine if two IPv6 address are on the same network.
@@ -294,11 +291,7 @@ int ip6addr_aton(const char *cp, ip6_addr_t *addr);
 char *ip6addr_ntoa(const ip6_addr_t *addr);
 char *ip6addr_ntoa_r(const ip6_addr_t *addr, char *buf, int buflen);
 
-
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV6 */
 

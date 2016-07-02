@@ -39,10 +39,9 @@
 #define LWIP_HDR_MEMP_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /* run once with empty definition to handle all custom includes in lwippools.h */
 #define LWIP_MEMPOOL(name,num,size,desc)
@@ -81,8 +80,6 @@ void  memp_free(memp_t type, void *mem);
 
 #endif /* MEMP_MEM_MALLOC */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_MEMP_H */

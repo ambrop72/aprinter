@@ -42,14 +42,12 @@
 #define LWIP_HDR_ICMP6_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip6_addr.h"
 #include "lwip/netif.h"
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** ICMP type */
 enum icmp6_type {
@@ -159,7 +157,6 @@ struct icmp6_echo_hdr {
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
 
-
 #if LWIP_ICMP6 && LWIP_IPV6 /* don't build if not configured for use in lwipopts.h */
 
 void icmp6_input(struct pbuf *p, struct netif *inp);
@@ -170,10 +167,6 @@ void icmp6_param_problem(struct pbuf *p, enum icmp6_pp_code c, u32_t pointer);
 
 #endif /* LWIP_ICMP6 && LWIP_IPV6 */
 
-
-#ifdef __cplusplus
-}
-#endif
-
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_ICMP6_H */

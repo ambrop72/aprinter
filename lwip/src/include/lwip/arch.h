@@ -45,11 +45,18 @@
 #define BIG_ENDIAN 4321
 #endif
 
+// Have this here because this header doesn't include other lwip headers.
+#ifdef __cplusplus
+#define LWIP_EXTERN_C_BEGIN extern "C" {
+#define LWIP_EXTERN_C_END }
+#else
+#define LWIP_EXTERN_C_BEGIN
+#define LWIP_EXTERN_C_END
+#endif
+
 #include "arch/cc.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #ifndef PACK_STRUCT_BEGIN
 #define PACK_STRUCT_BEGIN
@@ -84,8 +91,6 @@ extern "C" {
 #define LWIP_UNUSED_ARG(x) (void)x
 #endif /* LWIP_UNUSED_ARG */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_ARCH_H */

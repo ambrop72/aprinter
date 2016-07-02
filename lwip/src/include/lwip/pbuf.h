@@ -39,11 +39,10 @@
 #define LWIP_HDR_PBUF_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/err.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** LWIP_SUPPORT_CUSTOM_PBUF==1: Custom pbufs behave much like their pbuf type
  * but they are allocated by external code (initialised by calling
@@ -183,8 +182,6 @@ u8_t pbuf_get_at(struct pbuf* p, u16_t offset);
 void pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data);
 struct pbuf* pbuf_last(struct pbuf* p);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_PBUF_H */

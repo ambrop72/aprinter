@@ -38,7 +38,6 @@
 #define LWIP_HDR_IP_H__
 
 #include "lwip/opt.h"
-
 #include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
@@ -47,9 +46,7 @@
 #include "lwip/ip4.h"
 #include "lwip/ip6.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #define IP_PROTO_ICMP    1
 #define IP_PROTO_IGMP    2
@@ -310,9 +307,7 @@ extern struct ip_globals ip_data;
 
 err_t ip_input(struct pbuf *p, struct netif *inp);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_IP_H__ */
 

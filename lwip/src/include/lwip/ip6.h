@@ -52,9 +52,7 @@
 
 #include "lwip/err.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #define IP6_HLEN 40
 
@@ -68,7 +66,6 @@ extern "C" {
 #define IP6_NEXTH_NONE      59
 #define IP6_NEXTH_DESTOPTS  60
 #define IP6_NEXTH_UDPLITE   136
-
 
 /* The IPv6 header. */
 PACK_STRUCT_BEGIN
@@ -142,7 +139,6 @@ PACK_STRUCT_END
 #define IP6H_NEXTH_SET(hdr, nexth) (hdr)->_nexth = (nexth)
 #define IP6H_HOPLIM_SET(hdr, hl) (hdr)->_hoplim = (u8_t)(hl)
 
-
 struct netif *ip6_route(const ip6_addr_t *src, const ip6_addr_t *dest);
 const ip_addr_t *ip6_select_source_address(struct netif *netif, const ip6_addr_t * dest);
 err_t         ip6_input(struct pbuf *p, struct netif *inp);
@@ -169,10 +165,7 @@ void ip6_debug_print(struct pbuf *p);
 #define ip6_debug_print(p)
 #endif /* IP6_DEBUG */
 
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV6 */
 

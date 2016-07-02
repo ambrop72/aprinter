@@ -38,13 +38,11 @@
 #define LWIP_HDR_STATS_H
 
 #include "lwip/opt.h"
-
+#include "lwip/def.h"
 #include "lwip/mem.h"
 #include "lwip/memp.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #if LWIP_STATS
 
@@ -381,8 +379,6 @@ void stats_display_memp(struct stats_mem *mem, int index);
 #define stats_display_memp(mem, index)
 #endif /* LWIP_STATS_DISPLAY */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_STATS_H */

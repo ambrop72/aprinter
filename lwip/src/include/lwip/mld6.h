@@ -47,13 +47,11 @@
 
 #if LWIP_IPV6_MLD && LWIP_IPV6  /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/netif.h"
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 struct mld_group {
   /** next link */
@@ -92,7 +90,6 @@ PACK_STRUCT_END
 #define MLD6_DEL_MAC_FILTER            0
 #define MLD6_ADD_MAC_FILTER            1
 
-
 err_t  mld6_stop(struct netif *netif);
 void   mld6_report_groups(struct netif *netif);
 void   mld6_tmr(void);
@@ -103,10 +100,7 @@ err_t  mld6_joingroup_netif(struct netif *netif, const ip6_addr_t *groupaddr);
 err_t  mld6_leavegroup(const ip6_addr_t *srcaddr, const ip6_addr_t *groupaddr);
 err_t  mld6_leavegroup_netif(struct netif *netif, const ip6_addr_t *groupaddr);
 
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV6_MLD && LWIP_IPV6 */
 

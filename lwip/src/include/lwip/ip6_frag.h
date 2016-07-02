@@ -42,15 +42,13 @@
 #define LWIP_HDR_IP6_FRAG_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip6_addr.h"
 #include "lwip/ip6.h"
 #include "lwip/netif.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+LWIP_EXTERN_C_BEGIN
 
 #if LWIP_IPV6 && LWIP_IPV6_REASS  /* don't build if not configured for use in lwipopts.h */
 
@@ -112,9 +110,6 @@ err_t ip6_frag(struct pbuf *p, struct netif *netif, const ip6_addr_t *dest);
 
 #endif /* LWIP_IPV6 && LWIP_IPV6_FRAG */
 
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_IP6_FRAG_H */

@@ -47,9 +47,7 @@
 #define PERF_STOP(x)  /* null definition */
 #endif /* LWIP_PERF */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #define LWIP_MAX(x , y)  (((x) > (y)) ? (x) : (y))
 #define LWIP_MIN(x , y)  (((x) < (y)) ? (x) : (y))
@@ -125,9 +123,7 @@ u32_t lwip_ntohl(u32_t x);
 
 #endif /* BYTE_ORDER == BIG_ENDIAN */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_DEF_H */
 

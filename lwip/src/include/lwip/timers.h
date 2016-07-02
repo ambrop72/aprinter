@@ -39,6 +39,7 @@
 #define LWIP_HDR_TIMERS_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
 /* Timers are not supported when NO_SYS==1 and NO_SYS_NO_TIMERS==1 */
 #define LWIP_TIMERS (!NO_SYS_NO_TIMERS)
@@ -47,9 +48,7 @@
 
 #include "lwip/err.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #ifndef LWIP_DEBUG_TIMERNAMES
 #ifdef LWIP_DEBUG
@@ -89,10 +88,7 @@ void sys_check_timeouts(void);
 void sys_restart_timeouts(void);
 u32_t sys_timeouts_sleeptime(void);
 
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_TIMERS */
 #endif /* LWIP_HDR_TIMERS_H */

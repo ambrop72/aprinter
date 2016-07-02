@@ -38,6 +38,7 @@
 #define LWIP_HDR_ICMP_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
@@ -46,9 +47,7 @@
 #include "lwip/icmp6.h"
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #define ICMP_ER   0    /* echo reply */
 #define ICMP_DUR  3    /* destination unreachable */
@@ -139,8 +138,6 @@ void icmp_time_exceeded(struct pbuf *p, enum icmp_te_type t);
 #define icmp_port_unreach(isipv6, pbuf)
 #endif /* (LWIP_IPV6 && LWIP_ICMP6) || (LWIP_IPV4 && LWIP_ICMP) LWIP_IPV4*/
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_ICMP_H */

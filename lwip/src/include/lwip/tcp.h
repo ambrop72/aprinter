@@ -41,6 +41,7 @@
 
 #if LWIP_TCP /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/mem.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip.h"
@@ -49,9 +50,7 @@
 #include "lwip/ip6.h"
 #include "lwip/ip6_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 struct tcp_pcb;
 
@@ -342,10 +341,7 @@ struct tcp_pcb * tcp_listen_dual_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
 #define          tcp_listen_dual(pcb) tcp_listen(pcb)
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
 
-
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_TCP */
 

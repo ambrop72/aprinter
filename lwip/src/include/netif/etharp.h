@@ -46,14 +46,13 @@
 
 #if LWIP_ARP || LWIP_ETHERNET /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 #include "lwip/ip.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #ifndef ETHARP_HWADDR_LEN
 #define ETHARP_HWADDR_LEN     6
@@ -202,9 +201,7 @@ err_t ethernet_input(struct pbuf *p, struct netif *netif);
 
 extern const struct eth_addr ethbroadcast, ethzero;
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_ARP || LWIP_ETHERNET */
 

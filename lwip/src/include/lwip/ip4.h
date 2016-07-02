@@ -48,9 +48,7 @@
 #include "lwip/err.h"
 #include "lwip/netif.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #ifdef LWIP_HOOK_IP4_ROUTE_SRC
 #define LWIP_IPV4_SRC_ROUTING   1
@@ -150,9 +148,7 @@ void ip4_debug_print(struct pbuf *p);
 #define ip4_debug_print(p)
 #endif /* IP_DEBUG */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV4 */
 

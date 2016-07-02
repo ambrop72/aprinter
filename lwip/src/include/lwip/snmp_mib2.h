@@ -39,11 +39,10 @@
 #define LWIP_HDR_SNMP_MIB2_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/ip_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 struct udp_pcb;
 struct netif;
@@ -170,8 +169,6 @@ void mib2_udp_unbind(struct udp_pcb *pcb);
 #define mib2_udp_unbind(pcb)
 #endif /* LWIP_MIB2_CALLBACKS */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_SNMP_MIB2_H */

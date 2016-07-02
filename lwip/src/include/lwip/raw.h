@@ -47,9 +47,7 @@
 #include "lwip/ip_addr.h"
 #include "lwip/ip6_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 struct raw_pcb;
 
@@ -106,9 +104,7 @@ struct raw_pcb * raw_new_ip6    (u8_t proto);
 u8_t             raw_input      (struct pbuf *p, struct netif *inp);
 #define raw_init() /* Compatibility define, no init needed. */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_RAW */
 

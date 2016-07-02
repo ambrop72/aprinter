@@ -38,10 +38,9 @@
 #define LWIP_HDR_SYS_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** Returns the current time in milliseconds,
  * may be the same as sys_jiffies or at least based on it. */
@@ -98,8 +97,6 @@ void sys_arch_unprotect(sys_prot_t pval);
 
 #endif /* SYS_ARCH_PROTECT */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_SYS_H */

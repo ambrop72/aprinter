@@ -43,11 +43,10 @@
 
 #if LWIP_DNS
 
+#include "lwip/def.h"
 #include "lwip/ip_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** DNS timer period */
 #define DNS_TMR_INTERVAL          1000
@@ -109,9 +108,7 @@ int            dns_local_removehost(const char *hostname, const ip_addr_t *addr)
 err_t          dns_local_addhost(const char *hostname, const ip_addr_t *addr);
 #endif /* DNS_LOCAL_HOSTLIST && DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_DNS */
 

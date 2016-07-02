@@ -38,7 +38,7 @@
 #define LWIP_HDR_INET_CHKSUM_H
 
 #include "lwip/opt.h"
-
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
 
@@ -58,9 +58,7 @@
 #define FOLD_U32T(u)          (((u) >> 16) + ((u) & 0x0000ffffUL))
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 u16_t inet_chksum(const void *dataptr, u16_t len);
 u16_t inet_chksum_pbuf(struct pbuf *p);
@@ -85,9 +83,7 @@ u16_t ip_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
 u16_t ip_chksum_pseudo_partial(struct pbuf *p, u8_t proto, u16_t proto_len,
        u16_t chksum_len, const ip_addr_t *src, const ip_addr_t *dest);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_INET_H */
 

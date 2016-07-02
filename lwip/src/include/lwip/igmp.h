@@ -41,16 +41,14 @@
 #define LWIP_HDR_IGMP_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 
 #if LWIP_IPV4 && LWIP_IGMP /* don't build if not configured for use in lwipopts.h */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+LWIP_EXTERN_C_BEGIN
 
 /* IGMP timer */
 #define IGMP_TMR_INTERVAL              100 /* Milliseconds */
@@ -61,7 +59,6 @@ extern "C" {
  * igmp_mac_filter callback function. */
 #define IGMP_DEL_MAC_FILTER            0
 #define IGMP_ADD_MAC_FILTER            1
-
 
 /**
  * igmp group structure - there is
@@ -104,9 +101,7 @@ err_t  igmp_leavegroup(const ip4_addr_t *ifaddr, const ip4_addr_t *groupaddr);
 err_t  igmp_leavegroup_netif(struct netif *netif, const ip4_addr_t *groupaddr);
 void   igmp_tmr(void);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV4 && LWIP_IGMP */
 

@@ -48,15 +48,13 @@
 
 #if LWIP_IPV6  /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip6.h"
 #include "lwip/ip6_addr.h"
 #include "lwip/netif.h"
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /* Struct for tables. */
 struct nd6_neighbor_cache_entry {
@@ -105,7 +103,6 @@ struct nd6_router_list_entry {
   u32_t invalidation_timer;
   u8_t flags;
 };
-
 
 enum nd6_neighbor_cache_entry_state {
   ND6_NO_ENTRY = 0,
@@ -293,9 +290,7 @@ void nd6_reachability_hint(const ip6_addr_t * ip6addr);
 #endif /* LWIP_ND6_TCP_REACHABILITY_HINTS */
 void nd6_cleanup_netif(struct netif * netif);
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV6 */
 

@@ -42,12 +42,11 @@
 
 #if LWIP_DHCP /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/netif.h"
 #include "lwip/udp.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 /** period (in seconds) of the application calling dhcp_coarse_tmr() */
 #define DHCP_COARSE_TIMER_SECS 60
@@ -265,9 +264,7 @@ void dhcp_fine_tmr(void);
 extern void dhcp_set_ntp_servers(u8_t num_ntp_servers, const ip4_addr_t* ntp_server_addrs);
 #endif /* LWIP_DHCP_GET_NTP_SRV */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_DHCP */
 

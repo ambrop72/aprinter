@@ -39,6 +39,7 @@
 #define LWIP_HDR_IP_FRAG_H
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/err.h"
 #include "lwip/pbuf.h"
 #include "lwip/netif.h"
@@ -47,9 +48,7 @@
 
 #if LWIP_IPV4
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #if IP_REASSEMBLY
 /* The IP reassembly timer interval in milliseconds. */
@@ -89,9 +88,7 @@ struct pbuf_custom_ref {
 err_t ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest);
 #endif /* IP_FRAG */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_IPV4 */
 

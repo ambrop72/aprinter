@@ -41,15 +41,14 @@
 
 #if LWIP_UDP /* don't build if not configured for use in lwipopts.h */
 
+#include "lwip/def.h"
 #include "lwip/pbuf.h"
 #include "lwip/netif.h"
 #include "lwip/ip_addr.h"
 #include "lwip/ip.h"
 #include "lwip/ip6_addr.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LWIP_EXTERN_C_BEGIN
 
 #define UDP_HLEN 8
 
@@ -171,9 +170,7 @@ void udp_debug_print(struct udp_hdr *udphdr);
 void udp_netif_ipv4_addr_changed(const ip4_addr_t* old_addr, const ip4_addr_t* new_addr);
 #endif /* LWIP_IPV4 */
 
-#ifdef __cplusplus
-}
-#endif
+LWIP_EXTERN_C_END
 
 #endif /* LWIP_UDP */
 
