@@ -45,7 +45,6 @@
 #if LWIP_TCP /* don't build if not configured for use in lwipopts.h */
 
 #include "lwip/def.h"
-#include "lwip/mem.h"
 #include "lwip/memp.h"
 #include "lwip/tcp.h"
 #include "lwip/tcp_impl.h"

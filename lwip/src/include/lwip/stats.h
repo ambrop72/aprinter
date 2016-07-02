@@ -39,7 +39,6 @@
 
 #include "lwip/opt.h"
 #include "lwip/def.h"
-#include "lwip/mem.h"
 #include "lwip/memp.h"
 
 LWIP_EXTERN_C_BEGIN

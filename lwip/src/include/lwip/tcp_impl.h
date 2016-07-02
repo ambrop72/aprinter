@@ -38,7 +38,6 @@
 
 #include "lwip/def.h"
 #include "lwip/tcp.h"
-#include "lwip/mem.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip.h"
 #include "lwip/icmp.h"

@@ -79,7 +79,6 @@
 #if LWIP_DNS /* don't build if not configured for use in lwipopts.h */
 
 #include "lwip/udp.h"
-#include "lwip/mem.h"
 #include "lwip/memp.h"
 #include "lwip/dns.h"
 

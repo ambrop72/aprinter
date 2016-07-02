@@ -142,6 +142,20 @@ struct pbuf {
   u16_t ref;
 };
 
+/** This is the base for the elements of pbuf pools. */
+struct pbuf_pool_elem_head {
+    struct pbuf pbuf;
+    PBUF_PAYLOAD_ALIGN_TYPE payload[];
+};
+
+#define PBUF_DIVIDE_ROUND_UP(a, b) (((a) / (b)) + ((a) % (b) != 0))
+
+/** These are the elements of pbuf pools including payload, used in memp_std.h. */
+#define PBUF_POOL_ELEM_TYPE(payload_size) \
+struct { \
+    struct pbuf_pool_elem_head head; \
+    PBUF_PAYLOAD_ALIGN_TYPE payload[PBUF_DIVIDE_ROUND_UP(payload_size, sizeof(PBUF_PAYLOAD_ALIGN_TYPE))]; \
+}
 
 #if LWIP_SUPPORT_CUSTOM_PBUF
 /** Prototype for a function to free a custom pbuf */

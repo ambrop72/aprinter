@@ -43,13 +43,9 @@
 
 LWIP_EXTERN_C_BEGIN
 
-/* run once with empty definition to handle all custom includes in lwippools.h */
-#define LWIP_MEMPOOL(name,num,size,desc)
-#include "lwip/memp_std.h"
-
 /* Create the list of all memory pools managed by memp. MEMP_MAX represents a NULL pool at the end */
 typedef enum {
-#define LWIP_MEMPOOL(name,num,size,desc)  MEMP_##name,
+#define LWIP_MEMPOOL(name,num,elem_type,desc)  MEMP_##name,
 #include "lwip/memp_std.h"
   MEMP_MAX
 } memp_t;
@@ -57,7 +53,7 @@ typedef enum {
 void  memp_init(void);
 
 #if MEMP_OVERFLOW_CHECK
-void *memp_malloc_fn(memp_t type, const char* file, const int line);
+void *memp_malloc_fn(memp_t type, const char* file, int line);
 #define memp_malloc(t) memp_malloc_fn((t), __FILE__, __LINE__)
 #else
 void *memp_malloc(memp_t type);
@@ -66,4 +62,4 @@ void  memp_free(memp_t type, void *mem);
 
 LWIP_EXTERN_C_END
 
-#endif /* LWIP_HDR_MEMP_H */
+#endif

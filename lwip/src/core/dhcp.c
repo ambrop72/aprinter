@@ -70,7 +70,6 @@
 #if LWIP_IPV4 && LWIP_DHCP /* don't build if not configured for use in lwipopts.h */
 
 #include "lwip/stats.h"
-#include "lwip/mem.h"
 #include "lwip/udp.h"
 #include "lwip/ip_addr.h"
 #include "lwip/netif.h"

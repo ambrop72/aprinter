@@ -28,7 +28,7 @@
 //#define APRINTER_NUM_TCP_LISTEN <count>
 //#define APRINTER_TCP_RX_BUF <bytes>
 //#define APRINTER_TCP_TX_BUF <bytes>
-//#define APRINTER_MEM_ALIGNMENT <bytes>
+//#define APRINTER_MEM_ALIGNMENT <type>
 
 #ifdef IN_KDEVELOP_PARSER
 #define APRINTER_NUM_TCP_CONN 10
@@ -36,12 +36,12 @@
 #define APRINTER_NUM_TCP_LISTEN 10
 #define APRINTER_TCP_RX_BUF 8192
 #define APRINTER_TCP_TX_BUF 8192
-#define APRINTER_MEM_ALIGNMENT 4
+#define APRINTER_MEM_ALIGNMENT u32_t
 #endif
 
 // Simple options, mostly enable/disable.
 #define NO_SYS 1
-#define MEM_ALIGNMENT APRINTER_MEM_ALIGNMENT
+#define PBUF_PAYLOAD_ALIGN_TYPE APRINTER_MEM_ALIGNMENT
 #define ETH_PAD_SIZE 0
 #define ARP_QUEUEING 0
 #define IP_FRAG 0
@@ -148,3 +148,9 @@
 // No need to specifically limit the TCP MSS against interface MTU,
 // because the MTU is standard Ethernet and consistent with our TCP_MSS.
 #define TCP_CALCULATE_EFF_SEND_MSS 0
+
+// With this the lwip memory allocation checks can be enabled (very slow).
+#if 0
+#define MEMP_OVERFLOW_CHECK 2
+#define MEMP_SANITY_CHECK 1
+#endif

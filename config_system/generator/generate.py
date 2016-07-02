@@ -390,7 +390,7 @@ def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
     lwip_cpu_info_arm = {
-        'alignment': 4,
+        'alignment': 'u32_t',
         'checksum_src_file': 'aprinter/net/inet_chksum_arm.S',
     }
     
@@ -415,7 +415,7 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
-        gen.register_singleton_object('lwip_cpu_info', {'alignment': 1})
+        gen.register_singleton_object('lwip_cpu_info', {'alignment': 'u8_t'})
     
     @platform_sel.option('Stm32f4')
     def option(platform):

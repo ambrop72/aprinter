@@ -92,12 +92,16 @@
 */
 
 /**
- * MEM_ALIGNMENT: should be set to the alignment of the CPU
- *    4 byte alignment -> #define MEM_ALIGNMENT 4
- *    2 byte alignment -> #define MEM_ALIGNMENT 2
+ * PBUF_PAYLOAD_ALIGN_TYPE: This can be used to ensure alignment of pbuf
+ * payloads for those kinds of pbufs which have data in the pools
+ * (PBUF_POOL, PBUF_TCP). Set it to a type which has the desired alignment.
+ * It is also guaranteed that size of the available payload areas is a
+ * multiple of the size of this type.
+ * Note that actual pointed-to pbuf ->payload may or may not be aligned
+ * based on the headers.
  */
-#ifndef MEM_ALIGNMENT
-#define MEM_ALIGNMENT                   1
+#ifndef PBUF_PAYLOAD_ALIGN_TYPE
+#define PBUF_PAYLOAD_ALIGN_TYPE         u32_t
 #endif
 
 /**
@@ -119,6 +123,22 @@
  */
 #ifndef MEMP_SANITY_CHECK
 #define MEMP_SANITY_CHECK               0
+#endif
+
+/**
+ * If MEMP_OVERFLOW_CHECK, the size of the underflow detection region before
+ * each memp payload.
+ */
+#ifndef MEMP_UNDERFLOW_REGION
+#define MEMP_UNDERFLOW_REGION           4
+#endif
+
+/**
+ * If MEMP_OVERFLOW_CHECK, the size of the overflow detection region after
+ * each memp payload.
+ */
+#ifndef MEMP_OVERFLOW_REGION
+#define MEMP_OVERFLOW_REGION            4
 #endif
 
 /*
@@ -856,7 +876,7 @@
  * TCP_MSS, IP header, and link header.
  */
 #ifndef PBUF_POOL_BUFSIZE
-#define PBUF_POOL_BUFSIZE               LWIP_MEM_ALIGN_SIZE(TCP_MSS+40+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
+#define PBUF_POOL_BUFSIZE               (TCP_MSS+40+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
 #endif
 
 
@@ -865,7 +885,7 @@
  * PBUF_TCP_BUFSIZE: the size of each pbuf in the PBUF_TCP pool (TCP headers).
  */
 #ifndef PBUF_TCP_BUFSIZE
-#define PBUF_TCP_BUFSIZE                LWIP_MEM_ALIGN_SIZE(PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN+PBUF_IP_HLEN+PBUF_TRANSPORT_HLEN+LWIP_TCP_MAX_OPT_LENGTH)
+#define PBUF_TCP_BUFSIZE                (PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN+PBUF_IP_HLEN+PBUF_TRANSPORT_HLEN+LWIP_TCP_MAX_OPT_LENGTH)
 #endif
 
 /*

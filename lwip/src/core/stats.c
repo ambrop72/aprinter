@@ -42,7 +42,6 @@
 
 #include "lwip/def.h"
 #include "lwip/stats.h"
-#include "lwip/mem.h"
 #include "lwip/debug.h"
 
 #include <string.h>
@@ -55,7 +54,7 @@ stats_init(void)
 #ifdef LWIP_DEBUG
 #if MEMP_STATS
   const char * memp_names[] = {
-#define LWIP_MEMPOOL(name,num,size,desc) desc,
+#define LWIP_MEMPOOL(name,num,elem_type,desc) desc,
 #include "lwip/memp_std.h"
   };
   int i;
@@ -122,7 +121,7 @@ void
 stats_display_memp(struct stats_mem *mem, int index)
 {
   const char * memp_names[] = {
-#define LWIP_MEMPOOL(name,num,size,desc) desc,
+#define LWIP_MEMPOOL(name,num,elem_type,desc) desc,
 #include "lwip/memp_std.h"
   };
   if (index < MEMP_MAX) {
