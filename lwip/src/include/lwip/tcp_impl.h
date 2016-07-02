@@ -156,9 +156,6 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 /* Fields are (of course) in network byte order.
  * Some fields are converted to host byte order in tcp_input().
  */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct tcp_hdr {
   PACK_STRUCT_FIELD(u16_t src);
@@ -171,9 +168,6 @@ struct tcp_hdr {
   PACK_STRUCT_FIELD(u16_t urgp);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 #define TCPH_HDRLEN(phdr) ((u16_t)(ntohs((phdr)->_hdrlen_rsvd_flags) >> 12))
 #define TCPH_FLAGS(phdr)  ((u16_t)(ntohs((phdr)->_hdrlen_rsvd_flags) & TCP_FLAGS))

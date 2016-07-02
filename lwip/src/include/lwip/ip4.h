@@ -64,9 +64,6 @@ extern "C" {
 #define IP_HLEN 20
 
 
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip_hdr {
   /* version / header length */
@@ -94,9 +91,6 @@ struct ip_hdr {
   PACK_STRUCT_FLD_S(ip4_addr_p_t dest);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 #define IPH_V(hdr)  ((hdr)->_v_hl >> 4)
 #define IPH_HL(hdr) ((hdr)->_v_hl & 0x0f)

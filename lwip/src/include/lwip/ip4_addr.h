@@ -54,17 +54,11 @@ struct ip4_addr {
 
 /* This is the packed version of ip4_addr_t,
    used in network headers that are itself packed */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip4_addr_packed {
   PACK_STRUCT_FIELD(u32_t addr);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 /** ip4_addr_t uses a struct for convenience only, so that the same defines can
  * operate both on ip4_addr_t as well as on ip4_addr_p_t. */
@@ -75,17 +69,11 @@ typedef struct ip4_addr_packed ip4_addr_p_t;
  * struct ipaddr2 is used in the definition of the ARP packet format in
  * order to support compilers that don't have structure packing.
  */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip4_addr2 {
   PACK_STRUCT_FIELD(u16_t addrw[2]);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 /* Forward declaration to not include netif.h */
 struct netif;

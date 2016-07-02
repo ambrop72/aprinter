@@ -87,9 +87,6 @@
  * track of the various fragments. (-> If the IP header doesn't need packing,
  * this struct doesn't need packing, too.)
  */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip_reass_helper {
   PACK_STRUCT_FIELD(struct pbuf *next_pbuf);
@@ -97,9 +94,6 @@ struct ip_reass_helper {
   PACK_STRUCT_FIELD(u16_t end);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 #define IP_ADDRESSES_AND_ID_MATCH(iphdrA, iphdrB)  \
   (ip4_addr_cmp(&(iphdrA)->src, &(iphdrB)->src) && \

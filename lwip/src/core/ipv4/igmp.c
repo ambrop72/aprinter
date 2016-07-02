@@ -116,9 +116,6 @@ Steve Reynolds
 /**
  * IGMP packet format.
  */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct igmp_msg {
   PACK_STRUCT_FLD_8(u8_t         igmp_msgtype);
@@ -127,9 +124,6 @@ struct igmp_msg {
   PACK_STRUCT_FLD_S(ip4_addr_p_t igmp_group_address);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 
 static struct igmp_group *igmp_lookup_group(struct netif *ifp, const ip4_addr_t *addr);

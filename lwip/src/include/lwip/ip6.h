@@ -71,9 +71,6 @@ extern "C" {
 
 
 /* The IPv6 header. */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip6_hdr {
   /* version / traffic class / flow label */
@@ -89,9 +86,6 @@ struct ip6_hdr {
   PACK_STRUCT_FLD_S(ip6_addr_p_t dest);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 /* Hop-by-hop router alert option. */
 #define IP6_HBH_HLEN    8
@@ -99,9 +93,6 @@ PACK_STRUCT_END
 #define IP6_PADN_ALERT_OPTION   1
 #define IP6_ROUTER_ALERT_OPTION 5
 #define IP6_ROUTER_ALERT_VALUE_MLD 0
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip6_hbh_hdr {
   /* next header */
@@ -120,17 +111,11 @@ struct ip6_hbh_hdr {
   PACK_STRUCT_FLD_8(u8_t _padn_opt_dlen);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 /* Fragment header. */
 #define IP6_FRAG_HLEN    8
 #define IP6_FRAG_OFFSET_MASK    0xfff8
 #define IP6_FRAG_MORE_FLAG      0x0001
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 struct ip6_frag_hdr {
   /* next header */
@@ -143,9 +128,6 @@ struct ip6_frag_hdr {
   PACK_STRUCT_FIELD(u32_t _identification);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 #define IP6H_V(hdr)  ((ntohl((hdr)->_v_tc_fl) >> 28) & 0x0f)
 #define IP6H_TC(hdr) ((ntohl((hdr)->_v_tc_fl) >> 20) & 0xff)

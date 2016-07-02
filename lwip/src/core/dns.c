@@ -206,9 +206,6 @@ static u16_t dns_txid;
 #define DNS_STATE_ASKING            2
 #define DNS_STATE_DONE              3
 
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 /** DNS message header */
 struct dns_hdr {
@@ -221,9 +218,6 @@ struct dns_hdr {
   PACK_STRUCT_FIELD(u16_t numextrarr);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 #define SIZEOF_DNS_HDR 12
 
 /** DNS query message structure.

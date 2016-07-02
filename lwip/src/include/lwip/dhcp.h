@@ -99,9 +99,6 @@ struct dhcp
 };
 
 /* MUST be compiled with "pack structs" or equivalent! */
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/bpstruct.h"
-#endif
 PACK_STRUCT_BEGIN
 /** minimum set of fields of any DHCP message */
 struct dhcp_msg
@@ -134,9 +131,6 @@ struct dhcp_msg
   PACK_STRUCT_FLD_8(u8_t options[DHCP_OPTIONS_LEN]);
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
-#ifdef PACK_STRUCT_USE_INCLUDES
-#  include "arch/epstruct.h"
-#endif
 
 void dhcp_set_struct(struct netif *netif, struct dhcp *dhcp);
 /** Remove a struct dhcp previously set to the netif using dhcp_set_struct() */
