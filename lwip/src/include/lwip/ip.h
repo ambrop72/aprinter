@@ -187,9 +187,6 @@ extern struct ip_globals ip_data;
 #define ip_current_header_proto() (ip_current_is_v6() ? \
                                    IP6H_NEXTH(ip6_current_header()) :\
                                    IPH_PROTO(ip4_current_header()))
-/** Get the transport layer header */
-#define ip_next_header_ptr()     ((const void*)((ip_current_is_v6() ? \
-  (const u8_t*)ip6_current_header() : (const u8_t*)ip4_current_header())  + ip_current_header_tot_len()))
 
 /** Set an IP_PCB to IPv6 (IPv4 is the default) */
 #define ip_set_v6(pcb, val)       do{if(pcb != NULL) { pcb->isipv6 = val; \
@@ -211,8 +208,6 @@ extern struct ip_globals ip_data;
 #define ip_current_is_v6()        0
 /** Get the transport layer protocol */
 #define ip_current_header_proto() IPH_PROTO(ip4_current_header())
-/** Get the transport layer header */
-#define ip_next_header_ptr()     ((const void*)((const u8_t*)ip4_current_header() + ip_current_header_tot_len()))
 /** Source IP4 address of current_header */
 #define ip4_current_src_addr()     (&ip_data.current_iphdr_src)
 /** Destination IP4 address of current_header */
@@ -228,8 +223,6 @@ extern struct ip_globals ip_data;
 #define ip_current_is_v6()        1
 /** Get the transport layer protocol */
 #define ip_current_header_proto() IP6H_NEXTH(ip6_current_header())
-/** Get the transport layer header */
-#define ip_next_header_ptr()     ((const void*)((const u8_t*)ip6_current_header()))
 /** Source IP6 address of current_header */
 #define ip6_current_src_addr()    (&ip_data.current_iphdr_src)
 /** Destination IP6 address of current_header */
