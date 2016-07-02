@@ -956,7 +956,7 @@ public:
                 size_t pass_length = MinValue(pass_avail, (size_t)(ProvidedTxBufSize - pass_offset));
                 
                 u16_t written;
-                auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
+                auto err = tcp_write(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
                 if (err != ERR_OK) {
                     return go_erroring(c, false);
                 }

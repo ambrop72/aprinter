@@ -225,15 +225,6 @@ tcp_write_checks(struct tcp_pcb *pcb, u16_t len, u8_t apiflags)
 }
 
 /**
- * Same as tcp_write_ext with written_len==NULL.
- */
-err_t
-tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
-{
-  return tcp_write_ext(pcb, arg, len, apiflags, NULL);
-}
-
-/**
  * Write data for sending (but does not send it immediately).
  *
  * It waits in the expectation of more data being sent soon (as
@@ -254,7 +245,7 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
  * @return ERR_OK if enqueued, another err_t on error
  */
 err_t
-tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t *written_len)
+tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t *written_len)
 {
   struct pbuf *concat_p = NULL;
   u16_t extendlen = 0;
