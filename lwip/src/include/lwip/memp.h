@@ -54,20 +54,6 @@ typedef enum {
   MEMP_MAX
 } memp_t;
 
-#if MEMP_MEM_MALLOC
-extern const u16_t memp_sizes[MEMP_MAX];
-#endif
-
-#if MEMP_MEM_MALLOC
-
-#include "mem.h"
-
-#define memp_init()
-#define memp_malloc(type)     mem_malloc(memp_sizes[type])
-#define memp_free(type, mem)  mem_free(mem)
-
-#else /* MEMP_MEM_MALLOC */
-
 void  memp_init(void);
 
 #if MEMP_OVERFLOW_CHECK
@@ -77,8 +63,6 @@ void *memp_malloc_fn(memp_t type, const char* file, const int line);
 void *memp_malloc(memp_t type);
 #endif
 void  memp_free(memp_t type, void *mem);
-
-#endif /* MEMP_MEM_MALLOC */
 
 LWIP_EXTERN_C_END
 
