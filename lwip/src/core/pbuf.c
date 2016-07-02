@@ -80,6 +80,35 @@
    aligned there. Therefore, PBUF_POOL_BUFSIZE_ALIGNED can be used here. */
 #define PBUF_POOL_BUFSIZE_ALIGNED LWIP_MEM_ALIGN_SIZE(PBUF_POOL_BUFSIZE)
 
+static u8_t pbuf_get_offset_for_layer(pbuf_layer layer, u16_t *offset)
+{
+  switch (layer) {
+  case PBUF_TRANSPORT:
+    /* add room for transport (often TCP) layer header */
+    *offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN + PBUF_TRANSPORT_HLEN;
+    break;
+  case PBUF_IP:
+    /* add room for IP layer header */
+    *offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN;
+    break;
+  case PBUF_LINK:
+    /* add room for link layer header */
+    *offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN;
+    break;
+  case PBUF_RAW_TX:
+    /* add room for encapsulating link layer headers (e.g. 802.11) */
+    *offset = PBUF_LINK_ENCAPSULATION_HLEN;
+    break;
+  case PBUF_RAW:
+    /* no offset (e.g. RX buffers or chain successors) */
+    *offset = 0;
+    break;
+  default:
+    return 0;
+  }
+  return 1;
+}
+
 /**
  * Allocates a pbuf of the given type (possibly a chain for PBUF_POOL type).
  *
@@ -117,29 +146,7 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
   s32_t rem_len; /* remaining length */
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_alloc(length=%"U16_F")\n", length));
 
-  /* determine header offset */
-  switch (layer) {
-  case PBUF_TRANSPORT:
-    /* add room for transport (often TCP) layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN + PBUF_TRANSPORT_HLEN;
-    break;
-  case PBUF_IP:
-    /* add room for IP layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN;
-    break;
-  case PBUF_LINK:
-    /* add room for link layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN;
-    break;
-  case PBUF_RAW_TX:
-    /* add room for encapsulating link layer headers (e.g. 802.11) */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN;
-    break;
-  case PBUF_RAW:
-    /* no offset (e.g. RX buffers or chain successors) */
-    offset = 0;
-    break;
-  default:
+  if (!pbuf_get_offset_for_layer(layer, &offset)) {
     LWIP_ASSERT("pbuf_alloc: bad pbuf layer", 0);
     return NULL;
   }
@@ -291,28 +298,7 @@ pbuf_alloced_custom(pbuf_layer l, u16_t length, pbuf_type type, struct pbuf_cust
   u16_t offset;
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_alloced_custom(length=%"U16_F")\n", length));
 
-  /* determine header offset */
-  switch (l) {
-  case PBUF_TRANSPORT:
-    /* add room for transport (often TCP) layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN + PBUF_TRANSPORT_HLEN;
-    break;
-  case PBUF_IP:
-    /* add room for IP layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN + PBUF_IP_HLEN;
-    break;
-  case PBUF_LINK:
-    /* add room for link layer header */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN + PBUF_LINK_HLEN;
-    break;
-  case PBUF_RAW_TX:
-    /* add room for encapsulating link layer headers (e.g. 802.11) */
-    offset = PBUF_LINK_ENCAPSULATION_HLEN;
-    break;
-  case PBUF_RAW:
-    offset = 0;
-    break;
-  default:
+  if (!pbuf_get_offset_for_layer(l, &offset)) {
     LWIP_ASSERT("pbuf_alloced_custom: bad pbuf layer", 0);
     return NULL;
   }
