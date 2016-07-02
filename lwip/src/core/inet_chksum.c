@@ -113,7 +113,7 @@ lwip_standard_chksum(const void *dataptr, int len)
   /* This maybe a little confusing: reorder sum using htons()
      instead of ntohs() since it has a little less call overhead.
      The caller must invert bits for Internet sum ! */
-  return htons((u16_t)acc);
+  return lwip_htons((u16_t)acc);
 }
 #endif
 
@@ -285,8 +285,8 @@ inet_cksum_pseudo_base(struct pbuf *p, u8_t proto, u16_t proto_len, u32_t acc)
     acc = SWAP_BYTES_IN_WORD(acc);
   }
 
-  acc += (u32_t)htons((u16_t)proto);
-  acc += (u32_t)htons(proto_len);
+  acc += (u32_t)lwip_htons((u16_t)proto);
+  acc += (u32_t)lwip_htons(proto_len);
 
   /* Fold 32-bit sum to 16 bits
      calling this twice is probably faster than if statements... */
@@ -431,8 +431,8 @@ inet_cksum_pseudo_partial_base(struct pbuf *p, u8_t proto, u16_t proto_len,
     acc = SWAP_BYTES_IN_WORD(acc);
   }
 
-  acc += (u32_t)htons((u16_t)proto);
-  acc += (u32_t)htons(proto_len);
+  acc += (u32_t)lwip_htons((u16_t)proto);
+  acc += (u32_t)lwip_htons(proto_len);
 
   /* Fold 32-bit sum to 16 bits
      calling this twice is probably faster than if statements... */

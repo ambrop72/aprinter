@@ -66,28 +66,6 @@ LWIP_EXTERN_C_BEGIN
 #define LWIP_PLATFORM_BYTESWAP 0
 #endif
 
-#ifndef LWIP_PREFIX_BYTEORDER_FUNCS
-/* workaround for naming collisions on some platforms */
-
-#ifdef htons
-#undef htons
-#endif /* htons */
-#ifdef htonl
-#undef htonl
-#endif /* htonl */
-#ifdef ntohs
-#undef ntohs
-#endif /* ntohs */
-#ifdef ntohl
-#undef ntohl
-#endif /* ntohl */
-
-#define htons(x) lwip_htons(x)
-#define ntohs(x) lwip_ntohs(x)
-#define htonl(x) lwip_htonl(x)
-#define ntohl(x) lwip_ntohl(x)
-#endif /* LWIP_PREFIX_BYTEORDER_FUNCS */
-
 #if BYTE_ORDER == BIG_ENDIAN
 #define lwip_htons(x) (x)
 #define lwip_ntohs(x) (x)

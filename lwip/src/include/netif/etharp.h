@@ -91,7 +91,7 @@ struct eth_vlan_hdr {
 PACK_STRUCT_END
 
 #define SIZEOF_VLAN_HDR 4
-#define VLAN_ID(vlan_hdr) (htons((vlan_hdr)->prio_vid) & 0xFFF)
+#define VLAN_ID(vlan_hdr) (lwip_htons((vlan_hdr)->prio_vid) & 0xFFF)
 
 #endif /* ETHARP_SUPPORT_VLAN */
 

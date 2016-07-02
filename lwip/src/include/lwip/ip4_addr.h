@@ -160,7 +160,7 @@ struct netif;
  * from host- to network-order. */
 #define ip4_addr_set_hton(dest, src) ((dest)->addr = \
                                ((src) == NULL ? 0:\
-                               htonl((src)->addr)))
+                               lwip_htonl((src)->addr)))
 /** IPv4 only: set the IP address given as an u32_t */
 #define ip4_addr_set_u32(dest_ipaddr, src_u32) ((dest_ipaddr)->addr = (src_u32))
 /** IPv4 only: get the IP address as an u32_t */

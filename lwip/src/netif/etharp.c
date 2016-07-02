@@ -770,7 +770,7 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
       /* Re-use pbuf to send ARP reply.
          Since we are re-using an existing pbuf, we can't call etharp_raw since
          that would allocate a new pbuf. */
-      hdr->opcode = htons(ARP_REPLY);
+      hdr->opcode = lwip_htons(ARP_REPLY);
 
       IPADDR2_COPY(&hdr->dipaddr, &hdr->sipaddr);
       IPADDR2_COPY(&hdr->sipaddr, netif_ip4_addr(netif));
@@ -810,7 +810,7 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
 #endif /* (LWIP_DHCP && DHCP_DOES_ARP_CHECK) */
     break;
   default:
-    LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_arp_input: ARP unknown opcode type %"S16_F"\n", htons(hdr->opcode)));
+    LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_arp_input: ARP unknown opcode type %"S16_F"\n", lwip_htons(hdr->opcode)));
     ETHARP_STATS_INC(etharp.err);
     break;
   }
@@ -1219,7 +1219,7 @@ etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
   hdr = (struct etharp_hdr *)(void*)((u8_t*)ethhdr + SIZEOF_ETH_HDR);
 #endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
   LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_raw: sending raw ARP packet.\n"));
-  hdr->opcode = htons(opcode);
+  hdr->opcode = lwip_htons(opcode);
 
   LWIP_ASSERT("netif->hwaddr_len must be the same as ETHARP_HWADDR_LEN for etharp!",
               (netif->hwaddr_len == ETHARP_HWADDR_LEN));
@@ -1336,7 +1336,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
      (unsigned)ethhdr->dest.addr[3], (unsigned)ethhdr->dest.addr[4], (unsigned)ethhdr->dest.addr[5],
      (unsigned)ethhdr->src.addr[0], (unsigned)ethhdr->src.addr[1], (unsigned)ethhdr->src.addr[2],
      (unsigned)ethhdr->src.addr[3], (unsigned)ethhdr->src.addr[4], (unsigned)ethhdr->src.addr[5],
-     (unsigned)htons(ethhdr->type)));
+     (unsigned)lwip_htons(ethhdr->type)));
 
   type = ethhdr->type;
 #if ETHARP_SUPPORT_VLAN
@@ -1368,7 +1368,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
 #endif /* ETHARP_SUPPORT_VLAN */
 
 #if LWIP_ARP_FILTER_NETIF
-  netif = LWIP_ARP_FILTER_NETIF_FN(p, netif, htons(type));
+  netif = LWIP_ARP_FILTER_NETIF_FN(p, netif, lwip_htons(type));
 #endif /* LWIP_ARP_FILTER_NETIF*/
 
   if (ethhdr->dest.addr[0] & 1) {
