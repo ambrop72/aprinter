@@ -102,14 +102,6 @@ struct icmp_echo_hdr {
 } PACK_STRUCT_STRUCT;
 PACK_STRUCT_END
 
-#define ICMPH_TYPE(hdr) ((hdr)->type)
-#define ICMPH_CODE(hdr) ((hdr)->code)
-
-/** Combines type and code to an u16_t */
-#define ICMPH_TYPE_SET(hdr, t) ((hdr)->type = (t))
-#define ICMPH_CODE_SET(hdr, c) ((hdr)->code = (c))
-
-
 #if LWIP_IPV4 && LWIP_ICMP /* don't build if not configured for use in lwipopts.h */
 
 void icmp_input(struct pbuf *p, struct netif *inp);
