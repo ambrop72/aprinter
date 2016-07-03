@@ -235,11 +235,13 @@ typedef struct ip6_addr_packed ip6_addr_p_t;
 #define ip6_addr_debug_print_parts(debug, a, b, c, d, e, f, g, h) \
   LWIP_DEBUGF(debug, (ip6_addr_print_fmt, a, b, c, d, e, f, g, h))
 
+#define ip6_addr_debug_print_parts_(args) ip6_addr_debug_print_parts args
+
 #define ip6_addr_debug_print(debug, ipaddr) \
-  ip6_addr_debug_print_parts(debug, ip6_addr_print_vals(ipaddr))
+  ip6_addr_debug_print_parts_((debug, ip6_addr_print_vals(ipaddr)))
 
 #define ip6_addr_debug_print_val(debug, ipaddr) \
-  ip6_addr_debug_print_parts(debug, ip6_addr_print_vals(&(ipaddr)))
+  ip6_addr_debug_print_parts_((debug, ip6_addr_print_vals(&(ipaddr))))
 
 #define IP6ADDR_STRLEN_MAX    46
 
