@@ -110,7 +110,6 @@ static int ip_reass_free_complete_datagram(struct ip_reassdata *ipr, struct ip_r
 
 /**
  * Reassembly timer base function
- * for both NO_SYS == 0 and 1 (!).
  *
  * Should be called every 1000 msec (defined by IP_TMR_INTERVAL).
  */

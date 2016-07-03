@@ -661,7 +661,7 @@ igmp_leavegroup_netif(struct netif *netif, const ip4_addr_t *groupaddr)
 }
 
 /**
- * The igmp timer function (both for NO_SYS=1 and =0)
+ * The igmp timer function
  * Should be called every IGMP_TMR_INTERVAL milliseconds (100 ms is default).
  */
 void

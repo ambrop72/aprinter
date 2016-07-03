@@ -43,9 +43,6 @@
 
 #include "lwip/timers.h"
 #include "lwip/tcp_impl.h"
-
-#if LWIP_TIMERS
-
 #include "lwip/def.h"
 #include "lwip/memp.h"
 #include "lwip/ip4_frag.h"
@@ -289,7 +286,7 @@ void sys_timeouts_init(void)
  * Create a one-shot timer (aka timeout). Timeouts are processed in the
  * following cases:
  * - while waiting for a message using sys_timeouts_mbox_fetch()
- * - by calling sys_check_timeouts() (NO_SYS==1 only)
+ * - by calling sys_check_timeouts()
  *
  * @param msecs time in milliseconds after that the timer should expire
  * @param handler callback function to call when msecs have elapsed
@@ -354,9 +351,8 @@ sys_timeout(u32_t msecs, sys_timeout_handler handler, void *arg)
   }
 }
 
-/** Handle timeouts for NO_SYS==1 (i.e. without using
- * tcpip_thread/sys_timeouts_mbox_fetch(). Uses sys_now() to call timeout
- * handler functions when timeouts expire.
+/** Handle timeouts.
+ * Uses sys_now() to call timeout handler functions when timeouts expire.
  *
  * Must be called periodically from your main loop.
  */
@@ -430,11 +426,3 @@ sys_timeouts_sleeptime(void)
     return next_timeout->time - diff;
   }
 }
-
-#else /* LWIP_TIMERS */
-/* Satisfy the TCP code which calls this function */
-void
-tcp_timer_needed(void)
-{
-}
-#endif /* LWIP_TIMERS */

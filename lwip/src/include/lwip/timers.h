@@ -40,12 +40,6 @@
 
 #include "lwip/opt.h"
 #include "lwip/def.h"
-
-/* Timers are not supported when NO_SYS==1 and NO_SYS_NO_TIMERS==1 */
-#define LWIP_TIMERS (!NO_SYS_NO_TIMERS)
-
-#if LWIP_TIMERS
-
 #include "lwip/err.h"
 
 LWIP_EXTERN_C_BEGIN
@@ -90,5 +84,4 @@ u32_t sys_timeouts_sleeptime(void);
 
 LWIP_EXTERN_C_END
 
-#endif /* LWIP_TIMERS */
 #endif /* LWIP_HDR_TIMERS_H */
