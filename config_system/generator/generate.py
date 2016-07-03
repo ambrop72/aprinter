@@ -1270,7 +1270,7 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip_frag.c')
+        gen.add_extra_source('lwip/src/core/ipv4/ip4_frag.c')
         gen.add_extra_source('lwip/src/core/def.c')
         gen.add_extra_source('lwip/src/core/dhcp.c')
         gen.add_extra_source('lwip/src/core/inet_chksum.c')
