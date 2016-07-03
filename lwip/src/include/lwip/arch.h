@@ -51,8 +51,6 @@
 
 #include "arch/cc.h"
 
-LWIP_EXTERN_C_BEGIN
-
 #ifndef PACK_STRUCT_BEGIN
 #define PACK_STRUCT_BEGIN
 #endif /* PACK_STRUCT_BEGIN */
@@ -81,11 +79,8 @@ LWIP_EXTERN_C_BEGIN
 #define PACK_STRUCT_FLD_S(x) PACK_STRUCT_FIELD(x)
 #endif /* PACK_STRUCT_FLD_S */
 
-
 #ifndef LWIP_UNUSED_ARG
 #define LWIP_UNUSED_ARG(x) (void)x
 #endif /* LWIP_UNUSED_ARG */
-
-LWIP_EXTERN_C_END
 
 #endif /* LWIP_HDR_ARCH_H */
