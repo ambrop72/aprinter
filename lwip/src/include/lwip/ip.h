@@ -60,16 +60,11 @@ LWIP_EXTERN_C_BEGIN
 /* This is passed as the destination address to ip_output_if (not
    to ip_output), meaning that an IP header already is constructed
    in the pbuf. This is used when TCP retransmits. */
-#ifdef IP_HDRINCL
-#undef IP_HDRINCL
-#endif /* IP_HDRINCL */
 #define IP_HDRINCL  NULL
 
 /** pbufs passed to IP must have a ref-count of 1 as their payload pointer
     gets altered as the packet is passed down the stack */
-#ifndef LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX
 #define LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX(p) LWIP_ASSERT("p->ref == 1", (p)->ref == 1)
-#endif
 
 #if LWIP_NETIF_HWADDRHINT
 #define IP_PCB_ADDRHINT ;u8_t addr_hint
@@ -147,7 +142,6 @@ struct ip_globals
   ip_addr_t current_iphdr_dest;
 };
 extern struct ip_globals ip_data;
-
 
 /** Get the interface that accepted the current packet.
  * This may or may not be the receiving netif, depending on your netif/network setup.
@@ -236,8 +230,6 @@ extern struct ip_globals ip_data;
 #define ip_get_option(pcb, opt)   ((pcb)->so_options & (opt))
 /** Sets an IP pcb option (SOF_* flags) */
 #define ip_set_option(pcb, opt)   ((pcb)->so_options |= (opt))
-/** Resets an IP pcb option (SOF_* flags) */
-#define ip_reset_option(pcb, opt) ((pcb)->so_options &= ~(opt))
 
 #if LWIP_IPV4 && LWIP_IPV6
 /** Output IP packet, netif is selected by source address */
@@ -255,11 +247,6 @@ extern struct ip_globals ip_data;
         ((isipv6) ? \
         ip6_output_if_src(p, ip_2_ip6(src), ip_2_ip6(dest), ttl, tos, proto, netif) : \
         ip4_output_if_src(p, ip_2_ip4(src), ip_2_ip4(dest), ttl, tos, proto, netif))
-/** Output IP packet with addr_hint */
-#define ip_output_hinted(isipv6, p, src, dest, ttl, tos, proto, addr_hint) \
-        ((isipv6) ? \
-        ip6_output_hinted(p, ip_2_ip6(src), ip_2_ip6(dest), ttl, tos, proto, addr_hint) : \
-        ip4_output_hinted(p, ip_2_ip4(src), ip_2_ip4(dest), ttl, tos, proto, addr_hint))
 /** Get netif for address combination. See \ref ip6_route and \ref ip4_route */
 #define ip_route(isipv6, src, dest) \
         ((isipv6) ? \
@@ -277,8 +264,6 @@ extern struct ip_globals ip_data;
         ip4_output_if(p, src, dest, ttl, tos, proto, netif)
 #define ip_output_if_src(isipv6, p, src, dest, ttl, tos, proto, netif) \
         ip4_output_if_src(p, src, dest, ttl, tos, proto, netif)
-#define ip_output_hinted(isipv6, p, src, dest, ttl, tos, proto, addr_hint) \
-        ip4_output_hinted(p, src, dest, ttl, tos, proto, addr_hint)
 #define ip_route(isipv6, src, dest) \
         ip4_route_src(dest, src)
 #define ip_netif_get_local_ip(isipv6, netif, dest) \
@@ -291,8 +276,6 @@ extern struct ip_globals ip_data;
         ip6_output_if(p, src, dest, ttl, tos, proto, netif)
 #define ip_output_if_src(isipv6, p, src, dest, ttl, tos, proto, netif) \
         ip6_output_if_src(p, src, dest, ttl, tos, proto, netif)
-#define ip_output_hinted(isipv6, p, src, dest, ttl, tos, proto, addr_hint) \
-        ip6_output_hinted(p, src, dest, ttl, tos, proto, addr_hint)
 #define ip_route(isipv6, src, dest) \
         ip6_route(src, dest)
 #define ip_netif_get_local_ip(isipv6, netif, dest) \

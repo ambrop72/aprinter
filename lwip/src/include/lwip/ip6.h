@@ -131,7 +131,6 @@ PACK_STRUCT_END
 #define IP6H_FL(hdr) (lwip_ntohl((hdr)->_v_tc_fl) & 0x000fffff)
 #define IP6H_PLEN(hdr) (lwip_ntohs((hdr)->_plen))
 #define IP6H_NEXTH(hdr) ((hdr)->_nexth)
-#define IP6H_NEXTH_P(hdr) ((u8_t *)(hdr) + 6)
 #define IP6H_HOPLIM(hdr) ((hdr)->_hoplim)
 
 #define IP6H_VTCFL_SET(hdr, v, tc, fl) (hdr)->_v_tc_fl = (lwip_htonl((((u32_t)(v)) << 28) | (((u32_t)(tc)) << 20) | (fl)))
@@ -148,10 +147,6 @@ err_t         ip6_output_if(struct pbuf *p, const ip6_addr_t *src, const ip6_add
                             u8_t hl, u8_t tc, u8_t nexth, struct netif *netif);
 err_t         ip6_output_if_src(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
                             u8_t hl, u8_t tc, u8_t nexth, struct netif *netif);
-#if LWIP_NETIF_HWADDRHINT
-err_t         ip6_output_hinted(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
-                                u8_t hl, u8_t tc, u8_t nexth, u8_t *addr_hint);
-#endif /* LWIP_NETIF_HWADDRHINT */
 #if LWIP_IPV6_MLD
 err_t         ip6_options_add_hbh_ra(struct pbuf * p, u8_t nexth, u8_t value);
 #endif /* LWIP_IPV6_MLD */

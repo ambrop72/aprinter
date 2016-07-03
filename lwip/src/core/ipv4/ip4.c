@@ -971,49 +971,6 @@ ip4_output(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
   return ip4_output_if(p, src, dest, ttl, tos, proto, netif);
 }
 
-#if LWIP_NETIF_HWADDRHINT
-/** Like ip_output, but takes and addr_hint pointer that is passed on to netif->addr_hint
- *  before calling ip_output_if.
- *
- * @param p the packet to send (p->payload points to the data, e.g. next
-            protocol header; if dest == IP_HDRINCL, p already includes an IP
-            header and p->payload points to that IP header)
- * @param src the source IP address to send from (if src == IP_ADDR_ANY, the
- *         IP  address of the netif used to send is used as source address)
- * @param dest the destination IP address to send the packet to
- * @param ttl the TTL value to be set in the IP header
- * @param tos the TOS value to be set in the IP header
- * @param proto the PROTOCOL to be set in the IP header
- * @param addr_hint address hint pointer set to netif->addr_hint before
- *        calling ip_output_if()
- *
- * @return ERR_RTE if no route is found
- *         see ip_output_if() for more return values
- */
-err_t
-ip4_output_hinted(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
-          u8_t ttl, u8_t tos, u8_t proto, u8_t *addr_hint)
-{
-  struct netif *netif;
-  err_t err;
-
-  LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX(p);
-
-  if ((netif = ip4_route_src(dest, src)) == NULL) {
-    LWIP_DEBUGF(IP_DEBUG, ("ip_output: No route to %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n",
-      ip4_addr1_16(dest), ip4_addr2_16(dest), ip4_addr3_16(dest), ip4_addr4_16(dest)));
-    IP_STATS_INC(ip.rterr);
-    return ERR_RTE;
-  }
-
-  NETIF_SET_HWADDRHINT(netif, addr_hint);
-  err = ip4_output_if(p, src, dest, ttl, tos, proto, netif);
-  NETIF_SET_HWADDRHINT(netif, NULL);
-
-  return err;
-}
-#endif /* LWIP_NETIF_HWADDRHINT*/
-
 #if IP_DEBUG
 /* Print an IP header by using LWIP_DEBUGF
  * @param p an IP packet, p->payload pointing to the IP header

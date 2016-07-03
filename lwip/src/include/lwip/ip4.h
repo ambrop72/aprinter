@@ -61,7 +61,6 @@ LWIP_EXTERN_C_BEGIN
 
 #define IP_HLEN 20
 
-
 PACK_STRUCT_BEGIN
 struct ip_hdr {
   /* version / header length */
@@ -123,10 +122,6 @@ err_t ip4_output_if(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *des
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
 err_t ip4_output_if_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif);
-#if LWIP_NETIF_HWADDRHINT
-err_t ip4_output_hinted(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
-       u8_t ttl, u8_t tos, u8_t proto, u8_t *addr_hint);
-#endif /* LWIP_NETIF_HWADDRHINT */
 #if IP_OPTIONS_SEND
 err_t ip4_output_if_opt(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
        u8_t ttl, u8_t tos, u8_t proto, struct netif *netif, void *ip_options,

@@ -68,23 +68,6 @@ PACK_STRUCT_END
 typedef struct ip6_addr ip6_addr_t;
 typedef struct ip6_addr_packed ip6_addr_p_t;
 
-#if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
-/** Set an IPv6 partial address given by byte-parts. */
-#define IP6_ADDR_PART(ip6addr, index, a,b,c,d) \
-  (ip6addr)->addr[index] = ((u32_t)((a) & 0xff) << 24) | \
-                           ((u32_t)((b) & 0xff) << 16) | \
-                           ((u32_t)((c) & 0xff) << 8)  | \
-                            (u32_t)((d) & 0xff)
-#else
-/** Set an IPv6 partial address given by byte-parts.
-Little-endian version, stored in network order (no htonl). */
-#define IP6_ADDR_PART(ip6addr, index, a,b,c,d) \
-  (ip6addr)->addr[index] = ((u32_t)((d) & 0xff) << 24) | \
-                           ((u32_t)((c) & 0xff) << 16) | \
-                           ((u32_t)((b) & 0xff) << 8)  | \
-                            (u32_t)((a) & 0xff)
-#endif
-
 /** Set a full IPv6 address by passing the 4 u32_t indices in network byte order
     (use PP_HTONL() for constants) */
 #define IP6_ADDR(ip6addr, idx0, idx1, idx2, idx3) do { \
@@ -200,10 +183,6 @@ Little-endian version, stored in network order (no htonl). */
                 (ip6addr)->addr[2] = 0; \
                 (ip6addr)->addr[3] = PP_HTONL(0x00000001UL);}while(0)
 
-#define ip6_addr_isallrouters_linklocal(ip6addr) (((ip6addr)->addr[0] == PP_HTONL(0xff020000UL)) && \
-    ((ip6addr)->addr[1] == 0UL) && \
-    ((ip6addr)->addr[2] == 0UL) && \
-    ((ip6addr)->addr[3] == PP_HTONL(0x00000002UL)))
 #define ip6_addr_set_allrouters_linklocal(ip6addr) do{(ip6addr)->addr[0] = PP_HTONL(0xff020000UL); \
                 (ip6addr)->addr[1] = 0; \
                 (ip6addr)->addr[2] = 0; \
@@ -240,8 +219,6 @@ Little-endian version, stored in network order (no htonl). */
 #define ip6_addr_isinvalid(addr_state) (addr_state == IP6_ADDR_INVALID)
 #define ip6_addr_istentative(addr_state) (addr_state & IP6_ADDR_TENTATIVE)
 #define ip6_addr_isvalid(addr_state) (addr_state & IP6_ADDR_VALID) /* Include valid, preferred, and deprecated. */
-#define ip6_addr_ispreferred(addr_state) (addr_state == IP6_ADDR_PREFERRED)
-#define ip6_addr_isdeprecated(addr_state) (addr_state == IP6_ADDR_DEPRECATED)
 
 #define ip6_addr_print_fmt "%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F ":%" X16_F
 
@@ -267,7 +244,6 @@ Little-endian version, stored in network order (no htonl). */
 #define IP6ADDR_STRLEN_MAX    46
 
 int ip6addr_aton(const char *cp, ip6_addr_t *addr);
-/** returns ptr to static buffer; not reentrant! */
 char *ip6addr_ntoa_r(const ip6_addr_t *addr, char *buf, int buflen);
 
 LWIP_EXTERN_C_END
