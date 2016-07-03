@@ -1601,6 +1601,8 @@ nd6_queue_packet(s8_t neighbor_index, struct pbuf * q)
 #if LWIP_ND6_QUEUEING
   struct nd6_q_entry *new_entry, *r;
 #endif /* LWIP_ND6_QUEUEING */
+  
+  LWIP_ASSERT("q != NULL", q != NULL);
 
   if ((neighbor_index < 0) || (neighbor_index >= LWIP_ND6_NUM_NEIGHBORS)) {
     return ERR_ARG;

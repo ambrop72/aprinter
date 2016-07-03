@@ -8,25 +8,12 @@
  * incoming packets is provided through pools with fixed sized pbufs.
  *
  * A packet may span over multiple pbufs, chained as a singly linked
- * list. This is called a "pbuf chain".
- *
- * Multiple packets may be queued, also using this singly linked list.
- * This is called a "packet queue".
+ * list. This is called a "pbuf chain". The last pbuf of the chain is
+ * indicated by a NULL ->next field.
  * 
- * So, a packet queue consists of one or more pbuf chains, each of
- * which consist of one or more pbufs. CURRENTLY, PACKET QUEUES ARE
- * NOT SUPPORTED!!! Use helper structs to queue multiple packets.
- * 
- * The differences between a pbuf chain and a packet queue are very
- * precise but subtle. 
- *
- * The last pbuf of a packet has a ->tot_len field that equals the
- * ->len field. It can be found by traversing the list. If the last
- * pbuf of a packet has a ->next field other than NULL, more packets
- * are on the queue.
- *
- * Therefore, looping through a pbuf of a single packet, has an
- * loop end condition (tot_len == p->len), NOT (next == NULL).
+ * The ->tot_len field of a pbuf is the sum of the ->len fields of
+ * that pbuf and all the subsequent pbufs in the chain. This invariant
+ * must be maintained.
  */
 
 /*
@@ -76,6 +63,130 @@
 
 /** Get the pointer to the start of available data for a pbuf that has data in the pool. */
 #define pbuf_pool_payload(p) ((u8_t *)((struct pbuf_pool_elem_head *)(p))->payload)
+
+#ifndef LWIP_NOASSERT
+
+/**
+ * Does basic sanity checks for a pbuf (valid type, len<=tot_len).
+ * No null check is done.
+ */
+#define pbuf_basic_sanity(p) do { \
+  LWIP_ASSERT("sane pbuf type", pbuf_type_sane((p)->type)); \
+  LWIP_ASSERT("sane pbuf len", (p)->len <= (p)->tot_len); \
+} while (0)
+
+/**
+ * Declares variables needed for sanity testing of pbuf chains.
+ * 
+ * Usage of this chain sanity testing is as follows:
+ * 1) Declare needed local variables using pbuf_sanity_decl.
+ * 2) Initialize using pbuf_sanity_start, pbuf_sanity_start_second
+ *    or pbuf_sanity_start_visit.
+ * 3) Visit pbufs as you encounter them using pbuf_sanity_visit
+ *    or pbuf_sanity_next.
+ * 4) Optionally, visit the remainder of the chain using pbuf_sanity_end.
+ * 
+ * @param rem_tot_len name of variable, possibly prefix in the future
+ */
+#define pbuf_sanity_decl(rem_tot_len) \
+u16_t rem_tot_len;
+
+/**
+ * Initializes pbuf chain sanity testing.
+ * A valid first pbuf must be passed but it is not visited.
+ * 
+ * This remembers the tot_len of the first pbuf as rem_tot_len.
+ * As each pbuf is is visited, its tot_len will be asserted equal
+ * to rem_tot_len, and rem_tot_len will be decremented by its len.
+ * 
+ * @param p the first pbuf in the chain (not null)
+ */
+#define pbuf_sanity_start(rem_tot_len, p) do { \
+  rem_tot_len = (p)->tot_len; \
+} while (0)
+
+/**
+ * Initializes pbuf iteration sanity testing while implicitly
+ * visiting the firstpbuf in the chain. Use when pbuf_basic_sanity
+ * has already been done on the first pbuf, otherwise use
+ * pbuf_sanity_start_visit.
+ * 
+ * @param p the first pbuf in the chain (not null)
+ */
+#define pbuf_sanity_start_second(rem_tot_len, p) do { \
+  rem_tot_len = (p)->tot_len - (p)->len; \
+} while (0)
+
+/**
+ * Visits a pbuf as part of pbuf chain sanity testing.
+ * This first does a pbuf_basic_sanity check, then checks its
+ * tot_len and updates the rem_tot_len.
+ * 
+ * @param p the next (unvisited) pbuf (not null)
+ */
+#define pbuf_sanity_visit(rem_tot_len, p) do { \
+  pbuf_basic_sanity(p); \
+  LWIP_ASSERT("expected pbuf tot_len", (p)->tot_len == rem_tot_len); \
+  rem_tot_len -= (p)->len; \
+} while (0)
+
+/**
+ * Visits the remainder of the chain as part of pbuf chain sanity testing.
+ * Note that the remainder be null (if the chain ends) or a pbuf,
+ * because it is not needed to iterate the chain in its entirety.
+ * 
+ * This checks two things:
+ * - If the rem_tot_len is nonzero (more data is expected in the chain),
+ *   that the remainder p is not null.
+ * - If the remainder p is not null, that p->tot_len is equal to rem_tot_len.
+ * 
+ * @param p the remainder of the chain, not yet visited (may be null)
+ */
+#define pbuf_sanity_end(rem_tot_len, p) do { \
+  LWIP_ASSERT("pbuf chain shouldn't end", rem_tot_len == 0 || (p) != NULL); \
+  LWIP_ASSERT("bad tot_len in rest of pbuf chain", (p) == NULL || (p)->tot_len == rem_tot_len); \
+} while (0)
+
+/**
+ * Visits the next pbuf or the null end of the chain as part of pbuf chain
+ * sanity testing. Typically used just after "p = p->next" where naturally
+ * the resulting p may be null.
+ * 
+ * @param p the next (unvisited) pbuf, or null to visit the end
+ */
+#define pbuf_sanity_next(rem_tot_len, p) do { \
+  if ((p) != NULL) { \
+    pbuf_sanity_visit(rem_tot_len, p); \
+  } else { \
+    pbuf_sanity_end(rem_tot_len, p); \
+  } \
+} while (0)
+
+/**
+ * Initializes pbuf iteration sanity and visits the first pbuf.
+ * 
+ * @param p the first pbuf in the chain (not null)
+ */
+#define pbuf_sanity_start_visit(rem_tot_len, p) do { \
+  pbuf_sanity_start(rem_tot_len, p); \
+  pbuf_sanity_visit(rem_tot_len, p); \
+} while (0)
+
+#else
+#define pbuf_basic_sanity(p)
+#define pbuf_sanity_decl(rem_tot_len)
+#define pbuf_sanity_start(rem_tot_len, p)
+#define pbuf_sanity_start_second(rem_tot_len, p)
+#define pbuf_sanity_visit(rem_tot_len, p)
+#define pbuf_sanity_end(rem_tot_len, p)
+#define pbuf_sanity_next(rem_tot_len, p)
+#define pbuf_sanity_start_visit(rem_tot_len, p)
+#endif
+
+static u8_t pbuf_type_sane(pbuf_type type)
+{
+    return type == PBUF_ROM || type == PBUF_REF || type == PBUF_POOL || type == PBUF_TCP;
+}
 
 static u8_t pbuf_get_offset_for_layer(pbuf_layer layer, u16_t *offset)
 {
@@ -205,8 +316,6 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
       /* remember this pbuf for linkage in next iteration */
       r = q;
     }
-    /* end of chain */
-    /*r->next = NULL;*/
 
     break;
     
@@ -219,7 +328,8 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
       return NULL;
     }
     p->payload = pbuf_pool_payload(p) + offset;
-    p->len = p->tot_len = length;
+    p->len = length;
+    p->tot_len = length;
     p->next = NULL;
     p->type = type;
     break;
@@ -231,14 +341,12 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     /* only allocate memory for the pbuf structure */
     p = (struct pbuf *)memp_malloc(MEMP_PBUF);
     if (p == NULL) {
-      LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
-                  ("pbuf_alloc: Could not allocate MEMP_PBUF for PBUF_%s.\n",
-                  (type == PBUF_ROM) ? "ROM" : "REF"));
       return NULL;
     }
     /* caller must set this field properly, afterwards */
     p->payload = NULL;
-    p->len = p->tot_len = length;
+    p->len = length;
+    p->tot_len = length;
     p->next = NULL;
     p->type = type;
     break;
@@ -252,6 +360,7 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
   p->ref = 1;
   /* set flags */
   p->flags = 0;
+  
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_alloc(length=%"U16_F") == %p\n", length, (void *)p));
   return p;
 }
@@ -293,6 +402,7 @@ pbuf_alloced_custom(pbuf_layer l, u16_t length, pbuf_type type, struct pbuf_cust
 {
   u16_t offset;
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_alloced_custom(length=%"U16_F")\n", length));
+  LWIP_ASSERT("pbuf_alloced_custom: sane type", pbuf_type_sane(type));
 
   if (!pbuf_get_offset_for_layer(l, &offset)) {
     LWIP_ASSERT("pbuf_alloced_custom: bad pbuf layer", 0);
@@ -305,15 +415,13 @@ pbuf_alloced_custom(pbuf_layer l, u16_t length, pbuf_type type, struct pbuf_cust
   }
 
   p->pbuf.next = NULL;
-  if (payload_mem != NULL) {
-    p->pbuf.payload = (u8_t *)payload_mem + offset;
-  } else {
-    p->pbuf.payload = NULL;
-  }
+  p->pbuf.payload = (payload_mem != NULL) ? ((u8_t *)payload_mem + offset) : NULL;
   p->pbuf.flags = PBUF_FLAG_IS_CUSTOM;
-  p->pbuf.len = p->pbuf.tot_len = length;
+  p->pbuf.len = length;
+  p->pbuf.tot_len = length;
   p->pbuf.type = type;
   p->pbuf.ref = 1;
+  
   return &p->pbuf;
 }
 #endif /* LWIP_SUPPORT_CUSTOM_PBUF */
@@ -329,7 +437,6 @@ pbuf_alloced_custom(pbuf_layer l, u16_t length, pbuf_type type, struct pbuf_cust
  * resized, and any remaining pbufs will be freed.
  *
  * @note If the pbuf is ROM/REF, only the ->tot_len and ->len fields are adjusted.
- * @note May not be called on a packet queue.
  *
  * @note Despite its name, pbuf_realloc cannot grow the size of a pbuf (chain).
  */
@@ -338,37 +445,40 @@ pbuf_realloc(struct pbuf *p, u16_t new_len)
 {
   struct pbuf *q;
   u16_t rem_len; /* remaining length */
-  s32_t grow;
+  u16_t shrink;
+  pbuf_sanity_decl(sanity)
 
   LWIP_ASSERT("pbuf_realloc: p != NULL", p != NULL);
-  LWIP_ASSERT("pbuf_realloc: sane p->type", p->type == PBUF_POOL ||
-              p->type == PBUF_ROM ||
-              p->type == PBUF_REF);
+  pbuf_basic_sanity(p);
 
-  /* desired length larger than current length? */
+  /* can only shrink */
   if (new_len >= p->tot_len) {
-    /* enlarging not yet supported */
     return;
   }
 
-  /* the pbuf chain grows by (new_len - p->tot_len) bytes
-   * (which may be negative in case of shrinking) */
-  grow = new_len - p->tot_len;
+  /* by how much we are shrinking */
+  shrink = p->tot_len - new_len;
 
   /* first, step over any pbufs that should remain in the chain */
   rem_len = new_len;
   q = p;
+  pbuf_sanity_start_second(sanity, q);
+  
   /* should this pbuf be kept? */
   while (rem_len > q->len) {
     /* decrease remaining length by pbuf length */
     rem_len -= q->len;
     /* decrease total length indicator */
-    LWIP_ASSERT("grow < max_u16_t", grow < 0xffff);
-    q->tot_len += (u16_t)grow;
+    q->tot_len -= shrink;
     /* proceed to next pbuf in chain */
     q = q->next;
+    
     LWIP_ASSERT("pbuf_realloc: q != NULL", q != NULL);
+    pbuf_sanity_visit(sanity, q);
   }
+  
+  pbuf_sanity_end(sanity, q->next);
+  
   /* we have now reached the new last pbuf (in q) */
   /* rem_len == desired length for pbuf q */
 
@@ -383,7 +493,6 @@ pbuf_realloc(struct pbuf *p, u16_t new_len)
   }
   /* q is last packet in chain */
   q->next = NULL;
-
 }
 
 /**
@@ -403,8 +512,10 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
   u16_t type;
   void *payload;
 
-  LWIP_ASSERT("p != NULL", p != NULL);
-  if ((header_size_increment == 0) || (p == NULL)) {
+  LWIP_ERROR("pbuf_header: p != NULL", p != NULL, return 1;);
+  pbuf_basic_sanity(p);
+  
+  if (header_size_increment == 0) {
     return 0;
   }
 
@@ -489,8 +600,8 @@ pbuf_header_force(struct pbuf *p, s16_t header_size_increment)
 }
 
 /**
- * Dereference a pbuf chain or queue and deallocate any no-longer-used
- * pbufs at the head of this chain or queue.
+ * Dereference a pbuf chain and deallocate any no-longer-used
+ * pbufs at the head of this chain.
  *
  * Decrements the pbuf reference count. If it reaches zero, the pbuf is
  * deallocated.
@@ -502,10 +613,6 @@ pbuf_header_force(struct pbuf *p, s16_t header_size_increment)
  *
  * @param p The pbuf (chain) to be dereferenced.
  *
- * @return the number of pbufs that were de-allocated
- * from the head of the chain.
- *
- * @note MUST NOT be called on a packet queue (Not verified to work yet).
  * @note the reference counter of a pbuf equals the number of pointers
  * that refer to the pbuf (or into the pbuf).
  *
@@ -521,34 +628,28 @@ pbuf_header_force(struct pbuf *p, s16_t header_size_increment)
  * 1->1->1 becomes .......
  *
  */
-u8_t
+void
 pbuf_free(struct pbuf *p)
 {
   u16_t type;
   struct pbuf *q;
-  u8_t count;
+  u16_t ref;
+  SYS_ARCH_DECL_PROTECT(old_level);
+  pbuf_sanity_decl(sanity)
 
-  if (p == NULL) {
-    LWIP_ASSERT("p != NULL", p != NULL);
-    /* if assertions are disabled, proceed with debug output */
-    LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
-      ("pbuf_free(p == NULL) was called.\n"));
-    return 0;
-  }
+  LWIP_ERROR("pbuf_free: p != NULL", p != NULL, return;);
+  
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free(%p)\n", (void *)p));
 
   PERF_START;
 
-  LWIP_ASSERT("pbuf_free: sane type",
-    p->type == PBUF_ROM ||
-    p->type == PBUF_REF || p->type == PBUF_POOL || p->type == PBUF_TCP);
-
-  count = 0;
+  pbuf_sanity_start(sanity, p);
+  
   /* de-allocate all consecutive pbufs from the head of the chain that
    * obtain a zero reference count after decrementing*/
-  while (p != NULL) {
-    u16_t ref;
-    SYS_ARCH_DECL_PROTECT(old_level);
+  do {
+    pbuf_sanity_visit(sanity, p);
+    
     /* Since decrementing ref cannot be guaranteed to be a single machine operation
      * we must protect it. We put the new ref into a local variable to prevent
      * further protection. */
@@ -558,47 +659,45 @@ pbuf_free(struct pbuf *p)
     /* decrease reference count (number of pointers to pbuf) */
     ref = --(p->ref);
     SYS_ARCH_UNPROTECT(old_level);
-    /* this pbuf is no longer referenced to? */
-    if (ref == 0) {
-      /* remember next pbuf in chain for next iteration */
-      q = p->next;
-      LWIP_DEBUGF( PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free: deallocating %p\n", (void *)p));
-      type = p->type;
-#if LWIP_SUPPORT_CUSTOM_PBUF
-      /* is this a custom pbuf? */
-      if ((p->flags & PBUF_FLAG_IS_CUSTOM) != 0) {
-        struct pbuf_custom *pc = (struct pbuf_custom*)p;
-        LWIP_ASSERT("pc->custom_free_function != NULL", pc->custom_free_function != NULL);
-        pc->custom_free_function(p);
-      } else
-#endif /* LWIP_SUPPORT_CUSTOM_PBUF */
-      {
-        /* is this a pbuf from the pool? */
-        if (type == PBUF_POOL) {
-          memp_free(MEMP_PBUF_POOL, p);
-        /* is this a ROM or RAM referencing pbuf? */
-        } else if (type == PBUF_ROM || type == PBUF_REF) {
-          memp_free(MEMP_PBUF, p);
-        } else if (type == PBUF_TCP) {
-          memp_free(MEMP_PBUF_TCP, p);
-        } else {
-          LWIP_ASSERT("pbuf_free: bad type", 0);
-        }
-      }
-      count++;
-      /* proceed to next pbuf */
-      p = q;
-    /* p->ref > 0, this pbuf is still referenced to */
-    /* (and so the remaining pbufs in chain as well) */
-    } else {
+    
+    /* if this pbuf is still referenced, end here */
+    if (ref > 0) {
       LWIP_DEBUGF( PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free: %p has ref %"U16_F", ending here.\n", (void *)p, ref));
-      /* stop walking through the chain */
-      p = NULL;
+      break;
     }
-  }
+    
+    /* remember next pbuf in chain for next iteration */
+    q = p->next;
+    
+    LWIP_DEBUGF( PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free: deallocating %p\n", (void *)p));
+    
+    type = p->type;
+#if LWIP_SUPPORT_CUSTOM_PBUF
+    if ((p->flags & PBUF_FLAG_IS_CUSTOM) != 0) {
+      struct pbuf_custom *pc = (struct pbuf_custom*)p;
+      LWIP_ASSERT("pc->custom_free_function != NULL", pc->custom_free_function != NULL);
+      pc->custom_free_function(p);
+    } else
+#endif
+    {
+      if (type == PBUF_POOL) {
+        memp_free(MEMP_PBUF_POOL, p);
+      } else if (type == PBUF_ROM || type == PBUF_REF) {
+        memp_free(MEMP_PBUF, p);
+      } else if (type == PBUF_TCP) {
+        memp_free(MEMP_PBUF_TCP, p);
+      } else {
+        LWIP_ASSERT("pbuf_free: bad type", 0);
+      }
+    }
+    
+    /* proceed to next pbuf */
+    p = q;
+  } while (p != NULL);
+  
+  /* no pbuf_sanity_end because this can be called from pbuf_alloc with an incomplete chain */
+  
   PERF_STOP("pbuf_free");
-  /* return number of de-allocated pbufs */
-  return count;
 }
 
 /**
@@ -607,7 +706,6 @@ pbuf_free(struct pbuf *p)
  * @param p first pbuf of chain
  * @return the number of pbufs in a chain
  */
-
 u8_t
 pbuf_clen(struct pbuf *p)
 {
@@ -625,18 +723,18 @@ pbuf_clen(struct pbuf *p)
  * Increment the reference count of the pbuf.
  *
  * @param p pbuf to increase reference counter of
- *
  */
 void
 pbuf_ref(struct pbuf *p)
 {
   SYS_ARCH_DECL_PROTECT(old_level);
-  /* pbuf given? */
-  if (p != NULL) {
-    SYS_ARCH_PROTECT(old_level);
-    ++(p->ref);
-    SYS_ARCH_UNPROTECT(old_level);
-  }
+  
+  LWIP_ERROR("p != NULL", p != NULL, return;);
+  pbuf_basic_sanity(p);
+  
+  SYS_ARCH_PROTECT(old_level);
+  ++(p->ref);
+  SYS_ARCH_UNPROTECT(old_level);
 }
 
 /**
@@ -653,18 +751,28 @@ void
 pbuf_cat(struct pbuf *h, struct pbuf *t)
 {
   struct pbuf *p;
+  pbuf_sanity_decl(sanity)
 
-  LWIP_ERROR("(h != NULL) && (t != NULL) (programmer violates API)",
-             ((h != NULL) && (t != NULL)), return;);
-
+  LWIP_ERROR("(h != NULL) && (t != NULL)", ((h != NULL) && (t != NULL)), return;);
+  
+  pbuf_sanity_start(sanity, h);
+  
   /* proceed to last pbuf of chain */
-  for (p = h; p->next != NULL; p = p->next) {
+  for (p = h; ; p = p->next) {
+    pbuf_sanity_visit(sanity, p);
+    
+    if (p->next == NULL) {
+      break;
+    }
+    
     /* add total length of second chain to all totals of first chain */
     p->tot_len += t->tot_len;
   }
+  
+  pbuf_sanity_end(sanity, p->next);
+  
   /* { p is last pbuf of first h chain, p->next == NULL } */
   LWIP_ASSERT("p->tot_len == p->len (of last pbuf in chain)", p->tot_len == p->len);
-  LWIP_ASSERT("p->next == NULL", p->next == NULL);
   /* add total length of second chain to last pbuf total of first chain */
   p->tot_len += t->tot_len;
   /* chain last pbuf of head (p) with first of tail (t) */
@@ -683,12 +791,10 @@ pbuf_cat(struct pbuf *h, struct pbuf *t)
  * @param h head pbuf (chain)
  * @param t tail pbuf (chain)
  * @note The pbufs MUST belong to the same packet.
- * @note MAY NOT be called on a packet queue.
  *
  * The ->tot_len fields of all pbufs of the head chain are adjusted.
  * The ->next field of the last pbuf of the head chain is adjusted.
  * The ->ref field of the first pbuf of the tail chain is adjusted.
- *
  */
 void
 pbuf_chain(struct pbuf *h, struct pbuf *t)
@@ -700,15 +806,12 @@ pbuf_chain(struct pbuf *h, struct pbuf *t)
 }
 
 /**
- *
  * Create copies of pbufs.
  *
  * Used to queue packets on behalf of the lwIP stack, such as
  * ARP based queueing.
  *
  * @note You MUST explicitly use p = pbuf_take(p);
- *
- * @note Only one packet is copied, no packet queue!
  *
  * @param p_to pbuf destination of the copy
  * @param p_from pbuf source of the copy
@@ -721,6 +824,8 @@ err_t
 pbuf_copy(struct pbuf *p_to, struct pbuf *p_from)
 {
   u16_t offset_to=0, offset_from=0, len;
+  pbuf_sanity_decl(sanity_to)
+  pbuf_sanity_decl(sanity_from)
 
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_copy(%p, %p)\n",
     (void*)p_to, (void*)p_from));
@@ -729,46 +834,35 @@ pbuf_copy(struct pbuf *p_to, struct pbuf *p_from)
   LWIP_ERROR("pbuf_copy: target not big enough to hold source", ((p_to != NULL) &&
              (p_from != NULL) && (p_to->tot_len >= p_from->tot_len)), return ERR_ARG;);
 
+  pbuf_sanity_start_visit(sanity_to, p_to);
+  pbuf_sanity_start_visit(sanity_from, p_from);
+  
   /* iterate through pbuf chain */
-  do
-  {
+  do {
     /* copy one part of the original chain */
-    if ((p_to->len - offset_to) >= (p_from->len - offset_from)) {
-      /* complete current p_from fits into current p_to */
-      len = p_from->len - offset_from;
-    } else {
-      /* current p_from does not fit into current p_to */
-      len = p_to->len - offset_to;
-    }
+    len = LWIP_MIN(p_to->len - offset_to, p_from->len - offset_from);
     MEMCPY((u8_t*)p_to->payload + offset_to, (u8_t*)p_from->payload + offset_from, len);
     offset_to += len;
     offset_from += len;
     LWIP_ASSERT("offset_to <= p_to->len", offset_to <= p_to->len);
     LWIP_ASSERT("offset_from <= p_from->len", offset_from <= p_from->len);
+    
+    /* advance p_from/p_to as needed */
     if (offset_from >= p_from->len) {
-      /* on to next p_from (if any) */
       offset_from = 0;
       p_from = p_from->next;
+      pbuf_sanity_next(sanity_from, p_from);
     }
-    if (offset_to == p_to->len) {
-      /* on to next p_to (if any) */
+    if (offset_to >= p_to->len) {
       offset_to = 0;
       p_to = p_to->next;
-      LWIP_ERROR("p_to != NULL", (p_to != NULL) || (p_from == NULL) , return ERR_ARG;);
-    }
-
-    if ((p_from != NULL) && (p_from->len == p_from->tot_len)) {
-      /* don't copy more than one packet! */
-      LWIP_ERROR("pbuf_copy() does not allow packet queues!",
-                 (p_from->next == NULL), return ERR_VAL;);
-    }
-    if ((p_to != NULL) && (p_to->len == p_to->tot_len)) {
-      /* don't copy more than one packet! */
-      LWIP_ERROR("pbuf_copy() does not allow packet queues!",
-                  (p_to->next == NULL), return ERR_VAL;);
+      pbuf_sanity_next(sanity_to, p_to);
+      LWIP_ERROR("p_to != NULL", (p_from == NULL) || (p_to != NULL), return ERR_ARG;);
     }
   } while (p_from);
+  
   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_copy: end of chain reached.\n"));
+  
   return ERR_OK;
 }
 
@@ -787,63 +881,66 @@ u16_t
 pbuf_copy_partial(struct pbuf *buf, void *dataptr, u16_t len, u16_t offset)
 {
   struct pbuf *p;
-  u16_t left;
+  u16_t pos = 0;
   u16_t buf_copy_len;
-  u16_t copied_total = 0;
+  pbuf_sanity_decl(sanity)
 
   LWIP_ERROR("pbuf_copy_partial: invalid buf", (buf != NULL), return 0;);
   LWIP_ERROR("pbuf_copy_partial: invalid dataptr", (dataptr != NULL), return 0;);
 
-  left = 0;
-
-  if ((buf == NULL) || (dataptr == NULL)) {
-    return 0;
-  }
-
-  /* Note some systems use byte copy if dataptr or one of the pbuf payload pointers are unaligned. */
+  pbuf_sanity_start(sanity, buf);
+  
   for (p = buf; len != 0 && p != NULL; p = p->next) {
-    if ((offset != 0) && (offset >= p->len)) {
+    pbuf_sanity_visit(sanity, p);
+    
+    if (offset >= p->len) {
       /* don't copy from this buffer -> on to the next */
       offset -= p->len;
     } else {
       /* copy from this buffer. maybe only partially. */
-      buf_copy_len = p->len - offset;
-      if (buf_copy_len > len)
-          buf_copy_len = len;
+      buf_copy_len = LWIP_MIN(len, p->len - offset);
       /* copy the necessary parts of the buffer */
-      MEMCPY(&((char*)dataptr)[left], &((char*)p->payload)[offset], buf_copy_len);
-      copied_total += buf_copy_len;
-      left += buf_copy_len;
+      MEMCPY(&((char*)dataptr)[pos], &((char*)p->payload)[offset], buf_copy_len);
+      pos += buf_copy_len;
       len -= buf_copy_len;
       offset = 0;
     }
   }
-  return copied_total;
+  
+  pbuf_sanity_end(sanity, p);
+  
+  return pos;
 }
 
 /**
- * Skip a number of bytes at the start of a pbuf
+ * Skip a number of bytes at the start of a pbuf.
+ * 
+ * This will return non-null if and only if the chain has
+ * MORE than in_offset bytes. In that case it is safe to
+ * access return[out_offset].
  *
- * @param in input pbuf
+ * @param p input pbuf
  * @param in_offset offset to skip
  * @param out_offset resulting offset in the returned pbuf
- * @return the pbuf in the queue where the offset is
+ * @return the pbuf in the chain where the offset is
  */
 static struct pbuf*
-pbuf_skip(struct pbuf* in, u16_t in_offset, u16_t* out_offset)
+pbuf_skip(struct pbuf* p, u16_t in_offset, u16_t* out_offset)
 {
-  u16_t offset_left = in_offset;
-  struct pbuf* q = in;
+  pbuf_sanity_decl(sanity)
+  
+  LWIP_ERROR("pbuf_skip: p != NULL", p != NULL, return NULL;);
 
   /* get the correct pbuf */
-  while ((q != NULL) && (q->len <= offset_left)) {
-    offset_left -= q->len;
-    q = q->next;
+  pbuf_sanity_start_visit(sanity, p);
+  while ((p != NULL) && (p->len <= in_offset)) {
+    in_offset -= p->len;
+    p = p->next;
+    pbuf_sanity_next(sanity, p);
   }
-  if (out_offset != NULL) {
-    *out_offset = offset_left;
-  }
-  return q;
+  
+  *out_offset = in_offset;
+  return p;
 }
 
 /**
@@ -863,36 +960,35 @@ pbuf_take(struct pbuf *buf, const void *dataptr, u16_t len)
   u16_t buf_copy_len;
   u16_t total_copy_len = len;
   u16_t copied_total = 0;
+  pbuf_sanity_decl(sanity)
 
   LWIP_ERROR("pbuf_take: invalid buf", (buf != NULL), return ERR_ARG;);
   LWIP_ERROR("pbuf_take: invalid dataptr", (dataptr != NULL), return ERR_ARG;);
-  LWIP_ERROR("pbuf_take: buf not large enough", (buf->tot_len >= len), return ERR_MEM;);
+  LWIP_ERROR("pbuf_take: buf not large enough", (buf->tot_len >= len), return ERR_ARG;);
 
-  if ((buf == NULL) || (dataptr == NULL) || (buf->tot_len < len)) {
-    return ERR_ARG;
-  }
-
-  /* Note some systems use byte copy if dataptr or one of the pbuf payload pointers are unaligned. */
+  pbuf_sanity_start(sanity, buf);
+  
   for (p = buf; total_copy_len != 0; p = p->next) {
     LWIP_ASSERT("pbuf_take: invalid pbuf", p != NULL);
-    buf_copy_len = total_copy_len;
-    if (buf_copy_len > p->len) {
-      /* this pbuf cannot hold all remaining data */
-      buf_copy_len = p->len;
-    }
-    /* copy the necessary parts of the buffer */
+    pbuf_sanity_visit(sanity, p);
+    
+    buf_copy_len = LWIP_MIN(total_copy_len, p->len);
     MEMCPY(p->payload, &((const char*)dataptr)[copied_total], buf_copy_len);
     total_copy_len -= buf_copy_len;
     copied_total += buf_copy_len;
   }
+  
+  pbuf_sanity_end(sanity, p);
+  
   LWIP_ASSERT("did not copy all data", total_copy_len == 0 && copied_total == len);
+  
   return ERR_OK;
 }
 
 /**
  * Same as pbuf_take() but puts data at an offset
  *
- * @param buf pbuf to fill with data
+ * @param buf pbuf to fill with data (not NULL)
  * @param dataptr application supplied data buffer
  * @param len length of the application supplied data buffer
  * @param offset offset in pbuf where to copy dataptr to
@@ -905,27 +1001,27 @@ pbuf_take_at(struct pbuf *buf, const void *dataptr, u16_t len, u16_t offset)
   u16_t target_offset;
   struct pbuf* q = pbuf_skip(buf, offset, &target_offset);
 
-  /* return requested data if pbuf is OK */
-  if ((q != NULL) && (q->tot_len >= target_offset + len)) {
-    u16_t remaining_len = len;
-    const u8_t* src_ptr = (const u8_t*)dataptr;
-    /* copy the part that goes into the first pbuf */
-    u16_t first_copy_len = LWIP_MIN(q->len - target_offset, len);
-    MEMCPY(((u8_t*)q->payload) + target_offset, dataptr, first_copy_len);
-    remaining_len -= first_copy_len;
-    src_ptr += first_copy_len;
-    if (remaining_len > 0) {
-      return pbuf_take(q->next, src_ptr, remaining_len);
-    }
+  /* check if desired range is valid */
+  if (q == NULL || q->tot_len < target_offset + len) {
+    return ERR_MEM;
+  }
+  
+  /* copy the part that goes into the first pbuf */
+  u16_t first_copy_len = LWIP_MIN(len, q->len - target_offset);
+  MEMCPY((u8_t*)q->payload + target_offset, dataptr, first_copy_len);
+  
+  /* copy to remainder of chain, if any */
+  if (len > first_copy_len) {
+    return pbuf_take(q->next, (const u8_t*)dataptr + first_copy_len, len - first_copy_len);
+  } else {
     return ERR_OK;
   }
-  return ERR_MEM;
 }
 
  /** Get one byte from the specified position in a pbuf
  * WARNING: returns zero for offset >= p->tot_len
  *
- * @param p pbuf to parse
+ * @param p pbuf to parse (not NULL)
  * @param offset offset into p of the byte to return
  * @return byte at an offset into p OR ZERO IF 'offset' >= p->tot_len
  */
@@ -935,8 +1031,7 @@ pbuf_get_at(struct pbuf* p, u16_t offset)
   u16_t q_idx;
   struct pbuf* q = pbuf_skip(p, offset, &q_idx);
 
-  /* return requested data if pbuf is OK */
-  if ((q != NULL) && (q->len > q_idx)) {
+  if (q != NULL) {
     return ((u8_t*)q->payload)[q_idx];
   }
   return 0;
@@ -945,7 +1040,7 @@ pbuf_get_at(struct pbuf* p, u16_t offset)
  /** Put one byte to the specified position in a pbuf
  * WARNING: silently ignores offset >= p->tot_len
  *
- * @param p pbuf to fill
+ * @param p pbuf to fill (not NULL)
  * @param offset offset into p of the byte to write
  * @param data byte to write at an offset into p
  */
@@ -955,8 +1050,7 @@ pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data)
   u16_t q_idx;
   struct pbuf* q = pbuf_skip(p, offset, &q_idx);
 
-  /* write requested data if pbuf is OK */
-  if ((q != NULL) && (q->len > q_idx)) {
+  if (q != NULL) {
     ((u8_t*)q->payload)[q_idx] = data;
   }
 }
