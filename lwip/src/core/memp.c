@@ -49,7 +49,7 @@
 #include "lwip/timers.h"
 #include "lwip/stats.h"
 #include "netif/etharp.h"
-#include "lwip/ip_frag.h"
+#include "lwip/ip4_frag.h"
 #include "lwip/dns.h"
 #include "lwip/nd6.h"
 #include "lwip/ip6_frag.h"

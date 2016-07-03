@@ -48,8 +48,7 @@
 
 #include "lwip/def.h"
 #include "lwip/memp.h"
-
-#include "lwip/ip_frag.h"
+#include "lwip/ip4_frag.h"
 #include "netif/etharp.h"
 #include "lwip/dhcp.h"
 #include "lwip/igmp.h"
