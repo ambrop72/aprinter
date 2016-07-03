@@ -66,30 +66,32 @@ LWIP_EXTERN_C_BEGIN
 #define LWIP_PLATFORM_BYTESWAP 0
 #endif
 
+/* These swap bytes, regardless of the byte order. */
+#if LWIP_PLATFORM_BYTESWAP
+#define lwip_bswap16(x) ((u16_t)LWIP_PLATFORM_BSWAP16((u16_t)(x)))
+#define lwip_bswap32(x) ((u32_t)LWIP_PLATFORM_BSWAP32((u32_t)(x)))
+#else
+u16_t lwip_bswap16(u16_t n);
+u32_t lwip_bswap32(u32_t n);
+#endif
+
 #if LWIP_BYTE_ORDER == LWIP_BIG_ENDIAN
 
 #define lwip_htons(x) ((u16_t)(x))
 #define lwip_ntohs(x) ((u16_t)(x))
 #define lwip_htonl(x) ((u32_t)(x))
 #define lwip_ntohl(x) ((u32_t)(x))
-#define PP_HTONS(x) (x)
-#define PP_NTOHS(x) (x)
-#define PP_HTONL(x) (x)
-#define PP_NTOHL(x) (x)
+#define PP_HTONS(x) ((u16_t)(x))
+#define PP_NTOHS(x) ((u16_t)(x))
+#define PP_HTONL(x) ((u32_t)(x))
+#define PP_NTOHL(x) ((u32_t)(x))
 
 #else
 
-#if LWIP_PLATFORM_BYTESWAP
-#define lwip_htons(x) ((u16_t)LWIP_PLATFORM_HTONS((u16_t)(x)))
-#define lwip_ntohs(x) ((u16_t)LWIP_PLATFORM_HTONS((u16_t)(x)))
-#define lwip_htonl(x) ((u32_t)LWIP_PLATFORM_HTONL((u32_t)(x)))
-#define lwip_ntohl(x) ((u32_t)LWIP_PLATFORM_HTONL((u32_t)(x)))
-#else
-u16_t lwip_htons(u16_t x);
-u16_t lwip_ntohs(u16_t x);
-u32_t lwip_htonl(u32_t x);
-u32_t lwip_ntohl(u32_t x);
-#endif
+#define lwip_htons(x) lwip_bswap16(x)
+#define lwip_ntohs(x) lwip_bswap16(x)
+#define lwip_htonl(x) lwip_bswap32(x)
+#define lwip_ntohl(x) lwip_bswap32(x)
 
 /* These macros should be calculated by the preprocessor and are used
    with compile-time constants only (so that there is no little-endian

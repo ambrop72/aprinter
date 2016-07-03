@@ -64,16 +64,12 @@ void aprinter_lwip_platform_diag (char const *fmt, ...);
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define LWIP_BYTE_ORDER LWIP_LITTLE_ENDIAN
-#define LWIP_PLATFORM_BYTESWAP 1
-#define LWIP_PLATFORM_HTONS(x) __builtin_bswap16(x)
-#define LWIP_PLATFORM_HTONL(x) __builtin_bswap32(x)
-
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define LWIP_BYTE_ORDER LWIP_BIG_ENDIAN
-#define LWIP_PLATFORM_BYTESWAP 1
-#define LWIP_PLATFORM_HTONS(x) (x)
-#define LWIP_PLATFORM_HTONL(x) (x)
-
 #else
 #error Unknown byte order
 #endif
+
+#define LWIP_PLATFORM_BYTESWAP 1
+#define LWIP_PLATFORM_BSWAP16(x) __builtin_bswap16(x)
+#define LWIP_PLATFORM_BSWAP32(x) __builtin_bswap32(x)
