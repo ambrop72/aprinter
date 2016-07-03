@@ -248,11 +248,11 @@ netif_add(struct netif *netif,
     netif->name[0], netif->name[1]));
 #if LWIP_IPV4
   LWIP_DEBUGF(NETIF_DEBUG, (" addr "));
-  ip4_addr_debug_print(NETIF_DEBUG, ipaddr);
+  ip4_addr_debug_print(NETIF_DEBUG, &netif->ip_addr);
   LWIP_DEBUGF(NETIF_DEBUG, (" netmask "));
-  ip4_addr_debug_print(NETIF_DEBUG, netmask);
+  ip4_addr_debug_print(NETIF_DEBUG, &netif->netmask);
   LWIP_DEBUGF(NETIF_DEBUG, (" gw "));
-  ip4_addr_debug_print(NETIF_DEBUG, gw);
+  ip4_addr_debug_print(NETIF_DEBUG, &netif->gw);
 #endif /* LWIP_IPV4 */
   LWIP_DEBUGF(NETIF_DEBUG, ("\n"));
   return netif;
