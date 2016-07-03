@@ -105,4 +105,4 @@ lwip_ntohl(u32_t n)
   return lwip_htonl(n);
 }
 
-#endif /* (LWIP_PLATFORM_BYTESWAP == 0) && (LWIP_BYTE_ORDER == LWIP_LITTLE_ENDIAN) */
+#endif
