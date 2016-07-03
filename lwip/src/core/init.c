@@ -37,7 +37,6 @@
  */
 
 #include "lwip/opt.h"
-
 #include "lwip/init.h"
 #include "lwip/stats.h"
 #include "lwip/sys.h"
@@ -138,9 +137,6 @@
 
 #ifndef LWIP_DISABLE_TCP_SANITY_CHECKS
 #define LWIP_DISABLE_TCP_SANITY_CHECKS  0
-#endif
-#ifndef LWIP_DISABLE_MEMP_SANITY_CHECKS
-#define LWIP_DISABLE_MEMP_SANITY_CHECKS 0
 #endif
 
 /* TCP sanity checks */

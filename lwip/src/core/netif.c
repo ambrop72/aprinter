@@ -37,7 +37,6 @@
  */
 
 #include "lwip/opt.h"
-
 #include "lwip/def.h"
 #include "lwip/ip_addr.h"
 #include "lwip/ip6_addr.h"
@@ -49,25 +48,15 @@
 #include "netif/etharp.h"
 #include "lwip/stats.h"
 #include "lwip/sys.h"
-#if ENABLE_LOOPBACK
-#include "lwip/sys.h"
-#endif /* ENABLE_LOOPBACK */
-
-#if LWIP_DHCP
 #include "lwip/dhcp.h"
-#endif /* LWIP_DHCP */
-#if LWIP_IPV6_MLD
 #include "lwip/mld6.h"
-#endif /* LWIP_IPV6_MLD */
-#if LWIP_IPV6
 #include "lwip/nd6.h"
-#endif
 
 #if LWIP_NETIF_STATUS_CALLBACK
-#define NETIF_STATUS_CALLBACK(n) do{ if (n->status_callback) { (n->status_callback)(n); }}while(0)
+#define NETIF_STATUS_CALLBACK(n) do { if (n->status_callback) { n->status_callback(n); } } while (0)
 #else
 #define NETIF_STATUS_CALLBACK(n)
-#endif /* LWIP_NETIF_STATUS_CALLBACK */
+#endif
 
 struct netif *netif_list;
 struct netif *netif_default;

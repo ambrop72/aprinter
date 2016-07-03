@@ -38,9 +38,10 @@
 #define LWIP_HDR_IP4_ADDR_H
 
 #include "lwip/opt.h"
-#include "lwip/def.h"
 
 #if LWIP_IPV4
+
+#include "lwip/def.h"
 
 LWIP_EXTERN_C_BEGIN
 

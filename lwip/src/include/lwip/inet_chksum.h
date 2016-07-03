@@ -42,14 +42,6 @@
 #include "lwip/pbuf.h"
 #include "lwip/ip_addr.h"
 
-/** Swap the bytes in an u16_t */
-#define SWAP_BYTES_IN_WORD(x) lwip_bswap16(x)
-
-/** Split an u32_t in two u16_ts and add them up */
-#ifndef FOLD_U32T
-#define FOLD_U32T(u)          (((u) >> 16) + ((u) & 0x0000ffffUL))
-#endif
-
 LWIP_EXTERN_C_BEGIN
 
 u16_t inet_chksum(const void *dataptr, u16_t len);
@@ -68,7 +60,6 @@ u16_t ip6_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
 u16_t ip6_chksum_pseudo_partial(struct pbuf *p, u8_t proto, u16_t proto_len,
        u16_t chksum_len, const ip6_addr_t *src, const ip6_addr_t *dest);
 #endif /* LWIP_IPV6 */
-
 
 u16_t ip_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
        const ip_addr_t *src, const ip_addr_t *dest);

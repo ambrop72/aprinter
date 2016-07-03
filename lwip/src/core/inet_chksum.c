@@ -45,6 +45,14 @@
 #include <stddef.h>
 #include <string.h>
 
+/** Swap the bytes in an u16_t */
+#define SWAP_BYTES_IN_WORD(x) lwip_bswap16(x)
+
+/** Split an u32_t in two u16_ts and add them up */
+#ifndef FOLD_U32T
+#define FOLD_U32T(u) (((u) >> 16) + ((u) & 0x0000ffffUL))
+#endif
+
 /* These are some reference implementations of the checksum algorithm, with the
  * aim of being simple, correct and fully portable. Checksumming is the
  * first thing you would want to optimize for your platform. If you create

@@ -38,14 +38,13 @@
 #define LWIP_HDR_NETIF_H
 
 #include "lwip/opt.h"
-
-#define ENABLE_LOOPBACK (LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF)
-
 #include "lwip/def.h"
 #include "lwip/err.h"
 #include "lwip/ip_addr.h"
 #include "lwip/pbuf.h"
 #include "lwip/stats.h"
+
+#define ENABLE_LOOPBACK (LWIP_NETIF_LOOPBACK || LWIP_HAVE_LOOPIF)
 
 #if LWIP_DHCP
 struct dhcp;
