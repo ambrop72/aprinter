@@ -158,6 +158,7 @@ struct { \
 }
 
 #if LWIP_SUPPORT_CUSTOM_PBUF
+
 /** Prototype for a function to free a custom pbuf */
 typedef void (*pbuf_free_custom_fn)(struct pbuf *p);
 
@@ -168,6 +169,17 @@ struct pbuf_custom {
   /** This function is called when pbuf_free deallocates this pbuf(_custom) */
   pbuf_free_custom_fn custom_free_function;
 };
+
+/** A custom pbuf that holds a reference to another pbuf, which is freed
+ * when this custom pbuf is freed. This is used to create a custom PBUF_REF
+ * that points into the original pbuf. It is used for IP fragmentation. */
+struct pbuf_custom_ref {
+  /** 'base class' */
+  struct pbuf_custom pc;
+  /** pointer to the original pbuf that is referenced */
+  struct pbuf *original;
+};
+
 #endif /* LWIP_SUPPORT_CUSTOM_PBUF */
 
 /* Initializes the pbuf module. This call is empty for now, but may not be in future. */

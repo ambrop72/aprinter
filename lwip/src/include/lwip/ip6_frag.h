@@ -93,19 +93,6 @@ struct pbuf * ip6_reass(struct pbuf *p);
 
 #if LWIP_IPV6 && LWIP_IPV6_FRAG  /* don't build if not configured for use in lwipopts.h */
 
-/** A custom pbuf that holds a reference to another pbuf, which is freed
- * when this custom pbuf is freed. This is used to create a custom PBUF_REF
- * that points into the original pbuf. */
-#ifndef LWIP_PBUF_CUSTOM_REF_DEFINED
-#define LWIP_PBUF_CUSTOM_REF_DEFINED
-struct pbuf_custom_ref {
-  /** 'base class' */
-  struct pbuf_custom pc;
-  /** pointer to the original pbuf that is referenced */
-  struct pbuf *original;
-};
-#endif /* LWIP_PBUF_CUSTOM_REF_DEFINED */
-
 err_t ip6_frag(struct pbuf *p, struct netif *netif, const ip6_addr_t *dest);
 
 #endif /* LWIP_IPV6 && LWIP_IPV6_FRAG */
