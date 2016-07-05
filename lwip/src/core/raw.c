@@ -237,7 +237,7 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, const ip_addr_t *ipaddr)
   struct netif *netif;
   const ip_addr_t *src_ip;
   struct pbuf *q; /* q will be sent down the stack */
-  s16_t header_size;
+  u16_t header_size;
   const ip_addr_t *dst_ip = ipaddr;
 
   if ((pcb == NULL) || (ipaddr == NULL) || !IP_ADDR_PCB_VERSION_MATCH(pcb, ipaddr)) {
@@ -273,10 +273,7 @@ raw_sendto(struct raw_pcb *pcb, struct pbuf *p, const ip_addr_t *ipaddr)
   } else {
     /* first pbuf q equals given pbuf */
     q = p;
-    if (pbuf_header(q, -header_size)) {
-      LWIP_ASSERT("Can't restore header we just removed!", 0);
-      return ERR_MEM;
-    }
+    pbuf_unheader(q, header_size);
   }
 
   netif = ip_route(PCB_ISIPV6(pcb), &pcb->local_ip, dst_ip);

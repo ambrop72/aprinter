@@ -542,11 +542,7 @@ mld6_send(struct mld_group *group, u8_t type)
   }
 
   /* Move to make room for Hop-by-hop options header. */
-  if (pbuf_header(p, -IP6_HBH_HLEN)) {
-    pbuf_free(p);
-    MLD6_STATS_INC(mld6.lenerr);
-    return;
-  }
+  pbuf_unheader(p, IP6_HBH_HLEN);
 
   /* Select our source address. */
   if (!ip6_addr_isvalid(netif_ip6_addr_state(group->netif, 0))) {

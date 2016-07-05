@@ -345,14 +345,7 @@ udp_input(struct pbuf *p, struct netif *inp)
       }
     }
 #endif /* CHECKSUM_CHECK_UDP */
-    if (pbuf_header(p, -UDP_HLEN)) {
-      /* Can we cope with this failing? Just assert for now */
-      LWIP_ASSERT("pbuf_header failed\n", 0);
-      UDP_STATS_INC(udp.drop);
-      MIB2_STATS_INC(mib2.udpinerrors);
-      pbuf_free(p);
-      goto end;
-    }
+    pbuf_unheader(p, UDP_HLEN); /* cannot fail because we have the header */
     if (pcb != NULL) {
       MIB2_STATS_INC(mib2.udpindatagrams);
       /* callback */

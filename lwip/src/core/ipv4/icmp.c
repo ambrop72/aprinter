@@ -74,7 +74,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
 #endif /* LWIP_DEBUG */
   struct icmp_echo_hdr *iecho;
   const struct ip_hdr *iphdr_in;
-  s16_t hlen;
+  u16_t hlen;
   const ip4_addr_t* src;
 
   ICMP_STATS_INC(icmp.recv);
@@ -83,7 +83,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
   iphdr_in = ip4_current_header();
   hlen = IPH_HL(iphdr_in) * 4;
   if (hlen < IP_HLEN) {
-    LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: short IP header (%"S16_F" bytes) received\n", hlen));
+    LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: short IP header (%"U16_F" bytes) received\n", hlen));
     goto lenerr;
   }
   if (p->len < sizeof(u16_t)*2) {
@@ -143,27 +143,17 @@ icmp_input(struct pbuf *p, struct netif *inp)
     /* allocate a new pbuf and copy p into it */
     struct pbuf *r;
     /* allocate new packet buffer with space for link headers */
-    r = pbuf_alloc_pool(PBUF_LINK, p->tot_len + hlen, hlen + sizeof(struct icmp_echo_hdr));
+    r = pbuf_alloc_pool(PBUF_LINK, hlen + p->tot_len, hlen + sizeof(struct icmp_echo_hdr));
     if (r == NULL) {
       LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: allocating new pbuf failed\n"));
       goto icmperr;
     }
-    LWIP_ASSERT("check that first pbuf can hold struct the ICMP header",
-                (r->len >= hlen + sizeof(struct icmp_echo_hdr)));
     /* copy the ip header */
     MEMCPY(r->payload, iphdr_in, hlen);
     /* switch r->payload back to icmp header (cannot fail) */
-    if (pbuf_header(r, -hlen)) {
-      LWIP_ASSERT("icmp_input: moving r->payload to icmp header failed\n", 0);
-      pbuf_free(r);
-      goto icmperr;
-    }
-    /* copy the rest of the packet without ip header */
-    if (pbuf_copy(r, p) != ERR_OK) {
-      LWIP_DEBUGF(ICMP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("icmp_input: copying to new pbuf failed"));
-      pbuf_free(r);
-      goto icmperr;
-    }
+    pbuf_unheader(r, hlen);
+    /* copy the rest of the packet without ip header (cannot fail) */
+    pbuf_copy(r, p);
     /* free the original p */
     pbuf_free(p);
     /* we now have an identical copy of p that has room for link headers */
@@ -172,53 +162,50 @@ icmp_input(struct pbuf *p, struct netif *inp)
     /* We generate an answer by switching the dest and src ip addresses,
      * setting the icmp type to ECHO_RESPONSE and updating the checksum. */
     iecho = (struct icmp_echo_hdr *)p->payload;
-    if (pbuf_header(p, hlen)) {
-      LWIP_DEBUGF(ICMP_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("Can't move over header in packet"));
-    } else {
-      err_t ret;
-      struct ip_hdr *iphdr = (struct ip_hdr*)p->payload;
-      ip4_addr_copy(iphdr->src, *src);
-      ip4_addr_copy(iphdr->dest, *ip4_current_src_addr());
-      iecho->type = ICMP_ER;
+    pbuf_header_force(p, hlen);
+    err_t ret;
+    struct ip_hdr *iphdr = (struct ip_hdr*)p->payload;
+    ip4_addr_copy(iphdr->src, *src);
+    ip4_addr_copy(iphdr->dest, *ip4_current_src_addr());
+    iecho->type = ICMP_ER;
 #if CHECKSUM_GEN_ICMP
-      IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_ICMP) {
-        /* adjust the checksum */
-        if (iecho->chksum > PP_HTONS(0xffffU - (ICMP_ECHO << 8))) {
-          iecho->chksum += PP_HTONS(ICMP_ECHO << 8) + 1;
-        } else {
-          iecho->chksum += PP_HTONS(ICMP_ECHO << 8);
-        }
+    IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_ICMP) {
+      /* adjust the checksum */
+      if (iecho->chksum > PP_HTONS(0xffffU - (ICMP_ECHO << 8))) {
+        iecho->chksum += PP_HTONS(ICMP_ECHO << 8) + 1;
+      } else {
+        iecho->chksum += PP_HTONS(ICMP_ECHO << 8);
       }
+    }
 #if LWIP_CHECKSUM_CTRL_PER_NETIF
-      else {
-        iecho->chksum = 0;
-      }
+    else {
+      iecho->chksum = 0;
+    }
 #endif /* LWIP_CHECKSUM_CTRL_PER_NETIF */
 #else /* CHECKSUM_GEN_ICMP */
-      iecho->chksum = 0;
+    iecho->chksum = 0;
 #endif /* CHECKSUM_GEN_ICMP */
 
-      /* Set the correct TTL and recalculate the header checksum. */
-      IPH_TTL_SET(iphdr, ICMP_TTL);
-      IPH_CHKSUM_SET(iphdr, 0);
+    /* Set the correct TTL and recalculate the header checksum. */
+    IPH_TTL_SET(iphdr, ICMP_TTL);
+    IPH_CHKSUM_SET(iphdr, 0);
 #if CHECKSUM_GEN_IP
-      IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_IP) {
-        IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, hlen));
-      }
+    IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_GEN_IP) {
+      IPH_CHKSUM_SET(iphdr, inet_chksum(iphdr, hlen));
+    }
 #endif /* CHECKSUM_GEN_IP */
 
-      ICMP_STATS_INC(icmp.xmit);
-      /* increase number of messages attempted to send */
-      MIB2_STATS_INC(mib2.icmpoutmsgs);
-      /* increase number of echo replies attempted to send */
-      MIB2_STATS_INC(mib2.icmpoutechoreps);
+    ICMP_STATS_INC(icmp.xmit);
+    /* increase number of messages attempted to send */
+    MIB2_STATS_INC(mib2.icmpoutmsgs);
+    /* increase number of echo replies attempted to send */
+    MIB2_STATS_INC(mib2.icmpoutechoreps);
 
-      /* send an ICMP packet */
-      ret = ip4_output_if(p, src, IP_HDRINCL,
-                   ICMP_TTL, 0, IP_PROTO_ICMP, inp);
-      if (ret != ERR_OK) {
-        LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ip_output_if returned an error: %s\n", lwip_strerr(ret)));
-      }
+    /* send an ICMP packet */
+    ret = ip4_output_if(p, src, IP_HDRINCL,
+                  ICMP_TTL, 0, IP_PROTO_ICMP, inp);
+    if (ret != ERR_OK) {
+      LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: ip_output_if returned an error: %s\n", lwip_strerr(ret)));
     }
     break;
   default:

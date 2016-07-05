@@ -127,7 +127,7 @@ ethip6_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
   s8_t i;
 
   /* make room for Ethernet header - should not fail */
-  if (pbuf_header(q, sizeof(struct eth_hdr)) != 0) {
+  if (pbuf_header(q, sizeof(struct eth_hdr))) {
     /* bail out */
     LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS,
       ("etharp_output: could not allocate room for header.\n"));
@@ -174,7 +174,7 @@ ethip6_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
   }
 
   /* We should queue packet on this interface. */
-  pbuf_header(q, -(s16_t)SIZEOF_ETH_HDR);
+  pbuf_unheader(q, SIZEOF_ETH_HDR);
   return nd6_queue_packet(i, q);
 }
 

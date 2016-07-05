@@ -562,7 +562,7 @@ netif_found:
   hlen = ip_data.current_ip_header_tot_len = IP6_HLEN;
 
   /* Move to payload. */
-  pbuf_header(p, -IP6_HLEN);
+  pbuf_unheader(p, IP6_HLEN);
 
   /* Process known option extension headers, if present. */
   while (nexth != IP6_NEXTH_NONE)
@@ -589,7 +589,7 @@ netif_found:
         goto ip6_input_cleanup;
       }
 
-      pbuf_header(p, -(s16_t)hlen);
+      pbuf_unheader(p, hlen);
       break;
     case IP6_NEXTH_DESTOPTS:
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Destination options header\n"));
@@ -612,7 +612,7 @@ netif_found:
         goto ip6_input_cleanup;
       }
 
-      pbuf_header(p, -(s16_t)hlen);
+      pbuf_unheader(p, hlen);
       break;
     case IP6_NEXTH_ROUTING:
       LWIP_DEBUGF(IP6_DEBUG, ("ip6_input: packet with Routing header\n"));
@@ -635,7 +635,7 @@ netif_found:
         goto ip6_input_cleanup;
       }
 
-      pbuf_header(p, -(s16_t)hlen);
+      pbuf_unheader(p, hlen);
       break;
 
     case IP6_NEXTH_FRAGMENT:
@@ -669,7 +669,7 @@ netif_found:
            PP_HTONS(IP6_FRAG_OFFSET_MASK | IP6_FRAG_MORE_FLAG)) == 0) {
         /* This is a 1-fragment packet, usually a packet that we have
          * already reassembled. Skip this header anc continue. */
-        pbuf_header(p, -(s16_t)hlen);
+        pbuf_unheader(p, hlen);
       } else {
 #if LWIP_IPV6_REASS
 
@@ -685,7 +685,7 @@ netif_found:
         ip6hdr = (struct ip6_hdr *)p->payload;
         nexth = IP6H_NEXTH(ip6hdr);
         hlen = ip_data.current_ip_header_tot_len = IP6_HLEN;
-        pbuf_header(p, -IP6_HLEN);
+        pbuf_unheader(p, IP6_HLEN);
 
 #else /* LWIP_IPV6_REASS */
         /* free (drop) packet pbufs */
@@ -728,21 +728,21 @@ options_done:
     case IP6_NEXTH_UDPLITE:
 #endif /* LWIP_UDPLITE */
       /* Point to payload. */
-      pbuf_header(p, -(s16_t)ip_data.current_ip_header_tot_len);
+      pbuf_unheader(p, ip_data.current_ip_header_tot_len);
       udp_input(p, inp);
       break;
 #endif /* LWIP_UDP */
 #if LWIP_TCP
     case IP6_NEXTH_TCP:
       /* Point to payload. */
-      pbuf_header(p, -(s16_t)ip_data.current_ip_header_tot_len);
+      pbuf_unheader(p, ip_data.current_ip_header_tot_len);
       tcp_input(p, inp);
       break;
 #endif /* LWIP_TCP */
 #if LWIP_ICMP6
     case IP6_NEXTH_ICMP6:
       /* Point to payload. */
-      pbuf_header(p, -(s16_t)ip_data.current_ip_header_tot_len);
+      pbuf_unheader(p, ip_data.current_ip_header_tot_len);
       icmp6_input(p, inp);
       break;
 #endif /* LWIP_ICMP */

@@ -592,7 +592,7 @@ ip4_reass(struct pbuf *p)
       iprh = (struct ip_reass_helper*)r->payload;
 
       /* hide the ip header for every succeeding fragment */
-      pbuf_header(r, -IP_HLEN);
+      pbuf_unheader(r, IP_HLEN);
       pbuf_cat(p, r);
       r = iprh->next_pbuf;
     }

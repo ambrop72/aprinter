@@ -443,7 +443,7 @@ etharp_send_ip(struct netif *netif, struct pbuf *p, struct eth_addr *src, const 
   vlanhdr->tpid = PP_HTONS(ETHTYPE_IP);
   if (!LWIP_HOOK_VLAN_SET(netif, ethhdr, vlanhdr)) {
     /* packet shall not contain VLAN header, so hide it and set correct ethertype */
-    pbuf_header(p, -SIZEOF_VLAN_HDR);
+    pbuf_unheader(p, SIZEOF_VLAN_HDR);
     ethhdr = (struct eth_hdr *)p->payload;
 #endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
     ethhdr->type = PP_HTONS(ETHTYPE_IP);
@@ -877,11 +877,7 @@ etharp_output(struct netif *netif, struct pbuf *q, const ip4_addr_t *ipaddr)
   LWIP_ASSERT("ipaddr != NULL", ipaddr != NULL);
 
   /* make room for Ethernet header - should not fail */
-#if ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET)
-  if (pbuf_header(q, sizeof(struct eth_hdr) + SIZEOF_VLAN_HDR) != 0) {
-#else /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
-  if (pbuf_header(q, sizeof(struct eth_hdr)) != 0) {
-#endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
+  if (pbuf_header(q, SIZEOF_ETHARP_HEADER)) {
     /* bail out */
     LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS,
       ("etharp_output: could not allocate room for header.\n"));
@@ -1243,7 +1239,7 @@ etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
   vlanhdr->prio_vid = 0;
   if (!LWIP_HOOK_VLAN_SET(netif, ethhdr, vlanhdr)) {
     /* packet shall not contain VLAN header, so hide it and set correct ethertype */
-    pbuf_header(p, -SIZEOF_VLAN_HDR);
+    pbuf_unheader(p, SIZEOF_VLAN_HDR);
     ethhdr = (struct eth_hdr *)p->payload;
 #endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
     ethhdr->type = PP_HTONS(ETHTYPE_ARP);
@@ -1317,7 +1313,7 @@ ethernet_input(struct pbuf *p, struct netif *netif)
   struct eth_hdr* ethhdr;
   u16_t type;
 #if LWIP_ARP || ETHARP_SUPPORT_VLAN || LWIP_IPV6
-  s16_t ip_hdr_offset = SIZEOF_ETH_HDR;
+  u16_t ip_hdr_offset = SIZEOF_ETH_HDR;
 #endif /* LWIP_ARP || ETHARP_SUPPORT_VLAN */
 
   if (p->len <= SIZEOF_ETH_HDR) {
@@ -1397,16 +1393,16 @@ ethernet_input(struct pbuf *p, struct netif *netif)
       etharp_ip_input(netif, p);
 #endif /* ETHARP_TRUST_IP_MAC */
       /* skip Ethernet header */
-      if ((p->len < ip_hdr_offset) || pbuf_header(p, (s16_t)-ip_hdr_offset)) {
+      if (p->len < ip_hdr_offset) {
         LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING,
-          ("ethernet_input: IPv4 packet dropped, too short (%"S16_F"/%"S16_F")\n",
+          ("ethernet_input: IPv4 packet dropped, too short (%"U16_F"/%"U16_F")\n",
           p->tot_len, ip_hdr_offset));
         LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("Can't move over header in packet"));
         goto free_and_return;
-      } else {
-        /* pass to IP layer */
-        ip4_input(p, netif);
       }
+      pbuf_unheader(p, ip_hdr_offset);
+      /* pass to IP layer */
+      ip4_input(p, netif);
       break;
 
     case PP_HTONS(ETHTYPE_ARP):
@@ -1421,15 +1417,15 @@ ethernet_input(struct pbuf *p, struct netif *netif)
 #if LWIP_IPV6
     case PP_HTONS(ETHTYPE_IPV6): /* IPv6 */
       /* skip Ethernet header */
-      if ((p->len < ip_hdr_offset) || pbuf_header(p, (s16_t)-ip_hdr_offset)) {
+      if (p->len < ip_hdr_offset) {
         LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_WARNING,
-          ("ethernet_input: IPv6 packet dropped, too short (%"S16_F"/%"S16_F")\n",
+          ("ethernet_input: IPv6 packet dropped, too short (%"U16_F"/%"U16_F")\n",
           p->tot_len, ip_hdr_offset));
         goto free_and_return;
-      } else {
-        /* pass to IPv6 layer */
-        ip6_input(p, netif);
       }
+      pbuf_unheader(p, ip_hdr_offset);
+      /* pass to IPv6 layer */
+      ip6_input(p, netif);
       break;
 #endif /* LWIP_IPV6 */
 

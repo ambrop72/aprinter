@@ -14,6 +14,13 @@
  * The ->tot_len field of a pbuf is the sum of the ->len fields of
  * that pbuf and all the subsequent pbufs in the chain. This invariant
  * must be maintained.
+ * 
+ * WARNING: When using pbuf_header, pbuf_header_force and pbuf_unheader
+ * to hide or reveal headers, if the pbuf being changed is not the first
+ * in a chain, you must then immediately manually correct the tot_len
+ * of the preceding pbufs. This is because various functions in this
+ * module may check (using assertions) the tot_len fields of pbufs they
+ * encounter. 
  */
 
 /*
@@ -496,107 +503,115 @@ pbuf_realloc(struct pbuf *p, u16_t new_len)
 }
 
 /**
- * Adjusts the payload pointer to hide or reveal headers in the payload.
- * @see pbuf_header.
- *
- * @param p pbuf to change the header size.
- * @param header_size_increment Number of bytes to increment header size.
- * @param force Allow 'header_size_increment > 0' for PBUF_REF/PBUF_ROM types
- *
- * @return non-zero on failure, zero on success.
- *
+ * Common implementation of pbuf_header and pbuf_header_force.
  */
 static u8_t
-pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
+pbuf_header_impl(struct pbuf *p, u16_t header_size, u8_t force)
 {
-  u16_t type;
   void *payload;
 
-  LWIP_ERROR("pbuf_header: p != NULL", p != NULL, return 1;);
+  LWIP_ASSERT("pbuf_header: p != NULL", p != NULL);
   pbuf_basic_sanity(p);
   
-  if (header_size_increment == 0) {
+  if (header_size == 0) {
     return 0;
   }
 
-  if (header_size_increment < 0) {
-    /* Check that we aren't going to move off the end of the pbuf */
-    LWIP_ERROR("increment_magnitude <= p->len", ((u16_t)-header_size_increment <= p->len), return 1;);
-  }
-
-  type = p->type;
-  /* remember current payload pointer */
-  payload = p->payload;
-
-  /* pbuf types containing payloads? */
-  if (type == PBUF_POOL || type == PBUF_TCP) {
+  if (p->type == PBUF_POOL || p->type == PBUF_TCP) {
     u8_t *payload_start = pbuf_pool_payload(p);
     LWIP_ASSERT("payload>=payload_start",  (u8_t *)p->payload >= payload_start);
     LWIP_ASSERT("payload<=payload_end",    (u8_t *)p->payload <= payload_start + PBUF_POOL_BUFSIZE);
-    if (header_size_increment >= 0 && header_size_increment > (u8_t *)p->payload - payload_start) {
-      LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_header: not enough space for new header size\n"));
-      /* bail out unsuccessfully */
-      return 1;
-    }
-  /* pbuf types referring to external payloads? */
-  } else if (type == PBUF_REF || type == PBUF_ROM) {
-    /* hide a header in the payload? */
-    if (header_size_increment >= 0 && !force) {
-      /* cannot expand payload to front (yet!)
-       * bail out unsuccessfully */
-      return 1;
+    
+    if (header_size > (u8_t *)p->payload - payload_start) {
+      if (force) {
+        LWIP_ASSERT("pbuf_header: not enough space for new header size", 0);
+      } else {
+        LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_header: not enough space for new header size\n"));
+        return 1;
+      }
     }
   } else {
-    /* Unknown type */
-    LWIP_ASSERT("bad pbuf type", 0);
-    return 1;
+    if (!force) {
+      /* cannot expand payload to front */
+      return 1;
+    }
   }
   
   /* modify pbuf payload and length fields */
-  p->payload = (u8_t *)p->payload - header_size_increment;
-  p->len += header_size_increment;
-  p->tot_len += header_size_increment;
+  payload = p->payload;
+  p->payload = (u8_t *)p->payload - header_size;
+  p->len     += header_size;
+  p->tot_len += header_size;
 
-  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_header: old %p new %p (%"S16_F")\n",
-    (void *)payload, (void *)p->payload, header_size_increment));
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_header: old %p new %p (%"U16_F")\n",
+    payload, p->payload, header_size));
 
   return 0;
 }
 
 /**
- * Adjusts the payload pointer to hide or reveal headers in the payload.
- *
- * Adjusts the ->payload pointer so that space for a header
- * (dis)appears in the pbuf payload.
- *
- * The ->payload, ->tot_len and ->len fields are adjusted.
- *
- * @param p pbuf to change the header size.
- * @param header_size_increment Number of bytes to increment header size which
- * increases the size of the pbuf. New space is on the front.
- * (Using a negative value decreases the header size.)
- * If hdr_size_inc is 0, this function does nothing and returns successful.
- *
- * PBUF_ROM and PBUF_REF type buffers cannot have their sizes increased, so
- * the call will fail. A check is made that the increase in header size does
- * not move the payload pointer in front of the start of the buffer.
- * @return non-zero on failure, zero on success.
- *
+ * Adjusts the payload pointer to reveal headers in the payload
+ * after checking that sufficient space is available.
+ * 
+ * This is safe to use to without knowing if space is available
+ * for the headers, to check if it is. But note that this check can
+ * only be done for pbuf types that store data in the pools
+ * (PBUF_POOL, PBUF_TCP). For other pbuf types this will always fail
+ * unless header_size==0.
+ * 
+ * @param p pbuf in which to reveal headers (not null)
+ * @param header_size number of bytes of headers to reveal
+ * @return non-zero on failure, zero on success
  */
 u8_t
-pbuf_header(struct pbuf *p, s16_t header_size_increment)
+pbuf_header(struct pbuf *p, u16_t header_size)
 {
-   return pbuf_header_impl(p, header_size_increment, 0);
+   return pbuf_header_impl(p, header_size, 0);
 }
 
 /**
- * Same as pbuf_header but does not check if 'header_size > 0' is allowed.
- * This is used internally only, to allow PBUF_REF for RX.
+ * Adjusts the payload pointer to reveal headers in the payload.
+ * 
+ * This may only be called when the caller knows that sufficient
+ * space is available for the headers.
+ * 
+ * @param p pbuf in which to reveal headers (not null)
+ * @param header_size number of bytes of headers to reveal
  */
-u8_t
-pbuf_header_force(struct pbuf *p, s16_t header_size_increment)
+void
+pbuf_header_force(struct pbuf *p, u16_t header_size)
 {
-   return pbuf_header_impl(p, header_size_increment, 1);
+   u8_t res = pbuf_header_impl(p, header_size, 1);
+   /* res is always 0 when calling with force=1 */
+}
+
+/**
+ * Adjusts the payload pointer to hide headers in the payload.
+ * 
+ * @param p pbuf to change the header size (not null).
+ * @param header_size Number of bytes of headers to hide.
+ *        Must not exceed the number of bytes available in this
+ *        pbuf (->len).
+ */
+void
+pbuf_unheader(struct pbuf *p, u16_t header_size)
+{
+  void *payload;
+
+  LWIP_ASSERT("pbuf_unheader: p != NULL", p != NULL);
+  pbuf_basic_sanity(p);
+  
+  /* Check that we aren't going to move off the end of the pbuf */
+  LWIP_ASSERT("header_size <= p->len", header_size <= p->len);
+
+  /* modify pbuf payload and length fields */
+  payload = p->payload;
+  p->payload = (u8_t *)p->payload + header_size;
+  p->len     -= header_size;
+  p->tot_len -= header_size;
+
+  LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_unheader: old %p new %p (%"U16_F")\n",
+    payload, p->payload, header_size));
 }
 
 /**
