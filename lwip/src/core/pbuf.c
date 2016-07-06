@@ -1018,7 +1018,7 @@ pbuf_take_at(struct pbuf *buf, const void *dataptr, u16_t len, u16_t offset)
 
   /* check if desired range is valid */
   if (q == NULL || q->tot_len < target_offset + len) {
-    return ERR_MEM;
+    return (target_offset == 0 && len == 0) ? ERR_OK : ERR_MEM;
   }
   
   /* copy the part that goes into the first pbuf */
