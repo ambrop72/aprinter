@@ -46,7 +46,7 @@
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 
-#if LWIP_IPV4 && LWIP_IGMP /* don't build if not configured for use in lwipopts.h */
+#if LWIP_IGMP /* don't build if not configured for use in lwipopts.h */
 
 LWIP_EXTERN_C_BEGIN
 
@@ -103,6 +103,6 @@ void   igmp_tmr(void);
 
 LWIP_EXTERN_C_END
 
-#endif /* LWIP_IPV4 && LWIP_IGMP */
+#endif /* LWIP_IGMP */
 
 #endif /* LWIP_HDR_IGMP_H */

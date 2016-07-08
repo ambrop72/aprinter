@@ -151,11 +151,11 @@ typedef err_t (*netif_output_ip6_fn)(struct netif *netif, struct pbuf *p,
 typedef err_t (*netif_linkoutput_fn)(struct netif *netif, struct pbuf *p);
 /** Function prototype for netif status- or link-callback functions. */
 typedef void (*netif_status_callback_fn)(struct netif *netif);
-#if LWIP_IPV4 && LWIP_IGMP
+#if LWIP_IGMP
 /** Function prototype for netif igmp_mac_filter functions */
 typedef err_t (*netif_igmp_mac_filter_fn)(struct netif *netif,
        const ip4_addr_t *group, u8_t action);
-#endif /* LWIP_IPV4 && LWIP_IGMP */
+#endif /* LWIP_IGMP */
 #if LWIP_IPV6 && LWIP_IPV6_MLD
 /** Function prototype for netif mld_mac_filter functions */
 typedef err_t (*netif_mld_mac_filter_fn)(struct netif *netif,
@@ -247,11 +247,11 @@ struct netif {
   /** counters */
   struct stats_mib2_netif_ctrs mib2_counters;
 #endif /* MIB2_STATS */
-#if LWIP_IPV4 && LWIP_IGMP
+#if LWIP_IGMP
   /** This function could be called to add or delete an entry in the multicast
       filter table of the ethernet MAC.*/
   netif_igmp_mac_filter_fn igmp_mac_filter;
-#endif /* LWIP_IPV4 && LWIP_IGMP */
+#endif /* LWIP_IGMP */
 #if LWIP_IPV6 && LWIP_IPV6_MLD
   /** This function could be called to add or delete an entry in the IPv6 multicast
       filter table of the ethernet MAC. */

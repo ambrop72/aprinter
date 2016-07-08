@@ -79,7 +79,7 @@ Steve Reynolds
 
 #include "lwip/opt.h"
 
-#if LWIP_IPV4 && LWIP_IGMP /* don't build if not configured for use in lwipopts.h */
+#if LWIP_IGMP /* don't build if not configured for use in lwipopts.h */
 
 #include "lwip/igmp.h"
 #include "lwip/debug.h"
@@ -821,4 +821,4 @@ igmp_send(struct igmp_group *group, u8_t type)
   }
 }
 
-#endif /* LWIP_IPV4 && LWIP_IGMP */
+#endif /* LWIP_IGMP */

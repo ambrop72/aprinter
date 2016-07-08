@@ -57,7 +57,7 @@ LWIP_EXTERN_C_BEGIN
 #endif
 
 /** Currently, the function ip_output_if_opt() is only used with IGMP */
-#define IP_OPTIONS_SEND   (LWIP_IPV4 && LWIP_IGMP)
+#define IP_OPTIONS_SEND   (LWIP_IGMP)
 
 #define IP_HLEN 20
 
