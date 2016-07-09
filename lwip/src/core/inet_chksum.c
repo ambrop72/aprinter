@@ -283,7 +283,6 @@ inet_cksum_pseudo_partial_base(struct pbuf *p, u8_t proto, u16_t proto_len,
     }
     acc += LWIP_CHKSUM(q->payload, chklen);
     chksum_len -= chklen;
-    LWIP_ASSERT("delete me", chksum_len < 0x7fff);
     /*LWIP_DEBUGF(INET_DEBUG, ("inet_chksum_pseudo(): unwrapped lwip_chksum()=%"X32_F" \n", acc));*/
     /* fold the upper bit down */
     acc = FOLD_U32T(acc);
