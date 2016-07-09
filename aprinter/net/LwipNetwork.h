@@ -1146,7 +1146,7 @@ private:
     static void timeouts_event_handler (Context c)
     {
         Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
-        sys_check_timeouts();
+        sys_check_timeouts(1);
     }
     
     static void ethernet_activate_handler (Context c, bool error)

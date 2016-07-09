@@ -62,7 +62,7 @@ typedef void (* sys_timeout_handler)(void *arg);
 struct sys_timeo {
   struct sys_timeo *next;
   u32_t time;
-  sys_timeout_handler h;
+  sys_timeout_handler handler;
   void *arg;
 #if LWIP_DEBUG_TIMERNAMES
   const char* handler_name;
@@ -78,9 +78,8 @@ void sys_timeout_debug(u32_t msecs, sys_timeout_handler handler, void *arg, cons
 void sys_timeout(u32_t msecs, sys_timeout_handler handler, void *arg);
 #endif /* LWIP_DEBUG_TIMERNAMES */
 
-void sys_check_timeouts(void);
-void sys_restart_timeouts(void);
-u32_t sys_timeouts_sleeptime(void);
+void sys_check_timeouts(u8_t max_timeouts_to_handle);
+u8_t sys_timeouts_nextime(u32_t *out);
 
 LWIP_EXTERN_C_END
 
