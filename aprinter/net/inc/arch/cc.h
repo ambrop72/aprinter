@@ -29,14 +29,6 @@
 
 #include <aprinter/base/Preprocessor.h>
 
-typedef uint8_t u8_t;
-typedef int8_t s8_t;
-typedef uint16_t u16_t;
-typedef int16_t s16_t;
-typedef uint32_t u32_t;
-typedef int32_t s32_t;
-typedef uintptr_t mem_ptr_t;
-
 #define PACK_STRUCT_STRUCT __attribute__((packed))
 
 #ifdef __cplusplus
@@ -44,24 +36,23 @@ extern "C"
 #endif
 void aprinter_lwip_platform_diag (char const *fmt, ...);
 
+// Tell lwip how to print diagnostic messages.
 #define LWIP_PLATFORM_DIAG(x) do { aprinter_lwip_platform_diag x; } while (0)
 
+// Tell lwip what to do on assertion failure.
 // TBD: Improve this to use Assert.h.
 #define LWIP_PLATFORM_ASSERT(x) do { puts(__FILE__ ":" AMBRO_STRINGIFY(__LINE__) x); while (1); } while (0)
 
+// Enable/disable lwip assertions.
 #if !APRINTER_LWIP_ASSERTIONS
 #define LWIP_NOASSERT
 #endif
 
-#define U16_F PRIu16
-#define S16_F PRId16
-#define X16_F PRIx16
-#define U32_F PRIu32
-#define S32_F PRId32
-#define X32_F PRIx32
+// Lwip defaults to using PRIuPTR for printing size_t which is a good guess
+// but we know we have %zu available so let's use this.
 #define SZT_F "zu"
-#define X8_F "02" PRIx8
 
+// Rely on GCC's byte order macros to inform lwip of the byte order.
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define LWIP_BYTE_ORDER LWIP_LITTLE_ENDIAN
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -70,6 +61,7 @@ void aprinter_lwip_platform_diag (char const *fmt, ...);
 #error Unknown byte order
 #endif
 
+// Give GCC's bswap builtins to lwip.
 #define LWIP_PLATFORM_BYTESWAP 1
 #define LWIP_PLATFORM_BSWAP16(x) __builtin_bswap16(x)
 #define LWIP_PLATFORM_BSWAP32(x) __builtin_bswap32(x)

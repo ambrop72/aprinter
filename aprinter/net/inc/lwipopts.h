@@ -40,7 +40,6 @@
 #endif
 
 // Simple options, mostly enable/disable.
-#define NO_SYS 1
 #define PBUF_PAYLOAD_ALIGN_TYPE APRINTER_MEM_ALIGNMENT
 #define ETH_PAD_SIZE 0
 #define ARP_QUEUEING 0
