@@ -609,7 +609,7 @@ dns_lookup(const char *name, ip_addr_t *addr LWIP_DNS_ADDRTYPE_ARG(u8_t dns_addr
   }
 #endif /* DNS_LOCAL_HOSTLIST */
 #ifdef DNS_LOOKUP_LOCAL_EXTERN
-  if (DNS_LOOKUP_LOCAL_EXTERN(name, addr, LWIP_DNS_ADDRTYPE_ARG_OR_ZERO(dns_addrtype))) {
+  if (DNS_LOOKUP_LOCAL_EXTERN(name, addr, LWIP_DNS_ADDRTYPE_ARG_OR_ZERO(dns_addrtype)) == ERR_OK) {
     return ERR_OK;
   }
 #endif /* DNS_LOOKUP_LOCAL_EXTERN */
@@ -1051,6 +1051,8 @@ dns_correct_response(u8_t idx, u32_t ttl)
 {
   struct dns_table_entry *entry = &dns_table[idx];
 
+  entry->state = DNS_STATE_DONE;
+
   LWIP_DEBUGF(DNS_DEBUG, ("dns_recv: \"%s\": response = ", entry->name));
   ip_addr_debug_print(DNS_DEBUG, (&(entry->ipaddr)));
   LWIP_DEBUGF(DNS_DEBUG, ("\n"));
@@ -1064,10 +1066,13 @@ dns_correct_response(u8_t idx, u32_t ttl)
 
   if (entry->ttl == 0) {
     /* RFC 883, page 29: "Zero values are
-        interpreted to mean that the RR can only be used for the
-        transaction in progress, and should not be cached."
-        -> flush this entry now */
-    entry->state = DNS_STATE_UNUSED;
+       interpreted to mean that the RR can only be used for the
+       transaction in progress, and should not be cached."
+       -> flush this entry now */
+    /* entry reused during callback? */
+    if (entry->state == DNS_STATE_DONE) {
+      entry->state = DNS_STATE_UNUSED;
+    }
   }
 }
 /**
