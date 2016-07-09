@@ -901,53 +901,6 @@ ip6_output_if_src(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
   return netif->output_ip6(netif, p, dest);
 }
 
-/**
- * Simple interface to ip6_output_if. It finds the outgoing network
- * interface and calls upon ip6_output_if to do the actual work.
- *
- * @param p the packet to send (p->payload points to the data, e.g. next
-            protocol header; if dest == IP_HDRINCL, p already includes an
-            IPv6 header and p->payload points to that IPv6 header)
- * @param src the source IPv6 address to send from (if src == IP6_ADDR_ANY, an
- *         IP address of the netif is selected and used as source address.
- *         if src == NULL, IP6_ADDR_ANY is used as source)
- * @param dest the destination IPv6 address to send the packet to
- * @param hl the Hop Limit value to be set in the IPv6 header
- * @param tc the Traffic Class value to be set in the IPv6 header
- * @param nexth the Next Header to be set in the IPv6 header
- *
- * @return ERR_RTE if no route is found
- *         see ip_output_if() for more return values
- */
-err_t
-ip6_output(struct pbuf *p, const ip6_addr_t *src, const ip6_addr_t *dest,
-          u8_t hl, u8_t tc, u8_t nexth)
-{
-  struct netif *netif;
-  struct ip6_hdr *ip6hdr;
-  ip6_addr_t src_addr, dest_addr;
-
-  LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX(p);
-
-  if (dest != IP_HDRINCL) {
-    netif = ip6_route(src, dest);
-  } else {
-    /* IP header included in p, read addresses. */
-    ip6hdr = (struct ip6_hdr *)p->payload;
-    ip6_addr_copy(src_addr, ip6hdr->src);
-    ip6_addr_copy(dest_addr, ip6hdr->dest);
-    netif = ip6_route(&src_addr, &dest_addr);
-  }
-
-  if (netif == NULL) {
-    LWIP_DEBUGF(IP6_DEBUG, ("ip6_output: no route for" ip6_addr_print_fmt "\n", ip6_addr_print_vals(dest)));
-    IP6_STATS_INC(ip6.rterr);
-    return ERR_RTE;
-  }
-
-  return ip6_output_if(p, src, dest, hl, tc, nexth, netif);
-}
-
 #if LWIP_IPV6_MLD
 /**
  * Add a hop-by-hop options header with a router alert option and padding.

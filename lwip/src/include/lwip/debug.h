@@ -47,7 +47,6 @@
  * - 3 severe
  */
 #define LWIP_DBG_LEVEL_ALL     0x00
-#define LWIP_DBG_LEVEL_OFF     LWIP_DBG_LEVEL_ALL /* compatibility define only */
 #define LWIP_DBG_LEVEL_WARNING 0x01 /* bad checksums, dropped packets, ... */
 #define LWIP_DBG_LEVEL_SERIOUS 0x02 /* memory allocation failures, ... */
 #define LWIP_DBG_LEVEL_SEVERE  0x03
@@ -62,10 +61,6 @@
 #define LWIP_DBG_TRACE         0x40U
 /** flag for LWIP_DEBUGF indicating a state debug message (to follow module states) */
 #define LWIP_DBG_STATE         0x20U
-/** flag for LWIP_DEBUGF indicating newly added code, not thoroughly tested yet */
-#define LWIP_DBG_FRESH         0x10U
-/** flag for LWIP_DEBUGF to halt after printing this debug message */
-#define LWIP_DBG_HALT          0x08U
 
 /**
  * LWIP_NOASSERT: Disable LWIP_ASSERT checks.
@@ -82,7 +77,6 @@
 #endif /* LWIP_NOASSERT */
 
 /** if "expression" isn't true, then print "message" and execute "handler" expression */
-#ifndef LWIP_ERROR
 #ifndef LWIP_NOASSERT
 #define LWIP_PLATFORM_ERROR(message) LWIP_PLATFORM_ASSERT(message)
 #elif defined LWIP_DEBUG
@@ -93,7 +87,6 @@
 
 #define LWIP_ERROR(message, expression, handler) do { if (!(expression)) { \
   LWIP_PLATFORM_ERROR(message); handler;}} while(0)
-#endif /* LWIP_ERROR */
 
 #ifdef LWIP_DEBUG
 #ifndef LWIP_PLATFORM_DIAG
@@ -108,9 +101,6 @@
                                    ((debug) & LWIP_DBG_TYPES_ON) && \
                                    ((s16_t)((debug) & LWIP_DBG_MASK_LEVEL) >= LWIP_DBG_MIN_LEVEL)) { \
                                  LWIP_PLATFORM_DIAG(message); \
-                                 if ((debug) & LWIP_DBG_HALT) { \
-                                   while(1); \
-                                 } \
                                } \
                              } while(0)
 

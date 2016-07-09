@@ -933,41 +933,6 @@ err_t ip4_output_if_opt_src(struct pbuf *p, const ip4_addr_t *src, const ip4_add
   return netif->output(netif, p, dest);
 }
 
-/**
- * Simple interface to ip_output_if. It finds the outgoing network
- * interface and calls upon ip_output_if to do the actual work.
- *
- * @param p the packet to send (p->payload points to the data, e.g. next
-            protocol header; if dest == IP_HDRINCL, p already includes an IP
-            header and p->payload points to that IP header)
- * @param src the source IP address to send from (if src == IP_ADDR_ANY, the
- *         IP  address of the netif used to send is used as source address)
- * @param dest the destination IP address to send the packet to
- * @param ttl the TTL value to be set in the IP header
- * @param tos the TOS value to be set in the IP header
- * @param proto the PROTOCOL to be set in the IP header
- *
- * @return ERR_RTE if no route is found
- *         see ip_output_if() for more return values
- */
-err_t
-ip4_output(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
-          u8_t ttl, u8_t tos, u8_t proto)
-{
-  struct netif *netif;
-
-  LWIP_IP_CHECK_PBUF_REF_COUNT_FOR_TX(p);
-
-  if ((netif = ip4_route_src(dest, src)) == NULL) {
-    LWIP_DEBUGF(IP_DEBUG, ("ip_output: No route to " ip4_addr_print_fmt "\n",
-      ip4_addr_print_vals(dest)));
-    IP_STATS_INC(ip.rterr);
-    return ERR_RTE;
-  }
-
-  return ip4_output_if(p, src, dest, ttl, tos, proto, netif);
-}
-
 #if IP_DEBUG
 /* Print an IP header by using LWIP_DEBUGF
  * @param p an IP packet, p->payload pointing to the IP header

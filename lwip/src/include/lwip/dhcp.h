@@ -223,10 +223,7 @@ void dhcp_fine_tmr(void);
 #define DHCP_OPTION_ROUTER 3
 #define DHCP_OPTION_DNS_SERVER 6
 #define DHCP_OPTION_HOSTNAME 12
-#define DHCP_OPTION_IP_TTL 23
-#define DHCP_OPTION_MTU 26
 #define DHCP_OPTION_BROADCAST 28
-#define DHCP_OPTION_TCP_TTL 37
 #define DHCP_OPTION_NTP 42
 #define DHCP_OPTION_END 255
 
@@ -246,10 +243,6 @@ void dhcp_fine_tmr(void);
 
 #define DHCP_OPTION_T1 58 /* T1 renewal time */
 #define DHCP_OPTION_T2 59 /* T2 rebinding time */
-#define DHCP_OPTION_US 60
-#define DHCP_OPTION_CLIENT_ID 61
-#define DHCP_OPTION_TFTP_SERVERNAME 66
-#define DHCP_OPTION_BOOTFILE 67
 
 /** possible combinations of overloading the file and sname fields with options */
 #define DHCP_OVERLOAD_NONE 0
