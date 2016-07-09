@@ -53,7 +53,7 @@
 #include "lwip/stats.h"
 #include "lwip/snmp_mib2.h"
 #include "lwip/dhcp.h"
-#include "netif/etharp.h"
+#include "lwip/etharp.h"
 #include "lwip/ip6.h"
 
 #include <string.h>

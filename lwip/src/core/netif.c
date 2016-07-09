@@ -45,7 +45,7 @@
 #include "lwip/udp.h"
 #include "lwip/snmp_mib2.h"
 #include "lwip/igmp.h"
-#include "netif/etharp.h"
+#include "lwip/etharp.h"
 #include "lwip/stats.h"
 #include "lwip/sys.h"
 #include "lwip/dhcp.h"

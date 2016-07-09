@@ -44,7 +44,7 @@
 #include <lwip/stats.h>
 #include <lwip/dhcp.h>
 #include <lwip/tcp.h>
-#include <netif/etharp.h>
+#include <lwip/etharp.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>

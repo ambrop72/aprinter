@@ -1271,6 +1271,7 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4_frag.c')
+        gen.add_extra_source('lwip/src/core/ipv4/etharp.c')
         gen.add_extra_source('lwip/src/core/def.c')
         gen.add_extra_source('lwip/src/core/dhcp.c')
         gen.add_extra_source('lwip/src/core/inet_chksum.c')
@@ -1283,7 +1284,6 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/tcp_out.c')
         gen.add_extra_source('lwip/src/core/timers.c')
         gen.add_extra_source('lwip/src/core/udp.c')
-        gen.add_extra_source('lwip/src/netif/etharp.c')
         
         gen.set_need_millisecond_clock()
         gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { Context c; return MyMillisecondClock::getTime(c); }')

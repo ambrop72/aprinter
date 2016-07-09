@@ -76,7 +76,7 @@
 #include "lwip/def.h"
 #include "lwip/dhcp.h"
 #include "lwip/dns.h"
-#include "netif/etharp.h"
+#include "lwip/etharp.h"
 
 #include <string.h>
 

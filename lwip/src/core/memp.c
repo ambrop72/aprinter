@@ -47,7 +47,7 @@
 #include "lwip/igmp.h"
 #include "lwip/sys.h"
 #include "lwip/stats.h"
-#include "netif/etharp.h"
+#include "lwip/etharp.h"
 #include "lwip/ip4_frag.h"
 #include "lwip/dns.h"
 #include "lwip/nd6.h"
