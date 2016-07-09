@@ -9,11 +9,9 @@
  * above, then will declare #2 & #3 to be just standard mempools.
  */
 
-#ifndef LWIP_PBUF_MEMPOOL
 /* This treats "pbuf pools" just like any other pool.
  * Allocates buffers for a pbuf struct AND a payload size */
 #define LWIP_PBUF_MEMPOOL(name, num, payload_size, desc) LWIP_MEMPOOL(name, num, PBUF_POOL_ELEM_TYPE(payload_size), desc)
-#endif /* LWIP_PBUF_MEMPOOL */
 
 
 /*
