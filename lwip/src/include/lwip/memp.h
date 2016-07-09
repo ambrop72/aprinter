@@ -43,6 +43,9 @@
 
 LWIP_EXTERN_C_BEGIN
 
+/* do we have the memp_desc array of pool names */
+#define LWIP_MEMP_HAVE_DESC (defined(LWIP_DEBUG) || LWIP_STATS_DISPLAY)
+
 /* Create the list of all memory pools managed by memp. MEMP_MAX represents a NULL pool at the end */
 typedef enum {
 #define LWIP_MEMPOOL(name,num,elem_type,desc)  MEMP_##name,
@@ -59,6 +62,10 @@ void *memp_malloc_fn(memp_t type, const char* file, int line);
 void *memp_malloc(memp_t type);
 #endif
 void  memp_free(memp_t type, void *mem);
+
+#if LWIP_MEMP_HAVE_DESC
+extern const char *const memp_desc[MEMP_MAX];
+#endif
 
 LWIP_EXTERN_C_END
 

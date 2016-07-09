@@ -90,9 +90,6 @@ struct stats_igmp {
 };
 
 struct stats_mem {
-#ifdef LWIP_DEBUG
-  const char *name;
-#endif /* LWIP_DEBUG */
   STAT_COUNTER err;
   mem_size_t avail;
   mem_size_t used;
@@ -221,8 +218,6 @@ struct stats_ {
 
 extern struct stats_ lwip_stats;
 
-void stats_init(void);
-
 #define STATS_INC(x) ++lwip_stats.x
 #define STATS_DEC(x) --lwip_stats.x
 #define STATS_INC_USED(x, y) do { lwip_stats.x.used += y; \
@@ -232,11 +227,13 @@ void stats_init(void);
                              } while(0)
 #define STATS_GET(x) lwip_stats.x
 #else /* LWIP_STATS */
-#define stats_init()
 #define STATS_INC(x)
 #define STATS_DEC(x)
 #define STATS_INC_USED(x, y)
 #endif /* LWIP_STATS */
+
+/* currently there's no stats init */
+#define stats_init()
 
 #if TCP_STATS
 #define TCP_STATS_INC(x) STATS_INC(x)

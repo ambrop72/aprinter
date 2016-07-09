@@ -133,12 +133,12 @@ static const u16_t memp_num[MEMP_MAX] = {
 };
 
 /** This array holds a textual description of each pool. */
-#ifdef LWIP_DEBUG
-static const char *const memp_desc[MEMP_MAX] = {
+#ifdef LWIP_MEMP_HAVE_DESC
+const char *const memp_desc[MEMP_MAX] = {
 #define LWIP_MEMPOOL(name,num,elem_type,desc)  (desc),
 #include "lwip/memp_std.h"
 };
-#endif /* LWIP_DEBUG */
+#endif
 
 /** This creates each memory pool. These are named memp_memory_XXX_base (where
  * XXX is the name of the pool defined in memp_std.h).
