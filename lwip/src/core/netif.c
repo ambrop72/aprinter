@@ -196,21 +196,21 @@ netif_add(struct netif *netif,
 #if LWIP_IGMP
   netif->igmp_mac_filter = NULL;
 #endif /* LWIP_IGMP */
-#if LWIP_IPV6 && LWIP_IPV6_MLD
+#if LWIP_IPV6_MLD
   netif->mld_mac_filter = NULL;
-#endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6_MLD */
 #if ENABLE_LOOPBACK
   netif->loop_first = NULL;
   netif->loop_last = NULL;
+#if LWIP_LOOPBACK_MAX_PBUFS
+  netif->loop_cnt_current = 0;
+#endif
 #endif /* ENABLE_LOOPBACK */
 
   /* remember netif specific state information data */
   netif->state = state;
   netif->num = netif_num++;
   NETIF_SET_HWADDRHINT(netif, NULL);
-#if ENABLE_LOOPBACK && LWIP_LOOPBACK_MAX_PBUFS
-  netif->loop_cnt_current = 0;
-#endif /* ENABLE_LOOPBACK && LWIP_LOOPBACK_MAX_PBUFS */
 
 #if LWIP_IPV4
   netif_set_addr(netif, ipaddr, netmask, gw);
@@ -244,6 +244,7 @@ netif_add(struct netif *netif,
   ip4_addr_debug_print(NETIF_DEBUG, &netif->gw);
 #endif /* LWIP_IPV4 */
   LWIP_DEBUGF(NETIF_DEBUG, ("\n"));
+  
   return netif;
 }
 
@@ -292,10 +293,11 @@ netif_remove(struct netif *netif)
 #endif /* LWIP_IGMP */
 #endif /* LWIP_IPV4*/
 
-#if LWIP_IPV6 && LWIP_IPV6_MLD
+#if LWIP_IPV6_MLD
   /* stop MLD processing */
   mld6_stop(netif);
-#endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6_MLD */
+  
   if (netif_is_up(netif)) {
     /* set netif down before removing (call callback function) */
     netif_set_down(netif);
@@ -324,8 +326,9 @@ netif_remove(struct netif *netif)
       return; /* netif is not on the list */
     }
   }
+  
   mib2_netif_removed(netif);
-  LWIP_DEBUGF( NETIF_DEBUG, ("netif_remove: removed netif\n") );
+  LWIP_DEBUGF(NETIF_DEBUG, ("netif: removed netif\n") );
 }
 
 #if LWIP_IPV4
@@ -344,7 +347,8 @@ netif_set_ipaddr(struct netif *netif, const ip4_addr_t *ipaddr)
   ip4_addr_t new_addr = (ipaddr ? *ipaddr : *IP4_ADDR_ANY);
   /* address is actually being changed? */
   if (ip4_addr_cmp(&new_addr, netif_ip4_addr(netif)) == 0) {
-    LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_STATE, ("netif_set_ipaddr: netif address being changed\n"));
+    LWIP_DEBUGF(NETIF_DEBUG|LWIP_DBG_STATE, ("netif: netif address being changed\n"));
+    
 #if LWIP_TCP
     tcp_netif_ipv4_addr_changed(netif_ip4_addr(netif), ipaddr);
 #endif /* LWIP_TCP */
@@ -354,9 +358,11 @@ netif_set_ipaddr(struct netif *netif, const ip4_addr_t *ipaddr)
 
     mib2_remove_ip4(netif);
     mib2_remove_route_ip4(0, netif);
+    
     /* set new IP address to netif */
     ip4_addr_set(ip_2_ip4(&netif->ip_addr), ipaddr);
     IP_SET_TYPE_VAL(netif->ip_addr, IPADDR_TYPE_V4);
+    
     mib2_add_ip4(netif);
     mib2_add_route_ip4(0, netif);
 
@@ -365,7 +371,7 @@ netif_set_ipaddr(struct netif *netif, const ip4_addr_t *ipaddr)
     NETIF_STATUS_CALLBACK(netif);
   }
 
-  LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("netif: IP address of interface %c%c set to " ip4_addr_print_fmt "\n",
+  LWIP_DEBUGF(NETIF_DEBUG|LWIP_DBG_TRACE|LWIP_DBG_STATE, ("netif: IP address of interface %c%c set to " ip4_addr_print_fmt "\n",
     netif->name[0], netif->name[1], ip4_addr_print_vals(netif_ip4_addr(netif))));
 }
 
@@ -382,7 +388,8 @@ netif_set_gw(struct netif *netif, const ip4_addr_t *gw)
 {
   ip4_addr_set(ip_2_ip4(&netif->gw), gw);
   IP_SET_TYPE_VAL(netif->gw, IPADDR_TYPE_V4);
-  LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("netif: GW address of interface %c%c set to " ip4_addr_print_fmt "\n",
+  
+  LWIP_DEBUGF(NETIF_DEBUG|LWIP_DBG_TRACE |LWIP_DBG_STATE, ("netif: GW address of interface %c%c set to " ip4_addr_print_fmt "\n",
     netif->name[0], netif->name[1], ip4_addr_print_vals(netif_ip4_gw(netif))));
 }
 
@@ -399,11 +406,13 @@ void
 netif_set_netmask(struct netif *netif, const ip4_addr_t *netmask)
 {
   mib2_remove_route_ip4(0, netif);
+  
   /* set new netmask to netif */
   ip4_addr_set(ip_2_ip4(&netif->netmask), netmask);
   IP_SET_TYPE_VAL(netif->netmask, IPADDR_TYPE_V4);
+  
   mib2_add_route_ip4(0, netif);
-  LWIP_DEBUGF(NETIF_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("netif: netmask of interface %c%c set to " ip4_addr_print_fmt "\n",
+  LWIP_DEBUGF(NETIF_DEBUG|LWIP_DBG_TRACE|LWIP_DBG_STATE, ("netif: netmask of interface %c%c set to " ip4_addr_print_fmt "\n",
     netif->name[0], netif->name[1], ip4_addr_print_vals(netif_ip4_netmask(netif))));
 }
 #endif /* LWIP_IPV4 */
@@ -424,7 +433,9 @@ netif_set_default(struct netif *netif)
     /* install default route */
     mib2_add_route_ip4(1, netif);
   }
+  
   netif_default = netif;
+  
   LWIP_DEBUGF(NETIF_DEBUG, ("netif: setting default interface %c%c\n",
            netif ? netif->name[0] : '\'', netif ? netif->name[1] : '\''));
 }
@@ -463,7 +474,7 @@ netif_issue_reports(struct netif* netif, u8_t report_type)
       !ip4_addr_isany_val(*netif_ip4_addr(netif))) {
 #if LWIP_ARP
     /* For Ethernet network interfaces, we would like to send a "gratuitous ARP" */
-    if (netif->flags & (NETIF_FLAG_ETHARP)) {
+    if (netif->flags & NETIF_FLAG_ETHARP) {
       etharp_gratuitous(netif);
     }
 #endif /* LWIP_ARP */
@@ -830,7 +841,7 @@ netif_create_ip6_linklocal_address(struct netif *netif, u8_t from_mac_48bit)
 #else
   /* Consider address valid. */
   netif->ip6_addr_state[0] = IP6_ADDR_PREFERRED;
-#endif /* LWIP_IPV6_AUTOCONFIG */
+#endif
 }
 
 /** This function allows for the easy addition of a new IPv6 address to an interface.

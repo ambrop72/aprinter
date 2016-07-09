@@ -40,7 +40,6 @@
  */
 
 #include "lwip/opt.h"
-
 #include "lwip/timers.h"
 #include "lwip/tcp_impl.h"
 #include "lwip/def.h"

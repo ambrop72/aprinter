@@ -114,7 +114,7 @@ stats_display_mem(struct stats_mem *mem, const char *name)
   LWIP_PLATFORM_DIAG(("avail: %"U32_F"\n\t", (u32_t)mem->avail));
   LWIP_PLATFORM_DIAG(("used: %"U32_F"\n\t", (u32_t)mem->used));
   LWIP_PLATFORM_DIAG(("max: %"U32_F"\n\t", (u32_t)mem->max));
-  LWIP_PLATFORM_DIAG(("err: %"U32_F"\n", (u32_t)mem->err));
+  LWIP_PLATFORM_DIAG(("err: %"STAT_COUNTER_F"\n", mem->err));
 }
 
 void
@@ -124,9 +124,7 @@ stats_display_memp(struct stats_mem *mem, int index)
 #define LWIP_MEMPOOL(name,num,elem_type,desc) desc,
 #include "lwip/memp_std.h"
   };
-  if (index < MEMP_MAX) {
-    stats_display_mem(mem, memp_names[index]);
-  }
+  stats_display_mem(mem, memp_names[index]);
 }
 #endif /* MEMP_STATS */
 

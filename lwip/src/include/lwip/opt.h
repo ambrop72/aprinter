@@ -1396,6 +1396,16 @@
 #define LWIP_IPV6_DUP_DETECT_ATTEMPTS   1
 #endif
 
+/* disable IPv6 features when IPv6 is disabled */
+#if !LWIP_IPV6
+#undef  LWIP_IPV6_SEND_ROUTER_SOLICIT
+#define LWIP_IPV6_SEND_ROUTER_SOLICIT 0
+#undef  LWIP_IPV6_AUTOCONFIG
+#define LWIP_IPV6_AUTOCONFIG 0
+#undef  LWIP_IPV6_MLD
+#define LWIP_IPV6_MLD 0
+#endif
+
 /*
    ---------------------------------------
    ---------- Hook options ---------------

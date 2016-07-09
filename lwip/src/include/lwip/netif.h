@@ -81,16 +81,9 @@ LWIP_EXTERN_C_BEGIN
  * Set by the netif driver in its init function.
  * Used to check input packet types and use of DHCP. */
 #define NETIF_FLAG_ETHARP       0x08U
-/** If set, the netif is an ethernet device. It might not use
- * ARP or TCP/IP if it is used for PPPoE only.
- */
-#define NETIF_FLAG_ETHERNET     0x10U
 /** If set, the netif has IGMP capability.
  * Set by the netif driver in its init function. */
 #define NETIF_FLAG_IGMP         0x20U
-/** If set, the netif has MLD6 capability.
- * Set by the netif driver in its init function. */
-#define NETIF_FLAG_MLD6         0x40U
 
 #if LWIP_CHECKSUM_CTRL_PER_NETIF
 #define NETIF_CHECKSUM_GEN_IP       0x0001
@@ -149,18 +142,21 @@ typedef err_t (*netif_output_ip6_fn)(struct netif *netif, struct pbuf *p,
  * @param p The packet to send (raw ethernet packet)
  */
 typedef err_t (*netif_linkoutput_fn)(struct netif *netif, struct pbuf *p);
+
 /** Function prototype for netif status- or link-callback functions. */
 typedef void (*netif_status_callback_fn)(struct netif *netif);
+
 #if LWIP_IGMP
 /** Function prototype for netif igmp_mac_filter functions */
 typedef err_t (*netif_igmp_mac_filter_fn)(struct netif *netif,
        const ip4_addr_t *group, u8_t action);
 #endif /* LWIP_IGMP */
-#if LWIP_IPV6 && LWIP_IPV6_MLD
+
+#if LWIP_IPV6_MLD
 /** Function prototype for netif mld_mac_filter functions */
 typedef err_t (*netif_mld_mac_filter_fn)(struct netif *netif,
        const ip6_addr_t *group, u8_t action);
-#endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6_MLD */
 
 /** Generic data structure used for all lwIP network interfaces.
  *  The following fields should be filled in by the initialization
@@ -188,16 +184,16 @@ struct netif {
    *  first resolves the hardware address, then sends the packet. */
   netif_output_fn output;
 #endif /* LWIP_IPV4 */
-  /** This function is called by the ARP module when it wants
-   *  to send a packet on the interface. This function outputs
-   *  the pbuf as-is on the link medium. */
-  netif_linkoutput_fn linkoutput;
 #if LWIP_IPV6
   /** This function is called by the IPv6 module when it wants
    *  to send a packet on the interface. This function typically
    *  first resolves the hardware address, then sends the packet. */
   netif_output_ip6_fn output_ip6;
 #endif /* LWIP_IPV6 */
+  /** This function is called by the ARP module when it wants
+   *  to send a packet on the interface. This function outputs
+   *  the pbuf as-is on the link medium. */
+  netif_linkoutput_fn linkoutput;
 #if LWIP_NETIF_STATUS_CALLBACK
   /** This function is called when the netif state is set to up or down
    */
@@ -252,11 +248,11 @@ struct netif {
       filter table of the ethernet MAC.*/
   netif_igmp_mac_filter_fn igmp_mac_filter;
 #endif /* LWIP_IGMP */
-#if LWIP_IPV6 && LWIP_IPV6_MLD
+#if LWIP_IPV6_MLD
   /** This function could be called to add or delete an entry in the IPv6 multicast
       filter table of the ethernet MAC. */
   netif_mld_mac_filter_fn mld_mac_filter;
-#endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6_MLD */
 #if LWIP_NETIF_HWADDRHINT
   u8_t *addr_hint;
 #endif /* LWIP_NETIF_HWADDRHINT */
@@ -332,14 +328,11 @@ void netif_set_link_down(struct netif *netif);
 
 #if LWIP_IGMP
 #define netif_set_igmp_mac_filter(netif, function) do { if((netif) != NULL) { (netif)->igmp_mac_filter = function; }}while(0)
-#define netif_get_igmp_mac_filter(netif) (((netif) != NULL) ? ((netif)->igmp_mac_filter) : NULL)
 #endif /* LWIP_IGMP */
 
-#if LWIP_IPV6 && LWIP_IPV6_MLD
+#if LWIP_IPV6_MLD
 #define netif_set_mld_mac_filter(netif, function) do { if((netif) != NULL) { (netif)->mld_mac_filter = function; }}while(0)
-#define netif_get_mld_mac_filter(netif) (((netif) != NULL) ? ((netif)->mld_mac_filter) : NULL)
-#define netif_mld_mac_filter(netif, addr, action) do { if((netif) && (netif)->mld_mac_filter) { (netif)->mld_mac_filter((netif), (addr), (action)); }}while(0)
-#endif /* LWIP_IPV6 && LWIP_IPV6_MLD */
+#endif /* LWIP_IPV6_MLD */
 
 #if ENABLE_LOOPBACK
 err_t netif_loop_output(struct netif *netif, struct pbuf *p);

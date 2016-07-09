@@ -97,7 +97,6 @@ struct stats_mem {
   mem_size_t avail;
   mem_size_t used;
   mem_size_t max;
-  STAT_COUNTER illegal;
 };
 
 struct stats_mib2 {
@@ -236,7 +235,7 @@ void stats_init(void);
 #define stats_init()
 #define STATS_INC(x)
 #define STATS_DEC(x)
-#define STATS_INC_USED(x)
+#define STATS_INC_USED(x, y)
 #endif /* LWIP_STATS */
 
 #if TCP_STATS
