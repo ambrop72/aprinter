@@ -47,9 +47,9 @@ LWIP_EXTERN_C_BEGIN
 #ifndef LWIP_DEBUG_TIMERNAMES
 #ifdef LWIP_DEBUG
 #define LWIP_DEBUG_TIMERNAMES TIMERS_DEBUG
-#else /* LWIP_DEBUG */
+#else
 #define LWIP_DEBUG_TIMERNAMES 0
-#endif /* LWIP_DEBUG*/
+#endif
 #endif
 
 /** Function prototype for a timeout callback function. Register such a function
@@ -66,21 +66,21 @@ struct sys_timeo {
   void *arg;
 #if LWIP_DEBUG_TIMERNAMES
   const char* handler_name;
-#endif /* LWIP_DEBUG_TIMERNAMES */
+#endif
 };
 
 void sys_timeouts_init(void);
 
 #if LWIP_DEBUG_TIMERNAMES
-void sys_timeout_debug(u32_t msecs, sys_timeout_handler handler, void *arg, const char* handler_name);
-#define sys_timeout(msecs, handler, arg) sys_timeout_debug(msecs, handler, arg, #handler)
-#else /* LWIP_DEBUG_TIMERNAMES */
-void sys_timeout(u32_t msecs, sys_timeout_handler handler, void *arg);
-#endif /* LWIP_DEBUG_TIMERNAMES */
+void sys_timeout_debug(struct sys_timeo *timeout, u32_t msecs, sys_timeout_handler handler, void *arg, const char* handler_name);
+#define sys_timeout(timeout, msecs, handler, arg) sys_timeout_debug(timeout, msecs, handler, arg, #handler)
+#else
+void sys_timeout      (struct sys_timeo *timeout, u32_t msecs, sys_timeout_handler handler, void *arg);
+#endif
 
 void sys_check_timeouts(u8_t max_timeouts_to_handle);
 u8_t sys_timeouts_nextime(u32_t *out);
 
 LWIP_EXTERN_C_END
 
-#endif /* LWIP_HDR_TIMERS_H */
+#endif

@@ -40,10 +40,9 @@
  */
 
 #include "lwip/opt.h"
+#include "lwip/def.h"
 #include "lwip/timers.h"
 #include "lwip/tcp_impl.h"
-#include "lwip/def.h"
-#include "lwip/memp.h"
 #include "lwip/ip4_frag.h"
 #include "netif/etharp.h"
 #include "lwip/dhcp.h"
@@ -53,7 +52,6 @@
 #include "lwip/ip6_frag.h"
 #include "lwip/mld6.h"
 #include "lwip/sys.h"
-#include "lwip/pbuf.h"
 
 /** The one and only timeout list */
 static struct sys_timeo *next_timeout;
@@ -63,6 +61,8 @@ static struct sys_timeo *next_timeout;
 static u32_t reference_time;
 
 #if LWIP_TCP
+static struct sys_timeo tcpip_tcp_timeo;
+
 /** global variable that shows if the tcp timer is currently scheduled or not */
 static int tcpip_tcp_timer_active;
 
@@ -81,7 +81,7 @@ static void tcpip_tcp_timer(void *arg)
   /* timer still needed? */
   if (tcp_active_pcbs || tcp_tw_pcbs) {
     /* restart timer */
-    sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
+    sys_timeout(&tcpip_tcp_timeo, TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
   } else {
     /* disable timer */
     tcpip_tcp_timer_active = 0;
@@ -99,13 +99,15 @@ void tcp_timer_needed(void)
   if (!tcpip_tcp_timer_active && (tcp_active_pcbs || tcp_tw_pcbs)) {
     /* enable and start timer */
     tcpip_tcp_timer_active = 1;
-    sys_timeout(TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
+    sys_timeout(&tcpip_tcp_timeo, TCP_TMR_INTERVAL, tcpip_tcp_timer, NULL);
   }
 }
 #endif /* LWIP_TCP */
 
 #if LWIP_IPV4
 #if IP_REASSEMBLY
+static struct sys_timeo ip_reass_timeo;
+
 /**
  * Timer callback function that calls ip_reass_tmr() and reschedules itself.
  *
@@ -114,13 +116,14 @@ void tcp_timer_needed(void)
 static void ip_reass_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: ip_reass_tmr()\n"));
   ip_reass_tmr();
-  sys_timeout(IP_TMR_INTERVAL, ip_reass_timer, NULL);
+  sys_timeout(&ip_reass_timeo, IP_TMR_INTERVAL, ip_reass_timer, NULL);
 }
 #endif /* IP_REASSEMBLY */
 
 #if LWIP_ARP
+static struct sys_timeo arp_timeo;
+
 /**
  * Timer callback function that calls etharp_tmr() and reschedules itself.
  *
@@ -129,13 +132,15 @@ static void ip_reass_timer(void *arg)
 static void arp_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: etharp_tmr()\n"));
   etharp_tmr();
-  sys_timeout(ARP_TMR_INTERVAL, arp_timer, NULL);
+  sys_timeout(&arp_timeo, ARP_TMR_INTERVAL, arp_timer, NULL);
 }
 #endif /* LWIP_ARP */
 
 #if LWIP_DHCP
+static struct sys_timeo dhcp_coarse_timeo;
+static struct sys_timeo dhcp_fine_timeo;
+
 /**
  * Timer callback function that calls dhcp_coarse_tmr() and reschedules itself.
  *
@@ -144,9 +149,8 @@ static void arp_timer(void *arg)
 static void dhcp_timer_coarse(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: dhcp_coarse_tmr()\n"));
   dhcp_coarse_tmr();
-  sys_timeout(DHCP_COARSE_TIMER_MSECS, dhcp_timer_coarse, NULL);
+  sys_timeout(&dhcp_coarse_timeo, DHCP_COARSE_TIMER_MSECS, dhcp_timer_coarse, NULL);
 }
 
 /**
@@ -157,13 +161,14 @@ static void dhcp_timer_coarse(void *arg)
 static void dhcp_timer_fine(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: dhcp_fine_tmr()\n"));
   dhcp_fine_tmr();
-  sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_timer_fine, NULL);
+  sys_timeout(&dhcp_fine_timeo, DHCP_FINE_TIMER_MSECS, dhcp_timer_fine, NULL);
 }
 #endif /* LWIP_DHCP */
 
 #if LWIP_IGMP
+static struct sys_timeo igmp_timeo;
+
 /**
  * Timer callback function that calls igmp_tmr() and reschedules itself.
  *
@@ -172,14 +177,15 @@ static void dhcp_timer_fine(void *arg)
 static void igmp_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: igmp_tmr()\n"));
   igmp_tmr();
-  sys_timeout(IGMP_TMR_INTERVAL, igmp_timer, NULL);
+  sys_timeout(&igmp_timeo, IGMP_TMR_INTERVAL, igmp_timer, NULL);
 }
 #endif /* LWIP_IGMP */
 #endif /* LWIP_IPV4 */
 
 #if LWIP_DNS
+static struct sys_timeo dns_timeo;
+
 /**
  * Timer callback function that calls dns_tmr() and reschedules itself.
  *
@@ -188,13 +194,14 @@ static void igmp_timer(void *arg)
 static void dns_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: dns_tmr()\n"));
   dns_tmr();
-  sys_timeout(DNS_TMR_INTERVAL, dns_timer, NULL);
+  sys_timeout(&dns_timeo, DNS_TMR_INTERVAL, dns_timer, NULL);
 }
 #endif /* LWIP_DNS */
 
 #if LWIP_IPV6
+static struct sys_timeo nd6_timeo;
+
 /**
  * Timer callback function that calls nd6_tmr() and reschedules itself.
  *
@@ -203,12 +210,13 @@ static void dns_timer(void *arg)
 static void nd6_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: nd6_tmr()\n"));
   nd6_tmr();
-  sys_timeout(ND6_TMR_INTERVAL, nd6_timer, NULL);
+  sys_timeout(&nd6_timeo, ND6_TMR_INTERVAL, nd6_timer, NULL);
 }
 
 #if LWIP_IPV6_REASS
+static struct sys_timeo ip6_reass_timeo;
+
 /**
  * Timer callback function that calls ip6_reass_tmr() and reschedules itself.
  *
@@ -217,13 +225,14 @@ static void nd6_timer(void *arg)
 static void ip6_reass_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: ip6_reass_tmr()\n"));
   ip6_reass_tmr();
-  sys_timeout(IP6_REASS_TMR_INTERVAL, ip6_reass_timer, NULL);
+  sys_timeout(&ip6_reass_timeo, IP6_REASS_TMR_INTERVAL, ip6_reass_timer, NULL);
 }
 #endif /* LWIP_IPV6_REASS */
 
 #if LWIP_IPV6_MLD
+static struct sys_timeo mld6_timeo;
+
 /**
  * Timer callback function that calls mld6_tmr() and reschedules itself.
  *
@@ -232,9 +241,8 @@ static void ip6_reass_timer(void *arg)
 static void mld6_timer(void *arg)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: mld6_tmr()\n"));
   mld6_tmr();
-  sys_timeout(MLD6_TMR_INTERVAL, mld6_timer, NULL);
+  sys_timeout(&mld6_timeo, MLD6_TMR_INTERVAL, mld6_timer, NULL);
 }
 #endif /* LWIP_IPV6_MLD */
 #endif /* LWIP_IPV6 */
@@ -244,58 +252,53 @@ void sys_timeouts_init(void)
 {
 #if LWIP_IPV4
 #if IP_REASSEMBLY
-  sys_timeout(IP_TMR_INTERVAL, ip_reass_timer, NULL);
+  sys_timeout(&ip_reass_timeo, IP_TMR_INTERVAL, ip_reass_timer, NULL);
 #endif /* IP_REASSEMBLY */
 #if LWIP_ARP
-  sys_timeout(ARP_TMR_INTERVAL, arp_timer, NULL);
+  sys_timeout(&arp_timeo, ARP_TMR_INTERVAL, arp_timer, NULL);
 #endif /* LWIP_ARP */
 #if LWIP_DHCP
-  sys_timeout(DHCP_COARSE_TIMER_MSECS, dhcp_timer_coarse, NULL);
-  sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_timer_fine, NULL);
+  sys_timeout(&dhcp_coarse_timeo, DHCP_COARSE_TIMER_MSECS, dhcp_timer_coarse, NULL);
+  sys_timeout(&dhcp_fine_timeo, DHCP_FINE_TIMER_MSECS, dhcp_timer_fine, NULL);
 #endif /* LWIP_DHCP */
 #if LWIP_IGMP
-  sys_timeout(IGMP_TMR_INTERVAL, igmp_timer, NULL);
+  sys_timeout(&igmp_timeo, IGMP_TMR_INTERVAL, igmp_timer, NULL);
 #endif /* LWIP_IGMP */
 #endif /* LWIP_IPV4 */
 #if LWIP_DNS
-  sys_timeout(DNS_TMR_INTERVAL, dns_timer, NULL);
+  sys_timeout(&dns_timeo, DNS_TMR_INTERVAL, dns_timer, NULL);
 #endif /* LWIP_DNS */
 #if LWIP_IPV6
-  sys_timeout(ND6_TMR_INTERVAL, nd6_timer, NULL);
+  sys_timeout(&nd6_timeo, ND6_TMR_INTERVAL, nd6_timer, NULL);
 #if LWIP_IPV6_REASS
-  sys_timeout(IP6_REASS_TMR_INTERVAL, ip6_reass_timer, NULL);
+  sys_timeout(&ip6_reass_timeo, IP6_REASS_TMR_INTERVAL, ip6_reass_timer, NULL);
 #endif /* LWIP_IPV6_REASS */
 #if LWIP_IPV6_MLD
-  sys_timeout(MLD6_TMR_INTERVAL, mld6_timer, NULL);
+  sys_timeout(&mld6_timeo, MLD6_TMR_INTERVAL, mld6_timer, NULL);
 #endif /* LWIP_IPV6_MLD */
 #endif /* LWIP_IPV6 */
 }
 
 /**
- * Create a one-shot timer (aka timeout). Timeouts are processed in the
- * following cases:
- * - by calling sys_check_timeouts()
+ * Create a one-shot timer (aka timeout).
+ * Timeouts are processed by calling sys_check_timeouts().
  *
+ * @param timeout the sys_timeo, must not be already running
  * @param msecs time in milliseconds after that the timer should expire
  * @param handler callback function to call when msecs have elapsed
  * @param arg argument to pass to the callback function
  */
 #if LWIP_DEBUG_TIMERNAMES
-void sys_timeout_debug(u32_t msecs, sys_timeout_handler handler, void *arg, const char* handler_name)
+void sys_timeout_debug(struct sys_timeo *timeout, u32_t msecs, sys_timeout_handler handler, void *arg, const char* handler_name)
 #else
-void sys_timeout      (u32_t msecs, sys_timeout_handler handler, void *arg)
+void sys_timeout      (struct sys_timeo *timeout, u32_t msecs, sys_timeout_handler handler, void *arg)
 #endif
 {
   u32_t now;
-  struct sys_timeo *timeout, *prev_t, *t;
+  struct sys_timeo *prev_t, *t;
 
+  LWIP_ASSERT("timeout != NULL", timeout != NULL);
   LWIP_ASSERT("handler != NULL", handler != NULL);
-  
-  timeout = (struct sys_timeo *)memp_malloc(MEMP_SYS_TIMEOUT);
-  if (timeout == NULL) {
-    LWIP_ASSERT("sys_timeout: timeout != NULL, pool MEMP_SYS_TIMEOUT is empty", timeout != NULL);
-    return;
-  }
   
   now = sys_now();
 
@@ -342,8 +345,6 @@ void sys_check_timeouts(u8_t max_timeouts_to_handle)
 {
   u32_t now;
   struct sys_timeo *timeout;
-  sys_timeout_handler handler;
-  void *arg;
   
   while (next_timeout != NULL && max_timeouts_to_handle > 0) {
     now = sys_now();
@@ -354,19 +355,16 @@ void sys_check_timeouts(u8_t max_timeouts_to_handle)
     }
     
     timeout = next_timeout;
-    handler = timeout->handler;
-    arg = timeout->arg;
-    
-#if LWIP_DEBUG_TIMERNAMES
-    LWIP_DEBUGF(TIMERS_DEBUG, ("sct calling h=%s arg=%p\n", timeout->handler_name, arg));
-#endif
     
     next_timeout = timeout->next;
     reference_time = timeout->time;
-    memp_free(MEMP_SYS_TIMEOUT, timeout);
     max_timeouts_to_handle--;
     
-    handler(arg);
+#if LWIP_DEBUG_TIMERNAMES
+    LWIP_DEBUGF(TIMERS_DEBUG, ("sct calling h=%s arg=%p\n", timeout->handler_name, timeout->arg));
+#endif
+    
+    timeout->handler(timeout->arg);
   }
 }
 

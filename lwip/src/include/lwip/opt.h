@@ -227,15 +227,6 @@
 #endif
 
 /**
- * MEMP_NUM_SYS_TIMEOUT: the number of simultaneously active timeouts.
- * The default number of timeouts is calculated here for all enabled modules.
- * The formula expects settings to be either '0' or '1'.
- */
-#ifndef MEMP_NUM_SYS_TIMEOUT
-#define MEMP_NUM_SYS_TIMEOUT            (LWIP_TCP + IP_REASSEMBLY + LWIP_ARP + (2*LWIP_DHCP) + LWIP_IGMP + LWIP_DNS + (LWIP_IPV6 ? (1 + LWIP_IPV6_REASS + LWIP_IPV6_MLD) : 0))
-#endif
-
-/**
  * MEMP_NUM_LOCALHOSTLIST: the number of host entries in the local host list
  * if DNS_LOCAL_HOSTLIST_IS_DYNAMIC==1.
  */

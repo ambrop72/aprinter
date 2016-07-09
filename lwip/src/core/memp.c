@@ -46,7 +46,6 @@
 #include "lwip/tcp_impl.h"
 #include "lwip/igmp.h"
 #include "lwip/sys.h"
-#include "lwip/timers.h"
 #include "lwip/stats.h"
 #include "netif/etharp.h"
 #include "lwip/ip4_frag.h"
