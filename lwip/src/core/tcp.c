@@ -1114,7 +1114,6 @@ tcp_slowtmr_start:
     /* If the PCB should be removed, do it. */
     if (pcb_remove) {
       struct tcp_pcb *pcb2;
-      tcp_pcb_purge(pcb);
       /* Remove PCB from tcp_tw_pcbs list. */
       if (prev != NULL) {
         LWIP_ASSERT("tcp_slowtmr: middle tcp != tcp_tw_pcbs", pcb != tcp_tw_pcbs);
@@ -1634,27 +1633,28 @@ void
 tcp_pcb_purge(struct tcp_pcb *pcb)
 {
   LWIP_ASSERT("tcp_pcb_purge on listen-pcb", !tcp_pcb_is_listen(pcb));
+  LWIP_ASSERT("tcp_pcb_purge on CLOSED",    pcb->state != CLOSED);
+  LWIP_ASSERT("tcp_pcb_purge on TIME_WAIT", pcb->state != TIME_WAIT);
   
-  if (pcb->state != CLOSED && pcb->state != TIME_WAIT) {
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge\n"));
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge\n"));
 
-    tcp_backlog_accepted(pcb);
+  tcp_backlog_accepted(pcb);
 
-    if (pcb->unsent != NULL) {
-      LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: not all data sent\n"));
-    }
-    if (pcb->unacked != NULL) {
-      LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on ->unacked\n"));
-    }
-
-    /* Stop the retransmission timer as it will expect data on unacked
-       queue if it fires */
-    pcb->rtime = -1;
-
-    tcp_segs_free(pcb->unsent);
-    tcp_segs_free(pcb->unacked);
-    pcb->unacked = pcb->unsent = NULL;
+  if (pcb->unsent != NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: not all data sent\n"));
   }
+  if (pcb->unacked != NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on ->unacked\n"));
+  }
+
+  /* Stop the retransmission timer as it will expect data on unacked
+      queue if it fires */
+  pcb->rtime = -1;
+
+  tcp_segs_free(pcb->unsent);
+  tcp_segs_free(pcb->unacked);
+  pcb->unsent = NULL;
+  pcb->unacked = NULL;
 }
 
 /**
@@ -1670,15 +1670,17 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
   
   tcp_rmv((struct tcp_pcb_base **)pcblist, to_tcp_pcb_base(pcb));
 
-  tcp_pcb_purge(pcb);
-
-  /* if there is an outstanding delayed ACKs, send it */
-  if (pcb->state != TIME_WAIT &&
-     (pcb->flags & TF_ACK_DELAY)) {
-    pcb->flags |= TF_ACK_NOW;
-    tcp_output(pcb);
+  if (pcb->state != TIME_WAIT) {
+    /* note, purge was already done if already in TIME_WAIT */
+    tcp_pcb_purge(pcb);
+    
+    /* if there is an outstanding delayed ACKs, send it */
+    if ((pcb->flags & TF_ACK_DELAY)) {
+      pcb->flags |= TF_ACK_NOW;
+      tcp_output(pcb);
+    }
   }
-
+  
   LWIP_ASSERT("unsent segments leaking", pcb->unsent == NULL);
   LWIP_ASSERT("unacked segments leaking", pcb->unacked == NULL);
 
