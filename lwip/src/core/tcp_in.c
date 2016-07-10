@@ -364,84 +364,72 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* A return value of ERR_ABRT means that tcp_abort() was called
        and that the pcb has been freed. If so, we don't do anything. */
     if (err != ERR_ABRT) {
-      if (recv_flags & TF_RESET) {
-        /* TF_RESET means that the connection was reset by the other
-           end. We then call the error callback to inform the
-           application that the connection is dead before we
-           deallocate the PCB. */
-        TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_RST);
+      err = ERR_OK;
+      /* If the application has registered a "sent" function to be
+          called when new send buffer space is available, we call it
+          now. */
+      if (pcb->acked > 0) {
+        u16_t acked;
+        {
+          acked = pcb->acked;
+          TCP_EVENT_SENT(pcb, (u16_t)acked, err);
+          if (err == ERR_ABRT) {
+            goto aborted;
+          }
+        }
+      }
+      if (recv_flags & TF_CLOSED) {
+        /* The connection has been closed and we will deallocate the
+            PCB. */
+        if (!(pcb->flags & TF_RXCLOSED)) {
+          /* Connection closed although the application has only shut down the
+              tx side: call the PCB's err callback and indicate the closure to
+              ensure the application doesn't continue using the PCB. */
+          TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_CLSD);
+        }
         tcp_pcb_remove(&tcp_active_pcbs, pcb);
         memp_free(MEMP_TCP_PCB, pcb);
-      } else {
-        err = ERR_OK;
-        /* If the application has registered a "sent" function to be
-           called when new send buffer space is available, we call it
-           now. */
-        if (pcb->acked > 0) {
-          u16_t acked;
-          {
-            acked = pcb->acked;
-            TCP_EVENT_SENT(pcb, (u16_t)acked, err);
-            if (err == ERR_ABRT) {
-              goto aborted;
-            }
-          }
-        }
-        if (recv_flags & TF_CLOSED) {
-          /* The connection has been closed and we will deallocate the
-             PCB. */
-          if (!(pcb->flags & TF_RXCLOSED)) {
-            /* Connection closed although the application has only shut down the
-               tx side: call the PCB's err callback and indicate the closure to
-               ensure the application doesn't continue using the PCB. */
-            TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_CLSD);
-          }
-          tcp_pcb_remove(&tcp_active_pcbs, pcb);
-          memp_free(MEMP_TCP_PCB, pcb);
+        goto aborted;
+      }
+      if (recv_data != NULL) {
+        if (pcb->flags & TF_RXCLOSED) {
+          /* received data although already closed -> abort (send RST) to
+              notify the remote host that not all data has been processed */
+          pbuf_free(recv_data);
+          tcp_abort(pcb);
           goto aborted;
         }
-        if (recv_data != NULL) {
-          if (pcb->flags & TF_RXCLOSED) {
-            /* received data although already closed -> abort (send RST) to
-               notify the remote host that not all data has been processed */
-            pbuf_free(recv_data);
-            tcp_abort(pcb);
-            goto aborted;
-          }
 
-          /* Notify application that data has been received. */
-          TCP_EVENT_RECV(pcb, recv_data, ERR_OK, err);
-          if (err == ERR_ABRT) {
-            goto aborted;
-          }
-
-          /* It is not allowed for the upper layer to refuse data. */
-          LWIP_ASSERT("received data refused", err == ERR_OK);
+        /* Notify application that data has been received. */
+        TCP_EVENT_RECV(pcb, recv_data, ERR_OK, err);
+        if (err == ERR_ABRT) {
+          goto aborted;
         }
 
-        /* If a FIN segment was received, we call the callback
-           function with a NULL buffer to indicate EOF. */
-        if (recv_flags & TF_GOT_FIN) {
-          /* correct rcv_wnd as the application won't call tcp_recved()
-             for the FIN's seqno */
-          if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
-            pcb->rcv_wnd++;
-          }
-          TCP_EVENT_CLOSED(pcb, err);
-          if (err == ERR_ABRT) {
-            goto aborted;
-          }
-        }
-
-        tcp_input_pcb = NULL;
-        /* Try to send something out. */
-        tcp_output(pcb);
-#if TCP_INPUT_DEBUG
-#if TCP_DEBUG
-        tcp_debug_print_state(pcb->state);
-#endif /* TCP_DEBUG */
-#endif /* TCP_INPUT_DEBUG */
+        /* It is not allowed for the upper layer to refuse data. */
+        LWIP_ASSERT("received data refused", err == ERR_OK);
       }
+
+      /* If a FIN segment was received, we call the callback
+          function with a NULL buffer to indicate EOF. */
+      if (recv_flags & TF_GOT_FIN) {
+        /* correct rcv_wnd as the application won't call tcp_recved()
+            for the FIN's seqno */
+        if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
+          pcb->rcv_wnd++;
+        }
+        TCP_EVENT_CLOSED(pcb, err);
+        if (err == ERR_ABRT) {
+          goto aborted;
+        }
+      }
+
+      tcp_input_pcb = NULL;
+      /* Try to send something out. */
+      tcp_output(pcb);
+#if TCP_INPUT_DEBUG && TCP_DEBUG
+      tcp_debug_print_state(pcb->state);
+#endif
     }
     /* Jump target if pcb has been aborted in a callback (by calling tcp_abort()).
        Below this line, 'pcb' may not be dereferenced! */
@@ -664,16 +652,21 @@ tcp_process(struct tcp_pcb *pcb)
     if (acceptable) {
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: Connection RESET\n"));
       LWIP_ASSERT("tcp_input: pcb->state != CLOSED", pcb->state != CLOSED);
-      recv_flags |= TF_RESET;
+      
+      /* Free the PCB but also call the error callback to inform the
+         application that the connection is dead and PCB is deallocated. */
       pcb->flags &= ~TF_ACK_DELAY;
-      return ERR_RST;
-    } else {
-      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
-       seqno, pcb->rcv_nxt));
-      LWIP_DEBUGF(TCP_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
-       seqno, pcb->rcv_nxt));
-      return ERR_OK;
+      TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_RST);
+      tcp_pcb_remove(&tcp_active_pcbs, pcb);
+      memp_free(MEMP_TCP_PCB, pcb);
+      return ERR_ABRT;
     }
+    
+    LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
+      seqno, pcb->rcv_nxt));
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
+      seqno, pcb->rcv_nxt));
+    return ERR_OK;
   }
 
   if ((flags & TCP_SYN) && (pcb->state != SYN_SENT && pcb->state != SYN_RCVD)) {
