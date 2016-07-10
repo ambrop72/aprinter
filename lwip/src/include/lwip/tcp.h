@@ -159,6 +159,8 @@ struct tcp_pcb_base {
   TCP_PCB_COMMON(struct tcp_pcb_base);
 };
 
+#define to_tcp_pcb_base(pcb) ((struct tcp_pcb_base *)(pcb))
+
 /** the TCP protocol control block for listening pcbs */
 struct tcp_pcb_listen {
   TCP_PCB_COMMON(struct tcp_pcb_listen);

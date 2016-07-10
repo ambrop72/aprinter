@@ -201,7 +201,7 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
       if (pcb->state == ESTABLISHED) {
         /* move to TIME_WAIT since we close actively */
         pcb->state = TIME_WAIT;
-        TCP_REG(&tcp_tw_pcbs, pcb);
+        tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
       } else {
         /* CLOSE_WAIT: deallocate the pcb since we already sent a RST for it */
         if (tcp_input_pcb == pcb) {
@@ -226,7 +226,7 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
      * been freed, and so any remaining handles are bogus. */
     err = ERR_OK;
     if (pcb->local_port != 0) {
-      TCP_RMV((struct tcp_pcb **)&tcp_bound_pcbs, pcb);
+      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
     }
     memp_free(MEMP_TCP_PCB, pcb);
     pcb = NULL;
@@ -330,11 +330,11 @@ void tcp_close_listen(struct tcp_pcb_listen *lpcb)
         }
       }
     }
-    TCP_RMV((struct tcp_pcb **)&tcp_listen_pcbs, (struct tcp_pcb *)lpcb);
+    tcp_rmv((struct tcp_pcb_base **)&tcp_listen_pcbs, to_tcp_pcb_base(lpcb));
   }
   else {
     if (lpcb->local_port != 0) {
-      TCP_RMV((struct tcp_pcb **)&tcp_bound_pcbs, (struct tcp_pcb *)lpcb);
+      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(lpcb));
     }
   }
   
@@ -417,7 +417,7 @@ tcp_abandon(struct tcp_pcb *pcb, int reset)
     errf_arg = pcb->callback_arg;
     if ((pcb->state == CLOSED) && (pcb->local_port != 0)) {
       /* bound, not yet opened */
-      TCP_RMV((struct tcp_pcb **)&tcp_bound_pcbs, pcb);
+      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
     } else {
       send_rst = reset;
       local_port = pcb->local_port;
@@ -529,7 +529,7 @@ tcp_bind(struct tcp_pcb_base *pcb, const ip_addr_t *ipaddr, u16_t port)
     ip_addr_set(&pcb->local_ip, ipaddr);
   }
   pcb->local_port = port;
-  TCP_REG((struct tcp_pcb **)&tcp_bound_pcbs, (struct tcp_pcb *)pcb);
+  tcp_reg(&tcp_bound_pcbs, pcb);
   LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind: bind to port %"U16_F"\n", port));
   return ERR_OK;
 }
@@ -587,12 +587,12 @@ err_t tcp_listen_with_backlog(struct tcp_pcb_listen *lpcb, u8_t backlog)
   lpcb->accept_any_ip_version = 0;
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
   if (lpcb->local_port != 0) {
-    TCP_RMV((struct tcp_pcb **)&tcp_bound_pcbs, (struct tcp_pcb *)lpcb);
+    tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(lpcb));
   }
   lpcb->accepts_pending = 0;
   tcp_backlog_set(lpcb, backlog);
   lpcb->initial_rcv_wnd = TCPWND_MIN16(TCP_WND);
-  TCP_REG((struct tcp_pcb **)&tcp_listen_pcbs, (struct tcp_pcb *)lpcb);
+  tcp_reg((struct tcp_pcb_base **)&tcp_listen_pcbs, to_tcp_pcb_base(lpcb));
   return ERR_OK;
 }
 
@@ -886,7 +886,7 @@ tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
     /* SYN segment was enqueued, changed the pcbs state now */
     pcb->state = SYN_SENT;
     if (old_local_port != 0) {
-      TCP_RMV((struct tcp_pcb **)&tcp_bound_pcbs, pcb);
+      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
     }
     TCP_REG_ACTIVE(pcb);
     MIB2_STATS_INC(mib2.tcpactiveopens);
@@ -1561,6 +1561,68 @@ tcp_accept(struct tcp_pcb_listen *lpcb, tcp_accept_fn accept)
   lpcb->accept = accept;
 }
 
+/* Axioms about the above lists:
+   1) Every TCP PCB that is not CLOSED is in one of the lists.
+   2) A PCB is only in one of the lists.
+   3) All PCBs in the tcp_listen_pcbs list is in LISTEN state.
+   4) All PCBs in the tcp_tw_pcbs list is in TIME-WAIT state.
+*/
+/* Define two functions, tcp_reg and tcp_rmv that registers a TCP PCB
+   with a PCB list or removes a PCB from a list, respectively. */
+
+void tcp_reg(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb)
+{
+#if TCP_DEBUG_PCB_LISTS
+  struct tcp_pcb_base *tcp_tmp_pcb;
+  LWIP_DEBUGF(TCP_DEBUG, ("TCP_REG %p local port %d\n", npcb, npcb->local_port));
+  for (tcp_tmp_pcb = *pcbs; tcp_tmp_pcb != NULL; tcp_tmp_pcb = tcp_tmp_pcb->next) {
+    LWIP_ASSERT("TCP_REG: already registered\n", tcp_tmp_pcb != npcb);
+  }
+  LWIP_ASSERT("TCP_REG: pcb->state != CLOSED", (pcbs == &tcp_bound_pcbs) || (npcb->state != CLOSED));
+  npcb->next = *pcbs;
+  LWIP_ASSERT("TCP_REG: npcb->next != npcb", npcb->next != npcb);
+  *pcbs = npcb;
+  LWIP_ASSERT("TCP_RMV: tcp_pcbs sane", tcp_pcbs_sane());
+#else
+  npcb->next = *pcbs;
+  *pcbs = npcb;
+#endif
+  tcp_timer_needed();
+}
+
+void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb)
+{
+  struct tcp_pcb_base *tcp_tmp_pcb;
+#if TCP_DEBUG_PCB_LISTS
+  LWIP_ASSERT("TCP_RMV: pcbs != NULL", *pcbs != NULL);
+  LWIP_DEBUGF(TCP_DEBUG, ("TCP_RMV: removing %p from %p\n", npcb, *pcbs));
+  if (*pcbs == npcb) {
+    *pcbs = (*pcbs)->next;
+  } else {
+    for (tcp_tmp_pcb = *pcbs; tcp_tmp_pcb != NULL; tcp_tmp_pcb = tcp_tmp_pcb->next) {
+      if (tcp_tmp_pcb->next == npcb) {
+        tcp_tmp_pcb->next = npcb->next;
+        break;
+      }
+    }
+  }
+  npcb->next = NULL;
+  LWIP_ASSERT("TCP_RMV: tcp_pcbs sane", tcp_pcbs_sane());
+  LWIP_DEBUGF(TCP_DEBUG, ("TCP_RMV: removed %p from %p\n", npcb, *pcbs));
+#else
+  if (*pcbs == npcb) {
+    *pcbs = (*pcbs)->next;
+  } else {
+    for (tcp_tmp_pcb = *pcbs; tcp_tmp_pcb != NULL; tcp_tmp_pcb = tcp_tmp_pcb->next) {
+      if (tcp_tmp_pcb->next == npcb) {
+        tcp_tmp_pcb->next = npcb->next;
+        break;
+      }
+    }
+  }
+  npcb->next = NULL;
+#endif
+}
 
 /**
  * Purges a TCP PCB. Removes any buffered data and frees the buffer memory
@@ -1606,7 +1668,7 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 {
   LWIP_ASSERT("tcp_pcb_remove on listen-pcb", !tcp_pcb_is_listen(pcb));
   
-  TCP_RMV(pcblist, pcb);
+  tcp_rmv((struct tcp_pcb_base **)pcblist, to_tcp_pcb_base(pcb));
 
   tcp_pcb_purge(pcb);
 
@@ -1740,7 +1802,7 @@ void tcp_netif_ipv4_addr_changed(const ip4_addr_t* old_addr, const ip4_addr_t* n
 {
   struct tcp_pcb_listen *lpcb, *next;
 
-  tcp_netif_ipv4_addr_changed_pcblist(old_addr, (struct tcp_pcb_base *)tcp_active_pcbs);
+  tcp_netif_ipv4_addr_changed_pcblist(old_addr, to_tcp_pcb_base(tcp_active_pcbs));
   tcp_netif_ipv4_addr_changed_pcblist(old_addr, tcp_bound_pcbs);
 
   if (!ip4_addr_isany(new_addr)) {

@@ -830,7 +830,7 @@ tcp_process(struct tcp_pcb *pcb)
         tcp_pcb_purge(pcb);
         TCP_RMV_ACTIVE(pcb);
         pcb->state = TIME_WAIT;
-        TCP_REG(&tcp_tw_pcbs, pcb);
+        tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
       } else {
         tcp_ack_now(pcb);
         pcb->state = CLOSING;
@@ -847,7 +847,7 @@ tcp_process(struct tcp_pcb *pcb)
       tcp_pcb_purge(pcb);
       TCP_RMV_ACTIVE(pcb);
       pcb->state = TIME_WAIT;
-      TCP_REG(&tcp_tw_pcbs, pcb);
+      tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
     }
     break;
   case CLOSING:
@@ -857,7 +857,7 @@ tcp_process(struct tcp_pcb *pcb)
       tcp_pcb_purge(pcb);
       TCP_RMV_ACTIVE(pcb);
       pcb->state = TIME_WAIT;
-      TCP_REG(&tcp_tw_pcbs, pcb);
+      tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
     }
     break;
   case LAST_ACK:
