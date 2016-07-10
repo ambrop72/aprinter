@@ -196,13 +196,12 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
       tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,
                pcb->local_port, pcb->remote_port);
 
-      tcp_pcb_purge(pcb);
-      TCP_RMV_ACTIVE(pcb);
       if (pcb->state == ESTABLISHED) {
         /* move to TIME_WAIT since we close actively */
-        pcb->state = TIME_WAIT;
-        tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+        tcp_move_to_time_wait(pcb);
       } else {
+        tcp_pcb_purge(pcb);
+        TCP_RMV_ACTIVE(pcb);
         /* CLOSE_WAIT: deallocate the pcb since we already sent a RST for it */
         if (tcp_input_pcb == pcb) {
           /* prevent using a deallocated pcb: free it from tcp_input later */
@@ -1689,6 +1688,18 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
   pcb->local_port = 0;
 
   LWIP_ASSERT("tcp_pcb_remove: tcp_pcbs_sane()", tcp_pcbs_sane());
+}
+
+void tcp_move_to_time_wait(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("tcp_move_to_time_wait state",
+    pcb->state == ESTABLISHED || pcb->state == FIN_WAIT_1 ||
+    pcb->state == FIN_WAIT_2  || pcb->state == CLOSING);
+  
+  tcp_pcb_purge(pcb);
+  TCP_RMV_ACTIVE(pcb);
+  pcb->state = TIME_WAIT;
+  tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
 }
 
 /**

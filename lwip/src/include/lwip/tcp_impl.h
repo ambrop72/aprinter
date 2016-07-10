@@ -313,6 +313,7 @@ void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 
 void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb);
+void tcp_move_to_time_wait(struct tcp_pcb *pcb);
 
 void tcp_segs_free(struct tcp_seg *seg);
 void tcp_seg_free(struct tcp_seg *seg);

@@ -827,10 +827,7 @@ tcp_process(struct tcp_pcb *pcb)
         LWIP_DEBUGF(TCP_DEBUG,
           ("TCP connection closed: FIN_WAIT_1 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
         tcp_ack_now(pcb);
-        tcp_pcb_purge(pcb);
-        TCP_RMV_ACTIVE(pcb);
-        pcb->state = TIME_WAIT;
-        tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+        tcp_move_to_time_wait(pcb);
       } else {
         tcp_ack_now(pcb);
         pcb->state = CLOSING;
@@ -844,20 +841,14 @@ tcp_process(struct tcp_pcb *pcb)
     if (recv_flags & TF_GOT_FIN) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: FIN_WAIT_2 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_ack_now(pcb);
-      tcp_pcb_purge(pcb);
-      TCP_RMV_ACTIVE(pcb);
-      pcb->state = TIME_WAIT;
-      tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+      tcp_move_to_time_wait(pcb);
     }
     break;
   case CLOSING:
     tcp_receive(pcb);
     if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: CLOSING %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
-      tcp_pcb_purge(pcb);
-      TCP_RMV_ACTIVE(pcb);
-      pcb->state = TIME_WAIT;
-      tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+      tcp_move_to_time_wait(pcb);
     }
     break;
   case LAST_ACK:
