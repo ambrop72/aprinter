@@ -230,7 +230,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
   for(pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_ASSERT("tcp_input: active pcb->state != CLOSED", pcb->state != CLOSED);
     LWIP_ASSERT("tcp_input: active pcb->state != TIME-WAIT", pcb->state != TIME_WAIT);
-    LWIP_ASSERT("tcp_input: active pcb->state != LISTEN", pcb->state != LISTEN);
+    LWIP_ASSERT("tcp_input: active pcb->state != LISTEN*", !tcp_pcb_is_listen(pcb));
     if (pcb->remote_port == tcphdr->src &&
         pcb->local_port == tcphdr->dest &&
         ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
@@ -274,7 +274,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* Finally, if we still did not get a match, we check all PCBs that
        are LISTENing for incoming connections. */
     prev = NULL;
-    for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
+    for (lpcb = tcp_listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
       if (lpcb->local_port == tcphdr->dest) {
 #if LWIP_IPV4 && LWIP_IPV6
         if (lpcb->accept_any_ip_version) {
@@ -319,9 +319,9 @@ tcp_input(struct pbuf *p, struct netif *inp)
       if (prev != NULL) {
         ((struct tcp_pcb_listen *)prev)->next = lpcb->next;
               /* our successor is the remainder of the listening list */
-        lpcb->next = tcp_listen_pcbs.listen_pcbs;
+        lpcb->next = tcp_listen_pcbs;
               /* put this listening pcb at the head of the listening list */
-        tcp_listen_pcbs.listen_pcbs = lpcb;
+        tcp_listen_pcbs = lpcb;
       } else {
         TCP_STATS_INC(tcp.cachehit);
       }
@@ -511,14 +511,12 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
       ip_current_src_addr(), tcphdr->dest, tcphdr->src);
   } else if (flags & TCP_SYN) {
     LWIP_DEBUGF(TCP_DEBUG, ("TCP connection request %"U16_F" -> %"U16_F".\n", tcphdr->src, tcphdr->dest));
-#if TCP_LISTEN_BACKLOG
     if (pcb->accepts_pending >= pcb->backlog) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: listen backlog exceeded for port %"U16_F"\n", tcphdr->dest));
       tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
       return;
     }
-#endif /* TCP_LISTEN_BACKLOG */
     npcb = tcp_alloc(pcb->prio);
     /* If a new PCB could not be created (probably due to lack of memory),
        we don't do anything, but rely on the sender will retransmit the
@@ -528,9 +526,8 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
       TCP_STATS_INC(tcp.memerr);
       return;
     }
-#if TCP_LISTEN_BACKLOG
     pcb->accepts_pending++;
-#endif /* TCP_LISTEN_BACKLOG */
+    npcb->flags |= TF_BACKLOGPEND;
     /* Set up the new PCB. */
 #if LWIP_IPV4 && LWIP_IPV6
     PCB_ISIPV6(npcb) = ip_current_is_v6();
@@ -544,7 +541,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     npcb->rcv_ann_right_edge = npcb->rcv_nxt;
     npcb->snd_wl1 = seqno - 1;/* initialise to seqno-1 to force window update */
     npcb->callback_arg = pcb->callback_arg;
-    npcb->accept = pcb->accept;
+    npcb->listener = pcb;
     /* inherit socket options */
     npcb->so_options = pcb->so_options & SOF_INHERITED;
     npcb->rcv_wnd = npcb->rcv_ann_wnd = pcb->initial_rcv_wnd;
@@ -763,9 +760,15 @@ tcp_process(struct tcp_pcb *pcb)
       if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
         pcb->state = ESTABLISHED;
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
-        LWIP_ASSERT("pcb->accept != NULL", pcb->accept != NULL);
-        /* Call the accept function. */
-        TCP_EVENT_ACCEPT(pcb, ERR_OK, err);
+        LWIP_ASSERT("pcb->listener->accept != NULL", pcb->listener == NULL || pcb->listener->accept != NULL);
+        if (pcb->listener == NULL) {
+          /* listen pcb might be closed by now */
+          err = ERR_VAL;
+        } else {
+          tcp_backlog_accepted(pcb);
+          /* Call the accept function. */
+          err = pcb->listener->accept(pcb->callback_arg, pcb, ERR_OK);
+        }
         if (err != ERR_OK) {
           /* If the accept function returns with an error, we abort
            * the connection. */

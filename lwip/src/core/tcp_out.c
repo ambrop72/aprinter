@@ -715,9 +715,7 @@ tcp_output(struct tcp_pcb *pcb)
   s16_t i = 0;
 #endif /* TCP_CWND_DEBUG */
 
-  /* pcb->state LISTEN not allowed here */
-  LWIP_ASSERT("don't call tcp_output for listen-pcbs",
-    pcb->state != LISTEN);
+  LWIP_ASSERT("tcp_output on listen-pcb", !tcp_pcb_is_listen(pcb));
 
   /* First, check if we are invoked by the TCP input processing
      code. If so, we do not output anything. Instead, we rely on the

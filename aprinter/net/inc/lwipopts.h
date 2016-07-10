@@ -82,12 +82,6 @@
 #define MEMP_NUM_TCP_PCB (APRINTER_NUM_TCP_CONN + APRINTER_NUM_TCP_CONN_QUEUED)
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
 
-// Enable TCP listen backlog.
-// Note that in LwipNetwork we decrement/increment pcb->backlog
-// as connections are accepted/closed, in order to limit the combined
-// number of pending and established connections.
-#define TCP_LISTEN_BACKLOG 1
-
 // TCP Maximum Segment Size, use the Ethernet value.
 #define TCP_MSS 1460
 

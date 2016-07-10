@@ -76,6 +76,9 @@ void             tcp_rexmit_rto  (struct tcp_pcb *pcb);
 void             tcp_rexmit_fast (struct tcp_pcb *pcb);
 u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 
+/* Check if a PCB is a tcp_pcb_listen by looking at the state. */
+#define tcp_pcb_is_listen(pcb) ((pcb)->state == LISTEN_CLOS || (pcb)->state == LISTEN)
+
 /**
  * This is the Nagle algorithm: try to combine user data to send as few TCP
  * segments as possible. Only send if
@@ -186,13 +189,6 @@ PACK_STRUCT_END
 #define TF_GOT_FIN   (u8_t)0x20U   /* Connection was closed by the remote end. */
 
 
-#define TCP_EVENT_ACCEPT(pcb,err,ret)                          \
-  do {                                                         \
-    if((pcb)->accept != NULL)                                  \
-      (ret) = (pcb)->accept((pcb)->callback_arg,(pcb),(err));  \
-    else (ret) = ERR_ARG;                                      \
-  } while (0)
-
 #define TCP_EVENT_SENT(pcb,space,ret)                          \
   do {                                                         \
     if((pcb)->sent != NULL)                                    \
@@ -281,12 +277,8 @@ extern u32_t tcp_ticks;
 extern u8_t tcp_active_pcbs_changed;
 
 /* The TCP PCB lists. */
-union tcp_listen_pcbs_t { /* List of all TCP PCBs in LISTEN state. */
-  struct tcp_pcb_listen *listen_pcbs;
-  struct tcp_pcb *pcbs;
-};
-extern struct tcp_pcb *tcp_bound_pcbs;
-extern union tcp_listen_pcbs_t tcp_listen_pcbs;
+extern struct tcp_pcb_base *tcp_bound_pcbs;
+extern struct tcp_pcb_listen *tcp_listen_pcbs;
 extern struct tcp_pcb *tcp_active_pcbs;  /* List of all TCP PCBs that are in a
               state in which they accept or send
               data. */
@@ -313,7 +305,7 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
         tcp_tmp_pcb = tcp_tmp_pcb->next) { \
                                 LWIP_ASSERT("TCP_REG: already registered\n", tcp_tmp_pcb != (npcb)); \
                             } \
-                            LWIP_ASSERT("TCP_REG: pcb->state != CLOSED", ((pcbs) == &tcp_bound_pcbs) || ((npcb)->state != CLOSED)); \
+                            LWIP_ASSERT("TCP_REG: pcb->state != CLOSED", ((pcbs) == (struct tcp_pcb **)&tcp_bound_pcbs) || ((npcb)->state != CLOSED)); \
                             (npcb)->next = *(pcbs); \
                             LWIP_ASSERT("TCP_REG: npcb->next != npcb", (npcb)->next != (npcb)); \
                             *(pcbs) = (npcb); \
@@ -325,7 +317,7 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
                             LWIP_ASSERT("TCP_RMV: pcbs != NULL", *(pcbs) != NULL); \
                             LWIP_DEBUGF(TCP_DEBUG, ("TCP_RMV: removing %p from %p\n", (npcb), *(pcbs))); \
                             if(*(pcbs) == (npcb)) { \
-                               *(pcbs) = (*pcbs)->next; \
+                               *(pcbs) = (*(pcbs))->next; \
                             } else for (tcp_tmp_pcb = *(pcbs); tcp_tmp_pcb != NULL; tcp_tmp_pcb = tcp_tmp_pcb->next) { \
                                if(tcp_tmp_pcb->next == (npcb)) { \
                                   tcp_tmp_pcb->next = (npcb)->next; \
@@ -337,11 +329,11 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
                             LWIP_DEBUGF(TCP_DEBUG, ("TCP_RMV: removed %p from %p\n", (npcb), *(pcbs))); \
                             } while(0)
 
-#else /* LWIP_DEBUG */
+#else /* TCP_DEBUG_PCB_LISTS */
 
 #define TCP_REG(pcbs, npcb)                        \
   do {                                             \
-    (npcb)->next = *pcbs;                          \
+    (npcb)->next = *(pcbs);                        \
     *(pcbs) = (npcb);                              \
     tcp_timer_needed();                            \
   } while (0)
@@ -349,11 +341,11 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
 #define TCP_RMV(pcbs, npcb)                        \
   do {                                             \
     if(*(pcbs) == (npcb)) {                        \
-      (*(pcbs)) = (*pcbs)->next;                   \
+      (*(pcbs)) = (*(pcbs))->next;                 \
     }                                              \
     else {                                         \
       struct tcp_pcb *tcp_tmp_pcb;                 \
-      for (tcp_tmp_pcb = *pcbs;                    \
+      for (tcp_tmp_pcb = *(pcbs);                  \
           tcp_tmp_pcb != NULL;                     \
           tcp_tmp_pcb = tcp_tmp_pcb->next) {       \
         if(tcp_tmp_pcb->next == (npcb)) {          \

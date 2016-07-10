@@ -778,13 +778,6 @@
 #endif
 
 /**
- * TCP_LISTEN_BACKLOG: Enable the backlog option for tcp listen pcb.
- */
-#ifndef TCP_LISTEN_BACKLOG
-#define TCP_LISTEN_BACKLOG              0
-#endif
-
-/**
  * The maximum allowed backlog for TCP listen netconns.
  * This backlog is used unless another is explicitly specified.
  * 0xff is the maximum (u8_t).

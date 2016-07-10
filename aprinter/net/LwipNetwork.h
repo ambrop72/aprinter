@@ -321,29 +321,28 @@ public:
             }
             
             do {
-                m_pcb = tcp_new();
+                m_pcb = tcp_new_listen();
                 if (!m_pcb) {
                     goto fail;
                 }
                 
-                auto err = tcp_bind(m_pcb, IP_ADDR_ANY, port);
-                if (err != ERR_OK) {
+                auto bind_err = tcp_bind((struct tcp_pcb_base *)m_pcb, IP_ADDR_ANY, port);
+                if (bind_err != ERR_OK) {
                     goto fail;
                 }
                 
-                struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(m_pcb, max_clients + m_queue_size);
-                if (!listen_pcb) {
+                auto listen_err = tcp_listen_with_backlog(m_pcb, max_clients + m_queue_size);
+                if (listen_err != ERR_OK) {
                     goto fail;
                 }
-                m_pcb = listen_pcb;
                 
-                tcp_arg(m_pcb, this);
+                tcp_arg((struct tcp_pcb_base *)m_pcb, this);
                 tcp_accept(m_pcb, &TcpListener::pcb_accept_handler_wrapper);
                 
                 // If we will have a queue of connections, all connections have to start with zero
                 // receive window, since we are not prepared to accept any data on queued connections.
                 if (m_queue_size > 0) {
-                    ((struct tcp_pcb_listen *)m_pcb)->initial_rcv_wnd = 0;
+                    m_pcb->initial_rcv_wnd = 0;
                 }
             } while (false);
             
@@ -376,10 +375,7 @@ public:
                     }
                 }
                 
-                tcp_arg(m_pcb, nullptr);
-                tcp_accept(m_pcb, nullptr);
-                auto err = tcp_close(m_pcb);
-                AMBRO_ASSERT(err == ERR_OK)
+                tcp_close_listen(m_pcb);
                 m_pcb = nullptr;
             }
             
@@ -401,9 +397,10 @@ public:
             AMBRO_ASSERT(err == ERR_OK)
             AMBRO_ASSERT(!m_newpcb)
             
-            // Note that we are implcitly given an acccepts_pending reference.
-            // We have to release it eventually using tcp_accepted(), regardless
-            // of the return value.
+            // Take a backlog reference. We use the backlog to limit the total
+            // number of connections, so we don't ourselves do any corresponding
+            // tcp_backlog_delayed (lwip does internally when the pcb is closed).
+            tcp_backlog_delayed(newpcb);
             
             // Publish the newpcb.
             m_newpcb = newpcb;
@@ -427,7 +424,6 @@ public:
             }
             
             // No space in queue.
-            tcp_accepted(m_pcb);
             return ERR_BUF;
         }
         
@@ -438,7 +434,7 @@ public:
                 if (!entry->m_pcb) {
                     entry->m_pcb = pcb;
                     entry->m_time = Context::Clock::getTime(c);
-                    tcp_arg(pcb, entry);
+                    tcp_arg((struct tcp_pcb_base *)pcb, entry);
                     tcp_err(pcb, &TcpListener::queued_pcb_err_handler_wrapper);
                     tcp_recv(pcb, &TcpListener::queued_pcb_recv_handler_wrapper);
                     update_timeout(c);
@@ -464,7 +460,7 @@ public:
                     entry->m_pcb->rcv_ann_wnd = TCP_WND;
                 }
                 
-                tcp_arg(entry->m_pcb, nullptr);
+                tcp_arg((struct tcp_pcb_base *)entry->m_pcb, nullptr);
                 tcp_err(entry->m_pcb, nullptr);
                 tcp_recv(entry->m_pcb, nullptr);
                 
@@ -477,7 +473,6 @@ public:
             }
             
             entry->m_pcb = nullptr;
-            tcp_accepted(m_pcb);
         }
         
         static void queued_pcb_err_handler_wrapper (void *arg, err_t err)
@@ -516,12 +511,6 @@ public:
             return aborted ? ERR_ABRT : ERR_OK;
         }
         
-        // We delay calling tcp_accepted() until we abandon the connection.
-        // With this we keep hold of the accepts_pending reference, ensuring
-        // that lwip does not try to accept connections that we will not be
-        // able to handle anyway, and more importantly that we don't have PCBs
-        // reserved for.
-        
         struct tcp_pcb * yank_client_pcb ()
         {
             AMBRO_ASSERT(m_newpcb)
@@ -535,7 +524,7 @@ public:
             m_num_clients++;
             
             // Raise the priority of the new PCB to prevent it from getting killed due to subsequent new connections.
-            tcp_setprio(pcb, TCP_PRIO_NORMAL+5);
+            tcp_setprio((struct tcp_pcb_base *)pcb, TCP_PRIO_NORMAL+5);
             
             // If connections are starting with zero receive window, now is the time to raise it.
             if (m_queue_size > 0) {
@@ -549,9 +538,6 @@ public:
         {
             AMBRO_ASSERT(m_num_clients > 0)
             m_num_clients--;
-            
-            // Finally release the accepts_pending reference.
-            tcp_accepted(m_pcb);
         }
         
         TcpListenerQueueEntry * find_oldest_queued_pcb ()
@@ -622,7 +608,7 @@ public:
         typename Context::EventLoop::QueuedEvent m_dequeue_event;
         typename Context::EventLoop::TimedEvent m_timeout_event;
         AcceptHandler m_accept_handler;
-        struct tcp_pcb *m_pcb;
+        struct tcp_pcb_listen *m_pcb;
         struct tcp_pcb *m_newpcb;
         TcpListenerQueueEntry *m_queue;
         TimeType m_queue_timeout;
@@ -710,7 +696,7 @@ public:
             m_pcb = listener->yank_client_pcb();
             m_listener = listener;
             
-            tcp_arg(m_pcb, this);
+            tcp_arg((struct tcp_pcb_base *)m_pcb, this);
             tcp_err(m_pcb, &TcpConnection::pcb_err_handler_wrapper);
             tcp_recv(m_pcb, &TcpConnection::pcb_recv_handler_wrapper);
             tcp_sent(m_pcb, &TcpConnection::pcb_sent_handler_wrapper);
@@ -1003,7 +989,7 @@ public:
         
         static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)
         {
-            tcp_arg(pcb, nullptr);
+            tcp_arg((struct tcp_pcb_base *)pcb, nullptr);
             tcp_err(pcb, nullptr);
             tcp_recv(pcb, nullptr);
             tcp_sent(pcb, nullptr);
