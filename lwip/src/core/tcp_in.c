@@ -372,7 +372,11 @@ tcp_input(struct pbuf *p, struct netif *inp)
           called when new send buffer space is available, we call it
           now. */
       if (tcp_acked > 0) {
-        TCP_EVENT_SENT(pcb, tcp_acked, err);
+        if (pcb->sent != NULL) {
+          err = pcb->sent(pcb->callback_arg, pcb, tcp_acked);
+        } else {
+          err = ERR_OK;
+        }
         if (err == ERR_ABRT) {
           goto aborted;
         }
@@ -384,7 +388,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
           /* Connection closed although the application has only shut down the
               tx side: call the PCB's err callback and indicate the closure to
               ensure the application doesn't continue using the PCB. */
-          TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_CLSD);
+          tcp_report_err(pcb->errf, pcb->callback_arg, ERR_CLSD);
         }
         tcp_pcb_remove(&tcp_active_pcbs, pcb);
         memp_free(MEMP_TCP_PCB, pcb);
@@ -400,7 +404,13 @@ tcp_input(struct pbuf *p, struct netif *inp)
         }
 
         /* Notify application that data has been received. */
-        TCP_EVENT_RECV(pcb, recv_data, ERR_OK, err);
+        if (pcb->recv != NULL) {
+          err = pcb->recv(pcb->callback_arg, pcb, recv_data, ERR_OK);
+        } else {
+          tcp_recved(pcb, recv_data->tot_len);
+          pbuf_free(recv_data);
+          err = ERR_OK;
+        }
         if (err == ERR_ABRT) {
           goto aborted;
         }
@@ -417,7 +427,11 @@ tcp_input(struct pbuf *p, struct netif *inp)
         if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
           pcb->rcv_wnd++;
         }
-        TCP_EVENT_CLOSED(pcb, err);
+        if (pcb->recv != NULL) {
+          err = pcb->recv(pcb->callback_arg, pcb, NULL, ERR_OK);
+        } else {
+          err = ERR_OK;
+        }
         if (err == ERR_ABRT) {
           goto aborted;
         }
@@ -655,7 +669,7 @@ tcp_process(struct tcp_pcb *pcb)
       /* Free the PCB but also call the error callback to inform the
          application that the connection is dead and PCB is deallocated. */
       pcb->flags &= ~TF_ACK_DELAY;
-      TCP_EVENT_ERR(pcb->errf, pcb->callback_arg, ERR_RST);
+      tcp_report_err(pcb->errf, pcb->callback_arg, ERR_RST);
       tcp_pcb_remove(&tcp_active_pcbs, pcb);
       memp_free(MEMP_TCP_PCB, pcb);
       return ERR_ABRT;
@@ -729,7 +743,11 @@ tcp_process(struct tcp_pcb *pcb)
 
       /* Call the user specified function to call when successfully
        * connected. */
-      TCP_EVENT_CONNECTED(pcb, ERR_OK, err);
+      if (pcb->connected != NULL) {
+        err = pcb->connected(pcb->callback_arg, pcb, ERR_OK);
+      } else {
+        err = ERR_OK;
+      }
       if (err == ERR_ABRT) {
         return ERR_ABRT;
       }

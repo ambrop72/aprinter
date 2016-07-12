@@ -187,45 +187,6 @@ PACK_STRUCT_END
 #define TF_CLOSED    (u8_t)0x10U   /* Connection was successfully closed. */
 #define TF_GOT_FIN   (u8_t)0x20U   /* Connection was closed by the remote end. */
 
-
-#define TCP_EVENT_SENT(pcb,space,ret)                          \
-  do {                                                         \
-    if((pcb)->sent != NULL)                                    \
-      (ret) = (pcb)->sent((pcb)->callback_arg,(pcb),(space));  \
-    else (ret) = ERR_OK;                                       \
-  } while (0)
-
-#define TCP_EVENT_RECV(pcb,p,err,ret)                          \
-  do {                                                         \
-    if((pcb)->recv != NULL) {                                  \
-      (ret) = (pcb)->recv((pcb)->callback_arg,(pcb),(p),(err));\
-    } else {                                                   \
-      (ret) = tcp_recv_null(NULL, (pcb), (p), (err));          \
-    }                                                          \
-  } while (0)
-
-#define TCP_EVENT_CLOSED(pcb,ret)                                \
-  do {                                                           \
-    if(((pcb)->recv != NULL)) {                                  \
-      (ret) = (pcb)->recv((pcb)->callback_arg,(pcb),NULL,ERR_OK);\
-    } else {                                                     \
-      (ret) = ERR_OK;                                            \
-    }                                                            \
-  } while (0)
-
-#define TCP_EVENT_CONNECTED(pcb,err,ret)                         \
-  do {                                                           \
-    if((pcb)->connected != NULL)                                 \
-      (ret) = (pcb)->connected((pcb)->callback_arg,(pcb),(err)); \
-    else (ret) = ERR_OK;                                         \
-  } while (0)
-
-#define TCP_EVENT_ERR(errf,arg,err)                            \
-  do {                                                         \
-    if((errf) != NULL)                                         \
-      (errf)((arg),(err));                                     \
-  } while (0)
-
 /* This structure represents a TCP segment on the unsent, unacked queues */
 struct tcp_seg {
   struct tcp_seg *next;    /* used when putting segments on a queue */
@@ -313,6 +274,7 @@ void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb);
 void tcp_move_to_time_wait(struct tcp_pcb *pcb);
+void tcp_report_err(tcp_err_fn errf, void *arg, err_t err);
 
 void tcp_segs_free(struct tcp_seg *seg);
 void tcp_seg_free(struct tcp_seg *seg);
@@ -365,8 +327,6 @@ u16_t tcp_eff_send_mss_impl(u16_t sendmss, const ip_addr_t *dest
 #define tcp_eff_send_mss(sendmss, src, dest, isipv6) tcp_eff_send_mss_impl(sendmss, dest)
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
 #endif /* TCP_CALCULATE_EFF_SEND_MSS */
-
-err_t tcp_recv_null(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err);
 
 #if TCP_DEBUG || TCP_INPUT_DEBUG || TCP_OUTPUT_DEBUG
 void tcp_debug_print(struct tcp_hdr *tcphdr);

@@ -434,7 +434,7 @@ tcp_abandon(struct tcp_pcb *pcb, int reset)
       tcp_rst(seqno, ackno, &pcb->local_ip, &pcb->remote_ip, local_port, pcb->remote_port);
     }
     memp_free(MEMP_TCP_PCB, pcb);
-    TCP_EVENT_ERR(errf, errf_arg, ERR_ABRT);
+    tcp_report_err(errf, errf_arg, ERR_ABRT);
   }
 }
 
@@ -1083,7 +1083,7 @@ tcp_slowtmr_start:
       memp_free(MEMP_TCP_PCB, pcb2);
 
       tcp_active_pcbs_changed = 0;
-      TCP_EVENT_ERR(err_fn, err_arg, ERR_ABRT);
+      tcp_report_err(err_fn, err_arg, ERR_ABRT);
       if (tcp_active_pcbs_changed) {
         goto tcp_slowtmr_start;
       }
@@ -1215,23 +1215,6 @@ void
 tcp_setprio(struct tcp_pcb_base *pcb, u8_t prio)
 {
   pcb->prio = prio;
-}
-
-/**
- * Default receive callback that is called if the user didn't register
- * a recv callback for the pcb.
- */
-err_t
-tcp_recv_null(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
-{
-  LWIP_UNUSED_ARG(arg);
-  if (p != NULL) {
-    tcp_recved(pcb, p->tot_len);
-    pbuf_free(p);
-  } else if (err == ERR_OK) {
-    return tcp_close(pcb);
-  }
-  return ERR_OK;
 }
 
 /**
@@ -1405,8 +1388,6 @@ tcp_alloc(u8_t prio)
     pcb->snd_lbb = iss;
     pcb->tmr = tcp_ticks;
     pcb->last_timer = tcp_timer_ctr;
-
-    pcb->recv = tcp_recv_null;
 
     /* Init KEEPALIVE timer */
     pcb->keep_idle  = TCP_KEEPIDLE_DEFAULT;
@@ -1700,6 +1681,13 @@ void tcp_move_to_time_wait(struct tcp_pcb *pcb)
   TCP_RMV_ACTIVE(pcb);
   pcb->state = TIME_WAIT;
   tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+}
+
+void tcp_report_err(tcp_err_fn errf, void *arg, err_t err)
+{
+  if (errf != NULL) {
+    errf(arg, err);
+  }
 }
 
 /**
