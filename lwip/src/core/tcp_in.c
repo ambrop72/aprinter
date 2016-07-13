@@ -147,11 +147,9 @@ tcp_input(struct pbuf *p, struct netif *inp)
 #if CHECKSUM_CHECK_TCP
   IF__NETIF_CHECKSUM_ENABLED(inp, NETIF_CHECKSUM_CHECK_TCP) {
     /* Verify TCP checksum. */
-    u16_t chksum = ip_chksum_pseudo(p, IP_PROTO_TCP, p->tot_len,
-                               ip_current_src_addr(), ip_current_dest_addr());
+    u16_t chksum = ip_chksum_pseudo(p, IP_PROTO_TCP, p->tot_len, ip_current_src_addr(), ip_current_dest_addr());
     if (chksum != 0) {
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packet discarded due to failing checksum 0x%04"X16_F"\n",
-          chksum));
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packet discarded due to failing checksum 0x%04"X16_F"\n", chksum));
       tcp_debug_print(tcphdr);
       TCP_STATS_INC(tcp.chkerr);
       goto dropped;
@@ -161,7 +159,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
 
   /* sanity-check header length */
   hdrlen_bytes = TCPH_HDRLEN(tcphdr) * 4;
-  if ((hdrlen_bytes < TCP_HLEN) || (hdrlen_bytes > p->tot_len)) {
+  if (hdrlen_bytes < TCP_HLEN || hdrlen_bytes > p->tot_len) {
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: invalid header length (%"U16_F")\n", (u16_t)hdrlen_bytes));
     TCP_STATS_INC(tcp.lenerr);
     goto dropped;
@@ -228,11 +226,11 @@ tcp_input(struct pbuf *p, struct netif *inp)
   /* Demultiplex an incoming segment. First, we check if it is destined
      for an active connection. */
   prev = NULL;
-
-  for(pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
+  for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_ASSERT("tcp_input: active pcb->state != CLOSED", pcb->state != CLOSED);
     LWIP_ASSERT("tcp_input: active pcb->state != TIME-WAIT", pcb->state != TIME_WAIT);
     LWIP_ASSERT("tcp_input: active pcb->state != LISTEN*", !tcp_pcb_is_listen(pcb));
+    
     if (pcb->remote_port == tcphdr->src &&
         pcb->local_port == tcphdr->dest &&
         ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
@@ -251,6 +249,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
       LWIP_ASSERT("tcp_input: pcb->next != pcb (after cache)", pcb->next != pcb);
       break;
     }
+    
     prev = pcb;
   }
 
@@ -259,6 +258,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
        in the TIME-WAIT state. */
     for (pcb = tcp_tw_pcbs; pcb != NULL; pcb = pcb->next) {
       LWIP_ASSERT("tcp_input: TIME-WAIT pcb->state == TIME-WAIT", pcb->state == TIME_WAIT);
+      
       if (pcb->remote_port == tcphdr->src &&
           pcb->local_port == tcphdr->dest &&
           ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
@@ -365,6 +365,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
   inseg.p = p;
   inseg.tcphdr = tcphdr;
 
+  /* Set some other state related to RX processing. */
   recv_data = NULL;
   recv_flags = 0;
   tcp_acked = 0;
@@ -374,6 +375,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
     p->flags |= PBUF_FLAG_PUSH;
   }
 
+  /* Do the main connection RX processing */
   if (!tcp_process(pcb)) {
     goto aborted;
   }
