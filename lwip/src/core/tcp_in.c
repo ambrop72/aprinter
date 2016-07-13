@@ -120,12 +120,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
   TCP_STATS_INC(tcp.recv);
   MIB2_STATS_INC(mib2.tcpinsegs);
 
-  tcphdr = (struct tcp_hdr *)p->payload;
-
-#if TCP_INPUT_DEBUG
-  tcp_debug_print(tcphdr);
-#endif
-
   /* Check that TCP header fits in payload */
   if (p->len < sizeof(struct tcp_hdr)) {
     /* drop short packets */
@@ -133,6 +127,12 @@ tcp_input(struct pbuf *p, struct netif *inp)
     TCP_STATS_INC(tcp.lenerr);
     goto dropped;
   }
+
+  tcphdr = (struct tcp_hdr *)p->payload;
+
+#if TCP_INPUT_DEBUG
+  tcp_debug_print(tcphdr);
+#endif
 
   /* Don't even process incoming broadcasts/multicasts. */
   if (
