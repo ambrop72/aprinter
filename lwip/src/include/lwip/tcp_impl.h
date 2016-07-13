@@ -260,19 +260,15 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
     tcp_active_pcbs_changed = 1;                   \
   } while (0)
 
-#define TCP_PCB_REMOVE_ACTIVE(pcb)                 \
-  do {                                             \
-    tcp_pcb_remove(&tcp_active_pcbs, pcb);         \
-    tcp_active_pcbs_changed = 1;                   \
-  } while (0)
-
 /* Internal functions: */
+
+u8_t tcp_state_is_active(enum tcp_state state);
 
 void tcp_reg(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 
 void tcp_pcb_purge(struct tcp_pcb *pcb);
-void tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb);
+void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev);
 void tcp_move_to_time_wait(struct tcp_pcb *pcb);
 void tcp_report_err(tcp_err_fn errf, void *arg, err_t err);
 

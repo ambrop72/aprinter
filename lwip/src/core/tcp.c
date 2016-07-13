@@ -200,14 +200,14 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
         /* move to TIME_WAIT since we close actively */
         tcp_move_to_time_wait(pcb);
       } else {
-        tcp_pcb_purge(pcb);
-        TCP_RMV_ACTIVE(pcb);
-        /* CLOSE_WAIT: deallocate the pcb since we already sent a RST for it */
         if (tcp_input_pcb == pcb) {
-          /* prevent using a deallocated pcb: free it from tcp_input later */
+          // TODO: Refactor. Is this even right now (TCP_RMV_ACTIVE)?
+          tcp_pcb_purge(pcb);
+          TCP_RMV_ACTIVE(pcb);
           tcp_trigger_input_pcb_close();
         } else {
-          memp_free(MEMP_TCP_PCB, pcb);
+          pcb->flags &= ~TF_ACK_DELAY;
+          tcp_pcb_free(pcb, 0, NULL);
         }
       }
       return ERR_OK;
@@ -224,16 +224,12 @@ tcp_close_shutdown(struct tcp_pcb *pcb, u8_t rst_on_unacked_data)
      * is erroneous, but this should never happen as the pcb has in those cases
      * been freed, and so any remaining handles are bogus. */
     err = ERR_OK;
-    if (pcb->local_port != 0) {
-      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
-    }
-    memp_free(MEMP_TCP_PCB, pcb);
+    tcp_pcb_free(pcb, 0, NULL);
     pcb = NULL;
     break;
   case SYN_SENT:
     err = ERR_OK;
-    TCP_PCB_REMOVE_ACTIVE(pcb);
-    memp_free(MEMP_TCP_PCB, pcb);
+    tcp_pcb_free(pcb, 0, NULL);
     pcb = NULL;
     MIB2_STATS_INC(mib2.tcpattemptfails);
     break;
@@ -387,45 +383,17 @@ tcp_shutdown(struct tcp_pcb *pcb, int shut_rx, int shut_tx)
 void
 tcp_abandon(struct tcp_pcb *pcb, int reset)
 {
-  u32_t seqno, ackno;
   tcp_err_fn errf;
   void *errf_arg;
 
   LWIP_ASSERT("tcp_abandon on listen-pcb", !tcp_pcb_is_listen(pcb));
   
-  /* Figure out on which TCP PCB list we are, and remove us. If we
-     are in an active state, call the receive function associated with
-     the PCB with a NULL argument, and send an RST to the remote end. */
   if (pcb->state == TIME_WAIT) {
-    tcp_pcb_remove(&tcp_tw_pcbs, pcb);
-    memp_free(MEMP_TCP_PCB, pcb);
+    tcp_pcb_free(pcb, 0, NULL);
   } else {
-    int send_rst = 0;
-    u16_t local_port = 0;
-    seqno = pcb->snd_nxt;
-    ackno = pcb->rcv_nxt;
     errf = pcb->errf;
     errf_arg = pcb->callback_arg;
-    if ((pcb->state == CLOSED) && (pcb->local_port != 0)) {
-      /* bound, not yet opened */
-      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
-    } else {
-      send_rst = reset;
-      local_port = pcb->local_port;
-      TCP_PCB_REMOVE_ACTIVE(pcb);
-    }
-    if (pcb->unacked != NULL) {
-      tcp_segs_free(pcb->unacked);
-    }
-    if (pcb->unsent != NULL) {
-      tcp_segs_free(pcb->unsent);
-    }
-    tcp_backlog_accepted(pcb);
-    if (send_rst) {
-      LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_abandon: sending RST\n"));
-      tcp_rst(seqno, ackno, &pcb->local_ip, &pcb->remote_ip, local_port, pcb->remote_port);
-    }
-    memp_free(MEMP_TCP_PCB, pcb);
+    tcp_pcb_free(pcb, reset, NULL);
     tcp_report_err(errf, errf_arg, ERR_ABRT);
   }
 }
@@ -897,7 +865,7 @@ tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
 void
 tcp_slowtmr(void)
 {
-  struct tcp_pcb *pcb, *prev;
+  struct tcp_pcb *pcb, *next_pcb, *prev;
   tcpwnd_size_t eff_wnd;
   u8_t pcb_remove;      /* flag if a PCB should be removed */
   u8_t pcb_reset;       /* flag if a RST should be sent when removing */
@@ -1046,47 +1014,30 @@ tcp_slowtmr_start:
         LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: removing pcb stuck in LAST-ACK\n"));
       }
     }
+    
+    next_pcb = pcb->next;
 
     /* If the PCB should be removed, do it. */
     if (pcb_remove) {
-      struct tcp_pcb *pcb2;
-      tcp_err_fn err_fn;
-      void *err_arg;
-      tcp_pcb_purge(pcb);
-      /* Remove PCB from tcp_active_pcbs list. */
-      if (prev != NULL) {
-        LWIP_ASSERT("tcp_slowtmr: middle tcp != tcp_active_pcbs", pcb != tcp_active_pcbs);
-        prev->next = pcb->next;
-      } else {
-        /* This PCB was the first. */
-        LWIP_ASSERT("tcp_slowtmr: first pcb == tcp_active_pcbs", tcp_active_pcbs == pcb);
-        tcp_active_pcbs = pcb->next;
-      }
-
-      if (pcb_reset) {
-        tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip,
-                 pcb->local_port, pcb->remote_port);
-      }
-
-      err_fn = pcb->errf;
-      err_arg = pcb->callback_arg;
-      pcb2 = pcb;
-      pcb = pcb->next;
-      memp_free(MEMP_TCP_PCB, pcb2);
-
+      tcp_err_fn err_fn = pcb->errf;
+      void *err_arg = pcb->callback_arg;
+      
+      pcb->flags &= ~TF_ACK_DELAY;
+      tcp_pcb_free(pcb, pcb_reset, prev);
+      
       tcp_active_pcbs_changed = 0;
       tcp_report_err(err_fn, err_arg, ERR_ABRT);
       if (tcp_active_pcbs_changed) {
         goto tcp_slowtmr_start;
       }
     } else {
-      /* get the 'next' element now and work with 'prev' below (in case of abort) */
-      prev = pcb;
-      pcb = pcb->next;
-
       /* Try to output. */
-      tcp_output(prev);
+      tcp_output(pcb);
+      
+      prev = pcb;
     }
+    
+    pcb = next_pcb;
   }
 
 
@@ -1101,26 +1052,17 @@ tcp_slowtmr_start:
     if ((u32_t)(tcp_ticks - pcb->tmr) > 2 * TCP_MSL / TCP_SLOW_INTERVAL) {
       ++pcb_remove;
     }
+    
+    next_pcb = pcb->next;
 
     /* If the PCB should be removed, do it. */
     if (pcb_remove) {
-      struct tcp_pcb *pcb2;
-      /* Remove PCB from tcp_tw_pcbs list. */
-      if (prev != NULL) {
-        LWIP_ASSERT("tcp_slowtmr: middle tcp != tcp_tw_pcbs", pcb != tcp_tw_pcbs);
-        prev->next = pcb->next;
-      } else {
-        /* This PCB was the first. */
-        LWIP_ASSERT("tcp_slowtmr: first pcb == tcp_tw_pcbs", tcp_tw_pcbs == pcb);
-        tcp_tw_pcbs = pcb->next;
-      }
-      pcb2 = pcb;
-      pcb = pcb->next;
-      memp_free(MEMP_TCP_PCB, pcb2);
+      tcp_pcb_free(pcb, 0, prev);
     } else {
       prev = pcb;
-      pcb = pcb->next;
     }
+    
+    pcb = next_pcb;
   }
 }
 
@@ -1532,6 +1474,27 @@ tcp_accept(struct tcp_pcb_listen *lpcb, tcp_accept_fn accept)
   lpcb->accept = accept;
 }
 
+/**
+ * Determines whether a state is considered active, i.e.
+ * whether PCBs in this state belong into tcp_active_pcbs.
+ */
+u8_t tcp_state_is_active(enum tcp_state state)
+{
+  switch (state) {
+    case SYN_SENT:
+    case SYN_RCVD:
+    case ESTABLISHED:
+    case FIN_WAIT_1:
+    case FIN_WAIT_2:
+    case CLOSE_WAIT:
+    case CLOSING:
+    case LAST_ACK:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
 /* Axioms about the above lists:
    1) Every TCP PCB that is not CLOSED is in one of the lists.
    2) A PCB is only in one of the lists.
@@ -1629,50 +1592,60 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
   pcb->unacked = NULL;
 }
 
-/**
- * Purges the PCB and removes it from a PCB list. Any delayed ACKs are sent first.
- *
- * @param pcblist PCB list to purge.
- * @param pcb tcp_pcb to purge. The pcb itself is NOT deallocated!
- */
-void
-tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
+void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev)
 {
-  LWIP_ASSERT("tcp_pcb_remove on listen-pcb", !tcp_pcb_is_listen(pcb));
+  LWIP_ASSERT("tcp_pcb_free on listen-pcb", !tcp_pcb_is_listen(pcb));
   
-  tcp_rmv((struct tcp_pcb_base **)pcblist, to_tcp_pcb_base(pcb));
-
-  if (pcb->state != TIME_WAIT) {
-    /* note, purge was already done if already in TIME_WAIT */
+  if (pcb->state == CLOSED) {
+    if (pcb->local_port != 0) {
+      tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
+    }
+  }
+  else if (tcp_state_is_active(pcb->state)) {
+    if (prev != NULL) {
+      // Be faster if the caller knows the previous PCB in the list.
+      LWIP_ASSERT("prev->next == pcb", prev->next == pcb);
+      prev->next = pcb->next;
+      tcp_active_pcbs_changed = 1;
+    } else {
+      TCP_RMV_ACTIVE(pcb);
+    }
+    
     tcp_pcb_purge(pcb);
     
-    /* if there is an outstanding delayed ACKs, send it */
     if ((pcb->flags & TF_ACK_DELAY)) {
       pcb->flags |= TF_ACK_NOW;
       tcp_output(pcb);
     }
+    
+    if (send_rst) {
+      tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip, pcb->local_port, pcb->remote_port);
+    }
+  }
+  else if (pcb->state == TIME_WAIT) {
+    tcp_rmv((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+    /* note, tcp_pcb_purge has been done already */
   }
   
   LWIP_ASSERT("unsent segments leaking", pcb->unsent == NULL);
   LWIP_ASSERT("unacked segments leaking", pcb->unacked == NULL);
-
-  pcb->state = CLOSED;
-  /* reset the local port to prevent the pcb from being 'bound' */
-  pcb->local_port = 0;
-
-  LWIP_ASSERT("tcp_pcb_remove: tcp_pcbs_sane()", tcp_pcbs_sane());
+  
+  memp_free(MEMP_TCP_PCB, pcb);
+  
+  LWIP_ASSERT("tcp_pcb_free: tcp_pcbs_sane()", tcp_pcbs_sane());
 }
 
 void tcp_move_to_time_wait(struct tcp_pcb *pcb)
 {
-  LWIP_ASSERT("tcp_move_to_time_wait state",
-    pcb->state == ESTABLISHED || pcb->state == FIN_WAIT_1 ||
-    pcb->state == FIN_WAIT_2  || pcb->state == CLOSING);
+  LWIP_ASSERT("tcp_move_to_time_wait active state", tcp_state_is_active(pcb->state));
   
   tcp_pcb_purge(pcb);
   TCP_RMV_ACTIVE(pcb);
+  
   pcb->state = TIME_WAIT;
   tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
+  
+  LWIP_ASSERT("tcp_move_to_time_wait: tcp_pcbs_sane()", tcp_pcbs_sane());
 }
 
 void tcp_report_err(tcp_err_fn errf, void *arg, err_t err)
