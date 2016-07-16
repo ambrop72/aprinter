@@ -55,14 +55,16 @@ struct tcp_pcb;
 
 /** Function prototype for tcp accept callback functions. Called when a new
  * connection can be accepted on a listening pcb.
+ * 
+ * You are implicitly given a reference to the  new connection,
+ * and are responsible to release it with tcp_close (or tcp_abort).
+ * If you're not ready to accept the connection, close it from
+ * within the callback.
  *
  * @param arg Additional argument to pass to the callback function (@see tcp_arg())
  * @param newpcb The new connection pcb
- * @param err An error code if there has been an error accepting.
- *            Only return ERR_ABRT if you have called tcp_abort from within the
- *            callback function!
  */
-typedef err_t (*tcp_accept_fn)(void *arg, struct tcp_pcb *newpcb, err_t err);
+typedef void (*tcp_accept_fn)(void *arg, struct tcp_pcb *newpcb, err_t err);
 
 /** Function prototype for tcp receive callback functions. Called when data has
  * been received.
@@ -70,12 +72,8 @@ typedef err_t (*tcp_accept_fn)(void *arg, struct tcp_pcb *newpcb, err_t err);
  * @param arg Additional argument to pass to the callback function (@see tcp_arg())
  * @param tpcb The connection pcb which received data
  * @param p The received data (or NULL when the connection has been closed!)
- * @param err An error code if there has been an error receiving
- *            Only return ERR_ABRT if you have called tcp_abort from within the
- *            callback function!
  */
-typedef err_t (*tcp_recv_fn)(void *arg, struct tcp_pcb *tpcb,
-                             struct pbuf *p, err_t err);
+typedef void (*tcp_recv_fn)(void *arg, struct tcp_pcb *tpcb, struct pbuf *p);
 
 /** Function prototype for tcp sent callback functions. Called when sent data has
  * been acknowledged by the remote side. Use it to free corresponding resources.
@@ -84,12 +82,8 @@ typedef err_t (*tcp_recv_fn)(void *arg, struct tcp_pcb *tpcb,
  * @param arg Additional argument to pass to the callback function (@see tcp_arg())
  * @param tpcb The connection pcb for which data has been acknowledged
  * @param len The amount of bytes acknowledged
- * @return ERR_OK: try to send some data by calling tcp_output
- *            Only return ERR_ABRT if you have called tcp_abort from within the
- *            callback function!
  */
-typedef err_t (*tcp_sent_fn)(void *arg, struct tcp_pcb *tpcb,
-                              u16_t len);
+typedef void (*tcp_sent_fn)(void *arg, struct tcp_pcb *tpcb, u16_t len);
 
 /** Function prototype for tcp error callback functions. Called when the pcb
  * receives a RST or is unexpectedly closed for any other reason.
@@ -98,7 +92,8 @@ typedef err_t (*tcp_sent_fn)(void *arg, struct tcp_pcb *tpcb,
  *
  * @param arg Additional argument to pass to the callback function (@see tcp_arg())
  * @param err Error code to indicate why the pcb has been closed
- *            ERR_ABRT: aborted through tcp_abort or by a TCP timer
+ *            ERR_ABRT: aborted, e.g. because the memory is being reused
+ *                      for another connection
  *            ERR_RST: the connection was reset by the remote host
  */
 typedef void  (*tcp_err_fn)(void *arg, err_t err);
@@ -110,12 +105,10 @@ typedef void  (*tcp_err_fn)(void *arg, err_t err);
  * @param arg Additional argument to pass to the callback function (@see tcp_arg())
  * @param tpcb The connection pcb which is connected
  * @param err An unused error code, always ERR_OK currently ;-) @todo!
- *            Only return ERR_ABRT if you have called tcp_abort from within the
- *            callback function!
  *
  * @note When a connection attempt fails, the error callback is currently called!
  */
-typedef err_t (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
+typedef void (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
 
 #define RCV_WND_SCALE(pcb, wnd) (wnd)
 #define SND_WND_SCALE(pcb, wnd) (wnd)
@@ -189,7 +182,7 @@ struct tcp_pcb {
 #define TF_ACK_NOW     0x02U   /* Immediate ACK. */
 #define TF_INFR        0x04U   /* In fast recovery. */
 #define TF_TIMESTAMP   0x08U   /* Timestamp option enabled */
-#define TF_RXCLOSED    0x10U   /* rx closed by tcp_shutdown */
+#define TF_NOUSER      0x10U   /* There is no user reference to this PCB */
 #define TF_FIN         0x20U   /* Connection was closed locally (FIN segment enqueued). */
 #define TF_NODELAY     0x40U   /* Disable Nagle algorithm */
 #define TF_NAGLEMEMERR 0x80U   /* nagle enabled, memerr, try to output to prevent delayed ACK to happen */
@@ -309,9 +302,9 @@ void             tcp_backlog_delayed(struct tcp_pcb* pcb);
 void             tcp_backlog_accepted(struct tcp_pcb* pcb);
 
 void             tcp_abort (struct tcp_pcb *pcb);
-err_t            tcp_close   (struct tcp_pcb *pcb);
+void             tcp_close (struct tcp_pcb *pcb);
+err_t            tcp_shut_tx (struct tcp_pcb *pcb);
 void             tcp_close_listen(struct tcp_pcb_listen *lpcb);
-err_t            tcp_shutdown(struct tcp_pcb *pcb, int shut_rx, int shut_tx);
 
 /* Flags for "apiflags" parameter in tcp_write */
 #define TCP_WRITE_FLAG_MORE 0x02

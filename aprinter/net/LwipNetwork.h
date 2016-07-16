@@ -383,13 +383,13 @@ public:
             m_timeout_event.unset(c);
         }
         
-        static err_t pcb_accept_handler_wrapper (void *arg, struct tcp_pcb *newpcb, err_t err)
+        static void pcb_accept_handler_wrapper (void *arg, struct tcp_pcb *newpcb, err_t err)
         {
             TcpListener *obj = (TcpListener *)arg;
             return obj->pcb_accept_handler(newpcb, err);
         }
         
-        err_t pcb_accept_handler (struct tcp_pcb *newpcb, err_t err)
+        void pcb_accept_handler (struct tcp_pcb *newpcb, err_t err)
         {
             Context c;
             AMBRO_ASSERT(m_pcb)
@@ -405,7 +405,6 @@ public:
             // Publish the newpcb.
             m_newpcb = newpcb;
             m_newpcb_taken = false;
-            m_newpcb_aborted = false;
             
             // Call the accept handler.
             m_accept_handler(c);
@@ -415,16 +414,16 @@ public:
             
             // Was the newpcb taken?
             if (m_newpcb_taken) {
-                return m_newpcb_aborted ? ERR_ABRT : ERR_OK;
+                return;
             }
             
             // Try to put it into the queue.
             if (queue_connection(c, newpcb)) {
-                return ERR_OK;
+                return;
             }
             
             // No space in queue.
-            return ERR_BUF;
+            tcp_close(newpcb);
         }
         
         bool queue_connection (Context c, struct tcp_pcb *pcb)
@@ -444,7 +443,7 @@ public:
             return false;
         }
         
-        void close_queued_connection (TcpListenerQueueEntry *entry, bool pcb_gone, bool *aborted=nullptr)
+        void close_queued_connection (TcpListenerQueueEntry *entry, bool pcb_gone)
         {
             AMBRO_ASSERT(entry->m_pcb)
             
@@ -464,12 +463,7 @@ public:
                 tcp_err(entry->m_pcb, nullptr);
                 tcp_recv(entry->m_pcb, nullptr);
                 
-                if (tcp_close(entry->m_pcb) != ERR_OK) {
-                    tcp_abort(entry->m_pcb);
-                    if (aborted) {
-                        *aborted = true;
-                    }
-                }
+                tcp_close(entry->m_pcb);
             }
             
             entry->m_pcb = nullptr;
@@ -491,13 +485,13 @@ public:
             update_timeout(c);
         }
         
-        static err_t queued_pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        static void queued_pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p)
         {
             TcpListenerQueueEntry *entry = (TcpListenerQueueEntry *)arg;
-            return entry->m_listener->queued_pcb_recv_handler(entry, tpcb, p, err);
+            return entry->m_listener->queued_pcb_recv_handler(entry, tpcb, p);
         }
         
-        err_t queued_pcb_recv_handler (TcpListenerQueueEntry *entry, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        void queued_pcb_recv_handler (TcpListenerQueueEntry *entry, struct tcp_pcb *tpcb, struct pbuf *p)
         {
             Context c;
             AMBRO_ASSERT(m_pcb)
@@ -505,17 +499,14 @@ public:
             AMBRO_ASSERT(tpcb == entry->m_pcb)
             AMBRO_ASSERT(!p) // We've dropped the window size so no data should be passed to this callback.
             
-            bool aborted = false;
-            close_queued_connection(entry, false, &aborted);
+            close_queued_connection(entry, false);
             update_timeout(c);
-            return aborted ? ERR_ABRT : ERR_OK;
         }
         
         struct tcp_pcb * yank_client_pcb ()
         {
             AMBRO_ASSERT(m_newpcb)
             AMBRO_ASSERT(!m_newpcb_taken)
-            AMBRO_ASSERT(!m_newpcb_aborted)
             
             struct tcp_pcb *pcb = m_newpcb;
             m_newpcb_taken = true;
@@ -567,7 +558,6 @@ public:
             // Publish the newpcb.
             m_newpcb = oldest_entry->m_pcb;
             m_newpcb_taken = false;
-            m_newpcb_aborted = false;
             
             // Call the accept handler.
             m_accept_handler(c);
@@ -615,7 +605,6 @@ public:
         uint8_t m_num_clients;
         uint8_t m_queue_size;
         bool m_newpcb_taken;
-        bool m_newpcb_aborted;
     };
     
     class TcpConnectionCallback {
@@ -812,10 +801,8 @@ public:
             if (m_pcb) {
                 if (m_pcb == m_listener->m_newpcb) {
                     m_listener->m_newpcb = nullptr;
-                    close_pcb(m_pcb, m_send_buf_passed_length, &m_listener->m_newpcb_aborted);
-                } else {
-                    close_pcb(m_pcb, m_send_buf_passed_length);
                 }
+                close_pcb(m_pcb, m_send_buf_passed_length);
                 m_pcb = nullptr;
                 m_listener->client_pcb_closed();
             }
@@ -855,19 +842,18 @@ public:
             go_erroring(c, true);
         }
         
-        static err_t pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        static void pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p)
         {
             TcpConnection *obj = (TcpConnection *)arg;
-            return obj->pcb_recv_handler(tpcb, p, err);
+            return obj->pcb_recv_handler(tpcb, p);
         }
         
-        err_t pcb_recv_handler (struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        void pcb_recv_handler (struct tcp_pcb *tpcb, struct pbuf *p)
         {
             Context c;
             AMBRO_ASSERT(m_state == State::RUNNING)
             AMBRO_ASSERT(!m_received_pbuf)
             AMBRO_ASSERT(tpcb == m_pcb)
-            AMBRO_ASSERT(err == ERR_OK)
             AMBRO_ASSERT(!p || p->tot_len <= RequiredRxBufSize - m_recv_pending)
             
             if (!p) {
@@ -888,17 +874,15 @@ public:
                 
                 pbuf_free(p);
             }
-            
-            return ERR_OK;
         }
         
-        static err_t pcb_sent_handler_wrapper (void *arg, struct tcp_pcb *tpcb, uint16_t len)
+        static void pcb_sent_handler_wrapper (void *arg, struct tcp_pcb *tpcb, uint16_t len)
         {
             TcpConnection *obj = (TcpConnection *)arg;
             return obj->pcb_sent_handler(tpcb, len);
         }
         
-        err_t pcb_sent_handler (struct tcp_pcb *tpcb, uint16_t len)
+        void pcb_sent_handler (struct tcp_pcb *tpcb, uint16_t len)
         {
             Context c;
             AMBRO_ASSERT(m_state == State::RUNNING)
@@ -915,8 +899,6 @@ public:
             
             // No !m_send_closed check before callback, see comment in getSendBufferSpace.
             m_callback->connectionSendHandler(c);
-            
-            return ERR_OK;
         }
         
         void closed_event_handler (Context c)
@@ -959,7 +941,7 @@ public:
             // shutting down the TX. See comment in tcp_enqueue_flags():
             // "We need one available snd_buf byte to do that".
             if (m_send_closed && m_send_shut_pending && m_send_buf_length < ProvidedTxBufSize) {
-                auto err = tcp_shutdown(m_pcb, 0, 1);
+                auto err = tcp_shut_tx(m_pcb);
                 if (err != ERR_OK) {
                     return go_erroring(c, false);
                 }
@@ -987,7 +969,7 @@ public:
             return WrapBuffer(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf);
         }
         
-        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)
+        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length)
         {
             tcp_arg((struct tcp_pcb_base *)pcb, nullptr);
             tcp_err(pcb, nullptr);
@@ -996,11 +978,10 @@ public:
             
             // If we have unacked data queued for sending, we have to resort
             // to tcp_abort() because the referenced m_send_buf may go away.
-            if (send_buf_passed_length > 0 || tcp_close(pcb) != ERR_OK) {
+            if (send_buf_passed_length > 0) {
                 tcp_abort(pcb);
-                if (aborted) {
-                    *aborted = true;
-                }
+            } else {
+                tcp_close(pcb);
             }
         }
         

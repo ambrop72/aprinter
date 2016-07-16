@@ -69,7 +69,6 @@ void             tcp_txnow   (void);
 void             tcp_input   (struct pbuf *p, struct netif *inp);
 /* Used within the TCP code only: */
 struct tcp_pcb * tcp_alloc   (u8_t prio);
-void             tcp_abandon (struct tcp_pcb *pcb, int reset);
 err_t            tcp_send_empty_ack(struct tcp_pcb *pcb);
 void             tcp_rexmit  (struct tcp_pcb *pcb);
 void             tcp_rexmit_rto  (struct tcp_pcb *pcb);
@@ -78,6 +77,9 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 
 /* Check if a PCB is a tcp_pcb_listen by looking at the state. */
 #define tcp_pcb_is_listen(pcb) ((pcb)->state == LISTEN_CLOS || (pcb)->state == LISTEN)
+
+/* Check if a PCB has a user reference. */
+#define tcp_pcb_has_user_ref(pcb) (tcp_pcb_is_listen(pcb) || !(((struct tcp_pcb *)(pcb))->flags & TF_NOUSER))
 
 /**
  * This is the Nagle algorithm: try to combine user data to send as few TCP
@@ -184,7 +186,6 @@ PACK_STRUCT_END
 
 /** Flags used on input processing, not on pcb->flags
 */
-#define TF_CLOSED    (u8_t)0x10U   /* Connection was successfully closed. */
 #define TF_GOT_FIN   (u8_t)0x20U   /* Connection was closed by the remote end. */
 
 /* This structure represents a TCP segment on the unsent, unacked queues */
@@ -270,10 +271,15 @@ void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev);
 void tcp_move_to_time_wait(struct tcp_pcb *pcb);
-void tcp_report_err(tcp_err_fn errf, void *arg, err_t err);
+void tcp_report_err(struct tcp_pcb *pcb, err_t err);
 
 void tcp_segs_free(struct tcp_seg *seg);
 void tcp_seg_free(struct tcp_seg *seg);
+
+void tcp_backlog_delayed_internal(struct tcp_pcb* pcb);
+void tcp_backlog_accepted_internal(struct tcp_pcb* pcb);
+void tcp_recved_internal(struct tcp_pcb *pcb, u16_t len);
+void tcp_recved_internal(struct tcp_pcb *pcb, u16_t len);
 
 #define tcp_ack(pcb)                               \
   do {                                             \
@@ -304,7 +310,6 @@ u32_t tcp_next_iss(void);
 
 err_t tcp_keepalive(struct tcp_pcb *pcb);
 err_t tcp_zero_window_probe(struct tcp_pcb *pcb);
-void  tcp_trigger_input_pcb_close(void);
 
 #if TCP_CALCULATE_EFF_SEND_MSS
 u16_t tcp_eff_send_mss_impl(u16_t sendmss, const ip_addr_t *dest

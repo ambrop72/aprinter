@@ -85,7 +85,7 @@ static tcpwnd_size_t tcp_acked;
 struct tcp_pcb *tcp_input_pcb;
 
 /* Forward declarations. */
-static u8_t tcp_process(struct tcp_pcb *pcb);
+static void tcp_process(struct tcp_pcb *pcb);
 static void tcp_receive(struct tcp_pcb *pcb);
 static void tcp_parseopt(struct tcp_pcb *pcb);
 
@@ -227,9 +227,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
      for an active connection. */
   prev = NULL;
   for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
-    LWIP_ASSERT("tcp_input: active pcb->state != CLOSED", pcb->state != CLOSED);
-    LWIP_ASSERT("tcp_input: active pcb->state != TIME-WAIT", pcb->state != TIME_WAIT);
-    LWIP_ASSERT("tcp_input: active pcb->state != LISTEN*", !tcp_pcb_is_listen(pcb));
+    LWIP_ASSERT("tcp_input: active pcb->state", tcp_state_is_active(pcb->state));
     
     if (pcb->remote_port == tcphdr->src &&
         pcb->local_port == tcphdr->dest &&
@@ -366,9 +364,13 @@ tcp_input(struct pbuf *p, struct netif *inp)
   inseg.tcphdr = tcphdr;
 
   /* Set some other state related to RX processing. */
+  tcp_acked = 0;
   recv_data = NULL;
   recv_flags = 0;
-  tcp_acked = 0;
+  
+  /* Point tcp_input_pcb to this PCB. We use this to know
+   * when the PCB was freed, as tcp_pcb_free() will set it
+   * to NULL in that case. */
   tcp_input_pcb = pcb;
 
   if (flags & TCP_PSH) {
@@ -376,53 +378,41 @@ tcp_input(struct pbuf *p, struct netif *inp)
   }
 
   /* Do the main connection RX processing */
-  if (!tcp_process(pcb)) {
+  tcp_process(pcb);
+  if (tcp_input_pcb == NULL) {
     goto aborted;
   }
   
   /* If the application has registered a "sent" function to be
       called when new send buffer space is available, we call it
       now. */
-  if (tcp_acked > 0 && pcb->sent != NULL) {
-    err = pcb->sent(pcb->callback_arg, pcb, tcp_acked);
-    if (err == ERR_ABRT) {
+  if (tcp_acked > 0 && !(pcb->flags & TF_NOUSER) && pcb->sent != NULL) {
+    pcb->sent(pcb->callback_arg, pcb, tcp_acked);
+    if (tcp_input_pcb == NULL) {
       goto aborted;
     }
   }
-  
-  if (recv_flags & TF_CLOSED) {
-    /* The connection has been closed and we will deallocate the
-        PCB. */
-    if (!(pcb->flags & TF_RXCLOSED)) {
-      /* Connection closed although the application has only shut down the
-          tx side: call the PCB's err callback and indicate the closure to
-          ensure the application doesn't continue using the PCB. */
-      tcp_report_err(pcb->errf, pcb->callback_arg, ERR_CLSD);
-    }
-    tcp_pcb_free(pcb, 0, NULL);
-    goto aborted;
-  }
-  
+
   if (recv_data != NULL) {
-    if (pcb->flags & TF_RXCLOSED) {
-      /* received data although already closed -> abort (send RST) to
-          notify the remote host that not all data has been processed */
-      pbuf_free(recv_data);
-      tcp_abort(pcb);
+    if ((pcb->flags & TF_NOUSER)) {
+      /* received data after tcp_close -> abort (send RST) to
+       * notify the remote host that not all data has been processed */
+      tcp_pcb_free(pcb, 1, NULL);
       goto aborted;
     }
 
-    /* Notify application that data has been received. */
     if (pcb->recv != NULL) {
-      err = pcb->recv(pcb->callback_arg, pcb, recv_data, ERR_OK);
-      if (err == ERR_ABRT) {
+      /* Passing pbuf reference to the application */
+      struct pbuf *the_recv_data = recv_data;
+      recv_data = NULL;
+      
+      /* Notify application that data has been received. */
+      pcb->recv(pcb->callback_arg, pcb, the_recv_data);
+      if (tcp_input_pcb == NULL) {
         goto aborted;
       }
-      /* It is not allowed for the upper layer to refuse data. */
-      LWIP_ASSERT("received data refused", err == ERR_OK);
     } else {
-      tcp_recved(pcb, recv_data->tot_len);
-      pbuf_free(recv_data);
+      tcp_recved_internal(pcb, recv_data->tot_len);
     }
   }
 
@@ -435,29 +425,35 @@ tcp_input(struct pbuf *p, struct netif *inp)
       pcb->rcv_wnd++;
     }
     
-    if (pcb->recv != NULL) {
-      err = pcb->recv(pcb->callback_arg, pcb, NULL, ERR_OK);
-      if (err == ERR_ABRT) {
+    if (!(pcb->flags & TF_NOUSER) && pcb->recv != NULL) {
+      pcb->recv(pcb->callback_arg, pcb, NULL);
+      if (tcp_input_pcb == NULL) {
         goto aborted;
       }
     }
   }
 
-  /* Try to send something out.
-   * First clear tcp_input_pcb so tcp_output doesn't ignore our request. */
+  /* Clear tcp_input_pcb to indicate we're no longer receiving for this PCB. */
   tcp_input_pcb = NULL;
+  
+  /* Try to send something out.
+   * Do it after clearing tcp_input_pcb so tcp_output doesn't ignore our request. */
   tcp_output(pcb);
+  
 #if TCP_INPUT_DEBUG && TCP_DEBUG
   tcp_debug_print_state(pcb->state);
 #endif
   
-  /* Jump target if pcb has been aborted in a callback (by calling tcp_abort()).
-      Below this line, 'pcb' may not be dereferenced! */
+  /* Jump target if pcb has been deallocated in a callback.
+   * Below this line, 'pcb' may not be dereferenced! */
 aborted:
-  tcp_input_pcb = NULL;
-  recv_data = NULL;
-
-  /* give up our reference to inseg.p */
+  LWIP_ASSERT("tcp_input_pcb == NULL", tcp_input_pcb == NULL);
+  
+  /* give up any reference to the pbuf */
+  if (recv_data != NULL) {
+    pbuf_free(recv_data);
+    recv_data = NULL;
+  }
   if (inseg.p != NULL) {
     pbuf_free(inseg.p);
     inseg.p = NULL;
@@ -522,7 +518,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
       return;
     }
     pcb->accepts_pending++;
-    npcb->flags |= TF_BACKLOGPEND;
+    npcb->flags |= TF_BACKLOGPEND|TF_NOUSER;
     /* Set up the new PCB. */
 #if LWIP_IPV4 && LWIP_IPV6
     PCB_ISIPV6(npcb) = ip_current_is_v6();
@@ -560,7 +556,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     /* Send a SYN|ACK together with the MSS option. */
     rc = tcp_enqueue_flags(npcb, TCP_SYN | TCP_ACK);
     if (rc != ERR_OK) {
-      tcp_abandon(npcb, 0);
+      tcp_pcb_free(npcb, 0, NULL);
       return;
     }
     tcp_output(npcb);
@@ -619,17 +615,15 @@ tcp_timewait_input(struct tcp_pcb *pcb)
  * recv_data pointer in the pcb is set.
  *
  * @param pcb the tcp_pcb for which a segment arrived
- * @return 0 if PCB was freed, 1 if not
  *
  * @note the segment which arrived is saved in global variables, therefore only the pcb
  *       involved is passed as a parameter to this function
  */
-static u8_t
+static void
 tcp_process(struct tcp_pcb *pcb)
 {
   struct tcp_seg *rseg;
   u8_t acceptable = 0;
-  err_t err;
 
   /* Process incoming RST segments. */
   if (flags & TCP_RST) {
@@ -662,26 +656,26 @@ tcp_process(struct tcp_pcb *pcb)
       /* Free the PCB but also call the error callback to inform the
          application that the connection is dead and PCB is deallocated. */
       pcb->flags &= ~TF_ACK_DELAY;
-      tcp_report_err(pcb->errf, pcb->callback_arg, ERR_RST);
+      tcp_report_err(pcb, ERR_RST);
       tcp_pcb_free(pcb, 0, NULL);
-      return 0;
+      return;
     }
     
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
       seqno, pcb->rcv_nxt));
     LWIP_DEBUGF(TCP_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
       seqno, pcb->rcv_nxt));
-    return 1;
+    return;
   }
 
   if ((flags & TCP_SYN) && (pcb->state != SYN_SENT && pcb->state != SYN_RCVD)) {
     /* Cope with new connection attempt after remote end crashed */
     tcp_ack_now(pcb);
-    return 1;
+    return;
   }
 
-  if ((pcb->flags & TF_RXCLOSED) == 0) {
-    /* Update the PCB (in)activity timer unless rx is closed (see tcp_shutdown) */
+  if (!(pcb->flags & TF_NOUSER) || pcb->state == SYN_RCVD) {
+    /* Update the PCB (in)activity timer unless rx is closed */
     pcb->tmr = tcp_ticks;
   }
   pcb->keep_cnt_sent = 0;
@@ -736,9 +730,9 @@ tcp_process(struct tcp_pcb *pcb)
       /* Call the user specified function to call when successfully
        * connected. */
       if (pcb->connected != NULL) {
-        err = pcb->connected(pcb->callback_arg, pcb, ERR_OK);
-        if (err == ERR_ABRT) {
-          return 0;
+        pcb->connected(pcb->callback_arg, pcb, ERR_OK);
+        if (tcp_input_pcb == NULL) {
+          return;
         }
       }
       
@@ -760,24 +754,28 @@ tcp_process(struct tcp_pcb *pcb)
       /* expected ACK number? */
       if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
-        LWIP_ASSERT("pcb->listener->accept != NULL", pcb->listener == NULL || pcb->listener->accept != NULL);
+        LWIP_ASSERT("pcb->flags & TF_NOUSER", (pcb->flags & TF_NOUSER));
         
         pcb->state = ESTABLISHED;
-        tcp_backlog_accepted(pcb);
         
-        err = ERR_VAL;
-        if (pcb->listener != NULL) {
-          /* Call the accept function. */
-          err = pcb->listener->accept(pcb->callback_arg, pcb, ERR_OK);
+        tcp_backlog_accepted_internal(pcb);
+        
+        /* If the listener is gone or has no accept function,
+         * then abort with an RST. */
+        if (pcb->listener == NULL || pcb->listener->accept == NULL) {
+          tcp_pcb_free(pcb, 1, NULL);
+          return;
         }
-        if (err != ERR_OK) {
-          /* If the accept function returns with an error, we abort
-           * the connection. */
-          /* Already aborted? */
-          if (err != ERR_ABRT) {
-            tcp_abort(pcb);
-          }
-          return 0;
+        
+        /* There is now a user reference to the PCB.
+         * Do this before calling accept, so that they can
+         * call tcp_close and other functions from the accept. */
+        pcb->flags &= ~TF_NOUSER;
+        
+        /* Call the accept function. */
+        pcb->listener->accept(pcb->callback_arg, pcb, ERR_OK);
+        if (tcp_input_pcb == NULL) {
+          return;
         }
         
         /* If there was any data contained within this ACK,
@@ -857,15 +855,13 @@ tcp_process(struct tcp_pcb *pcb)
     tcp_receive(pcb);
     if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: LAST_ACK %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
-      /* bugfix #21699: don't set pcb->state to CLOSED here or we risk leaking segments */
-      recv_flags |= TF_CLOSED;
+      tcp_report_err(pcb, ERR_CLSD);
+      tcp_pcb_free(pcb, 0, NULL);
     }
     break;
   default:
     break;
   }
-  
-  return 1;
 }
 
 
@@ -1403,12 +1399,6 @@ tcp_parseopt(struct tcp_pcb *pcb)
       }
     }
   }
-}
-
-void
-tcp_trigger_input_pcb_close(void)
-{
-  recv_flags |= TF_CLOSED;
 }
 
 #endif /* LWIP_TCP */

@@ -258,12 +258,13 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t 
   u16_t mss_local = LWIP_MIN(pcb->mss, TCPWND_MIN16(pcb->snd_wnd_max/2));
   mss_local = mss_local ? mss_local : pcb->mss;
 
+  LWIP_ASSERT("tcp_write without user reference", !(pcb->flags & TF_NOUSER));
+  LWIP_ASSERT("tcp_write: written_len == NULL with TCP_WRITE_FLAG_PARTIAL",
+             !(apiflags & TCP_WRITE_FLAG_PARTIAL) || written_len != NULL);
+  LWIP_ASSERT("tcp_write in TIME_WAIT", pcb->state != TIME_WAIT);
+  
   LWIP_DEBUGF(TCP_OUTPUT_DEBUG, ("tcp_write(pcb=%p, data=%p, len=%"U16_F", apiflags=%"U16_F")\n",
     (void *)pcb, arg, len, (u16_t)apiflags));
-  LWIP_ERROR("tcp_write: arg == NULL (programmer violates API)",
-             arg != NULL, return ERR_ARG;);
-  LWIP_ERROR("tcp_write: written_len == NULL with TCP_WRITE_FLAG_PARTIAL",
-             !(apiflags & TCP_WRITE_FLAG_PARTIAL) || written_len != NULL, return ERR_ARG;);
 
   err = tcp_write_checks(pcb, len, apiflags);
   if (err != ERR_OK) {
@@ -963,10 +964,6 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
  * Send a TCP RESET packet (empty segment with RST flag set) either to
  * abort a connection or to show that there is no matching local connection
  * for a received segment.
- *
- * Called by tcp_abort() (to abort a local connection), tcp_input() (if no
- * matching local pcb was found), tcp_listen_input() (if incoming segment
- * has ACK flag set) and tcp_process() (received segment in the wrong state)
  *
  * Since a RST segment is in most cases not sent for an active connection,
  * tcp_rst() has a number of arguments that are taken from a tcp_pcb for
