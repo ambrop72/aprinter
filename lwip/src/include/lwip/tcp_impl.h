@@ -232,10 +232,20 @@ struct tcp_seg {
 #define TCPWND_CHECK16(x)
 #define TCPWND_MIN16(x)    x
 
+/**
+ * This is used for iterating pcblists while handling PCBs being
+ * removed from the list during iteration (possibly also freed).
+ */
+struct tcp_iter {
+  struct tcp_pcb *current;
+  struct tcp_pcb *prev; /* previous of current, only valid if current!=NULL */
+  u8_t next_is_current; /* whether current should be returned as the next */
+};
+
 /* Global variables: */
 extern struct tcp_pcb *tcp_input_pcb;
 extern u32_t tcp_ticks;
-extern u8_t tcp_active_pcbs_changed;
+extern struct tcp_iter tcp_conn_iter;
 
 /* The TCP PCB lists. */
 extern struct tcp_pcb_base *tcp_bound_pcbs;
@@ -249,24 +259,17 @@ extern struct tcp_pcb *tcp_tw_pcbs;      /* List of all TCP PCBs in TIME-WAIT. *
 #define TCP_DEBUG_PCB_LISTS 0
 #endif
 
-#define TCP_REG_ACTIVE(npcb)                       \
-  do {                                             \
-    tcp_reg((struct tcp_pcb_base **)&tcp_active_pcbs, to_tcp_pcb_base(npcb)); \
-    tcp_active_pcbs_changed = 1;                   \
-  } while (0)
-
-#define TCP_RMV_ACTIVE(npcb)                       \
-  do {                                             \
-    tcp_rmv((struct tcp_pcb_base **)&tcp_active_pcbs, to_tcp_pcb_base(npcb)); \
-    tcp_active_pcbs_changed = 1;                   \
-  } while (0)
-
 /* Internal functions: */
 
 u8_t tcp_state_is_active(enum tcp_state state);
 
 void tcp_reg(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
 void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb);
+
+void tcp_iter_start (struct tcp_iter *it, struct tcp_pcb *pcblist);
+struct tcp_pcb * tcp_iter_next (struct tcp_iter *it);
+void tcp_iter_will_remove (struct tcp_iter *it, struct tcp_pcb *pcb, struct tcp_pcb *pcblist);
+void tcp_iter_will_prepend (struct tcp_iter *it, struct tcp_pcb *pcb, struct tcp_pcb *pcblist);
 
 void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev);

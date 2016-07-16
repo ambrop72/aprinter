@@ -128,7 +128,11 @@ struct tcp_pcb_base ** const tcp_pcb_lists[] = {
   (struct tcp_pcb_base **)&tcp_tw_pcbs  
 };
 
-u8_t tcp_active_pcbs_changed;
+/* This represents a posible current PCB iteration. When a PCB is
+ * about to be added to or removed from tcp_active_pcbs or tcp_tw_pcbs,
+ * tcp_iter_will_prepend() or tcp_iter_will_remove() is called to
+ * make the iteration aware of the change. */
+struct tcp_iter tcp_conn_iter;
 
 /** Timer counter to handle calling slow-timer from tcp_tmr() */
 static u8_t tcp_timer;
@@ -801,7 +805,8 @@ tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
     if (old_local_port != 0) {
       tcp_rmv(&tcp_bound_pcbs, to_tcp_pcb_base(pcb));
     }
-    TCP_REG_ACTIVE(pcb);
+    tcp_iter_will_prepend(&tcp_conn_iter, pcb, tcp_active_pcbs);
+    tcp_reg((struct tcp_pcb_base **)&tcp_active_pcbs, to_tcp_pcb_base(pcb));
     MIB2_STATS_INC(mib2.tcpactiveopens);
 
     tcp_output(pcb);
@@ -819,7 +824,7 @@ tcp_connect(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port,
 void
 tcp_slowtmr(void)
 {
-  struct tcp_pcb *pcb, *next_pcb, *prev;
+  struct tcp_pcb *pcb;
   tcpwnd_size_t eff_wnd;
   u8_t pcb_remove;      /* flag if a PCB should be removed */
   u8_t pcb_reset;       /* flag if a RST should be sent when removing */
@@ -830,20 +835,18 @@ tcp_slowtmr(void)
   ++tcp_ticks;
   ++tcp_timer_ctr;
 
-tcp_slowtmr_start:
   /* Steps through all of the active PCBs. */
-  prev = NULL;
-  pcb = tcp_active_pcbs;
-  if (pcb == NULL) {
+  if (tcp_active_pcbs == NULL) {
     LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: no active pcbs\n"));
   }
-  while (pcb != NULL) {
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: processing active pcb\n"));
+  tcp_iter_start(&tcp_conn_iter, tcp_active_pcbs);
+  
+  while ((pcb = tcp_iter_next(&tcp_conn_iter))) {
     LWIP_ASSERT("tcp_slowtmr: active pcb->state\n", tcp_state_is_active(pcb->state));
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_slowtmr: processing active pcb\n"));
     
     if (pcb->last_timer == tcp_timer_ctr) {
       /* skip this pcb, we have already processed it */
-      pcb = pcb->next;
       continue;
     }
     pcb->last_timer = tcp_timer_ctr;
@@ -967,34 +970,22 @@ tcp_slowtmr_start:
       }
     }
     
-    next_pcb = pcb->next;
-
     /* If the PCB should be removed, do it. */
     if (pcb_remove) {
-      tcp_active_pcbs_changed = 0;
-      
       pcb->flags &= ~TF_ACK_DELAY;
       tcp_report_err(pcb, ERR_ABRT);
-      tcp_pcb_free(pcb, pcb_reset, prev);
-      
-      if (tcp_active_pcbs_changed) {
-        goto tcp_slowtmr_start;
-      }
+      tcp_pcb_free(pcb, pcb_reset, tcp_conn_iter.prev);
     } else {
       /* Try to output. */
       tcp_output(pcb);
-      
-      prev = pcb;
     }
-    
-    pcb = next_pcb;
   }
 
 
   /* Steps through all of the TIME-WAIT PCBs. */
-  prev = NULL;
-  pcb = tcp_tw_pcbs;
-  while (pcb != NULL) {
+  tcp_iter_start(&tcp_conn_iter, tcp_tw_pcbs);
+  
+  while ((pcb = tcp_iter_next(&tcp_conn_iter))) {
     LWIP_ASSERT("tcp_slowtmr: TIME-WAIT pcb->state == TIME-WAIT", pcb->state == TIME_WAIT);
     pcb_remove = 0;
 
@@ -1003,16 +994,10 @@ tcp_slowtmr_start:
       ++pcb_remove;
     }
     
-    next_pcb = pcb->next;
-
     /* If the PCB should be removed, do it. */
     if (pcb_remove) {
-      tcp_pcb_free(pcb, 0, prev);
-    } else {
-      prev = pcb;
+      tcp_pcb_free(pcb, 0, tcp_conn_iter.prev);
     }
-    
-    pcb = next_pcb;
   }
 }
 
@@ -1523,6 +1508,72 @@ void tcp_rmv(struct tcp_pcb_base **pcbs, struct tcp_pcb_base *npcb)
 #endif
 }
 
+void tcp_iter_start (struct tcp_iter *it, struct tcp_pcb *pcblist)
+{
+  it->current = pcblist;
+  it->prev = NULL;
+  it->next_is_current = 1;
+}
+
+struct tcp_pcb * tcp_iter_next (struct tcp_iter *it)
+{
+  if (it->next_is_current) {
+    /* Returning current as the next. This happens at start
+     * of iteration and after the current has been removed. */
+    it->next_is_current = 0;
+  } else {
+    /* Advancing current. */
+    LWIP_ASSERT("tcp_iter_next: current != NULL", it->current != NULL);
+    it->prev = it->current;
+    it->current = it->current->next;
+  }
+  return it->current;
+}
+
+void tcp_iter_will_remove (struct tcp_iter *it, struct tcp_pcb *pcb, struct tcp_pcb *pcblist)
+{
+  LWIP_ASSERT("tcp_iter_will_remove: pcb != NULL", pcb != NULL);
+  LWIP_ASSERT("tcp_iter_will_remove: pcblist != NULL", pcblist != NULL); /* pcb is in pcblist */
+  
+  if (it->current != NULL) {
+    if (pcb == it->current) {
+      /* Removing current - advance it and set next_is_current so
+       * tcp_iter_next will return that one next time it's called. */
+      it->current = it->current->next;
+      it->next_is_current = 1;
+    }
+    else if (pcb == it->prev) {
+      /* Removing prev - fixup prev to the predecessor of prev. */
+      struct tcp_pcb *prev_prev;
+      struct tcp_pcb *ipcb;
+      
+      LWIP_ASSERT("tcp_iter_unref: pcb->next inconsistent", pcb->next == it->current);
+      
+      prev_prev = NULL;
+      for (ipcb = pcblist; ipcb != NULL; ipcb = ipcb->next) {
+        if (ipcb == pcb) {
+          break;
+        }
+        prev_prev = ipcb;
+      }
+      LWIP_ASSERT("tcp_iter_unref: prev not found", ipcb != NULL);
+      
+      it->prev = prev_prev;
+    }
+  }
+}
+
+void tcp_iter_will_prepend (struct tcp_iter *it, struct tcp_pcb *pcb, struct tcp_pcb *pcblist)
+{
+  LWIP_ASSERT("tcp_iter_will_prepend: pcb != NULL", pcb != NULL);
+  
+  if (pcblist != NULL && pcblist == it->current) {
+    /* Inserting just before current - fixup prev. */
+    LWIP_ASSERT("tcp_iter_will_prepend: prev == NULL", it->prev == NULL);
+    it->prev = pcb;
+  }
+}
+
 /**
  * Purges a TCP PCB. Removes any buffered data and frees the buffer memory
  * (pcb->unsent and pcb->unacked are freed).
@@ -1579,13 +1630,12 @@ void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev)
       tcp_rst(pcb->snd_nxt, pcb->rcv_nxt, &pcb->local_ip, &pcb->remote_ip, pcb->local_port, pcb->remote_port);
     }
     
-    if (prev != NULL) {
-      // Be faster if the caller knows the previous PCB in the list.
+    tcp_iter_will_remove(&tcp_conn_iter, pcb, tcp_active_pcbs);
+    if (prev != NULL) { /* optimization if the caller knows the previous PCB */
       LWIP_ASSERT("prev->next == pcb", prev->next == pcb);
       prev->next = pcb->next;
-      tcp_active_pcbs_changed = 1;
     } else {
-      TCP_RMV_ACTIVE(pcb);
+      tcp_rmv((struct tcp_pcb_base **)&tcp_active_pcbs, to_tcp_pcb_base(pcb));
     }
     
     // NOTE: This must be after any tcp_output above, because tcp_output
@@ -1593,6 +1643,7 @@ void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev)
     tcp_pcb_purge(pcb);
   }
   else if (pcb->state == TIME_WAIT) {
+    tcp_iter_will_remove(&tcp_conn_iter, pcb, tcp_tw_pcbs);
     tcp_rmv((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
     
     /* tcp_pcb_purge has been done already in tcp_move_to_time_wait */
@@ -1610,10 +1661,14 @@ void tcp_move_to_time_wait(struct tcp_pcb *pcb)
 {
   LWIP_ASSERT("tcp_move_to_time_wait active state", tcp_state_is_active(pcb->state));
   
+  tcp_iter_will_remove(&tcp_conn_iter, pcb, tcp_active_pcbs);
+  tcp_rmv((struct tcp_pcb_base **)&tcp_active_pcbs, to_tcp_pcb_base(pcb));
+  
   tcp_pcb_purge(pcb);
-  TCP_RMV_ACTIVE(pcb);
   
   pcb->state = TIME_WAIT;
+  
+  tcp_iter_will_prepend(&tcp_conn_iter, pcb, tcp_tw_pcbs);
   tcp_reg((struct tcp_pcb_base **)&tcp_tw_pcbs, to_tcp_pcb_base(pcb));
   
   LWIP_ASSERT("tcp_move_to_time_wait: tcp_pcbs_sane()", tcp_pcbs_sane());
