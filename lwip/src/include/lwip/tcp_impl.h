@@ -67,6 +67,7 @@ void             tcp_txnow   (void);
 
 /* Only used by IP to pass a TCP segment to TCP: */
 void             tcp_input   (struct pbuf *p, struct netif *inp);
+
 /* Used within the TCP code only: */
 struct tcp_pcb * tcp_alloc   (u8_t prio);
 err_t            tcp_send_empty_ack(struct tcp_pcb *pcb);
@@ -80,24 +81,6 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 
 /* Check if a PCB has a user reference. */
 #define tcp_pcb_has_user_ref(pcb) (tcp_pcb_is_listen(pcb) || !(((struct tcp_pcb *)(pcb))->flags & TF_NOUSER))
-
-/**
- * This is the Nagle algorithm: try to combine user data to send as few TCP
- * segments as possible. Only send if
- * - no previously transmitted data on the connection remains unacknowledged or
- * - the TF_NODELAY flag is set (nagle algorithm turned off for this pcb) or
- * - the only unsent segment is at least pcb->mss bytes long (or there is more
- *   than one unsent segment - with lwIP, this can happen although unsent->len < mss)
- * - or if we are in fast-retransmit (TF_INFR)
- */
-#define tcp_do_output_nagle(tpcb) ((((tpcb)->unacked == NULL) || \
-                            ((tpcb)->flags & (TF_NODELAY | TF_INFR)) || \
-                            (((tpcb)->unsent != NULL) && (((tpcb)->unsent->next != NULL) || \
-                              ((tpcb)->unsent->len >= (tpcb)->mss))) || \
-                            ((tcp_sndbuf(tpcb) == 0) || (tcp_sndqueuelen(tpcb) >= TCP_SND_QUEUELEN)) \
-                            ) ? 1 : 0)
-#define tcp_output_nagle(tpcb) (tcp_do_output_nagle(tpcb) ? tcp_output(tpcb) : ERR_OK)
-
 
 #define TCP_SEQ_LT(a,b)     ((s32_t)((u32_t)(a) - (u32_t)(b)) < 0)
 #define TCP_SEQ_LEQ(a,b)    ((s32_t)((u32_t)(a) - (u32_t)(b)) <= 0)

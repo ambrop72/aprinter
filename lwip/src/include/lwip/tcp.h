@@ -115,7 +115,7 @@ typedef void (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
 #define TCPWND16(x)             (x)
 #define TCP_WND_MAX(pcb)        TCP_WND
 typedef u16_t tcpwnd_size_t;
-typedef u16_t tcpflags_t;
+typedef u8_t tcpflags_t;
 
 enum tcp_state {
   CLOSED      = 0,
@@ -184,9 +184,8 @@ struct tcp_pcb {
 #define TF_TIMESTAMP   0x08U   /* Timestamp option enabled */
 #define TF_NOUSER      0x10U   /* There is no user reference to this PCB */
 #define TF_FIN         0x20U   /* Connection was closed locally (FIN segment enqueued). */
-#define TF_NODELAY     0x40U   /* Disable Nagle algorithm */
-#define TF_NAGLEMEMERR 0x80U   /* nagle enabled, memerr, try to output to prevent delayed ACK to happen */
-#define TF_BACKLOGPEND 0x0200U /* this PCB has an accepts_pending reference in the listener */
+#define TF_NAGLEMEMERR 0x40U   /* memerr, try to output to prevent delayed ACK to happen */
+#define TF_BACKLOGPEND 0x80U /* this PCB has an accepts_pending reference in the listener */
 
   /* the rest of the fields are in host byte order
      as we have to do some math with them */
@@ -285,9 +284,6 @@ void             tcp_err     (struct tcp_pcb *pcb, tcp_err_fn err);
 #define          tcp_mss(pcb)             (((pcb)->flags & TF_TIMESTAMP) ? ((pcb)->mss - 12)  : (pcb)->mss)
 #define          tcp_sndbuf(pcb)          (TCPWND16((pcb)->snd_buf))
 #define          tcp_sndqueuelen(pcb)     ((pcb)->snd_queuelen)
-#define          tcp_nagle_disable(pcb)   ((pcb)->flags |= TF_NODELAY)
-#define          tcp_nagle_enable(pcb)    ((pcb)->flags = (tcpflags_t)((pcb)->flags & ~TF_NODELAY))
-#define          tcp_nagle_disabled(pcb)  (((pcb)->flags & TF_NODELAY) != 0)
 
 void             tcp_recved  (struct tcp_pcb *pcb, u16_t len);
 err_t            tcp_bind    (struct tcp_pcb_base *pcb, const ip_addr_t *ipaddr, u16_t port);

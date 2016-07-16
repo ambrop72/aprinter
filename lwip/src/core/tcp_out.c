@@ -788,17 +788,6 @@ tcp_output(struct tcp_pcb *pcb)
          lwip_ntohl(seg->tcphdr->seqno) - pcb->lastack + seg->len <= wnd) {
     LWIP_ASSERT("RST not expected here!",
                 (TCPH_FLAGS(seg->tcphdr) & TCP_RST) == 0);
-    /* Stop sending if the nagle algorithm would prevent it
-     * Don't stop:
-     * - if tcp_write had a memory error before (prevent delayed ACK timeout) or
-     * - if FIN was already enqueued for this PCB (SYN is always alone in a segment -
-     *   either seg->next != NULL or pcb->unacked == NULL;
-     *   RST is no sent using tcp_write/tcp_output.
-     */
-    if ((tcp_do_output_nagle(pcb) == 0) &&
-      ((pcb->flags & (TF_NAGLEMEMERR | TF_FIN)) == 0)) {
-      break;
-    }
 #if TCP_CWND_DEBUG
     LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_output: snd_wnd %"TCPWNDSIZE_F", cwnd %"TCPWNDSIZE_F", wnd %"U32_F", effwnd %"U32_F", seq %"U32_F", ack %"U32_F", i %"S16_F"\n",
                             pcb->snd_wnd, pcb->cwnd, wnd,
