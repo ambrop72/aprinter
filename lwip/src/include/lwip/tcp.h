@@ -49,6 +49,10 @@
 #include "lwip/ip6.h"
 #include "lwip/ip6_addr.h"
 
+#if TCP_SND_QUEUELEN > 0xFFFCu
+#error "TCP_SND_QUEUELEN is too large"
+#endif
+
 LWIP_EXTERN_C_BEGIN
 
 struct tcp_pcb;
@@ -115,7 +119,7 @@ typedef void (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
 #define TCPWND16(x)             (x)
 #define TCP_WND_MAX(pcb)        TCP_WND
 typedef u16_t tcpwnd_size_t;
-typedef u8_t tcpflags_t;
+typedef u16_t tcpflags_t;
 
 enum tcp_state {
   CLOSED      = 0,
@@ -185,7 +189,8 @@ struct tcp_pcb {
 #define TF_NOUSER      0x10U   /* There is no user reference to this PCB */
 #define TF_FIN         0x20U   /* Connection was closed locally (FIN segment enqueued). */
 #define TF_NAGLEMEMERR 0x40U   /* memerr, try to output to prevent delayed ACK to happen */
-#define TF_BACKLOGPEND 0x80U /* this PCB has an accepts_pending reference in the listener */
+#define TF_BACKLOGPEND 0x80U   /* this PCB has an accepts_pending reference in the listener */
+#define TF_FASTREXMIT  0x100U  /* fast retransmission of the first segment is desired */
 
   /* the rest of the fields are in host byte order
      as we have to do some math with them */
@@ -230,12 +235,12 @@ struct tcp_pcb {
   tcpwnd_size_t snd_wnd_max; /* the maximum sender window announced by the remote host */
 
   tcpwnd_size_t snd_buf;   /* Available buffer space for sending (in bytes). */
-#define TCP_SNDQUEUELEN_OVERFLOW (0xffffU-3)
   u16_t snd_queuelen; /* Available buffer space for sending (in pbufs). */
 
   /* These are ordered by sequence number: */
-  struct tcp_seg *unsent;   /* Unsent (queued) segments. */
-  struct tcp_seg *unacked;  /* Sent but unacknowledged segments. */
+  struct tcp_seg *sndq;       /* first segment in the queue */
+  struct tcp_seg *sndq_last;  /* last segment in the queue (NULL if sndq==NULL) */
+  struct tcp_seg *sndq_next;  /* next segment to be sent by tcp_output() */
 
   /* The associated listen PCB, if any. */
   struct tcp_pcb_listen *listener;

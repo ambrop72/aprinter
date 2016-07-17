@@ -883,7 +883,7 @@ tcp_slowtmr(void)
           ++pcb->rtime;
         }
 
-        if (pcb->unacked != NULL && pcb->rtime >= pcb->rto) {
+        if (pcb->sndq != NULL && pcb->rtime >= pcb->rto) {
           /* Time for a retransmission. */
           LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_slowtmr: rtime %"S16_F
                                       " pcb->rto %"S16_F"\n",
@@ -1575,8 +1575,7 @@ void tcp_iter_will_prepend (struct tcp_iter *it, struct tcp_pcb *pcb, struct tcp
 }
 
 /**
- * Purges a TCP PCB. Removes any buffered data and frees the buffer memory
- * (pcb->unsent and pcb->unacked are freed).
+ * Purges a TCP PCB. Removes any buffered data and frees the buffer memory.
  *
  * @param pcb tcp_pcb to purge. The pcb itself is not deallocated!
  */
@@ -1589,21 +1588,17 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
 
   tcp_backlog_accepted_internal(pcb);
 
-  if (pcb->unsent != NULL) {
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: not all data sent\n"));
-  }
-  if (pcb->unacked != NULL) {
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on ->unacked\n"));
+  if (pcb->sndq != NULL) {
+    LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on send queue\n"));
   }
 
-  /* Stop the retransmission timer as it will expect data on unacked
-      queue if it fires */
+  /* Stop the retransmission timer as it will expect data on sndq if it fires */
   pcb->rtime = -1;
 
-  tcp_segs_free(pcb->unsent);
-  tcp_segs_free(pcb->unacked);
-  pcb->unsent = NULL;
-  pcb->unacked = NULL;
+  tcp_segs_free(pcb->sndq);
+  pcb->sndq = NULL;
+  pcb->sndq_last = NULL;
+  pcb->sndq_next = NULL;
 }
 
 void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev)
@@ -1649,8 +1644,7 @@ void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev)
     /* tcp_pcb_purge has been done already in tcp_move_to_time_wait */
   }
   
-  LWIP_ASSERT("unsent segments leaking", pcb->unsent == NULL);
-  LWIP_ASSERT("unacked segments leaking", pcb->unacked == NULL);
+  LWIP_ASSERT("send queue segments leaking", pcb->sndq == NULL);
   
   memp_free(MEMP_TCP_PCB, pcb);
   
@@ -1686,6 +1680,26 @@ void tcp_report_err(struct tcp_pcb *pcb, err_t err)
       pcb->errf(pcb->callback_arg, err);
     }
   }
+}
+
+struct tcp_seg * tcp_sndq_pop(struct tcp_pcb *pcb)
+{
+  LWIP_ASSERT("tcp_sndq_pop: pcb->sndq != NULL", pcb->sndq != NULL);
+  
+  struct tcp_seg *seg = pcb->sndq;
+  pcb->sndq = seg->next;
+  if (pcb->sndq == NULL) {
+    pcb->sndq_last = NULL;
+  }
+  if (pcb->sndq_next == seg) {
+    pcb->sndq_next = pcb->sndq;
+  }
+  
+  u8_t clen = pbuf_clen(seg->p);
+  LWIP_ASSERT("tcp_sndq_pop: pcb->snd_queuelen >= clen", pcb->snd_queuelen >= clen);
+  pcb->snd_queuelen -= clen;
+  
+  return seg;
 }
 
 /**

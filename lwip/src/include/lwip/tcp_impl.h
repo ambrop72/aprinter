@@ -96,6 +96,12 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 // due to accidentally passing "b<c" (in the modular sense), not
 // compiler problems like the bug report suggests.
 
+/* The following functions compare sequence numbers according
+ * to a reference which is considered to be not-after both of
+ * the compared values. In other words, it compares the amounts
+ * needed to move in the positive direction from ref to reach
+ * a/b. */
+
 static inline u8_t tcp_seq_gt_ref (u32_t a, u32_t b, u32_t ref)
 {
   return (u32_t)(a - ref) > (u32_t)(b - ref);
@@ -194,11 +200,13 @@ PACK_STRUCT_END
 #define TCP_TCPLEN(seg) ((seg)->len + (((TCPH_FLAGS((seg)->tcphdr) & (TCP_FIN | TCP_SYN)) != 0) ? 1U : 0U))
 #define TCP_ENDSEQ(seg) ((u32_t)(TCP_TCPSEQ(seg) + TCP_TCPLEN(seg)))
 
+#define TCP_SEG_SENT(pcb, seg) tcp_seq_leq_ref(TCP_ENDSEQ(seg), (pcb)->snd_nxt, (pcb)->lastack)
+
 /** Flags used on input processing, not on pcb->flags
 */
 #define TF_GOT_FIN   (u8_t)0x20U   /* Connection was closed by the remote end. */
 
-/* This structure represents a TCP segment on the unsent, unacked queues */
+/* This structure represents a TCP segment on the sndq */
 struct tcp_seg {
   struct tcp_seg *next;    /* used when putting segments on a queue */
   struct pbuf *p;          /* buffer containing data + TCP header */
@@ -285,6 +293,7 @@ void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_free(struct tcp_pcb *pcb, u8_t send_rst, struct tcp_pcb *prev);
 void tcp_move_to_time_wait(struct tcp_pcb *pcb);
 void tcp_report_err(struct tcp_pcb *pcb, err_t err);
+struct tcp_seg * tcp_sndq_pop(struct tcp_pcb *pcb);
 
 void tcp_segs_free(struct tcp_seg *seg);
 void tcp_seg_free(struct tcp_seg *seg);

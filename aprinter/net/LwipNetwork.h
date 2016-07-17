@@ -893,7 +893,7 @@ public:
             m_send_buf_length -= len;
             m_send_buf_passed_length -= len;
             
-            if (m_send_buf_passed_length < m_send_buf_length || (m_send_closed && m_send_shut_pending)) {
+            if (m_send_buf_passed_length < m_send_buf_length) {
                 m_write_event.appendAfter(c, WriteDelayTicks);
             }
             
@@ -937,10 +937,7 @@ public:
                 }
             }
             
-            // We wait to have at least one free byte in the send buffer before
-            // shutting down the TX. See comment in tcp_enqueue_flags():
-            // "We need one available snd_buf byte to do that".
-            if (m_send_closed && m_send_shut_pending && m_send_buf_length < ProvidedTxBufSize) {
+            if (m_send_closed && m_send_shut_pending) {
                 auto err = tcp_shut_tx(m_pcb);
                 if (err != ERR_OK) {
                     return go_erroring(c, false);

@@ -556,7 +556,7 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     MIB2_STATS_INC(mib2.tcppassiveopens);
 
     /* Send a SYN|ACK together with the MSS option. */
-    rc = tcp_enqueue_flags(npcb, TCP_SYN | TCP_ACK);
+    rc = tcp_enqueue_flags(npcb, TCP_SYN|TCP_ACK);
     if (rc != ERR_OK) {
       tcp_pcb_free(npcb, 0, NULL);
       return;
@@ -624,7 +624,6 @@ tcp_timewait_input(struct tcp_pcb *pcb)
 static void
 tcp_process(struct tcp_pcb *pcb)
 {
-  struct tcp_seg *rseg;
   u8_t acceptable = 0;
 
   /* Process incoming RST segments. */
@@ -687,12 +686,10 @@ tcp_process(struct tcp_pcb *pcb)
   /* Do different things depending on the TCP state. */
   switch (pcb->state) {
   case SYN_SENT:
-    // TODO: Possible crash because pcb->unacked may be NULL - see lwip bug 48539.
-    LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %"U32_F" pcb->snd_nxt %"U32_F" unacked %"U32_F"\n", ackno,
-     pcb->snd_nxt, lwip_ntohl(pcb->unacked->tcphdr->seqno)));
+    LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %"U32_F" pcb->snd_nxt %"U32_F" pcb->lastack %"U32_F"\n",
+     ackno, pcb->snd_nxt, pcb->lastack));
     /* received SYN ACK with expected sequence number? */
-    if ((flags & TCP_ACK) && (flags & TCP_SYN)
-        && ackno == lwip_ntohl(pcb->unacked->tcphdr->seqno) + 1) {
+    if ((flags & TCP_ACK) && (flags & TCP_SYN) && ackno == (u32_t)(pcb->lastack + 1)) {
       pcb->rcv_nxt = seqno + 1;
       pcb->rcv_ann_right_edge = pcb->rcv_nxt;
       pcb->lastack = ackno;
@@ -713,16 +710,14 @@ tcp_process(struct tcp_pcb *pcb)
       LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_process (SENT): cwnd %"TCPWNDSIZE_F
                                    " ssthresh %"TCPWNDSIZE_F"\n",
                                    pcb->cwnd, pcb->ssthresh));
-      LWIP_ASSERT("pcb->snd_queuelen > 0", (pcb->snd_queuelen > 0));
-      --pcb->snd_queuelen;
-      LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_process: SYN-SENT --queuelen %"TCPWNDSIZE_F"\n", (tcpwnd_size_t)pcb->snd_queuelen));
-      rseg = pcb->unacked;
-      pcb->unacked = rseg->next;
-      tcp_seg_free(rseg);
+      
+      /* Remove the SYN segment from the queue. */
+      LWIP_ASSERT("pcb->sndq != NULL", pcb->sndq != NULL);
+      tcp_seg_free(tcp_sndq_pop(pcb));
 
       /* If there's nothing left to acknowledge, stop the retransmit
          timer, otherwise reset it to start again */
-      if (pcb->unacked == NULL) {
+      if (pcb->sndq == NULL) {
         pcb->rtime = -1;
       } else {
         pcb->rtime = 0;
@@ -803,7 +798,8 @@ tcp_process(struct tcp_pcb *pcb)
         tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
           ip_current_src_addr(), tcphdr->dest, tcphdr->src);
       }
-    } else if ((flags & TCP_SYN) && (seqno == pcb->rcv_nxt - 1)) {
+    }
+    else if ((flags & TCP_SYN) && seqno == (u32_t)(pcb->rcv_nxt - 1)) {
       /* Looks like another copy of the SYN - retransmit our SYN-ACK */
       tcp_rexmit(pcb);
     }
@@ -1020,50 +1016,39 @@ tcp_receive(struct tcp_pcb *pcb)
         }
       }
       
-      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: ACK for %"U32_F", unacked->seqno %"U32_F":%"U32_F"\n",
-                                    ackno,
-                                    pcb->unacked != NULL?
-                                    lwip_ntohl(pcb->unacked->tcphdr->seqno): 0,
-                                    pcb->unacked != NULL?
-                                    lwip_ntohl(pcb->unacked->tcphdr->seqno) + TCP_TCPLEN(pcb->unacked): 0));
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: ACK for %"U32_F", sndq->seqno %"U32_F":%"U32_F"\n",
+        ackno,
+        pcb->sndq == NULL ? 0 : lwip_ntohl(pcb->sndq->tcphdr->seqno),
+        pcb->sndq == NULL ? 0 : TCP_ENDSEQ(pcb->sndq)));
       
       // BUG: If only part of a segment is acked we will report to the sent callback
       //      some sent data but the application may reuse the buffers even though
       //      we are still referencing it from tcp_seg. (lwip bug 48543)
+      //      Fix is probably to calculate acked_data by summing the data lengths
+      //      of segments freed here.
 
-      /* Remove any segments that are completely acknowledged by the incoming ACK . */
-      struct tcp_seg **queues[] = {&pcb->unacked, &pcb->unsent};
-      
-      for (u8_t i = 0; i < LWIP_ARRAYSIZE(queues); i++) {
-        struct tcp_seg **queue = queues[i];
+      /* Remove queued segments which have been acked. */
+      while (pcb->sndq != NULL &&
+             TCP_SEG_SENT(pcb, pcb->sndq) &&
+             tcp_seq_leq_ref(TCP_ENDSEQ(pcb->sndq), ackno, pcb->lastack))
+      {
+        next = pcb->sndq;
         
-        while (*queue != NULL && tcp_seq_leq_ref(TCP_ENDSEQ(*queue), ackno, pcb->lastack)) {
-          next = *queue;
-          *queue = (*queue)->next;
-          
-          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from queue\n",
-                                        lwip_ntohl(next->tcphdr->seqno),
-                                        lwip_ntohl(next->tcphdr->seqno) +
-                                        TCP_TCPLEN(next)));
+        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from queue\n",
+                                      TCP_TCPSEQ(next), TCP_ENDSEQ(next)));
 
-
-          LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_receive: queuelen %"TCPWNDSIZE_F" ... ", (tcpwnd_size_t)pcb->snd_queuelen));
-          LWIP_ASSERT("pcb->snd_queuelen >= pbuf_clen(next->p)", (pcb->snd_queuelen >= pbuf_clen(next->p)));
-          
-          if ((TCPH_FLAGS(next->tcphdr) & (TCP_FIN|TCP_SYN)) != 0) {
-            LWIP_ASSERT("acked_data > 0", acked_data > 0);
-            acked_data--;
-          }
-
-          pcb->snd_queuelen -= pbuf_clen(next->p);
-          tcp_seg_free(next);
-
-          LWIP_DEBUGF(TCP_QLEN_DEBUG, ("%"TCPWNDSIZE_F" (after freeing seg)\n", (tcpwnd_size_t)pcb->snd_queuelen));
-          
-          if (pcb->snd_queuelen != 0) {
-            LWIP_ASSERT("tcp_receive: valid queue length", pcb->unacked != NULL || pcb->unsent != NULL);
-          }
+        LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_receive: queuelen %"TCPWNDSIZE_F" ... ", (tcpwnd_size_t)pcb->snd_queuelen));        
+        tcp_sndq_pop(pcb);
+        LWIP_DEBUGF(TCP_QLEN_DEBUG, ("%"TCPWNDSIZE_F" (after freeing seg)\n", (tcpwnd_size_t)pcb->snd_queuelen));
+        
+        LWIP_ASSERT("tcp_receive: valid queue length", pcb->snd_queuelen == 0 || pcb->sndq != NULL);
+        
+        if ((TCPH_FLAGS(next->tcphdr) & (TCP_FIN|TCP_SYN)) != 0) {
+          LWIP_ASSERT("acked_data > 0", acked_data > 0);
+          acked_data--;
         }
+
+        tcp_seg_free(next);
       }
       
       /* Bump the lastack to the received ackno */
@@ -1079,11 +1064,7 @@ tcp_receive(struct tcp_pcb *pcb)
 
       /* If there's nothing left to acknowledge, stop the retransmit
          timer, otherwise reset it to start again */
-      if (pcb->unacked == NULL) {
-        pcb->rtime = -1;
-      } else {
-        pcb->rtime = 0;
-      }
+      pcb->rtime = (pcb->sndq == NULL) ? -1 : 0;
 
 #if LWIP_IPV6 && LWIP_ND6_TCP_REACHABILITY_HINTS
       if (PCB_ISIPV6(pcb)) {
