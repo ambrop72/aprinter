@@ -108,16 +108,25 @@ tcp_send_fin(struct tcp_pcb *pcb)
   /* first, try to add the fin to the last unsent segment */
   if (pcb->unsent != NULL) {
     struct tcp_seg *last_unsent;
-    for (last_unsent = pcb->unsent; last_unsent->next != NULL;
-         last_unsent = last_unsent->next);
+    for (last_unsent = pcb->unsent; last_unsent->next != NULL; last_unsent = last_unsent->next);
 
-    if ((TCPH_FLAGS(last_unsent->tcphdr) & (TCP_SYN | TCP_FIN | TCP_RST)) == 0) {
-      /* no SYN/FIN/RST flag in the header, we can add the FIN flag */
+    /* Only add to existing segment if it:
+     * - Doesn't have any of SYN/FIN/RST.
+     * - Has never been sent before (->unsent segments may have been sent).
+     *   The check used here literally means "has not been sent completely"
+     *   but since we don't send partial segments, this means it hasn't
+     *   ever been sent.
+     */
+    if ((TCPH_FLAGS(last_unsent->tcphdr) & (TCP_SYN|TCP_FIN|TCP_RST)) == 0 &&
+        tcp_seq_lt_ref(pcb->snd_nxt, TCP_ENDSEQ(last_unsent), pcb->lastack)
+    ) {
       TCPH_SET_FLAG(last_unsent->tcphdr, TCP_FIN);
       pcb->flags |= TF_FIN;
+      pcb->snd_lbb++; // just for sanity, snd_lbb is not used after FIN is queued
       return ERR_OK;
     }
   }
+  
   /* no data, no length, flags, copy=1, no optdata */
   return tcp_enqueue_flags(pcb, TCP_FIN);
 }
@@ -523,7 +532,7 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
 
   LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_enqueue_flags: queuelen: %"U16_F"\n", (u16_t)pcb->snd_queuelen));
 
-  LWIP_ASSERT("tcp_enqueue_flags: need either TCP_SYN or TCP_FIN in flags (programmer violates API)",
+  LWIP_ASSERT("tcp_enqueue_flags: need either TCP_SYN or TCP_FIN",
               (flags & (TCP_SYN | TCP_FIN)) != 0);
 
   /* check for configured max queuelen and possible overflow (FIN flag should always come through!) */
@@ -547,16 +556,6 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
   }
 #endif /* LWIP_TCP_TIMESTAMPS */
   optlen = LWIP_TCP_OPT_LENGTH(optflags);
-
-  /* tcp_enqueue_flags is always called with either SYN or FIN in flags.
-   * We need one available snd_buf byte to do that.
-   * This means we can't send FIN while snd_buf==0. A better fix would be to
-   * not include SYN and FIN sequence numbers in the snd_buf count. */
-  if (pcb->snd_buf == 0) {
-    LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SEVERE, ("tcp_enqueue_flags: no send buffer available\n"));
-    TCP_STATS_INC(tcp.memerr);
-    return ERR_MEM;
-  }
 
   /* Allocate pbuf with room for TCP header + options */
   if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
@@ -591,11 +590,8 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
   }
 
   /* SYN and FIN bump the sequence number */
-  if ((flags & TCP_SYN) || (flags & TCP_FIN)) {
-    pcb->snd_lbb++;
-    /* optlen does not influence snd_buf */
-    pcb->snd_buf--;
-  }
+  pcb->snd_lbb++;
+  
   if (flags & TCP_FIN) {
     pcb->flags |= TF_FIN;
   }
@@ -709,7 +705,7 @@ err_t
 tcp_output(struct tcp_pcb *pcb)
 {
   struct tcp_seg *seg, *useg;
-  u32_t wnd, snd_nxt;
+  u32_t wnd, end_seq;
   err_t err;
   struct netif *netif;
 #if TCP_CWND_DEBUG
@@ -784,10 +780,8 @@ tcp_output(struct tcp_pcb *pcb)
   }
 #endif /* TCP_CWND_DEBUG */
   /* data available and window allows it to be sent? */
-  while (seg != NULL &&
-         lwip_ntohl(seg->tcphdr->seqno) - pcb->lastack + seg->len <= wnd) {
-    LWIP_ASSERT("RST not expected here!",
-                (TCPH_FLAGS(seg->tcphdr) & TCP_RST) == 0);
+  while (seg != NULL && (u32_t)(TCP_ENDSEQ(seg) - pcb->lastack) <= wnd) {
+    LWIP_ASSERT("RST not expected here!", (TCPH_FLAGS(seg->tcphdr) & TCP_RST) == 0);
 #if TCP_CWND_DEBUG
     LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_output: snd_wnd %"TCPWNDSIZE_F", cwnd %"TCPWNDSIZE_F", wnd %"U32_F", effwnd %"U32_F", seq %"U32_F", ack %"U32_F", i %"S16_F"\n",
                             pcb->snd_wnd, pcb->cwnd, wnd,
@@ -811,9 +805,9 @@ tcp_output(struct tcp_pcb *pcb)
     if (pcb->state != SYN_SENT) {
       pcb->flags &= ~(TF_ACK_DELAY | TF_ACK_NOW);
     }
-    snd_nxt = lwip_ntohl(seg->tcphdr->seqno) + TCP_TCPLEN(seg);
-    if (TCP_SEQ_LT(pcb->snd_nxt, snd_nxt)) {
-      pcb->snd_nxt = snd_nxt;
+    end_seq = TCP_ENDSEQ(seg);
+    if (tcp_seq_lt_ref(pcb->snd_nxt, end_seq, pcb->lastack)) {
+      pcb->snd_nxt = end_seq;
     }
     /* put segment on unacknowledged list if length > 0 */
     if (TCP_TCPLEN(seg) > 0) {

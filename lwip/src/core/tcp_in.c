@@ -687,12 +687,12 @@ tcp_process(struct tcp_pcb *pcb)
   /* Do different things depending on the TCP state. */
   switch (pcb->state) {
   case SYN_SENT:
+    // TODO: Possible crash because pcb->unacked may be NULL - see lwip bug 48539.
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %"U32_F" pcb->snd_nxt %"U32_F" unacked %"U32_F"\n", ackno,
      pcb->snd_nxt, lwip_ntohl(pcb->unacked->tcphdr->seqno)));
     /* received SYN ACK with expected sequence number? */
     if ((flags & TCP_ACK) && (flags & TCP_SYN)
         && ackno == lwip_ntohl(pcb->unacked->tcphdr->seqno) + 1) {
-      pcb->snd_buf++;
       pcb->rcv_nxt = seqno + 1;
       pcb->rcv_ann_right_edge = pcb->rcv_nxt;
       pcb->lastack = ackno;
@@ -754,7 +754,7 @@ tcp_process(struct tcp_pcb *pcb)
   case SYN_RCVD:
     if (flags & TCP_ACK) {
       /* expected ACK number? */
-      if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
+      if (ackno != pcb->lastack && tcp_seq_leq_ref(ackno, pcb->snd_nxt, pcb->lastack)) {
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
         LWIP_ASSERT("pcb->flags & TF_NOUSER", (pcb->flags & TF_NOUSER));
         
@@ -788,11 +788,6 @@ tcp_process(struct tcp_pcb *pcb)
            known: if the remote side supports window scaling, the window sent
            with the initial SYN can be smaller than the one used later */
         pcb->ssthresh = LWIP_TCP_INITIAL_SSTHRESH(pcb);
-
-        /* Prevent ACK for SYN to generate a sent event */
-        if (tcp_acked != 0) {
-          tcp_acked--;
-        }
 
         pcb->cwnd = LWIP_TCP_CALC_INITIAL_CWND(pcb->mss);
         LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_process (SYN_RCVD): cwnd %"TCPWNDSIZE_F
@@ -889,8 +884,10 @@ tcp_receive(struct tcp_pcb *pcb)
   u32_t right_wnd_edge;
   u16_t new_tot_len;
   int found_dupack = 0;
+  u32_t acked_data;
 
   LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
+  LWIP_ASSERT("tcp_receive: tcp_acked == 0", tcp_acked == 0);
 
   if (flags & TCP_ACK) {
     right_wnd_edge = pcb->snd_wnd + pcb->snd_wl2;
@@ -950,8 +947,7 @@ tcp_receive(struct tcp_pcb *pcb)
      */
 
     /* Clause 1 */
-    if (TCP_SEQ_LEQ(ackno, pcb->lastack)) {
-      tcp_acked = 0;
+    if (ackno == pcb->lastack || tcp_seq_gt_ref(ackno, pcb->snd_nxt, pcb->lastack)) {
       /* Clause 2 */
       if (tcplen == 0) {
         /* Clause 3 */
@@ -959,7 +955,7 @@ tcp_receive(struct tcp_pcb *pcb)
           /* Clause 4 */
           if (pcb->rtime >= 0) {
             /* Clause 5 */
-            if (pcb->lastack == ackno) {
+            if (ackno == pcb->lastack) {
               found_dupack = 1;
               if ((u8_t)(pcb->dupacks + 1) > pcb->dupacks) {
                 ++pcb->dupacks;
@@ -983,7 +979,7 @@ tcp_receive(struct tcp_pcb *pcb)
       if (!found_dupack) {
         pcb->dupacks = 0;
       }
-    } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
+    } else {
       /* We come here when the ACK acknowledges new data. */
 
       /* Reset the "IN Fast Retransmit" flag, since we are no longer
@@ -1000,15 +996,12 @@ tcp_receive(struct tcp_pcb *pcb)
       /* Reset the retransmission time-out. */
       pcb->rto = (pcb->sa >> 3) + pcb->sv;
 
-      /* Update the send buffer space. Diff between the two can never exceed 64K
-         unless window scaling is used. */
-      tcp_acked = (tcpwnd_size_t)(ackno - pcb->lastack);
-
-      pcb->snd_buf += tcp_acked;
-
-      /* Reset the fast retransmit variables. */
+      /* Calculate the amount of acked in sequence space.
+         This includes one count for any acked SYN or FIN. */
+      acked_data = ackno - pcb->lastack;
+      
+      /* Reset the fast retransmit. */
       pcb->dupacks = 0;
-      pcb->lastack = ackno;
 
       /* Update the congestion control variables (cwnd and
          ssthresh). */
@@ -1026,42 +1019,63 @@ tcp_receive(struct tcp_pcb *pcb)
           LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_receive: congestion avoidance cwnd %"TCPWNDSIZE_F"\n", pcb->cwnd));
         }
       }
+      
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: ACK for %"U32_F", unacked->seqno %"U32_F":%"U32_F"\n",
                                     ackno,
                                     pcb->unacked != NULL?
                                     lwip_ntohl(pcb->unacked->tcphdr->seqno): 0,
                                     pcb->unacked != NULL?
                                     lwip_ntohl(pcb->unacked->tcphdr->seqno) + TCP_TCPLEN(pcb->unacked): 0));
+      
+      // BUG: If only part of a segment is acked we will report to the sent callback
+      //      some sent data but the application may reuse the buffers even though
+      //      we are still referencing it from tcp_seg. (lwip bug 48543)
 
-      /* Remove segment from the unacknowledged list if the incoming
-         ACK acknowledges them. */
-      while (pcb->unacked != NULL &&
-             TCP_SEQ_LEQ(lwip_ntohl(pcb->unacked->tcphdr->seqno) +
-                         TCP_TCPLEN(pcb->unacked), ackno)) {
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from pcb->unacked\n",
-                                      lwip_ntohl(pcb->unacked->tcphdr->seqno),
-                                      lwip_ntohl(pcb->unacked->tcphdr->seqno) +
-                                      TCP_TCPLEN(pcb->unacked)));
+      /* Remove any segments that are completely acknowledged by the incoming ACK . */
+      struct tcp_seg **queues[] = {&pcb->unacked, &pcb->unsent};
+      
+      for (u8_t i = 0; i < LWIP_ARRAYSIZE(queues); i++) {
+        struct tcp_seg **queue = queues[i];
+        
+        while (*queue != NULL && tcp_seq_leq_ref(TCP_ENDSEQ(*queue), ackno, pcb->lastack)) {
+          next = *queue;
+          *queue = (*queue)->next;
+          
+          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from queue\n",
+                                        lwip_ntohl(next->tcphdr->seqno),
+                                        lwip_ntohl(next->tcphdr->seqno) +
+                                        TCP_TCPLEN(next)));
 
-        next = pcb->unacked;
-        pcb->unacked = pcb->unacked->next;
 
-        LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_receive: queuelen %"TCPWNDSIZE_F" ... ", (tcpwnd_size_t)pcb->snd_queuelen));
-        LWIP_ASSERT("pcb->snd_queuelen >= pbuf_clen(next->p)", (pcb->snd_queuelen >= pbuf_clen(next->p)));
-        /* Prevent ACK for FIN to generate a sent event */
-        if ((tcp_acked != 0) && ((TCPH_FLAGS(next->tcphdr) & TCP_FIN) != 0)) {
-          tcp_acked--;
-        }
+          LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_receive: queuelen %"TCPWNDSIZE_F" ... ", (tcpwnd_size_t)pcb->snd_queuelen));
+          LWIP_ASSERT("pcb->snd_queuelen >= pbuf_clen(next->p)", (pcb->snd_queuelen >= pbuf_clen(next->p)));
+          
+          if ((TCPH_FLAGS(next->tcphdr) & (TCP_FIN|TCP_SYN)) != 0) {
+            LWIP_ASSERT("acked_data > 0", acked_data > 0);
+            acked_data--;
+          }
 
-        pcb->snd_queuelen -= pbuf_clen(next->p);
-        tcp_seg_free(next);
+          pcb->snd_queuelen -= pbuf_clen(next->p);
+          tcp_seg_free(next);
 
-        LWIP_DEBUGF(TCP_QLEN_DEBUG, ("%"TCPWNDSIZE_F" (after freeing unacked)\n", (tcpwnd_size_t)pcb->snd_queuelen));
-        if (pcb->snd_queuelen != 0) {
-          LWIP_ASSERT("tcp_receive: valid queue length", pcb->unacked != NULL ||
-                      pcb->unsent != NULL);
+          LWIP_DEBUGF(TCP_QLEN_DEBUG, ("%"TCPWNDSIZE_F" (after freeing seg)\n", (tcpwnd_size_t)pcb->snd_queuelen));
+          
+          if (pcb->snd_queuelen != 0) {
+            LWIP_ASSERT("tcp_receive: valid queue length", pcb->unacked != NULL || pcb->unsent != NULL);
+          }
         }
       }
+      
+      /* Bump the lastack to the received ackno */
+      pcb->lastack = ackno;
+      
+      /* Set the amount of acked actual data for the sent callback. */
+      LWIP_ASSERT("tcp_receive: acked_data <= max tcpwnd_size_t", acked_data <= (tcpwnd_size_t)-1);
+      tcp_acked = acked_data;
+      
+      /* Update the send buffer space. */
+      LWIP_ASSERT("tcp_receive: acked overflows TCP_SND_BUF", acked_data <= TCP_SND_BUF - pcb->snd_buf);
+      pcb->snd_buf += acked_data;
 
       /* If there's nothing left to acknowledge, stop the retransmit
          timer, otherwise reset it to start again */
@@ -1077,41 +1091,8 @@ tcp_receive(struct tcp_pcb *pcb)
         nd6_reachability_hint(ip6_current_src_addr());
       }
 #endif /* LWIP_IPV6 && LWIP_ND6_TCP_REACHABILITY_HINTS*/
-    } else {
-      /* Out of sequence ACK, didn't really ack anything */
-      tcp_acked = 0;
-      tcp_send_empty_ack(pcb);
     }
 
-    /* We go through the ->unsent list to see if any of the segments
-       on the list are acknowledged by the ACK. This may seem
-       strange since an "unsent" segment shouldn't be acked. The
-       rationale is that lwIP puts all outstanding segments on the
-       ->unsent list after a retransmission, so these segments may
-       in fact have been sent once. */
-    while (pcb->unsent != NULL &&
-           TCP_SEQ_BETWEEN(ackno, lwip_ntohl(pcb->unsent->tcphdr->seqno) +
-                           TCP_TCPLEN(pcb->unsent), pcb->snd_nxt)) {
-      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_receive: removing %"U32_F":%"U32_F" from pcb->unsent\n",
-                                    lwip_ntohl(pcb->unsent->tcphdr->seqno), lwip_ntohl(pcb->unsent->tcphdr->seqno) +
-                                    TCP_TCPLEN(pcb->unsent)));
-
-      next = pcb->unsent;
-      pcb->unsent = pcb->unsent->next;
-      LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_receive: queuelen %"TCPWNDSIZE_F" ... ", (tcpwnd_size_t)pcb->snd_queuelen));
-      LWIP_ASSERT("pcb->snd_queuelen >= pbuf_clen(next->p)", (pcb->snd_queuelen >= pbuf_clen(next->p)));
-      /* Prevent ACK for FIN to generate a sent event */
-      if ((tcp_acked != 0) && ((TCPH_FLAGS(next->tcphdr) & TCP_FIN) != 0)) {
-        tcp_acked--;
-      }
-      pcb->snd_queuelen -= pbuf_clen(next->p);
-      tcp_seg_free(next);
-      LWIP_DEBUGF(TCP_QLEN_DEBUG, ("%"TCPWNDSIZE_F" (after freeing unsent)\n", (tcpwnd_size_t)pcb->snd_queuelen));
-      if (pcb->snd_queuelen != 0) {
-        LWIP_ASSERT("tcp_receive: valid queue length",
-          pcb->unacked != NULL || pcb->unsent != NULL);
-      }
-    }
     /* End of ACK for new data processing. */
 
     LWIP_DEBUGF(TCP_RTO_DEBUG, ("tcp_receive: pcb->rttest %"U32_F" rtseq %"U32_F" ackno %"U32_F"\n",

@@ -86,11 +86,36 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 #define TCP_SEQ_LEQ(a,b)    ((s32_t)((u32_t)(a) - (u32_t)(b)) <= 0)
 #define TCP_SEQ_GT(a,b)     ((s32_t)((u32_t)(a) - (u32_t)(b)) > 0)
 #define TCP_SEQ_GEQ(a,b)    ((s32_t)((u32_t)(a) - (u32_t)(b)) >= 0)
+
 /* is b<=a<=c? */
 #if 0 /* see bug #10548 */
 #define TCP_SEQ_BETWEEN(a,b,c) ((c)-(b) >= (a)-(b))
 #endif
 #define TCP_SEQ_BETWEEN(a,b,c) (TCP_SEQ_GEQ(a,b) && TCP_SEQ_LEQ(a,c))
+// TODO: The above issue is probably due to broken usage, particularly
+// due to accidentally passing "b<c" (in the modular sense), not
+// compiler problems like the bug report suggests.
+
+static inline u8_t tcp_seq_gt_ref (u32_t a, u32_t b, u32_t ref)
+{
+  return (u32_t)(a - ref) > (u32_t)(b - ref);
+}
+
+static inline u8_t tcp_seq_lt_ref (u32_t a, u32_t b, u32_t ref)
+{
+  return (u32_t)(a - ref) < (u32_t)(b - ref);
+}
+
+static inline u8_t tcp_seq_geq_ref (u32_t a, u32_t b, u32_t ref)
+{
+  return (u32_t)(a - ref) >= (u32_t)(b - ref);
+}
+
+static inline u8_t tcp_seq_leq_ref (u32_t a, u32_t b, u32_t ref)
+{
+  return (u32_t)(a - ref) <= (u32_t)(b - ref);
+}
+
 #define TCP_FIN 0x01U
 #define TCP_SYN 0x02U
 #define TCP_RST 0x04U
@@ -165,7 +190,9 @@ PACK_STRUCT_END
 #define TCPH_SET_FLAG(phdr, flags ) (phdr)->_hdrlen_rsvd_flags = ((phdr)->_hdrlen_rsvd_flags | lwip_htons(flags))
 #define TCPH_UNSET_FLAG(phdr, flags) (phdr)->_hdrlen_rsvd_flags = ((phdr)->_hdrlen_rsvd_flags & ~lwip_htons(flags))
 
+#define TCP_TCPSEQ(seg) lwip_ntohl((seg)->tcphdr->seqno)
 #define TCP_TCPLEN(seg) ((seg)->len + (((TCPH_FLAGS((seg)->tcphdr) & (TCP_FIN | TCP_SYN)) != 0) ? 1U : 0U))
+#define TCP_ENDSEQ(seg) ((u32_t)(TCP_TCPSEQ(seg) + TCP_TCPLEN(seg)))
 
 /** Flags used on input processing, not on pcb->flags
 */
