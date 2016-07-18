@@ -92,6 +92,18 @@ static void tcp_parseopt(struct tcp_pcb *pcb);
 static void tcp_listen_input(struct tcp_pcb_listen *pcb);
 static void tcp_timewait_input(struct tcp_pcb *pcb);
 
+/* Checks if the addresses in a received TCP segment match the
+ * addresses of a connection PCB. Assumingthe byte order in the
+ * TCP header has been fixed up to native. */
+static u8_t segment_is_for_pcb(struct tcp_pcb *pcb)
+{
+  return
+    pcb->remote_port == tcphdr->src &&
+    pcb->local_port == tcphdr->dest &&
+    ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
+    ip_addr_cmp(&pcb->local_ip, ip_current_dest_addr());
+}
+
 /**
  * The initial input processing of TCP. It verifies the TCP header, demultiplexes
  * the segment between the PCBs and passes it on to tcp_process(), which implements
@@ -105,13 +117,12 @@ void
 tcp_input(struct pbuf *p, struct netif *inp)
 {
   struct tcp_pcb *pcb, *prev;
-  struct tcp_pcb_listen *lpcb;
+  struct tcp_pcb_listen *lpcb, *lpcb_prev;
 #if SO_REUSE
-  struct tcp_pcb *lpcb_prev = NULL;
   struct tcp_pcb_listen *lpcb_any = NULL;
-#endif /* SO_REUSE */
+  struct tcp_pcb_listen *lpcb_any_prev = NULL;
+#endif
   u8_t hdrlen_bytes;
-  err_t err;
 
   LWIP_UNUSED_ARG(inp);
 
@@ -121,25 +132,26 @@ tcp_input(struct pbuf *p, struct netif *inp)
   MIB2_STATS_INC(mib2.tcpinsegs);
 
   /* Check that TCP header fits in payload */
-  if (p->len < sizeof(struct tcp_hdr)) {
+  if (p->len < TCP_HLEN) {
     /* drop short packets */
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: short packet (%"U16_F" bytes) discarded\n", p->tot_len));
     TCP_STATS_INC(tcp.lenerr);
     goto dropped;
   }
 
+  /* TCP header pointer. Note this is a static variable. */
   tcphdr = (struct tcp_hdr *)p->payload;
 
 #if TCP_INPUT_DEBUG
   tcp_debug_print(tcphdr);
+  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("+-+-+-+-+-+-+-+-+-+-+-+-+-+- tcp_input: flags "));
+  tcp_debug_print_flags(TCPH_FLAGS(tcphdr));
+  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n"));
 #endif
 
   /* Don't even process incoming broadcasts/multicasts. */
-  if (
-#if LWIP_IPV4
-      (!ip_current_is_v6() && ip_addr_isbroadcast(ip_current_dest_addr(), ip_current_netif())) ||
-#endif /* LWIP_IPV4 */
-       ip_addr_ismulticast(ip_current_dest_addr())) {
+  if (ip_addr_isbroadcast(ip_current_dest_addr(), ip_current_netif()) ||
+      ip_addr_ismulticast(ip_current_dest_addr())) {
     TCP_STATS_INC(tcp.proterr);
     goto dropped;
   }
@@ -155,7 +167,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
       goto dropped;
     }
   }
-#endif /* CHECKSUM_CHECK_TCP */
+#endif
 
   /* sanity-check header length */
   hdrlen_bytes = TCPH_HDRLEN(tcphdr) * 4;
@@ -216,12 +228,15 @@ tcp_input(struct pbuf *p, struct netif *inp)
   /* Convert fields in TCP header to host byte order. */
   tcphdr->src = lwip_ntohs(tcphdr->src);
   tcphdr->dest = lwip_ntohs(tcphdr->dest);
-  seqno = tcphdr->seqno = lwip_ntohl(tcphdr->seqno);
-  ackno = tcphdr->ackno = lwip_ntohl(tcphdr->ackno);
+  tcphdr->seqno = lwip_ntohl(tcphdr->seqno);
+  tcphdr->ackno = lwip_ntohl(tcphdr->ackno);
   tcphdr->wnd = lwip_ntohs(tcphdr->wnd);
 
+  /* Save some information about the segment to static variables. */
+  seqno = tcphdr->seqno;
+  ackno = tcphdr->ackno;
   flags = TCPH_FLAGS(tcphdr);
-  tcplen = p->tot_len + ((flags & (TCP_FIN | TCP_SYN)) ? 1 : 0);
+  tcplen = p->tot_len + ((flags & (TCP_FIN|TCP_SYN)) ? 1 : 0);
 
   /* Demultiplex an incoming segment. First, we check if it is destined
      for an active connection. */
@@ -229,14 +244,10 @@ tcp_input(struct pbuf *p, struct netif *inp)
   for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
     LWIP_ASSERT("tcp_input: active pcb->state", tcp_state_is_active(pcb->state));
     
-    if (pcb->remote_port == tcphdr->src &&
-        pcb->local_port == tcphdr->dest &&
-        ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
-        ip_addr_cmp(&pcb->local_ip, ip_current_dest_addr())) {
+    if (segment_is_for_pcb(pcb)) {
       /* Move this PCB to the front of the list so that subsequent
          lookups will be faster (we exploit locality in TCP segment
          arrivals). */
-      LWIP_ASSERT("tcp_input: pcb->next != pcb (before cache)", pcb->next != pcb);
       if (prev != NULL) {
         prev->next = pcb->next;
         pcb->next = tcp_active_pcbs;
@@ -244,7 +255,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
       } else {
         TCP_STATS_INC(tcp.cachehit);
       }
-      LWIP_ASSERT("tcp_input: pcb->next != pcb (after cache)", pcb->next != pcb);
       break;
     }
     
@@ -255,25 +265,21 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* If it did not go to an active connection, we check the connections
        in the TIME-WAIT state. */
     for (pcb = tcp_tw_pcbs; pcb != NULL; pcb = pcb->next) {
-      LWIP_ASSERT("tcp_input: TIME-WAIT pcb->state == TIME-WAIT", pcb->state == TIME_WAIT);
+      LWIP_ASSERT("tcp_input: TIME-WAIT pcb->state", pcb->state == TIME_WAIT);
       
-      if (pcb->remote_port == tcphdr->src &&
-          pcb->local_port == tcphdr->dest &&
-          ip_addr_cmp(&pcb->remote_ip, ip_current_src_addr()) &&
-          ip_addr_cmp(&pcb->local_ip, ip_current_dest_addr())) {
+      if (segment_is_for_pcb(pcb)) {
         /* We don't really care enough to move this PCB to the front
            of the list since we are not very likely to receive that
            many segments for connections in TIME-WAIT. */
         LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for TIME_WAITing connection.\n"));
         tcp_timewait_input(pcb);
-        pbuf_free(p);
-        return;
+        goto out_free;
       }
     }
 
     /* Finally, if we still did not get a match, we check all PCBs that
        are LISTENing for incoming connections. */
-    prev = NULL;
+    lpcb_prev = NULL;
     for (lpcb = tcp_listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
       if (lpcb->local_port == tcphdr->dest) {
 #if LWIP_IPV4 && LWIP_IPV6
@@ -281,12 +287,12 @@ tcp_input(struct pbuf *p, struct netif *inp)
           /* found an ANY-match */
 #if SO_REUSE
           lpcb_any = lpcb;
-          lpcb_prev = prev;
-#else /* SO_REUSE */
+          lpcb_any_prev = lpcb_prev;
+#else
           break;
-#endif /* SO_REUSE */
+#endif
         } else
-#endif /* LWIP_IPV4 && LWIP_IPV6 */
+#endif
         if (IP_PCB_IPVER_INPUT_MATCH(lpcb)) {
           if (ip_addr_cmp(&lpcb->local_ip, ip_current_dest_addr())) {
             /* found an exact match */
@@ -295,32 +301,30 @@ tcp_input(struct pbuf *p, struct netif *inp)
             /* found an ANY-match */
 #if SO_REUSE
             lpcb_any = lpcb;
-            lpcb_prev = prev;
-#else /* SO_REUSE */
+            lpcb_any_prev = lpcb_prev;
+#else
             break;
- #endif /* SO_REUSE */
+#endif
           }
         }
       }
-      prev = (struct tcp_pcb *)lpcb;
+      lpcb_prev = lpcb;
     }
 #if SO_REUSE
     /* first try specific local IP */
     if (lpcb == NULL) {
       /* only pass to ANY if no specific local IP has been found */
       lpcb = lpcb_any;
-      prev = lpcb_prev;
+      lpcb_prev = lpcb_any_prev;
     }
-#endif /* SO_REUSE */
+#endif
     if (lpcb != NULL) {
       /* Move this PCB to the front of the list so that subsequent
          lookups will be faster (we exploit locality in TCP segment
          arrivals). */
-      if (prev != NULL) {
-        ((struct tcp_pcb_listen *)prev)->next = lpcb->next;
-              /* our successor is the remainder of the listening list */
+      if (lpcb_prev != NULL) {
+        lpcb_prev->next = lpcb->next;
         lpcb->next = tcp_listen_pcbs;
-              /* put this listening pcb at the head of the listening list */
         tcp_listen_pcbs = lpcb;
       } else {
         TCP_STATS_INC(tcp.cachehit);
@@ -328,37 +332,26 @@ tcp_input(struct pbuf *p, struct netif *inp)
 
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for LISTENing connection.\n"));
       tcp_listen_input(lpcb);
-      pbuf_free(p);
-      return;
+      goto out_free;
     }
-  }
-
-#if TCP_INPUT_DEBUG
-  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("+-+-+-+-+-+-+-+-+-+-+-+-+-+- tcp_input: flags "));
-  tcp_debug_print_flags(TCPH_FLAGS(tcphdr));
-  LWIP_DEBUGF(TCP_INPUT_DEBUG, ("-+-+-+-+-+-+-+-+-+-+-+-+-+-+\n"));
-#endif /* TCP_INPUT_DEBUG */
-
-  /* If no matching PCB was found, send a TCP RST (reset) to the sender. */
-  if (pcb == NULL) {
+    
+    /* No matching PCB was found, send a TCP RST (reset) to the sender. */
     LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_input: no PCB match found, resetting.\n"));
     if (!(TCPH_FLAGS(tcphdr) & TCP_RST)) {
       TCP_STATS_INC(tcp.proterr);
       TCP_STATS_INC(tcp.drop);
-      tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
+      tcp_rst(ackno, (u32_t)(seqno + tcplen), ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
     }
-    pbuf_free(p);
-    goto out;
+    goto out_free;
   }
   
   /* The incoming segment belongs to a connection. */
 #if TCP_INPUT_DEBUG
   tcp_debug_print_state(pcb->state);
-#endif /* TCP_INPUT_DEBUG */
+#endif
 
   /* Set up a tcp_seg structure. */
-  inseg.next = NULL;
   inseg.len = p->tot_len;
   inseg.p = p;
   inseg.tcphdr = tcphdr;
@@ -373,7 +366,9 @@ tcp_input(struct pbuf *p, struct netif *inp)
    * to NULL in that case. */
   tcp_input_pcb = pcb;
 
-  if (flags & TCP_PSH) {
+  /* If the segment has a PSH flag, set a flag in the pbuf
+   * so the application can know. */
+  if ((flags & TCP_PSH)) {
     p->flags |= PBUF_FLAG_PUSH;
   }
 
@@ -386,7 +381,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
   /* If the application has registered a "sent" function to be
       called when new send buffer space is available, we call it
       now. */
-  if (tcp_acked > 0 && !(pcb->flags & TF_NOUSER) && pcb->sent != NULL) {
+  if (tcp_acked != 0 && !(pcb->flags & TF_NOUSER) && pcb->sent != NULL) {
     pcb->sent(pcb->callback_arg, pcb, tcp_acked);
     if (tcp_input_pcb == NULL) {
       goto aborted;
@@ -412,15 +407,17 @@ tcp_input(struct pbuf *p, struct netif *inp)
         goto aborted;
       }
     } else {
+      /* Just eat the data. */
       tcp_recved_internal(pcb, recv_data->tot_len);
     }
   }
 
   /* If a FIN segment was received, we call the callback
       function with a NULL buffer to indicate EOF. */
-  if (recv_flags & TF_GOT_FIN) {
+  if ((recv_flags & TF_GOT_FIN)) {
     /* correct rcv_wnd as the application won't call tcp_recved()
         for the FIN's seqno */
+    // TODO: Remove this when refactoring RX code.
     if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
       pcb->rcv_wnd++;
     }
@@ -452,21 +449,21 @@ aborted:
   /* give up any reference to the pbuf */
   if (recv_data != NULL) {
     pbuf_free(recv_data);
-    recv_data = NULL;
   }
-  if (inseg.p != NULL) {
+  else if (inseg.p != NULL) {
     pbuf_free(inseg.p);
-    inseg.p = NULL;
   }
+  
+  goto out;
 
-out:
-  LWIP_ASSERT("tcp_input: tcp_pcbs_sane()", tcp_pcbs_sane());
-  PERF_STOP("tcp_input");
-  return;
 dropped:
   TCP_STATS_INC(tcp.drop);
   MIB2_STATS_INC(mib2.tcpinerrs);
+out_free:
   pbuf_free(p);
+out:
+  LWIP_ASSERT("tcp_input: tcp_pcbs_sane()", tcp_pcbs_sane());
+  PERF_STOP("tcp_input");  
 }
 
 /**
@@ -485,44 +482,46 @@ static void
 tcp_listen_input(struct tcp_pcb_listen *pcb)
 {
   struct tcp_pcb *npcb;
-  err_t rc;
+  err_t err;
 
-  if (flags & TCP_RST) {
+  if ((flags & TCP_RST)) {
     /* An incoming RST should be ignored. Return. */
     return;
   }
 
   /* In the LISTEN state, we check for incoming SYN segments,
      creates a new PCB, and responds with a SYN|ACK. */
-  if (flags & TCP_ACK) {
+  if ((flags & TCP_ACK)) {
     /* For incoming segments with the ACK flag set, respond with a
        RST. */
     LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_listen_input: ACK in LISTEN, sending reset\n"));
     tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
       ip_current_src_addr(), tcphdr->dest, tcphdr->src);
-  } else if (flags & TCP_SYN) {
+  }
+  else if ((flags & TCP_SYN)) {
     LWIP_DEBUGF(TCP_DEBUG, ("TCP connection request %"U16_F" -> %"U16_F".\n", tcphdr->src, tcphdr->dest));
+    
     if (pcb->accepts_pending >= pcb->backlog) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: listen backlog exceeded for port %"U16_F"\n", tcphdr->dest));
       tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
       return;
     }
+    
     npcb = tcp_alloc(pcb->prio);
-    /* If a new PCB could not be created (probably due to lack of memory),
-       we don't do anything, but rely on the sender will retransmit the
-       SYN at a time when we have more memory available. */
     if (npcb == NULL) {
+      /* don't do anything, rely on the sender to retransmit the SYN */
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: could not allocate PCB\n"));
       TCP_STATS_INC(tcp.memerr);
       return;
     }
+    
+    /* Set up the new PCB. */
     pcb->accepts_pending++;
     npcb->flags |= TF_BACKLOGPEND|TF_NOUSER;
-    /* Set up the new PCB. */
 #if LWIP_IPV4 && LWIP_IPV6
     PCB_ISIPV6(npcb) = ip_current_is_v6();
-#endif /* LWIP_IPV4 && LWIP_IPV6 */
+#endif
     ip_addr_copy(npcb->local_ip, *ip_current_dest_addr());
     ip_addr_copy(npcb->remote_ip, *ip_current_src_addr());
     npcb->local_port = pcb->local_port;
@@ -549,21 +548,20 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
     npcb->ssthresh = LWIP_TCP_INITIAL_SSTHRESH(npcb);
 
 #if TCP_CALCULATE_EFF_SEND_MSS
-    npcb->mss = tcp_eff_send_mss(npcb->mss, &npcb->local_ip,
-      &npcb->remote_ip, PCB_ISIPV6(npcb));
-#endif /* TCP_CALCULATE_EFF_SEND_MSS */
+    npcb->mss = tcp_eff_send_mss(npcb->mss, &npcb->local_ip, &npcb->remote_ip, PCB_ISIPV6(npcb));
+#endif
 
     MIB2_STATS_INC(mib2.tcppassiveopens);
 
     /* Send a SYN|ACK together with the MSS option. */
-    rc = tcp_enqueue_flags(npcb, TCP_SYN|TCP_ACK);
-    if (rc != ERR_OK) {
+    err = tcp_enqueue_flags(npcb, TCP_SYN|TCP_ACK);
+    if (err != ERR_OK) {
       tcp_pcb_free(npcb, 0, NULL);
       return;
     }
+    
     tcp_output(npcb);
   }
-  return;
 }
 
 /**
@@ -583,11 +581,12 @@ tcp_timewait_input(struct tcp_pcb *pcb)
    * - first check sequence number - we skip that one in TIME_WAIT (always
    *   acceptable since we only send ACKs)
    * - second check the RST bit (... return) */
-  if (flags & TCP_RST) {
+  if ((flags & TCP_RST)) {
     return;
   }
+  
   /* - fourth, check the SYN bit, */
-  if (flags & TCP_SYN) {
+  if ((flags & TCP_SYN)) {
     /* If an incoming segment is not acceptable, an acknowledgment
        should be sent in reply */
     if (TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt, pcb->rcv_nxt + pcb->rcv_wnd)) {
@@ -596,18 +595,18 @@ tcp_timewait_input(struct tcp_pcb *pcb)
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
       return;
     }
-  } else if (flags & TCP_FIN) {
+  }
+  else if ((flags & TCP_FIN)) {
     /* - eighth, check the FIN bit: Remain in the TIME-WAIT state.
          Restart the 2 MSL time-wait timeout.*/
     pcb->tmr = tcp_ticks;
   }
 
-  if ((tcplen > 0)) {
+  if (tcplen > 0) {
     /* Acknowledge data, FIN or out-of-window SYN */
     pcb->flags |= TF_ACK_NOW;
     tcp_output(pcb);
   }
-  return;
 }
 
 /**
@@ -624,10 +623,10 @@ tcp_timewait_input(struct tcp_pcb *pcb)
 static void
 tcp_process(struct tcp_pcb *pcb)
 {
-  u8_t acceptable = 0;
-
   /* Process incoming RST segments. */
-  if (flags & TCP_RST) {
+  if ((flags & TCP_RST)) {
+    u8_t acceptable = 0;
+    
     /* First, determine if the reset is acceptable. */
     if (pcb->state == SYN_SENT) {
       /* "In the SYN-SENT state (a RST received in response to an initial SYN),
@@ -640,8 +639,8 @@ tcp_process(struct tcp_pcb *pcb)
           by checking their SEQ-fields." */
       if (seqno == pcb->rcv_nxt) {
         acceptable = 1;
-      } else  if (TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt,
-                                  pcb->rcv_nxt + pcb->rcv_wnd)) {
+      }
+      else if (TCP_SEQ_BETWEEN(seqno, pcb->rcv_nxt, (u32_t)(pcb->rcv_nxt + pcb->rcv_wnd))) {
         /* If the sequence number is inside the window, we only send an ACK
            and wait for a re-send with matching sequence number.
            This violates RFC 793, but is required to protection against
@@ -653,19 +652,15 @@ tcp_process(struct tcp_pcb *pcb)
     if (acceptable) {
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: Connection RESET\n"));
       LWIP_ASSERT("tcp_input: pcb->state != CLOSED", pcb->state != CLOSED);
-      
       /* Free the PCB but also call the error callback to inform the
          application that the connection is dead and PCB is deallocated. */
       pcb->flags &= ~TF_ACK_DELAY;
       tcp_report_err(pcb, ERR_RST);
       tcp_pcb_free(pcb, 0, NULL);
-      return;
+    } else {
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
+        seqno, pcb->rcv_nxt));
     }
-    
-    LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
-      seqno, pcb->rcv_nxt));
-    LWIP_DEBUGF(TCP_DEBUG, ("tcp_process: unacceptable reset seqno %"U32_F" rcv_nxt %"U32_F"\n",
-      seqno, pcb->rcv_nxt));
     return;
   }
 
@@ -688,6 +683,7 @@ tcp_process(struct tcp_pcb *pcb)
   case SYN_SENT:
     LWIP_DEBUGF(TCP_INPUT_DEBUG, ("SYN-SENT: ackno %"U32_F" pcb->snd_nxt %"U32_F" pcb->lastack %"U32_F"\n",
      ackno, pcb->snd_nxt, pcb->lastack));
+    
     /* received SYN ACK with expected sequence number? */
     if ((flags & TCP_ACK) && (flags & TCP_SYN) && ackno == (u32_t)(pcb->lastack + 1)) {
       pcb->rcv_nxt = seqno + 1;
@@ -736,7 +732,7 @@ tcp_process(struct tcp_pcb *pcb)
       tcp_ack_now(pcb);
     }
     /* received ACK? possibly a half-open connection */
-    else if (flags & TCP_ACK) {
+    else if ((flags & TCP_ACK)) {
       /* send a RST to bring the other side in a non-synchronized state. */
       tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
         ip_current_src_addr(), tcphdr->dest, tcphdr->src);
@@ -746,8 +742,9 @@ tcp_process(struct tcp_pcb *pcb)
       tcp_rexmit_rto(pcb);
     }
     break;
+    
   case SYN_RCVD:
-    if (flags & TCP_ACK) {
+    if ((flags & TCP_ACK)) {
       /* expected ACK number? */
       if (ackno != pcb->lastack && tcp_seq_leq_ref(ackno, pcb->snd_nxt, pcb->lastack)) {
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
@@ -804,55 +801,63 @@ tcp_process(struct tcp_pcb *pcb)
       tcp_rexmit(pcb);
     }
     break;
+    
   case CLOSE_WAIT:
     /* FALLTHROUGH */
   case ESTABLISHED:
     tcp_receive(pcb);
-    if (recv_flags & TF_GOT_FIN) { /* passive close */
+    if ((recv_flags & TF_GOT_FIN)) { /* passive close */
       tcp_ack_now(pcb);
       pcb->state = CLOSE_WAIT;
     }
     break;
+    
   case FIN_WAIT_1:
     tcp_receive(pcb);
-    if (recv_flags & TF_GOT_FIN) {
+    if ((recv_flags & TF_GOT_FIN)) {
       if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt)) {
-        LWIP_DEBUGF(TCP_DEBUG,
-          ("TCP connection closed: FIN_WAIT_1 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
+        LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: FIN_WAIT_1 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
         tcp_ack_now(pcb);
         tcp_move_to_time_wait(pcb);
       } else {
         tcp_ack_now(pcb);
         pcb->state = CLOSING;
       }
-    } else if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt)) {
+    }
+    else if ((flags & TCP_ACK) && (ackno == pcb->snd_nxt)) {
       pcb->state = FIN_WAIT_2;
     }
     break;
+    
   case FIN_WAIT_2:
     tcp_receive(pcb);
-    if (recv_flags & TF_GOT_FIN) {
+    if ((recv_flags & TF_GOT_FIN)) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: FIN_WAIT_2 %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_ack_now(pcb);
       tcp_move_to_time_wait(pcb);
     }
     break;
+    
   case CLOSING:
     tcp_receive(pcb);
-    if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
+    if ((flags & TCP_ACK) && ackno == pcb->snd_nxt) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: CLOSING %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_move_to_time_wait(pcb);
     }
     break;
+    
   case LAST_ACK:
     tcp_receive(pcb);
-    if (flags & TCP_ACK && ackno == pcb->snd_nxt) {
+    if ((flags & TCP_ACK) && ackno == pcb->snd_nxt) {
       LWIP_DEBUGF(TCP_DEBUG, ("TCP connection closed: LAST_ACK %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
       tcp_report_err(pcb, ERR_CLSD);
       tcp_pcb_free(pcb, 0, NULL);
     }
     break;
+    
   default:
+    /* can only come here from active states */
+    LWIP_ASSERT("tcp_process: invalid state", 0);
     break;
   }
 }
@@ -885,7 +890,7 @@ tcp_receive(struct tcp_pcb *pcb)
   LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
   LWIP_ASSERT("tcp_receive: tcp_acked == 0", tcp_acked == 0);
 
-  if (flags & TCP_ACK) {
+  if ((flags & TCP_ACK)) {
     right_wnd_edge = pcb->snd_wnd + pcb->snd_wl2;
 
     /* Update window. */
