@@ -1276,13 +1276,21 @@ tcp_receive(struct tcp_pcb *pcb)
 static u8_t
 tcp_getoptbyte(void)
 {
-  if ((tcphdr_opt2 == NULL) || (tcp_optidx < tcphdr_opt1len)) {
-    u8_t* opts = (u8_t *)tcphdr + TCP_HLEN;
+  LWIP_ASSERT("tcp_getoptbyte: index out of range", tcp_optidx < tcphdr_optlen);
+  LWIP_ASSERT("tcp_getoptbyte: opt2 inconsistency", tcp_optidx < tcphdr_opt1len || tcphdr_opt2 != NULL);
+  
+  if (tcp_optidx < tcphdr_opt1len) {
+    u8_t *opts = (u8_t *)tcphdr + TCP_HLEN;
     return opts[tcp_optidx++];
   } else {
     u8_t idx = (u8_t)(tcp_optidx++ - tcphdr_opt1len);
     return tcphdr_opt2[idx];
   }
+}
+
+static u16_t tcp_optrem(void)
+{
+  return tcphdr_optlen - tcp_optidx;
 }
 
 /**
@@ -1302,70 +1310,73 @@ tcp_parseopt(struct tcp_pcb *pcb)
   u32_t tsval;
 #endif
 
-  /* Parse the TCP MSS option, if present. */
-  if (tcphdr_optlen != 0) {
-    for (tcp_optidx = 0; tcp_optidx < tcphdr_optlen; ) {
-      u8_t opt = tcp_getoptbyte();
-      switch (opt) {
-      case LWIP_TCP_OPT_EOL:
-        /* End of options. */
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: EOL\n"));
+  for (tcp_optidx = 0; tcp_optidx < tcphdr_optlen; ) {
+    u8_t opt = tcp_getoptbyte();
+    switch (opt) {
+    case LWIP_TCP_OPT_EOL:
+      /* End of options. */
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: EOL\n"));
+      return;
+    case LWIP_TCP_OPT_NOP:
+      /* NOP option. */
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: NOP\n"));
+      break;
+    case LWIP_TCP_OPT_MSS:
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: MSS\n"));
+      if (tcp_optrem() < 1 ||
+          tcp_getoptbyte() != LWIP_TCP_OPT_LEN_MSS ||
+          tcp_optrem() < LWIP_TCP_OPT_LEN_MSS - 2) {
+        /* Bad length */
+        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
         return;
-      case LWIP_TCP_OPT_NOP:
-        /* NOP option. */
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: NOP\n"));
-        break;
-      case LWIP_TCP_OPT_MSS:
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: MSS\n"));
-        if (tcp_getoptbyte() != LWIP_TCP_OPT_LEN_MSS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_MSS) > tcphdr_optlen) {
-          /* Bad length */
-          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
-          return;
-        }
-        /* An MSS option with the right option length. */
-        mss = (tcp_getoptbyte() << 8);
-        mss |= tcp_getoptbyte();
-        /* Limit the mss to the configured TCP_MSS and prevent division by zero */
-        pcb->mss = ((mss > TCP_MSS) || (mss == 0)) ? TCP_MSS : mss;
-        break;
-#if LWIP_TCP_TIMESTAMPS
-      case LWIP_TCP_OPT_TS:
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: TS\n"));
-        if (tcp_getoptbyte() != LWIP_TCP_OPT_LEN_TS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_TS) > tcphdr_optlen) {
-          /* Bad length */
-          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
-          return;
-        }
-        /* TCP timestamp option with valid length */
-        tsval = tcp_getoptbyte();
-        tsval |= (tcp_getoptbyte() << 8);
-        tsval |= (tcp_getoptbyte() << 16);
-        tsval |= (tcp_getoptbyte() << 24);
-        if (flags & TCP_SYN) {
-          pcb->ts_recent = lwip_ntohl(tsval);
-          /* Enable sending timestamps in every segment now that we know
-             the remote host supports it. */
-          pcb->flags |= TF_TIMESTAMP;
-        } else if (TCP_SEQ_BETWEEN(pcb->ts_lastacksent, seqno, seqno+tcplen)) {
-          pcb->ts_recent = lwip_ntohl(tsval);
-        }
-        /* Advance to next option (6 bytes already read) */
-        tcp_optidx += LWIP_TCP_OPT_LEN_TS - 6;
-        break;
-#endif
-      default:
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: other\n"));
-        data = tcp_getoptbyte();
-        if (data < 2) {
-          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
-          /* If the length field is zero, the options are malformed
-             and we don't process them further. */
-          return;
-        }
-        /* All other options have a length field, so that we easily
-           can skip past them. */
-        tcp_optidx += data - 2;
       }
+      /* An MSS option with the right option length. */
+      mss  = (u16_t)tcp_getoptbyte() << 8;
+      mss |= (u16_t)tcp_getoptbyte() << 0;
+      /* Limit the mss to the configured TCP_MSS and prevent division by zero */
+      pcb->mss = (mss > TCP_MSS || mss == 0) ? TCP_MSS : mss;
+      break;
+#if LWIP_TCP_TIMESTAMPS
+    case LWIP_TCP_OPT_TS:
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: TS\n"));
+      if (tcp_optrem() < 1 ||
+          tcp_getoptbyte() != LWIP_TCP_OPT_LEN_TS ||
+          tcp_optrem() < LWIP_TCP_OPT_LEN_TS - 2) {
+        /* Bad length */
+        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+        return;
+      }
+      /* TCP timestamp option with valid length */
+      tsval  = (u32_t)tcp_getoptbyte() << 24;
+      tsval |= (u32_t)tcp_getoptbyte() << 16;
+      tsval |= (u32_t)tcp_getoptbyte() << 8;
+      tsval |= (u32_t)tcp_getoptbyte() << 0;
+      if ((flags & TCP_SYN)) {
+        pcb->ts_recent = tsval;
+        /* Enable sending timestamps in every segment now that we know
+            the remote host supports it. */
+        pcb->flags |= TF_TIMESTAMP;
+      }
+      else if (TCP_SEQ_BETWEEN(pcb->ts_lastacksent, seqno, (u32_t)(seqno+tcplen))) {
+        pcb->ts_recent = tsval;
+      }
+      /* Advance to next option (6 bytes already read) */
+      tcp_optidx += LWIP_TCP_OPT_LEN_TS - 6;
+      break;
+#endif
+    default:
+      LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: other\n"));
+      if (tcp_optrem() < 1 ||
+          (data = tcp_getoptbyte()) < 2 ||
+          tcp_optrem() < data - 2) {
+        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
+        /* If the length field is zero, the options are malformed
+            and we don't process them further. */
+        return;
+      }
+      /* All other options have a length field, so that we easily
+          can skip past them. */
+      tcp_optidx += data - 2;
     }
   }
 }

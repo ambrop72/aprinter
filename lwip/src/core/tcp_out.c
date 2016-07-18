@@ -576,12 +576,14 @@ memerr:
  * @param opts option pointer where to store the timestamp option
  */
 static void
-tcp_build_timestamp_option(struct tcp_pcb *pcb, u32_t *opts)
+tcp_build_timestamp_option(struct tcp_pcb *pcb, u8_t *opts)
 {
   /* Pad with two NOP options to make everything nicely aligned */
-  opts[0] = PP_HTONL(0x0101080A);
-  opts[1] = lwip_htonl(sys_now());
-  opts[2] = lwip_htonl(pcb->ts_recent);
+  u32_t words[3];
+  words[0] = PP_HTONL(0x0101080A);
+  words[1] = lwip_htonl(sys_now());
+  words[2] = lwip_htonl(pcb->ts_recent);
+  memcpy(opts, words, sizeof(words));
 }
 #endif
 
@@ -624,7 +626,7 @@ tcp_send_empty_ack(struct tcp_pcb *pcb)
   pcb->ts_lastacksent = pcb->rcv_nxt;
 
   if (pcb->flags & TF_TIMESTAMP) {
-    tcp_build_timestamp_option(pcb, (u32_t *)(tcphdr + 1));
+    tcp_build_timestamp_option(pcb, (u8_t *)(tcphdr + 1));
   }
 #endif
 
@@ -806,7 +808,8 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
 {
   err_t err;
   u16_t len;
-  u32_t *opts;
+  u8_t *opts;
+  u32_t word;
 
   if (seg->p->ref != 1) {
     /* This can happen if the pbuf of this segment is still referenced by the
@@ -826,8 +829,7 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
 
   /* Add any requested options.  NB MSS option is only set on SYN
      packets, so ignore it here */
-  /* cast through void* to get rid of alignment warnings */
-  opts = (u32_t *)(void *)(seg->tcphdr + 1);
+  opts = (u8_t *)(seg->tcphdr + 1);
   if (seg->flags & TF_SEG_OPTS_MSS) {
     u16_t mss;
 #if TCP_CALCULATE_EFF_SEND_MSS
@@ -835,15 +837,16 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
 #else /* TCP_CALCULATE_EFF_SEND_MSS */
     mss = TCP_MSS;
 #endif /* TCP_CALCULATE_EFF_SEND_MSS */
-    *opts = TCP_BUILD_MSS_OPTION(mss);
-    opts += 1;
+    word = TCP_BUILD_MSS_OPTION(mss);
+    memcpy(opts, &word, sizeof(word));
+    opts += sizeof(word);
   }
 #if LWIP_TCP_TIMESTAMPS
   pcb->ts_lastacksent = pcb->rcv_nxt;
 
   if (seg->flags & TF_SEG_OPTS_TS) {
     tcp_build_timestamp_option(pcb, opts);
-    opts += 3;
+    opts += 12;
   }
 #endif
 
