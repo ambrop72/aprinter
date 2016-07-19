@@ -885,10 +885,8 @@ tcp_receive(struct tcp_pcb *pcb)
   u32_t right_wnd_edge;
   u16_t new_tot_len;
   int found_dupack = 0;
-  u32_t acked_data;
 
   LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
-  LWIP_ASSERT("tcp_receive: tcp_acked == 0", tcp_acked == 0);
 
   if ((flags & TCP_ACK)) {
     right_wnd_edge = pcb->snd_wnd + pcb->snd_wl2;
@@ -997,10 +995,6 @@ tcp_receive(struct tcp_pcb *pcb)
       /* Reset the retransmission time-out. */
       pcb->rto = (pcb->sa >> 3) + pcb->sv;
 
-      /* Calculate the amount of acked in sequence space.
-         This includes one count for any acked SYN or FIN. */
-      acked_data = ackno - pcb->lastack;
-      
       /* Reset the fast retransmit. */
       pcb->dupacks = 0;
 
@@ -1026,12 +1020,14 @@ tcp_receive(struct tcp_pcb *pcb)
         pcb->sndq == NULL ? 0 : lwip_ntohl(pcb->sndq->tcphdr->seqno),
         pcb->sndq == NULL ? 0 : TCP_ENDSEQ(pcb->sndq)));
       
-      // BUG: If only part of a segment is acked we will report to the sent callback
-      //      some sent data but the application may reuse the buffers even though
-      //      we are still referencing it from tcp_seg. (lwip bug 48543)
-      //      Fix is probably to calculate acked_data by summing the data lengths
-      //      of segments freed here.
-
+      /* Calculate the amount of acked data to report to the application, by summing
+       * the lengths of the segments acknowledged and freed (data only not any count
+       * for SYN/FIN). This may be different from the literal amount of acked data in
+       * case the peer acks segments partially, and is the correct behavior because
+       * we should not report data as acked until we've released the buffers.
+       * See lwip bug 48543. /
+      LWIP_ASSERT("tcp_receive: tcp_acked == 0", tcp_acked == 0); /* set in tcp_input() */
+      
       /* Remove queued segments which have been acked. */
       while (pcb->sndq != NULL &&
              TCP_SEG_SENT(pcb, pcb->sndq) &&
@@ -1048,24 +1044,20 @@ tcp_receive(struct tcp_pcb *pcb)
         
         LWIP_ASSERT("tcp_receive: valid queue length", pcb->snd_queuelen == 0 || pcb->sndq != NULL);
         
-        if ((TCPH_FLAGS(next->tcphdr) & (TCP_FIN|TCP_SYN)) != 0) {
-          LWIP_ASSERT("acked_data > 0", acked_data > 0);
-          acked_data--;
-        }
-
+        /* Overflow is impossible here due to constraint related to
+         * pcb->snd_buf which is also tcpwnd_size_t (see assert below). */
+        LWIP_ASSERT("tcp_receive: tcp_acked overflow", next->len <= (tcpwnd_size_t)-1 - tcp_acked);
+        tcp_acked += next->len;
+        
         tcp_seg_free(next);
       }
       
       /* Bump the lastack to the received ackno */
       pcb->lastack = ackno;
       
-      /* Set the amount of acked actual data for the sent callback. */
-      LWIP_ASSERT("tcp_receive: acked_data <= max tcpwnd_size_t", acked_data <= (tcpwnd_size_t)-1);
-      tcp_acked = acked_data;
-      
       /* Update the send buffer space. */
-      LWIP_ASSERT("tcp_receive: acked overflows TCP_SND_BUF", acked_data <= TCP_SND_BUF - pcb->snd_buf);
-      pcb->snd_buf += acked_data;
+      LWIP_ASSERT("tcp_receive: snd_buf overflowing", tcp_acked <= TCP_SND_BUF - pcb->snd_buf);
+      pcb->snd_buf += tcp_acked;
 
       /* If there's nothing left to acknowledge, stop the retransmit
          timer, otherwise reset it to start again */
