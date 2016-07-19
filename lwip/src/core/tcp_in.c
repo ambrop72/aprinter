@@ -1025,7 +1025,7 @@ tcp_receive(struct tcp_pcb *pcb)
        * for SYN/FIN). This may be different from the literal amount of acked data in
        * case the peer acks segments partially, and is the correct behavior because
        * we should not report data as acked until we've released the buffers.
-       * See lwip bug 48543. /
+       * See lwip bug 48543. */
       LWIP_ASSERT("tcp_receive: tcp_acked == 0", tcp_acked == 0); /* set in tcp_input() */
       
       /* Remove queued segments which have been acked. */
