@@ -60,6 +60,7 @@ private:
     
     static int const MaxClients = Params::MaxClients;
     static_assert(MaxClients > 0, "");
+    static_assert(Params::MaxPcbs > 0, "");
     static size_t const MaxCommandSize = Params::MaxCommandSize;
     static_assert(MaxCommandSize > 0, "");
     static size_t const WrapExtraSize = MaxCommandSize - 1;
@@ -77,7 +78,7 @@ public:
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
         
-        if (!o->listener.startListening(c, Params::Port, Params::MaxClients)) {
+        if (!o->listener.startListening(c, Params::Port, Params::MaxPcbs)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         }
         
@@ -266,11 +267,11 @@ private:
             m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
-        void reply_poke_impl (Context c) override
+        void reply_poke_impl (Context c, bool push) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
             
-            if (m_state == State::CONNECTED) {
+            if (push && m_state == State::CONNECTED) {
                 m_connection.pokeSending(c);
             }
         }
@@ -344,6 +345,7 @@ APRINTER_ALIAS_STRUCT_EXT(TcpConsoleModuleService, (
     APRINTER_AS_TYPE(TheGcodeParserService),
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
+    APRINTER_AS_VALUE(int, MaxPcbs),
     APRINTER_AS_VALUE(size_t, MaxCommandSize),
     APRINTER_AS_TYPE(SendBufTimeout)
 ), (

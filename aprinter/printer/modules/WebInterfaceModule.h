@@ -940,13 +940,18 @@ private:
             m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
-        void reply_poke_impl (Context c) override
+        void reply_poke_impl (Context c, bool push) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            if (m_state == State::ATTACHED && m_output_pos > 0) {
-                m_client->m_request->provideResponseBodyData(c, m_output_pos);
-                m_output_pos = 0;
+            if (m_state == State::ATTACHED) {
+                if (m_output_pos > 0) {
+                    m_client->m_request->provideResponseBodyData(c, m_output_pos);
+                    m_output_pos = 0;
+                }
+                if (push) {
+                    m_client->m_request->pushResponseBody(c);
+                }
             }
         }
         

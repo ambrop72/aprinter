@@ -22,25 +22,32 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
+#define APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
 
-#ifdef __GNUC__
+#include <stddef.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/Buf.h>
+#include <aprinter/ipstack/Err.h>
+#include <aprinter/ipstack/proto/EthernetProto.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+class EthIfaceDriverCallback;
 
-#endif
+class EthIfaceDriver {
+public:
+    virtual void setCallback (EthIfaceDriverCallback *callback) = 0;
+    virtual MacAddr const * getMacAddr () = 0;
+    virtual size_t getEthMtu () = 0;
+    virtual IpErr sendFrame (IpBufRef frame) = 0;
+};
+
+class EthIfaceDriverCallback {
+public:
+    virtual void recvFrame (IpBufRef frame) = 0;
+};
+
+#include <aprinter/EndNamespace.h>
 
 #endif

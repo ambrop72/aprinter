@@ -3714,7 +3714,6 @@
           "IpAddress": "192.168.111.63",
           "IpGateway": "192.168.111.1",
           "IpNetmask": "255.255.255.0",
-          "LwipAssertions": false,
           "EthernetDriver": {
             "MiiDriver": {
               "NumRxBufers": 48,

@@ -25,6 +25,9 @@
 #ifndef AMBROLIB_MIN_MAX_H
 #define AMBROLIB_MIN_MAX_H
 
+#include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/meta/BasicMetaUtils.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename T>
@@ -43,6 +46,22 @@ template <typename T>
 constexpr T AbsoluteValue (T op)
 {
     return (op > 0) ? op : -op;
+}
+
+template <typename T1, typename T2>
+using MinValueURetType = If<(IntTypeInfo<T1>::NumBits < IntTypeInfo<T2>::NumBits), T1, T2>;
+
+template <typename T1, typename T2>
+constexpr MinValueURetType<T1, T2> MinValueU (T1 op1, T2 op2)
+{
+    static_assert(!IntTypeInfo<T1>::Signed, "Only unsigned allowed");
+    static_assert(!IntTypeInfo<T2>::Signed, "Only unsigned allowed");
+    
+    if (op1 < op2) {
+        return op1;
+    } else {
+        return op2;
+    }
 }
 
 #include <aprinter/EndNamespace.h>

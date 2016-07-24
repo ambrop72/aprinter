@@ -81,6 +81,7 @@ private:
     // Basic checks of parameters.
     static_assert(Params::Net::MaxClients > 0, "");
     static_assert(Params::Net::QueueSize >= 0, "");
+    static_assert(Params::Net::MaxPcbs > 0, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
@@ -117,7 +118,7 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Net::Port, Params::Net::MaxClients, TheTcpListenerQueueParams{Params::Net::QueueSize, QueueTimeoutTicks, o->queue})) {
+        if (!o->listener.startListening(c, Params::Net::Port, Params::Net::MaxPcbs, TheTcpListenerQueueParams{Params::Net::QueueSize, QueueTimeoutTicks, o->queue})) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         for (Client &client : o->clients) {
@@ -420,11 +421,12 @@ private:
                             
                             // Send the terminating chunk with no payload.
                             send_string(c, "0\r\n\r\n");
-                            m_connection.pokeSending(c);
                             
-                            // Close sending on the connection if needed.
+                            // Close sending on the connection if needed, or just push.
                             if (m_close_connection) {
                                 m_connection.closeSending(c);
+                            } else {
+                                m_connection.pokeSending(c);
                             }
                             
                             // Sending the response is now completed.
@@ -440,8 +442,9 @@ private:
                 } break;
                 
                 case State::DISCONNECT_AFTER_SENDING: {
-                    // Disconnect the client once all data has been sent.
-                    if (m_connection.getSendBufferSpace(c) >= TxBufferSize) {
+                    // Disconnect the client once everything has been sent.
+                    if (!m_connection.hasUnsentDataOrEnd(c)) {
+                        // TODO
                         disconnect(c);
                     } else {
                         m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
@@ -1014,6 +1017,11 @@ private:
                 send_response(c, resp_status, true, nullptr, nullptr, true);
             }
             
+            // Ensure sending is closed.
+            if (!m_connection.wasSendingClosed(c)) {
+                m_connection.closeSending(c);
+            }
+            
             // Disconnect the client after all data has been sent.
             m_state = State::DISCONNECT_AFTER_SENDING;
             m_recv_state = RecvState::INVALID;
@@ -1061,8 +1069,6 @@ private:
                 send_string(c, resp_status);
                 send_string(c, "\n");
             }
-            
-            m_connection.pokeSending(c);
         }
         
         void abandon_response_body (Context c)
@@ -1379,6 +1385,14 @@ private:
             
             // Submit data to the connection and poke sending.
             m_connection.provideSendData(c, TxChunkOverhead + length);
+        }
+        
+        void pushResponseBody (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
+            AMBRO_ASSERT(m_user)
+            
             m_connection.pokeSending(c);
         }
         
@@ -1457,6 +1471,7 @@ APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
+    APRINTER_AS_VALUE(int, MaxPcbs),
     APRINTER_AS_VALUE(bool, AllowPersistent),
     APRINTER_AS_TYPE(QueueTimeout),
     APRINTER_AS_TYPE(InactivityTimeout)

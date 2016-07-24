@@ -22,25 +22,41 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_IP4_PROTO_H
+#define APRINTER_IPSTACK_IP4_PROTO_H
 
-#ifdef __GNUC__
+#include <stdint.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/Struct.h>
+#include <aprinter/ipstack/IpAddr.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+APRINTER_TSTRUCT(Ip4Header,
+    (VersionIhl,   uint8_t)
+    (DscpEcn,      uint8_t)
+    (TotalLen,     uint16_t)
+    (Ident,        uint16_t)
+    (FlagsOffset,  uint16_t)
+    (TimeToLive,   uint8_t)
+    (Protocol,     uint8_t)
+    (HeaderChksum, uint16_t)
+    (SrcAddr,      Ip4Addr)
+    (DstAddr,      Ip4Addr)
+)
 
-#endif
+static int const Ip4VersionShift = 4;
+static uint8_t const Ip4IhlMask = 0xF;
+
+static uint16_t const Ip4FlagDF = (uint16_t)1 << 14;
+static uint16_t const Ip4FlagMF = (uint16_t)1 << 13;
+
+static uint16_t const Ip4OffsetMask = UINT16_C(0x1fff);
+
+static uint8_t const Ip4ProtocolIcmp = 1;
+static uint8_t const Ip4ProtocolTcp  = 6;
+static uint8_t const Ip4ProtocolUdp  = 17;
+
+#include <aprinter/EndNamespace.h>
 
 #endif

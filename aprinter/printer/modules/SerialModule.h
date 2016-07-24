@@ -122,7 +122,7 @@ private:
             TheSerial::recvForceEvent(c);
         }
         
-        void reply_poke_impl (Context c)
+        void reply_poke_impl (Context c, bool push)
         {
             TheSerial::sendPoke(c);
         }

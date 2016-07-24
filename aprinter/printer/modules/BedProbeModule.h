@@ -636,7 +636,7 @@ private:
         cmd->reply_append_ch(c, ' ');
         cmd->reply_append_fp(c, height);
         cmd->reply_append_ch(c, '\n');
-        cmd->reply_poke(c);
+        cmd->reply_poke(c, true);
     }
     
     static void finish_probing (Context c, AMBRO_PGM_P errstr)

@@ -389,10 +389,7 @@ def setup_event_loop(gen):
 def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
-    lwip_cpu_info_arm = {
-        'alignment': 'u32_t',
-        'checksum_src_file': 'aprinter/net/inet_chksum_arm.S',
-    }
+    arm_checksum_src_file = 'aprinter/net/inet_chksum_arm.S'
     
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
@@ -402,27 +399,27 @@ def setup_platform(gen, config, key):
         
         gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
         gen.add_linker_symbol('__stack_size__', stack_size)
     
     @platform_sel.option('Teensy3')
     def option(platform):
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
     
     @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
     def option(platform_name, platform):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
-        gen.register_singleton_object('lwip_cpu_info', {'alignment': 'u8_t'})
+        gen.register_singleton_object('checksum_src_file', {'alignment': 'u8_t'})
     
     @platform_sel.option('Stm32f4')
     def option(platform):
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
     
     config.do_selection(key, platform_sel)
 
@@ -1262,72 +1259,55 @@ def setup_network(gen, config, key):
     
     @network_sel.option('Network')
     def option(network_config):
-        gen.add_aprinter_include('net/LwipNetwork.h')
+        gen.add_aprinter_include('net/IpStackNetwork.h')
         
-        gen.add_extra_include('aprinter/net/inc')
-        gen.add_extra_include('lwip/src/include')
+        num_arp_entries = network_config.get_int('NumArpEntries')
+        if not 4 <= num_arp_entries <= 128:
+            network_config.key_path('NumArpEntries').error('Value out of range.')
         
-        gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4_frag.c')
-        gen.add_extra_source('lwip/src/core/ipv4/etharp.c')
-        gen.add_extra_source('lwip/src/core/def.c')
-        gen.add_extra_source('lwip/src/core/dhcp.c')
-        gen.add_extra_source('lwip/src/core/inet_chksum.c')
-        gen.add_extra_source('lwip/src/core/init.c')
-        gen.add_extra_source('lwip/src/core/memp.c')
-        gen.add_extra_source('lwip/src/core/netif.c')
-        gen.add_extra_source('lwip/src/core/pbuf.c')
-        gen.add_extra_source('lwip/src/core/tcp.c')
-        gen.add_extra_source('lwip/src/core/tcp_in.c')
-        gen.add_extra_source('lwip/src/core/tcp_out.c')
-        gen.add_extra_source('lwip/src/core/timers.c')
-        gen.add_extra_source('lwip/src/core/udp.c')
+        arp_protect_count = network_config.get_int('ArpProtectCount')
+        if not 2 <= arp_protect_count <= num_arp_entries:
+            network_config.key_path('ArpProtectCount').error('Value out of range.')
         
-        gen.set_need_millisecond_clock()
-        gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { Context c; return MyMillisecondClock::getTime(c); }')
+        num_tcp_pcbs = network_config.get_int('NumTcpPcbs')
+        if not 2 <= num_tcp_pcbs <= 128:
+            network_config.key_path('NumTcpPcbs').error('Value out of range.')
         
-        gen.add_global_code(0, 'APRINTER_DEFINE_LWIP_PLATFORM_DIAG(Context, MyPrinter, MyNetwork)')
-        
-        mss_for_check = 1460
-        
-        tcp_rx_buf = network_config.get_int('TcpRxBuf')
-        if not mss_for_check <= tcp_rx_buf <= 20000:
-            network_config.key_path('TcpRxBuf').error('Value out of range.')
+        tcp_max_mss = 1460
         
         tcp_tx_buf = network_config.get_int('TcpTxBuf')
-        if not mss_for_check <= tcp_tx_buf <= 20000:
+        if not 2*tcp_max_mss <= tcp_tx_buf <= 20000:
             network_config.key_path('TcpTxBuf').error('Value out of range.')
         
-        cpu_info = gen.get_singleton_object('lwip_cpu_info')
+        tcp_rx_buf = network_config.get_int('TcpRxBuf')
+        if not 2*tcp_max_mss <= tcp_rx_buf <= 20000:
+            network_config.key_path('TcpRxBuf').error('Value out of range.')
         
-        if 'checksum_src_file' in cpu_info:
-            chksum_algorithm = 0
-            gen.add_extra_source(cpu_info['checksum_src_file'])
-        else:
-            chksum_algorithm = 3
+        tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
+        if not 2 <= tcp_wnd_upd_thr_div <= tcp_rx_buf/16:
+            network_config.key_path('TcpWndUpdThrDiv').error('Value out of range.')
         
-        network_expr = TemplateExpr('LwipNetworkArg', [
-            'Context',
-            'Program',
+        checksum_src_file = gen.get_singleton_object('checksum_src_file')
+        gen.add_extra_source(checksum_src_file)
+        
+        service_expr = TemplateExpr('IpStackNetworkService', [
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
+            num_arp_entries,
+            arp_protect_count,
+            num_tcp_pcbs,
+            tcp_tx_buf,
+            tcp_rx_buf,
+            tcp_wnd_upd_thr_div,
         ])
-        
-        gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, context_name='Network', is_fast_event_root=True)
+        service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
+        network_expr = TemplateExpr('NetworkService::Compose', ['Context', 'Program'])
+        gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, code_before=service_code, context_name='Network', is_fast_event_root=True)
         
         network_state = NetworkConfigState()
         gen.register_singleton_object('network', network_state)
         
         def finalize():
-            gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
-            gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
-            gen.add_define('APRINTER_NUM_TCP_CONN_QUEUED', network_state._num_queued_connections)
-            gen.add_define('APRINTER_TCP_RX_BUF', tcp_rx_buf)
-            gen.add_define('APRINTER_TCP_TX_BUF', tcp_tx_buf)
-            gen.add_define('APRINTER_MEM_ALIGNMENT', cpu_info['alignment'])
-            gen.add_define('APRINTER_LWIP_CHKSUM_ALGORITHM', chksum_algorithm)
-            gen.add_define('APRINTER_LWIP_ASSERTIONS', int(network_config.get_bool('LwipAssertions')))
+            pass
         
         gen.add_finalize_action(finalize)
         
@@ -1627,6 +1607,10 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (1 <= console_max_clients <= 20):
                                 tcpconsole_config.key_path('MaxClients').error('Bad value.')
                             
+                            console_max_pcbs = tcpconsole_config.get_int('MaxPcbs')
+                            if not (console_max_clients <= console_max_pcbs):
+                                tcpconsole_config.key_path('MaxPcbs').error('Bad value.')
+                            
                             console_max_parts = tcpconsole_config.get_int('MaxParts')
                             if not (1 <= console_max_parts <= 64):
                                 tcpconsole_config.key_path('MaxParts').error('Bad value.')
@@ -1645,6 +1629,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 ]),
                                 console_port,
                                 console_max_clients,
+                                console_max_pcbs,
                                 console_max_command_size,
                                 gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
                             ]))
@@ -1672,6 +1657,10 @@ def generate(config_root_data, cfg_name, main_template):
                             webif_queue_size = webif_config.get_int('QueueSize')
                             if not (0 <= webif_queue_size <= 50):
                                 webif_config.key_path('QueueSize').error('Bad value.')
+                            
+                            webif_max_pcbs = webif_config.get_int('MaxPcbs')
+                            if not (webif_max_clients+webif_queue_size <= webif_max_pcbs):
+                                webif_config.key_path('MaxPcbs').error('Bad value.')
                             
                             allow_persistent = webif_config.get_bool('AllowPersistent')
                             
@@ -1704,6 +1693,7 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_port,
                                     webif_max_clients,
                                     webif_queue_size,
+                                    webif_max_pcbs,
                                     allow_persistent,
                                     'WebInterfaceQueueTimeout',
                                     'WebInterfaceInactivityTimeout',

@@ -22,25 +22,27 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_ICMP4_PROTO_H
+#define APRINTER_IPSTACK_ICMP4_PROTO_H
 
-#ifdef __GNUC__
+#include <stdint.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/Struct.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+using Icmp4RestType = StructByteArray<4>;
 
-#endif
+APRINTER_TSTRUCT(Icmp4Header,
+    (Type,         uint8_t)
+    (Code,         uint8_t)
+    (Chksum,       uint16_t)
+    (Rest,         Icmp4RestType)
+)
+
+static uint8_t const Icmp4TypeEchoReply   = 0;
+static uint8_t const Icmp4TypeEchoRequest = 8;
+
+#include <aprinter/EndNamespace.h>
 
 #endif

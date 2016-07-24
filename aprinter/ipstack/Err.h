@@ -22,25 +22,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_ERR_H
+#define APRINTER_IPSTACK_ERR_H
 
-#ifdef __GNUC__
+#include <stdint.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/BeginNamespace.h>
 
-#else
+enum class IpErr : uint8_t {
+    SUCCESS         = 0,
+    ARP_QUERY       = 1,
+    NO_HEADER_SPACE = 2,
+    BUFFER_FULL     = 3,
+    NO_HW_ROUTE     = 4,
+    NO_IP_ROUTE     = 5,
+    PKT_TOO_LARGE   = 6,
+};
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
-
-#endif
+#include <aprinter/EndNamespace.h>
 
 #endif

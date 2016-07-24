@@ -22,25 +22,55 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_TCP_UTILS_H
+#define APRINTER_IPSTACK_TCP_UTILS_H
 
-#ifdef __GNUC__
+#include <stdint.h>
+#include <stddef.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/proto/Tcp4Proto.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+namespace TcpUtils
+{
+    using FlagsType = uint16_t;
+    using SeqType = uint32_t;
+    
+    enum class TcpState : uint8_t {
+        CLOSED,
+        SYN_SENT,
+        SYN_RCVD,
+        ESTABLISHED,
+        CLOSE_WAIT,
+        LAST_ACK,
+        FIN_WAIT_1,
+        FIN_WAIT_2,
+        CLOSING,
+        TIME_WAIT
+    };
+    
+    static inline SeqType seq_add (SeqType op1, SeqType op2)
+    {
+        return (SeqType)(op1 + op2);
+    }
+    
+    static inline SeqType seq_diff (SeqType op1, SeqType op2)
+    {
+        return (SeqType)(op1 - op2);
+    }
+    
+    static inline bool seq_lte (SeqType op1, SeqType op2, SeqType ref)
+    {
+        return (seq_diff(op1, ref) <= seq_diff(op2, ref));
+    }
+    
+    static inline bool seq_lt (SeqType op1, SeqType op2, SeqType ref)
+    {
+        return (seq_diff(op1, ref) < seq_diff(op2, ref));
+    }
+}
 
-#endif
+#include <aprinter/EndNamespace.h>
 
 #endif

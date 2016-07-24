@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/BasicMetaUtils.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <int TNumBits, bool TSigned>
@@ -35,32 +37,49 @@ struct IntTypeInfoHelper {
     static const bool Signed = TSigned;
 };
 
-template <typename IntType>
-struct IntTypeInfo;
+template <typename T>
+static constexpr int IntTypeInfo_NumBits (T op)
+{
+    return (op == 0) ? 0 : (1 + IntTypeInfo_NumBits(op / 2));
+}
 
-template <>
-struct IntTypeInfo<uint8_t> : public IntTypeInfoHelper<8, false> {};
-template <>
-struct IntTypeInfo<uint16_t> : public IntTypeInfoHelper<16, false> {};
-template <>
-struct IntTypeInfo<uint32_t> : public IntTypeInfoHelper<32, false> {};
-template <>
-struct IntTypeInfo<uint64_t> : public IntTypeInfoHelper<64, false> {};
-template <>
-struct IntTypeInfo<int8_t> : public IntTypeInfoHelper<8, true> {};
-template <>
-struct IntTypeInfo<int16_t> : public IntTypeInfoHelper<16, true> {};
-template <>
-struct IntTypeInfo<int32_t> : public IntTypeInfoHelper<32, true> {};
-template <>
-struct IntTypeInfo<int64_t> : public IntTypeInfoHelper<64, true> {};
+#define DEFINE_UNSIGNED_TYPEINFO(type)\
+auto IntTypeInfoFunc(WrapType<type>) -> IntTypeInfoHelper<IntTypeInfo_NumBits((type)-1), false>;
+
+#define DEFINE_TYPEINFO(type, utype)\
+auto IntTypeInfoFunc(WrapType<type>) -> IntTypeInfoHelper<IntTypeInfo_NumBits((utype)-1), ((type)-1 < 0)>;
+
+DEFINE_UNSIGNED_TYPEINFO(uint8_t)
+DEFINE_UNSIGNED_TYPEINFO(uint16_t)
+DEFINE_UNSIGNED_TYPEINFO(uint32_t)
+DEFINE_UNSIGNED_TYPEINFO(uint64_t)
+DEFINE_UNSIGNED_TYPEINFO(unsigned char)
+DEFINE_UNSIGNED_TYPEINFO(unsigned short int)
+DEFINE_UNSIGNED_TYPEINFO(unsigned int)
+DEFINE_UNSIGNED_TYPEINFO(unsigned long int)
+DEFINE_UNSIGNED_TYPEINFO(unsigned long long int)
+DEFINE_UNSIGNED_TYPEINFO(size_t)
+
+DEFINE_TYPEINFO(int8_t, uint8_t)
+DEFINE_TYPEINFO(int16_t, uint16_t)
+DEFINE_TYPEINFO(int32_t, uint32_t)
+DEFINE_TYPEINFO(int64_t, uint64_t)
+DEFINE_TYPEINFO(signed char, unsigned char)
+DEFINE_TYPEINFO(short int, unsigned short int)
+DEFINE_TYPEINFO(int, unsigned int)
+DEFINE_TYPEINFO(long int, unsigned long int)
+DEFINE_TYPEINFO(long long int, unsigned long long int)
 
 #ifdef AMBROLIB_AVR
-template <>
-struct IntTypeInfo<__uint24> : public IntTypeInfoHelper<24, false> {};
-template <>
-struct IntTypeInfo<__int24> : public IntTypeInfoHelper<24, true> {};
+DEFINE_UNSIGNED_TYPEINFO(__uint24)
+DEFINE_TYPEINFO(__int24, __uint24)
 #endif
+
+#undef DEFINE_UNSIGNED_TYPEINFO
+#undef DEFINE_TYPEINFO
+
+template <typename T>
+using IntTypeInfo = decltype(IntTypeInfoFunc(WrapType<T>()));
 
 #include <aprinter/EndNamespace.h>
 

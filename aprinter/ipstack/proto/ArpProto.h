@@ -22,25 +22,34 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_ARP_PROTO_H
+#define APRINTER_IPSTACK_ARP_PROTO_H
 
-#ifdef __GNUC__
+#include <stdint.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/Struct.h>
+#include <aprinter/ipstack/IpAddr.h>
+#include <aprinter/ipstack/proto/EthernetProto.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+APRINTER_TSTRUCT(ArpIp4Header,
+    (HwType,       uint16_t)
+    (ProtoType,    uint16_t)
+    (HwAddrLen,    uint8_t)
+    (ProtoAddrLen, uint8_t)
+    (OpType,       uint16_t)
+    (SrcHwAddr,    MacAddr)
+    (SrcProtoAddr, Ip4Addr)
+    (DstHwAddr,    MacAddr)
+    (DstProtoAddr, Ip4Addr)
+)
 
-#endif
+static uint16_t const ArpHwTypeEth = 1;
+
+static uint16_t const ArpOpTypeRequest = 1;
+static uint16_t const ArpOpTypeReply   = 2;
+
+#include <aprinter/EndNamespace.h>
 
 #endif

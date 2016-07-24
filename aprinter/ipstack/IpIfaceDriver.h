@@ -22,25 +22,41 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_HINTS_H
-#define APRINTER_HINTS_H
+#ifndef APRINTER_IPSTACK_IP_IFACE_DRIVER_H
+#define APRINTER_IPSTACK_IP_IFACE_DRIVER_H
 
-#ifdef __GNUC__
+#include <stddef.h>
+#include <stdint.h>
 
-#define AMBRO_LIKELY(x) __builtin_expect((x), 1)
-#define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-#define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
-#define APRINTER_NO_INLINE __attribute__((noinline))
-#define APRINTER_RESTRICT __restrict__
+#include <aprinter/ipstack/Buf.h>
+#include <aprinter/ipstack/IpAddr.h>
+#include <aprinter/ipstack/Err.h>
 
-#else
+#include <aprinter/BeginNamespace.h>
 
-#define AMBRO_LIKELY(x) (x)
-#define AMBRO_UNLIKELY(x) (x)
-#define AMBRO_ALWAYS_INLINE
-#define APRINTER_NO_INLINE
-#define APRINTER_RESTRICT
+struct IpIfaceIp4Addrs {
+    Ip4Addr addr;
+    Ip4Addr netmask;
+    Ip4Addr netaddr;
+    Ip4Addr bcastaddr;
+    uint8_t prefix;
+};
 
-#endif
+class IpIfaceDriverCallback;
+
+class IpIfaceDriver {
+public:
+    virtual void setCallback (IpIfaceDriverCallback *callback) = 0;
+    virtual size_t getIpMtu () = 0;
+    virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr) = 0;
+};
+
+class IpIfaceDriverCallback {
+public:
+    virtual IpIfaceIp4Addrs const * getIp4Addrs () = 0;
+    virtual void recvIp4Packet (IpBufRef pkt) = 0;
+};
+
+#include <aprinter/EndNamespace.h>
 
 #endif
