@@ -65,7 +65,6 @@ public:
         o->iwdg_handle.Init.Reload = Params::Reload;
         
         HAL_IWDG_Init(&o->iwdg_handle);
-        HAL_IWDG_Start(&o->iwdg_handle);
     }
     
     static void deinit (Context c)

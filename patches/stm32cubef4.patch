@@ -1,16 +1,61 @@
-From d777f1b04007fbb9ba9a56c54aaca393d604ab7e Mon Sep 17 00:00:00 2001
-From: Ambroz Bizjak <ambrop7@gmail.com>
-Date: Fri, 19 Jun 2015 23:03:38 +0200
-Subject: [PATCH 1/2] USB CDC: Fix include case, add USBD_CDC_CheckTxBusy, add
- TxCompleted.
+commit 478c95c031ede11e1d0c7f38eb3d246e33bb048c
+Author: Ambroz Bizjak <ambrop7@gmail.com>
+Date:   Sun Jul 31 13:36:11 2016 +0200
 
----
- .../STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h   |  4 +++-
- .../STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c   | 17 ++++++++++++++++-
- 2 files changed, 19 insertions(+), 2 deletions(-)
+    Changes for APrinter.
 
+diff --git a/Drivers/CMSIS/Include/cmsis_gcc.h b/Drivers/CMSIS/Include/cmsis_gcc.h
+index d868f2e..f312ee1 100644
+--- a/Drivers/CMSIS/Include/cmsis_gcc.h
++++ b/Drivers/CMSIS/Include/cmsis_gcc.h
+@@ -337,7 +337,11 @@ __attribute__( ( always_inline ) ) __STATIC_INLINE void __set_FPSCR(uint32_t fps
+ #if (__FPU_PRESENT == 1U) && (__FPU_USED == 1U)
+   /* Empty asm statement works as a scheduling barrier */
+   __ASM volatile ("");
++#ifdef __clang__
++  __builtin_arm_set_fpscr(fpscr);
++#else
+   __ASM volatile ("VMSR fpscr, %0" : : "r" (fpscr) : "vfpcc");
++#endif
+   __ASM volatile ("");
+ #endif
+ }
+diff --git a/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c b/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
+index b57c1cd..c2cfbae 100644
+--- a/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
++++ b/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
+@@ -57,6 +57,7 @@
+ 
+ /* Includes ------------------------------------------------------------------*/
+ #include "stm32f4xx_hal.h"
++#include <string.h>
+ 
+ /** @addtogroup STM32F4xx_LL_USB_DRIVER
+   * @{
+@@ -783,7 +784,9 @@ HAL_StatusTypeDef USB_WritePacket(USB_OTG_GlobalTypeDef *USBx, uint8_t *src, uin
+     count32b =  (len + 3U) / 4U;
+     for (i = 0U; i < count32b; i++, src += 4U)
+     {
+-      USBx_DFIFO(ch_ep_num) = *((__packed uint32_t *)src);
++      uint32_t val;
++      memcpy(&val, src, sizeof(val));
++      USBx_DFIFO(ch_ep_num) = val;
+     }
+   }
+   return HAL_OK;
+@@ -809,8 +812,8 @@ void *USB_ReadPacket(USB_OTG_GlobalTypeDef *USBx, uint8_t *dest, uint16_t len)
+   
+   for ( i = 0U; i < count32b; i++, dest += 4U )
+   {
+-    *(__packed uint32_t *)dest = USBx_DFIFO(0U);
+-    
++    uint32_t val = USBx_DFIFO(0U);
++    memcpy(dest, &val, sizeof(val));
+   }
+   return ((void *)dest);
+ }
 diff --git a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
-index f38e6dc..2f2629b 100644
+index 31397d2..206445f 100644
 --- a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
 +++ b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
 @@ -104,7 +104,7 @@ typedef struct _USBD_CDC_Itf
@@ -32,18 +77,9 @@ index f38e6dc..2f2629b 100644
    * @}
    */ 
 diff --git a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
-index 5c3ced6..4b84d94 100644
+index 06b3fc8..8b49a7d 100644
 --- a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
 +++ b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
-@@ -59,7 +59,7 @@
-   */ 
- 
- /* Includes ------------------------------------------------------------------*/
--#include "USBD_CDC.h"
-+#include "usbd_cdc.h"
- #include "usbd_desc.h"
- #include "usbd_ctlreq.h"
- 
 @@ -669,6 +669,8 @@ static uint8_t  USBD_CDC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
    {
      
@@ -53,9 +89,9 @@ index 5c3ced6..4b84d94 100644
  
      return USBD_OK;
    }
-@@ -873,6 +875,19 @@ uint8_t  USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev)
-   }
+@@ -874,6 +876,21 @@ uint8_t  USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev)
  }
+ 
  
 +uint8_t  USBD_CDC_CheckTxBusy(USBD_HandleTypeDef *pdev)
 +{      
@@ -70,72 +106,8 @@ index 5c3ced6..4b84d94 100644
 +    return USBD_FAIL;
 +  }
 +}
- 
++
++
  /**
    * @brief  USBD_CDC_ReceivePacket
--- 
-2.4.1
-
-
-From 694ab599edaa1e96fd6110f9c7c01d55206995e6 Mon Sep 17 00:00:00 2001
-From: Ambroz Bizjak <ambrop7@gmail.com>
-Date: Sun, 5 Jul 2015 19:47:33 +0200
-Subject: [PATCH 2/2] Fixes for Clang.
-
----
- Drivers/CMSIS/Include/core_cmFunc.h                 | 4 ++++
- Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c | 8 ++++++--
- 2 files changed, 10 insertions(+), 2 deletions(-)
-
-diff --git a/Drivers/CMSIS/Include/core_cmFunc.h b/Drivers/CMSIS/Include/core_cmFunc.h
-index a1bd88c..7b2ae37 100644
---- a/Drivers/CMSIS/Include/core_cmFunc.h
-+++ b/Drivers/CMSIS/Include/core_cmFunc.h
-@@ -599,7 +599,11 @@ __attribute__( ( always_inline ) ) __STATIC_INLINE void __set_FPSCR(uint32_t fps
- #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-   /* Empty asm statement works as a scheduling barrier */
-   __ASM volatile ("");
-+#ifdef __clang__
-+  __builtin_arm_set_fpscr(fpscr);
-+#else
-   __ASM volatile ("VMSR fpscr, %0" : : "r" (fpscr) : "vfpcc");
-+#endif
-   __ASM volatile ("");
- #endif
- }
-diff --git a/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c b/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
-index 73e9733..1a14ef3 100644
---- a/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
-+++ b/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
-@@ -57,6 +57,7 @@
- 
- /* Includes ------------------------------------------------------------------*/
- #include "stm32f4xx_hal.h"
-+#include <string.h>
- 
- /** @addtogroup STM32F4xx_LL_USB_DRIVER
-   * @{
-@@ -781,7 +782,9 @@ HAL_StatusTypeDef USB_WritePacket(USB_OTG_GlobalTypeDef *USBx, uint8_t *src, uin
-     count32b =  (len + 3) / 4;
-     for (i = 0; i < count32b; i++, src += 4)
-     {
--      USBx_DFIFO(ch_ep_num) = *((__packed uint32_t *)src);
-+      uint32_t val;
-+      memcpy(&val, src, sizeof(val));
-+      USBx_DFIFO(ch_ep_num) = val;
-     }
-   }
-   return HAL_OK;
-@@ -807,7 +810,8 @@ void *USB_ReadPacket(USB_OTG_GlobalTypeDef *USBx, uint8_t *dest, uint16_t len)
-   
-   for ( i = 0; i < count32b; i++, dest += 4 )
-   {
--    *(__packed uint32_t *)dest = USBx_DFIFO(0);
-+    uint32_t val = USBx_DFIFO(0);
-+    memcpy(dest, &val, sizeof(val));
-     
-   }
-   return ((void *)dest);
--- 
-2.4.1
-
+   *         prepare OUT Endpoint for reception

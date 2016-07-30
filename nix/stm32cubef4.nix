@@ -25,10 +25,10 @@
 { stdenv, fetchurl, unzip }:
 let
     source = fetchurl {
-        url = https://www.dropbox.com/s/vbpdqvlevdusnn5/stm32cubef4.zip?dl=1;
-        sha256 = "dc1475e29b61806ff0674e61ad9710153743056b17fe4f50ffc5070de988ff3c";
+        url = http://www.st.com/resource/en/firmware2/stm32cube_fw_f4_v1130.zip;
+        sha256 = "8e67ea73ca3d3838e7063bce86fe09222c24c6420e789a5808132ddd2037fc03";
     };
-    patchFile = ../patches/stm32cubef4.patch;
+    patchFiles = [ ../patches/stm32cubef4.patch ../patches/stm32cubef4-warnings.patch ];
 in
 stdenv.mkDerivation rec {
     name = "stm32cubef4";
@@ -42,7 +42,7 @@ stdenv.mkDerivation rec {
         unzip -q ${source} -d "$out"/EXTRACT
         mv "$out"/EXTRACT/STM32Cube*/* "$out"/
         rm -rf "$out"/EXTRACT
-        patch -d "$out" -p1 < ${patchFile}
+        ${stdenv.lib.concatStrings (map (patchFile: "patch -d \"$out\" -p1 < ${patchFile}\n") patchFiles)}
     '';
     
     dontStrip = true;
