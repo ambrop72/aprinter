@@ -72,9 +72,11 @@ struct Stm32f4ClockTIM##tc_num { \
 #define STM32F4CLOCK_IRQ_FOR_TIM9 TIM1_BRK_TIM9_
 #define STM32F4CLOCK_IRQ_FOR_TIM10 TIM1_UP_TIM10_
 #define STM32F4CLOCK_IRQ_FOR_TIM11 TIM1_TRG_COM_TIM11_
+#ifndef STM32F411xE
 #define STM32F4CLOCK_IRQ_FOR_TIM12 TIM8_BRK_TIM12_
 #define STM32F4CLOCK_IRQ_FOR_TIM13 TIM8_UP_TIM13_
 #define STM32F4CLOCK_IRQ_FOR_TIM14 TIM8_TRG_COM_TIM14_
+#endif
 
 // Some timers we don't support:
 // - APB2 timers, because they are based on a different clock (could try prescaler adjustment).
@@ -87,9 +89,11 @@ STM32F4CLOCK_DEFINE_TC(5,  true,  1)
 //STM32F4CLOCK_DEFINE_TC(9,  false, 2)
 //STM32F4CLOCK_DEFINE_TC(10, false, 2)
 //STM32F4CLOCK_DEFINE_TC(11, false, 2)
+#ifndef STM32F411xE
 STM32F4CLOCK_DEFINE_TC(12, false, 1)
 STM32F4CLOCK_DEFINE_TC(13, false, 1)
 STM32F4CLOCK_DEFINE_TC(14, false, 1)
+#endif 
 
 #define STM32F4CLOCK_DEFINE_COMP(comp_num, ccmr_num, ccmr_bit_offset, ccer_bit_offset, ccie_bit, if_bit) \
 struct Stm32f4ClockComp##comp_num { \

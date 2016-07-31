@@ -109,6 +109,27 @@ class Stm32f4Adc {
         TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 0>,  AdcMapping<AdcNumbers<1,2>,   8>>,
         TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 1>,  AdcMapping<AdcNumbers<1,2>,   9>>
     >;
+#elif defined(STM32F411xE)
+    STM32F4ADC_DEFINE_SUBADC(AdcDef1, 1, 2, 0, 0)
+    using AdcDefList = MakeTypeList<AdcDef1>;
+    using PinDefList = MakeTypeList<
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,0>,  AdcMapping<AdcNumbers<1>, 10>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,1>,  AdcMapping<AdcNumbers<1>, 11>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,2>,  AdcMapping<AdcNumbers<1>, 12>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,3>,  AdcMapping<AdcNumbers<1>, 13>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,0>,  AdcMapping<AdcNumbers<1>, 0>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,1>,  AdcMapping<AdcNumbers<1>, 1>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,2>,  AdcMapping<AdcNumbers<1>, 2>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,3>,  AdcMapping<AdcNumbers<1>, 3>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,4>,  AdcMapping<AdcNumbers<1>, 4>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,5>,  AdcMapping<AdcNumbers<1>, 5>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,6>,  AdcMapping<AdcNumbers<1>, 6>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA,7>,  AdcMapping<AdcNumbers<1>, 7>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,4>,  AdcMapping<AdcNumbers<1>, 14>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC,5>,  AdcMapping<AdcNumbers<1>, 15>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortB,0>,  AdcMapping<AdcNumbers<1>, 8>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortB,1>,  AdcMapping<AdcNumbers<1>, 9>>
+    >;
 #else
 #error Chip not supported by Stm32f4Adc
 #endif

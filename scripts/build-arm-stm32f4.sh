@@ -42,6 +42,9 @@ configure_stm32f4() {
     elif [[ $STM_CHIP = "stm32f407" ]]; then
         CHIP_FLAGS=( -DSTM32F407xx )
         STARTUP_ASM_FILE=startup_stm32f407xx.s
+    elif [[ $STM_CHIP = "stm32f411" ]]; then
+        CHIP_FLAGS=( -DSTM32F411xE )
+        STARTUP_ASM_FILE=startup_stm32f411xe.s
     else
         fail "Unsupported STM_CHIP"
     fi

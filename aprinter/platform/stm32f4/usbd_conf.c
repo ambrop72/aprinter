@@ -85,7 +85,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
     /* Enable USBFS Interrupt */
     HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
   } 
-  
+#ifdef USE_USB_HS  
   else if(hpcd->Instance == USB_OTG_HS)
   {
 #ifdef USE_USB_HS_IN_FS
@@ -174,7 +174,8 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
     
     /* Enable USBHS Interrupt */
     HAL_NVIC_EnableIRQ(OTG_HS_IRQn);
-  }   
+  }
+#endif /* USE_USB_HS */   
 }
 
 /**
@@ -190,12 +191,14 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef *hpcd)
     __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
     __HAL_RCC_SYSCFG_CLK_DISABLE(); 
   }
+#ifdef USE_USB_HS  
   else if(hpcd->Instance == USB_OTG_HS)
   {  
     /* Disable USB FS Clocks */ 
     __HAL_RCC_USB_OTG_HS_CLK_DISABLE();
     __HAL_RCC_SYSCFG_CLK_DISABLE(); 
-  }  
+  }
+#endif /* USE_USB_HS */     
 }
 
 /*******************************************************************************

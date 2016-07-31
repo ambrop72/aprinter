@@ -45,10 +45,16 @@ using Stm32f4PortB = Stm32f4Port<GPIOB_BASE>;
 using Stm32f4PortC = Stm32f4Port<GPIOC_BASE>;
 using Stm32f4PortD = Stm32f4Port<GPIOD_BASE>;
 using Stm32f4PortE = Stm32f4Port<GPIOE_BASE>;
+#ifdef GPIOF
 using Stm32f4PortF = Stm32f4Port<GPIOF_BASE>;
+#endif
+#ifdef GPIOG
 using Stm32f4PortG = Stm32f4Port<GPIOG_BASE>;
+#endif
 using Stm32f4PortH = Stm32f4Port<GPIOH_BASE>;
+#ifdef GPIOI
 using Stm32f4PortI = Stm32f4Port<GPIOI_BASE>;
+#endif
 #ifdef GPIOJ
 using Stm32f4PortJ = Stm32f4Port<GPIOJ_BASE>;
 #endif
@@ -122,10 +128,16 @@ public:
         __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOD_CLK_ENABLE();
         __HAL_RCC_GPIOE_CLK_ENABLE();
+#ifdef GPIOF
         __HAL_RCC_GPIOF_CLK_ENABLE();
+#endif
+#ifdef GPIOG
         __HAL_RCC_GPIOG_CLK_ENABLE();
+#endif
         __HAL_RCC_GPIOH_CLK_ENABLE();
+#ifdef GPIOI
         __HAL_RCC_GPIOI_CLK_ENABLE();
+#endif
 #ifdef GPIOJ
         __HAL_RCC_GPIOJ_CLK_ENABLE();
 #endif
@@ -146,10 +158,16 @@ public:
 #ifdef GPIOJ
         __HAL_RCC_GPIOJ_CLK_DISABLE();
 #endif
+#ifdef GPIOI
         __HAL_RCC_GPIOI_CLK_DISABLE();
+#endif
         __HAL_RCC_GPIOH_CLK_DISABLE();
+#ifdef GPIOG
         __HAL_RCC_GPIOG_CLK_DISABLE();
+#endif
+#ifdef GPIOF
         __HAL_RCC_GPIOF_CLK_DISABLE();
+#endif
         __HAL_RCC_GPIOE_CLK_DISABLE();
         __HAL_RCC_GPIOD_CLK_DISABLE();
         __HAL_RCC_GPIOC_CLK_DISABLE();

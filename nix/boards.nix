@@ -120,4 +120,19 @@ rec {
             ENABLE_SDCARD = "YES";
         };
     };
+
+    stm32f411 = {
+        platform = "stm32f4";
+        targetVars = {
+            STM_CHIP = "stm32f411";
+            HSE_VALUE = "8000000";
+            PLL_N_VALUE = "192";
+            PLL_M_VALUE = "4";
+            PLL_P_DIV_VALUE = "4";
+            PLL_Q_DIV_VALUE = "8";
+            APB1_PRESC_DIV = "4";
+            APB2_PRESC_DIV = "1";
+            USB_MODE = "FS";
+        };
+    };    
 }
