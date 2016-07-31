@@ -165,6 +165,10 @@ body:-ms-fullscreen {
     overflow-y: auto;
 }
 
+.nowrap {
+    white-space: nowrap;
+}
+
 .control-label {
     margin-bottom: 0px;
 }

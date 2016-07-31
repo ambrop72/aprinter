@@ -218,8 +218,8 @@ var AxesTable = React.createClass({
                             var ecInputs = this.props.controller.getRenderInputs(axis.key, dispPos);
                             return (
                                 <tr key={axis.key}>
-                                    <td><b>{axis.key}</b></td>
-                                    <td>{dispPos}</td>
+                                    <td className="nowrap"><b>{axis.key}</b></td>
+                                    <td className="nowrap">{dispPos}</td>
                                     <td>
                                         <div className="input-group">
                                             <input type="number" className={controlInputClass+' '+ecInputs.class} value={ecInputs.value} ref={'target_'+axis.key}
