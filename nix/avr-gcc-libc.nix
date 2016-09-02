@@ -22,6 +22,8 @@ stdenv.mkDerivation {
   sourceRoot = ".";
 
   nativeBuildInputs = [ texinfo automake autoconf libtool ];
+
+  hardeningDisable = [ "format" ];
   
   buildInputs = [ gmp mpfr libmpc zlib ];
   
