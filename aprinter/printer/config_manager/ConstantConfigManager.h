@@ -60,6 +60,10 @@ public:
     {
         return true;
     }
+
+    static void clearApplyPending (Context c)
+    {
+    }
     
     template <typename Option>
     static OptionExpr<Option> e (Option);
