@@ -33,8 +33,8 @@
 
 #define APRINTER_REMOVE_PARENS(...) __VA_ARGS__
 
-#define APRINTER_USE_T1(namespace, type_name) using type_name = typename namespace::type_name;
-#define APRINTER_USE_T2(namespace, type_name) using type_name = namespace::type_name;
-#define APRINTER_USE_V(namespace, value_name) static constexpr auto value_name = namespace::value_name;
+#define APRINTER_USE_TYPE1(namespace, type_name) using type_name = typename namespace::type_name;
+#define APRINTER_USE_TYPE2(namespace, type_name) using type_name = namespace::type_name;
+#define APRINTER_USE_VAL(namespace, value_name) static constexpr auto value_name = namespace::value_name;
 
 #endif

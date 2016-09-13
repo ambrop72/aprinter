@@ -28,6 +28,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/base/Assert.h>
+#include <aprinter/base/BinaryTools.h>
+#include <aprinter/ipstack/Buf.h>
 #include <aprinter/ipstack/proto/Tcp4Proto.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -36,6 +39,7 @@ namespace TcpUtils
 {
     using FlagsType = uint16_t;
     using SeqType = uint32_t;
+    using PortType = uint16_t;
     
     enum class TcpState : uint8_t {
         CLOSED,
@@ -48,6 +52,30 @@ namespace TcpUtils
         FIN_WAIT_2,
         CLOSING,
         TIME_WAIT
+    };
+    
+    struct TcpOptions;
+    
+    // Container for data in the TCP header (used both in RX and TX).
+    struct TcpSegMeta {
+        PortType local_port;
+        PortType remote_port;
+        SeqType seq_num;
+        SeqType ack_num;
+        uint16_t window_size;
+        FlagsType flags;
+        TcpOptions const *opts; // may be null for TX
+    };
+    
+    // TCP options flags used in TcpOptions options_present.
+    struct OptionFlags { enum : uint8_t {
+        MSS = 1 << 0,
+    }; };
+    
+    // Container for TCP options that we care about.
+    struct TcpOptions {
+        uint8_t options;
+        uint16_t mss;
     };
     
     static inline SeqType seq_add (SeqType op1, SeqType op2)
@@ -68,6 +96,103 @@ namespace TcpUtils
     static inline bool seq_lt (SeqType op1, SeqType op2, SeqType ref)
     {
         return (seq_diff(op1, ref) < seq_diff(op2, ref));
+    }
+    
+    static inline size_t tcplen (FlagsType flags, size_t tcp_data_len)
+    {
+        return tcp_data_len + ((flags & Tcp4SeqFlags) != 0);
+    }
+    
+    static inline bool state_is_active (TcpState state)
+    {
+        return state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT,
+                              TcpState::SYN_RCVD, TcpState::TIME_WAIT);
+    }
+    
+    static inline bool accepting_data_in_state (TcpState state)
+    {
+        return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
+                              TcpState::FIN_WAIT_2);
+    }
+    
+    static inline bool can_output_in_state (TcpState state)
+    {
+        return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
+                              TcpState::CLOSING, TcpState::CLOSE_WAIT,
+                              TcpState::LAST_ACK);
+    }
+    
+    static inline bool snd_not_closed_in_state (TcpState state)
+    {
+        return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
+    }
+    
+    static inline void parse_options (IpBufRef buf, uint8_t opts_len, TcpOptions *out_opts, IpBufRef *out_data)
+    {
+        AMBRO_ASSERT(opts_len <= buf.tot_len)
+        
+        // Truncate the buffer temporarily while we're parsing the options.
+        size_t data_len = buf.tot_len - opts_len;
+        buf.tot_len = opts_len;
+        
+        // Clear options flags. Below we will set flags for options that we find.
+        out_opts->options = 0;
+        
+        while (buf.tot_len > 0) {
+            // Read the option kind.
+            uint8_t kind = buf.takeByte();
+            
+            // Hanlde end option and nop option.
+            if (kind == TcpOptionEnd) {
+                break;
+            }
+            else if (kind == TcpOptionNop) {
+                continue;
+            }
+            
+            // Read the option length.
+            if (buf.tot_len == 0) {
+                break;
+            }
+            uint8_t length = buf.takeByte();
+            
+            // Check the option length.
+            if (length < 2) {
+                break;
+            }
+            uint8_t opt_data_len = length - 2;
+            if (buf.tot_len < opt_data_len) {
+                break;
+            }
+            
+            // Handle different options, consume option data.
+            switch (kind) {
+                // Maximum Segment Size
+                case TcpOptionMSS: {
+                    if (opt_data_len != 2) {
+                        goto skip_option;
+                    }
+                    char opt_data[2];
+                    buf.takeBytes(opt_data_len, opt_data);
+                    out_opts->options |= OptionFlags::MSS;
+                    out_opts->mss = ReadBinaryInt<uint16_t, BinaryBigEndian>(opt_data);
+                } break;
+                
+                // Unknown option (also used to handle bad options).
+                skip_option:
+                default: {
+                    buf.skipBytes(opt_data_len);
+                } break;
+            }
+        }
+        
+        // Skip any remaining option data (we might not have consumed all of it).
+        buf.skipBytes(buf.tot_len);
+        
+        // The buf now points to the start of segment data but is empty.
+        // Extend it to reference the entire segment data and return it to the caller.
+        buf.tot_len = data_len;
+        *out_data = buf;
     }
 }
 
