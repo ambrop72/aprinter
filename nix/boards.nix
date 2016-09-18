@@ -135,4 +135,10 @@ rec {
             USB_MODE = "FS";
         };
     };    
+    
+    linuxtest = {
+        platform = "linux";
+        targetVars = {
+        };
+    };
 }

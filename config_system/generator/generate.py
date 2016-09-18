@@ -136,9 +136,10 @@ class GenState(object):
         self._singleton_objects[kind] = value
         return value
     
-    def get_singleton_object (self, kind):
-        assert kind in self._singleton_objects
-        return self._singleton_objects[kind]
+    def get_singleton_object (self, kind, allow_none=False):
+        have = kind in self._singleton_objects
+        assert allow_none or have
+        return self._singleton_objects[kind] if have else None
     
     def add_global_code (self, priority, code):
         self._global_code.append({'priority':priority, 'code':code})
@@ -372,15 +373,19 @@ def format_cpp_float(value):
     return '{:.17E}'.format(value).replace('INF', 'INFINITY')
 
 def setup_event_loop(gen):
-    gen.add_aprinter_include('system/BusyEventLoop.h')
+    impl = gen.get_singleton_object('event_loop_impl', allow_none=True)
+    if impl is None:
+        impl = 'BusyEventLoop'
+    
+    gen.add_aprinter_include('system/{}.h'.format(impl))
     
     code_before_expr = 'struct MyLoopExtraDelay;\n'
-    expr = TemplateExpr('BusyEventLoopArg', ['Context', 'Program', 'MyLoopExtraDelay'])
+    expr = TemplateExpr('{}Arg'.format(impl), ['Context', 'Program', 'MyLoopExtraDelay'])
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
     code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
-    code_before_program += 'APRINTER_MAKE_INSTANCE(MyLoopExtra, (BusyEventLoopExtraArg<Program, MyLoop, {}>))\n'.format(fast_events)
+    code_before_program += 'APRINTER_MAKE_INSTANCE(MyLoopExtra, ({}ExtraArg<Program, MyLoop, {}>))\n'.format(impl, fast_events)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, use_instance=True, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
@@ -420,6 +425,12 @@ def setup_platform(gen, config, key):
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
         gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
+    
+    @platform_sel.option('Linux')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/linux/linux_support.h')
+        gen.add_init_call(-1, 'platform_init();')
+        gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
     
     config.do_selection(key, platform_sel)
 
@@ -584,6 +595,15 @@ def Stm32f4ClockDef(x):
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, Context())'.format(tc, my_clock)
 
+def LinuxClockDef(x):
+    x.INCLUDE = 'hal/linux/LinuxClock.h'
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('LinuxClockService', [config.get_int_constant('SubSecondBits')])
+    x.TIMER_RE = '\\A()\\Z'
+    x.CHANNEL_RE = '\\A()([0-9]{1,2})\\Z'
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'LinuxClockInterruptTimerService<{}, {}>'.format(it['channel'], clearance)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: ''
+    x.TIMER_EXPR = lambda tc: 'void'
+
 def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     clock_sel = selection.Selection()
     
@@ -612,6 +632,10 @@ def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     @clock_sel.option('Stm32f4Clock')
     def option(clock):
         return CommonClock(gen, clock, clock_name, priority, Stm32f4ClockDef)
+    
+    @clock_sel.option('LinuxClock')
+    def option(clock):
+        return CommonClock(gen, clock, clock_name, priority, LinuxClockDef)
     
     clock_object = config.do_selection(key, clock_sel)
     if clock_object is not None:
@@ -663,6 +687,12 @@ def setup_pins (gen, config, key):
         gen.add_aprinter_include('hal/stm32/Stm32f4Pins.h')
         pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
         return TemplateLiteral('Stm32f4PinsService')
+    
+    @pins_sel.option('StubPins')
+    def options(pin_config):
+        gen.add_aprinter_include('hal/generic/StubPins.h')
+        pin_regexes.append('\\AStubPin\\Z')
+        return TemplateLiteral('StubPinsService')
     
     service_expr = config.do_selection(key, pins_sel)
     service_code = 'using PinsService = {};'.format(service_expr.build(indent=0))
@@ -717,6 +747,11 @@ def setup_watchdog (gen, config, key, disable_watchdog, user):
             watchdog.get_int('Divider'),
             watchdog.get_int('Reload'),
         ])
+    
+    @watchdog_sel.option('NullWatchdog')
+    def option(watchdog):
+        gen.add_aprinter_include('hal/generic/NullWatchdog.h')
+        return 'NullWatchdogService'
     
     return config.do_selection(key, watchdog_sel)
 
@@ -861,6 +896,10 @@ def use_input_mode (config, key):
     @im_sel.option('Mk20PinInputMode')
     def option(im_config):
         return im_config.do_enum('PullMode', {'Normal': 'Mk20PinInputModeNormal', 'Pull-up': 'Mk20PinInputModePullUp', 'Pull-down': 'Mk20PinInputModePullDown'})
+    
+    @im_sel.option('StubPinInputMode')
+    def option(im_config):
+        return 'StubPinInputMode'
     
     return config.do_selection(key, im_sel)
 

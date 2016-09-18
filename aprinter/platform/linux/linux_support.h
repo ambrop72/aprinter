@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2016 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,53 +22,44 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_ASSERT_H
-#define AMBROLIB_ASSERT_H
+#ifndef APRINTER_LINUX_SUPPORT_H
+#define APRINTER_LINUX_SUPPORT_H
 
-#include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
-#ifdef AMBROLIB_AVR
-#include <avr/pgmspace.h>
-#endif
+#include <pthread.h>
 
-#include <aprinter/base/Preprocessor.h>
+#include <aprinter/system/InterruptLockCommon.h>
 
-#ifdef AMBROLIB_EMERGENCY_ACTION
-#define AMBRO_ASSERT_EMERGENCY_ACTION AMBROLIB_EMERGENCY_ACTION
-#else
-#define AMBRO_ASSERT_EMERGENCY_ACTION
-#endif
+// This is a stub F_CPU value of 1Hz so that the "max steps per cycle"
+// setting effectively configures "max steps per second".
+#define F_CPU (1.0)
 
-#ifdef AMBROLIB_ABORT_ACTION
-#define AMBRO_ASSERT_ABORT_ACTION AMBROLIB_ABORT_ACTION
-#else
-#define AMBRO_ASSERT_ABORT_ACTION { ::abort(); }
-#endif
+#define APRINTER_INTERRUPT_LOCK_MODE APRINTER_INTERRUPT_LOCK_MODE_SIMPLE
 
-#if defined(AMBROLIB_NO_PRINT)
-#define AMBRO_ASSERT_PRINT_ACTION(str)
-#elif defined(AMBROLIB_AVR)
-#define AMBRO_ASSERT_PRINT_ACTION(str) puts_P(PSTR(str));
-#else
-#define AMBRO_ASSERT_PRINT_ACTION(str) puts(str);
-#endif
+#define AMBROLIB_EMERGENCY_ACTION
+#define AMBROLIB_ABORT_ACTION { ::abort(); }
 
-#define AMBRO_ASSERT_ABORT(msg) \
-    { \
-        AMBRO_ASSERT_EMERGENCY_ACTION \
-        AMBRO_ASSERT_PRINT_ACTION(msg) \
-        AMBRO_ASSERT_ABORT_ACTION \
+#define APRINTER_DONT_DEFINE_CXA_PURE_VIRTUAL
+
+extern pthread_mutex_t interrupt_mutex;
+
+void platform_init (void);
+
+inline static void cli (void)
+{
+    int res = pthread_mutex_lock(&interrupt_mutex);
+    if (res != 0) {
+        abort();
     }
+}
 
-#define AMBRO_ASSERT_FORCE(e) \
-    { \
-        if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
+inline static void sei (void)
+{
+    int res = pthread_mutex_unlock(&interrupt_mutex);
+    if (res != 0) {
+        abort();
     }
-
-#ifdef AMBROLIB_ASSERTIONS
-#define AMBRO_ASSERT(e) AMBRO_ASSERT_FORCE(e)
-#else
-#define AMBRO_ASSERT(e) {}
-#endif
+}
 
 #endif

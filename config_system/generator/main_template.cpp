@@ -35,8 +35,12 @@
 $${PLATFORM_INCLUDES}
 static void emergency (void);
 
+#ifndef AMBROLIB_EMERGENCY_ACTION
 #define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
+#endif
+#ifndef AMBROLIB_ABORT_ACTION
 #define AMBROLIB_ABORT_ACTION { while (1); }
+#endif
 
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
@@ -91,10 +95,12 @@ static void emergency (void)
     $${EmergencyProvider}::emergency();
 }
 
+#ifndef APRINTER_DONT_DEFINE_CXA_PURE_VIRTUAL
 extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 {
     AMBRO_ASSERT_ABORT("pure virtual function call")
 }
+#endif
 
 int main ()
 {

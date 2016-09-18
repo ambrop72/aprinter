@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+#include <aprinter/system/InterruptLockCommon.h>
+
+#define APRINTER_INTERRUPT_LOCK_MODE APRINTER_INTERRUPT_LOCK_MODE_MULTILEVEL
+
 inline static void sei (void)
 {
     asm volatile ("cpsie i" : : : "memory");

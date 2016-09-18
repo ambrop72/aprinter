@@ -27,6 +27,10 @@
 
 #include <avr/interrupt.h>
 
+#include <aprinter/system/InterruptLockCommon.h>
+
+#define APRINTER_INTERRUPT_LOCK_MODE APRINTER_INTERRUPT_LOCK_MODE_SIMPLE
+
 inline static void memory_barrier (void)
 {
     asm volatile ("" : : : "memory");

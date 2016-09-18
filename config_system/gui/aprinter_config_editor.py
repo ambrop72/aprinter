@@ -56,6 +56,7 @@ def input_mode_choice(context, **kwargs):
         ce.Compound('Mk20PinInputMode', attrs=[
             ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up', 'Pull-down']),
         ]),
+        ce.Compound('StubPinInputMode', attrs=[]),
     ], **kwargs)
 
 def i2c_choice(**kwargs):
@@ -294,6 +295,24 @@ def platform_Stm32f4():
                 ce.Integer(key='prescaler', title='Prescaler'),
                 ce.String(key='primary_timer', title='Timer'),
             ]),
+        ]),
+    ])
+
+def platform_Linux():
+    return ce.Compound('Linux', attrs=[
+        ce.Compound('LinuxClock', key='clock', title='Clock', collapsable=True, attrs=[
+            ce.Integer(key='SubSecondBits', title='Sub-second time bits (clock precision)'),
+            ce.Constant(key='primary_timer', value=''),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': '{}'.format(n)
+                } for n in range(16)
+            ]),
+        ]),
+        ce.Compound('NoAdc', key='adc', title='ADC', attrs=[]),
+        ce.Compound('NullWatchdog', key='watchdog', title='Watchdog', attrs=[]),
+        ce.Compound('StubPins', key='pins', title='Pins', attrs=[
+            ce.Constant(key='input_mode_type', value='StubPinInputMode'),
         ]),
     ])
 
@@ -694,6 +713,7 @@ def editor():
                     platform_Avr('ATmega2560'),
                     platform_Avr('ATmega1284p'),
                     platform_Stm32f4(),
+                    platform_Linux(),
                 ]),
                 ce.OneOf(key='debug_interface', title='Debug interface', choices=[
                     ce.Compound('NoDebug', title='None or specified elsewhere', attrs=[]),
