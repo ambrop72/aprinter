@@ -2,7 +2,12 @@
 configure_linux() {
     echo "  Configuring Linux build"
     
-    HOST_CC=gcc
+    if [ "$BUILD_WITH_CLANG" = 1 ]; then
+        HOST_CC=clang
+    else
+        HOST_CC=gcc
+    fi
+    
     HOST_SIZE=size
 
     FLAGS_OPT=( -O$( [[ $OPTIMIZE_FOR_SIZE = "1" ]] && echo s || echo 2 ) )
@@ -12,9 +17,9 @@ configure_linux() {
         -fno-rtti -fno-exceptions
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -fno-access-control -ftemplate-depth=1024 \
-        -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
         -I.
         -Wfatal-errors
+        -Wno-undefined-internal
         -lpthread -lm
         ${CXXFLAGS} ${CCXXLDFLAGS}
     )

@@ -38,7 +38,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/system/LinuxEventLoop.h>
+#include <aprinter/base/Preprocessor.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -50,6 +50,7 @@ public:
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
 private:
+    APRINTER_USE_TYPE1(Context::EventLoop, FdEvFlags)
     using TheDebugObject = DebugObject<Context, Object>;
     
     static int const InputFd = 0;
@@ -77,7 +78,7 @@ public:
         set_nonblocking(InputFd);
         set_nonblocking(OutputFd);
         
-        o->m_recv_fd_event.start(c, InputFd, LinuxFdEvFlags::EV_READ);
+        o->m_recv_fd_event.start(c, InputFd, FdEvFlags::EV_READ);
         o->m_send_fd_event.start(c, OutputFd, 0);
         
         TheDebugObject::init(c);
@@ -122,7 +123,7 @@ public:
         o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
         
         if (was_full && amount.value() > 0 && !o->m_recv_dead) {
-            o->m_recv_fd_event.changeEvents(c, LinuxFdEvFlags::EV_READ);
+            o->m_recv_fd_event.changeEvents(c, FdEvFlags::EV_READ);
         }
     }
     
@@ -276,7 +277,7 @@ private:
                 if (write_res < 0) {
                     int err = errno;
                     if (err == EWOULDBLOCK || err == EAGAIN) {
-                        o->m_send_fd_event.changeEvents(c, LinuxFdEvFlags::EV_WRITE);
+                        o->m_send_fd_event.changeEvents(c, FdEvFlags::EV_WRITE);
                         return;
                     }
                     send_enter_dead(c);

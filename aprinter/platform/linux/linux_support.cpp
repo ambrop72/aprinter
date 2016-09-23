@@ -36,24 +36,23 @@ void platform_init (void)
 {
     int res;
     
+    // Initialize the interrupt_mutex.
     pthread_mutexattr_t attr;
     res = pthread_mutexattr_init(&attr);
     if (res != 0) {
         abort();
     }
-    
     res = pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
     if (res != 0) {
         abort();
     }
-    
     res = pthread_mutex_init(&interrupt_mutex, &attr);
     if (res != 0) {
         abort();
     }
-    
     pthread_mutexattr_destroy(&attr);
     
+    // Configure SIGPIPE to SIG_IGN.
     struct sigaction act = {};
     act.sa_handler = SIG_IGN;
     sigemptyset(&act.sa_mask);
