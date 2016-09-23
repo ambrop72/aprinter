@@ -35,6 +35,7 @@
 
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <sys/eventfd.h>
@@ -283,6 +284,15 @@ public:
             }
 #endif
         }
+    }
+    
+    static void setFdNonblocking (int fd)
+    {
+        int flags = ::fcntl(fd, F_GETFL, 0);
+        AMBRO_ASSERT_FORCE(flags >= 0)
+        
+        int res = ::fcntl(fd, F_SETFL, flags|O_NONBLOCK);
+        AMBRO_ASSERT_FORCE(res != -1)
     }
     
 private:

@@ -31,7 +31,6 @@
 #include <errno.h>
 
 #include <unistd.h>
-#include <fcntl.h>
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/base/Object.h>
@@ -75,8 +74,8 @@ public:
         o->m_send_event = SendSizeType::import(0);
         o->m_send_dead = false;
         
-        set_nonblocking(InputFd);
-        set_nonblocking(OutputFd);
+        Context::EventLoop::setFdNonblocking(InputFd);
+        Context::EventLoop::setFdNonblocking(OutputFd);
         
         o->m_recv_fd_event.start(c, InputFd, FdEvFlags::EV_READ);
         o->m_send_fd_event.start(c, OutputFd, 0);
@@ -129,7 +128,9 @@ public:
     
     static void recvClearOverrun (Context c)
     {
+        auto *o = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_recv_end == BoundedModuloDec(o->m_recv_start))
     }
     
     static void recvForceEvent (Context c)
@@ -178,7 +179,6 @@ public:
     
     static void sendPoke (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         do_send(c);
@@ -324,14 +324,6 @@ private:
         
         o->m_send_fd_event.changeEvents(c, 0);
         do_send(c);
-    }
-    
-    static void set_nonblocking (int fd)
-    {
-        int flags = fcntl(fd, F_GETFL, 0);
-        AMBRO_ASSERT_FORCE(flags >= 0)
-        int res = fcntl(fd, F_SETFL, flags|O_NONBLOCK);
-        AMBRO_ASSERT_FORCE(res != -1)
     }
     
 public:
