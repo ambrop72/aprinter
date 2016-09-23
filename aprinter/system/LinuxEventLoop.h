@@ -40,8 +40,6 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ServiceUtils.h>
@@ -58,6 +56,14 @@
 
 template <typename> class LinuxEventLoopQueuedEvent;
 template <typename> class LinuxEventLoopTimedEvent;
+template <typename> class LinuxEventLoopFdEvent;
+
+struct LinuxFdEvFlags { enum {
+    EV_READ  = 1 << 0,
+    EV_WRITE = 1 << 1,
+    EV_ERROR = 1 << 2,
+    EV_HUP   = 1 << 3,
+}; };
 
 template <typename Arg>
 class LinuxEventLoop {
@@ -66,21 +72,26 @@ class LinuxEventLoop {
     
     template <typename> friend class LinuxEventLoopQueuedEvent;
     template <typename> friend class LinuxEventLoopTimedEvent;
+    template <typename> friend class LinuxEventLoopFdEvent;
     
 public:
     struct Object;
+    
     using Context = typename Arg::Context;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
+    
     using QueuedEvent = LinuxEventLoopQueuedEvent<LinuxEventLoop>;
     using TimedEvent = LinuxEventLoopTimedEvent<LinuxEventLoop>;
+    using FdEvent = LinuxEventLoopFdEvent<LinuxEventLoop>;
+    
     using FastHandlerType = void (*) (Context);
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     
-    static int const NumEpollEvents = 10;
+    static int const NumEpollEvents = 16;
     
 public:
     static void init (Context c)
@@ -95,8 +106,8 @@ public:
         o->m_timed_event_expired_list.init();
         
         // Initialize epoll events array state;
-        o->m_num_epoll_events = 0;
         o->m_cur_epoll_event = 0;
+        o->m_num_epoll_events = 0;
         
         // Init the fastevents.
         for (auto i : LoopRangeAuto(Delay::Extra::NumFastEvents)) {
@@ -110,12 +121,12 @@ public:
         // Create the timerfd and add to epoll.
         o->m_timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
         AMBRO_ASSERT_FORCE(o->m_timer_fd >= 0)
-        add_to_epoll(c, o->m_timer_fd, EPOLLIN, &o->m_timer_fd);
+        control_epoll(c, EPOLL_CTL_ADD, o->m_timer_fd, EPOLLIN, nullptr);
         
         // Create the eventfd and add to epoll.
         o->m_event_fd = eventfd(0, EFD_NONBLOCK);
         AMBRO_ASSERT_FORCE(o->m_event_fd >= 0)
-        add_to_epoll(c, o->m_event_fd, EPOLLIN, &o->m_event_fd);
+        control_epoll(c, EPOLL_CTL_ADD, o->m_event_fd, EPOLLIN, &o->m_event_fd);
         
         TheDebugObject::init(c);
     }
@@ -140,7 +151,7 @@ public:
             // Configure timerfd to expire at the earliest timer time, or never.
             configure_timerfd(c, now_ts, now);
             
-            // Do the epoll wait.
+            // Wait for events with epoll.
             int res = epoll_wait(o->m_epoll_fd, o->m_epoll_events, NumEpollEvents, -1);
             if (res < 0) {
                 int err = errno;
@@ -154,8 +165,8 @@ public:
             now = Clock::timespecToTime(now_ts);
             
             // Set the epoll event count and position.
-            o->m_num_epoll_events = res;
             o->m_cur_epoll_event = 0;
+            o->m_num_epoll_events = res;
             
             // Move expired timers to the expired list.
             move_expired_timers_to_expired(c, now);
@@ -164,6 +175,7 @@ public:
             
             // Dispatch expired timers.
             while (TimedEvent *tev = o->m_timed_event_expired_list.first()) {
+                tev->debugAccess(c);
                 AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
                 AMBRO_ASSERT(tev->m_expired)
                 
@@ -173,10 +185,8 @@ public:
                 o->m_timed_event_expired_list.remove(tev);
                 TimedEventList::markRemoved(tev);
                 
-                // Call the timer's handler.
+                // Call the handler.
                 tev->m_handler(c);
-                
-                // Dispatch any queued events queued by the handler.
                 dispatch_queued_events(c);
             }
             
@@ -186,13 +196,7 @@ public:
                 struct epoll_event *ev = &o->m_epoll_events[o->m_cur_epoll_event++];
                 void *data_ptr = ev->data.ptr;
                 
-                if (data_ptr == &o->m_timer_fd) {
-                    // It's our timerfd; no handling needed here.
-                    continue;
-                }
-                else if (data_ptr == &o->m_event_fd) {
-                    // It's our eventfd; need to read it and call any fastevent handlers.
-                    
+                if (data_ptr == &o->m_event_fd) {
                     // Read the eventfd.
                     uint64_t event_count = 0;
                     ssize_t read_res = read(o->m_event_fd, &event_count, sizeof(event_count));
@@ -201,36 +205,53 @@ public:
                         // But even this should not happen since the fd was found readable.
                         int err = errno;
                         AMBRO_ASSERT_FORCE(err == EAGAIN || err == EWOULDBLOCK)
-                        continue;
-                    }
-                    
-                    // If the read succeeds we are supposed to get a nonzero event count.
-                    AMBRO_ASSERT_FORCE(read_res == sizeof(event_count))
-                    AMBRO_ASSERT_FORCE(event_count > 0)
-                    
-                    // Dispatch any pending fastevents.
-                    for (auto i : LoopRangeAuto(Delay::Extra::NumFastEvents)) {
-                        // Try to consume the pending flag.
-                        if (!Delay::extra(c)->m_event_pending[i].exchange(false)) {
-                            continue;
+                    } else {
+                        // If the read succeeds we are supposed to get a nonzero event count.
+                        AMBRO_ASSERT_FORCE(read_res == sizeof(event_count))
+                        AMBRO_ASSERT_FORCE(event_count > 0)
+                        
+                        // Dispatch any pending fastevents.
+                        for (auto i : LoopRangeAuto(Delay::Extra::NumFastEvents)) {
+                            if (Delay::extra(c)->m_event_pending[i].exchange(false)) {
+                                found_event = true;
+                                
+                                // Call the handler.
+                                Delay::extra(c)->m_event_handler[i](c);
+                                dispatch_queued_events(c);
+                            }
                         }
-                        
-                        found_event = true;
-                        
-                        // Call the event's handler.
-                        Delay::extra(c)->m_event_handler[i](c);
-                        
-                        // Dispatch any queued events queued by the handler.
-                        dispatch_queued_events(c);
                     }
                 }
-                else {
+                else if (data_ptr != nullptr) {
+                    // It's for an FdEvent.
+                    FdEvent *fdev = (FdEvent *)data_ptr;
+                    fdev->debugAccess(c);
+                    AMBRO_ASSERT(fdev->m_handler)
+                    AMBRO_ASSERT(fdev->m_fd >= 0)
+                    AMBRO_ASSERT(FdEvent::valid_events(fdev->m_events))
                     
-                    found_event = true;
+                    // Calculate events to report.
+                    int events = 0;
+                    if ((fdev->m_events & LinuxFdEvFlags::EV_READ) != 0 && (ev->events & EPOLLIN) != 0) {
+                        events |= LinuxFdEvFlags::EV_READ;
+                    }
+                    if ((fdev->m_events & LinuxFdEvFlags::EV_WRITE) != 0 && (ev->events & EPOLLOUT) != 0) {
+                        events |= LinuxFdEvFlags::EV_WRITE;
+                    }
+                    if ((ev->events & EPOLLERR) != 0) {
+                        events |= LinuxFdEvFlags::EV_ERROR;
+                    }
+                    if ((ev->events & EPOLLHUP) != 0) {
+                        events |= LinuxFdEvFlags::EV_HUP;
+                    }
                     
-                    // TODO
-                    fprintf(stderr, "unexpected fd event!?!?!?\n");
-                    AMBRO_ASSERT_FORCE(false)
+                    if (events != 0) {
+                        found_event = true;
+                        
+                        // Call the handler.
+                        fdev->m_handler(c, events);
+                        dispatch_queued_events(c);
+                    }
                 }
             }
             
@@ -274,7 +295,12 @@ public:
         if (!Delay::extra(c)->m_event_pending[index].exchange(true)) {
             uint64_t event_count = 1;
             ssize_t write_res = write(o->m_event_fd, &event_count, sizeof(event_count));
-            AMBRO_ASSERT(write_res == sizeof(event_count))
+            if (write_res < 0) {
+                int err = errno;
+                AMBRO_ASSERT(err == EAGAIN || err == EWOULDBLOCK)
+            } else {
+                AMBRO_ASSERT(write_res == sizeof(event_count))
+            }
         }
     }
     
@@ -287,14 +313,14 @@ private:
         static typename Extra::Object * extra (Context c) { return Extra::Object::self(c); }
     };
     
-    static void add_to_epoll (Context c, int fd, uint32_t events, void *data_ptr)
+    static void control_epoll (Context c, int op, int fd, uint32_t events, void *data_ptr)
     {
         auto *o = Object::self(c);
         
         struct epoll_event ev = {};
         ev.events = events;
         ev.data.ptr = data_ptr;
-        int res = epoll_ctl(o->m_epoll_fd, EPOLL_CTL_ADD, fd, &ev);
+        int res = epoll_ctl(o->m_epoll_fd, op, fd, &ev);
         AMBRO_ASSERT_FORCE(res == 0)
     }
     
@@ -303,11 +329,14 @@ private:
         auto *o = Object::self(c);
         
         // Dispatch queued events until there are no more.
-        while (QueuedEvent *ev = o->m_queued_event_list.first()) {
-            AMBRO_ASSERT(!QueuedEventList::isRemoved(ev))
-            o->m_queued_event_list.remove(ev);
-            QueuedEventList::markRemoved(ev);
-            ev->m_handler(c);
+        while (QueuedEvent *qev = o->m_queued_event_list.first()) {
+            qev->debugAccess(c);
+            AMBRO_ASSERT(!QueuedEventList::isRemoved(qev))
+            
+            o->m_queued_event_list.remove(qev);
+            QueuedEventList::markRemoved(qev);
+            
+            qev->m_handler(c);
         }
     }
     
@@ -318,6 +347,7 @@ private:
         TimedEvent *tev = o->m_timed_event_list.first();
         
         while (tev != nullptr) {
+            tev->debugAccess(c);
             AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
             AMBRO_ASSERT(!tev->m_expired)
             TimedEvent *next_tev = o->m_timed_event_list.next(tev);
@@ -340,6 +370,7 @@ private:
         TimeType first_time;
         
         for (TimedEvent *tev = o->m_timed_event_list.first(); tev != nullptr; tev = o->m_timed_event_list.next(tev)) {
+            tev->debugAccess(c);
             AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
             AMBRO_ASSERT(!tev->m_expired)
             
@@ -366,13 +397,49 @@ private:
         AMBRO_ASSERT_FORCE(tfd_res == 0)
     }
     
+    static uint32_t events_to_epoll (int events)
+    {
+        uint32_t epoll_events = 0;
+        if ((events & LinuxFdEvFlags::EV_READ) != 0) {
+            epoll_events |= EPOLLIN;
+        }
+        if ((events & LinuxFdEvFlags::EV_WRITE) != 0) {
+            epoll_events |= EPOLLOUT;
+        }
+        return epoll_events;
+    }
+    
+    static void add_fd_event (Context c, FdEvent *fdev)
+    {
+        control_epoll(c, EPOLL_CTL_ADD, fdev->m_fd, events_to_epoll(fdev->m_events), fdev);
+    }
+    
+    static void change_fd_event (Context c, FdEvent *fdev)
+    {
+        control_epoll(c, EPOLL_CTL_MOD, fdev->m_fd, events_to_epoll(fdev->m_events), fdev);
+    }
+    
+    static void remove_fd_event (Context c, FdEvent *fdev)
+    {
+        auto *o = Object::self(c);
+        
+        control_epoll(c, EPOLL_CTL_DEL, fdev->m_fd, 0, nullptr);
+        
+        for (int i : LoopRangeAuto(o->m_cur_epoll_event, o->m_num_epoll_events)) {
+            struct epoll_event *ev = &o->m_epoll_events[i];
+            if (ev->data.ptr == fdev) {
+                ev->data.ptr = nullptr;
+            }
+        }
+    }
+    
 public:
     struct Object : public ObjBase<LinuxEventLoop, ParentObject, MakeTypeList<TheDebugObject>> {
         QueuedEventList m_queued_event_list;
         TimedEventList m_timed_event_list;
         TimedEventList m_timed_event_expired_list;
-        int m_num_epoll_events;
         int m_cur_epoll_event;
+        int m_num_epoll_events;
         int m_epoll_fd;
         int m_timer_fd;
         int m_event_fd;
@@ -396,11 +463,10 @@ class LinuxEventLoopExtra {
     
     friend Loop;
     
-    static const int NumFastEvents = TypeListLength<FastEventList>::Value;
-    using FastEventSizeType = ChooseInt<MaxValue(1, BitsInInt<NumFastEvents>::Value), false>;
+    static int const NumFastEvents = TypeListLength<FastEventList>::Value;
     
     template <typename EventSpec>
-    static constexpr FastEventSizeType get_event_index ()
+    static constexpr int get_event_index ()
     {
         return TypeListIndex<FastEventList, EventSpec>::Value;
     }
@@ -444,9 +510,9 @@ public:
     void deinit (Context c)
     {
         this->debugDeinit(c);
-        auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
+            auto *lo = Loop::Object::self(c);
             lo->m_queued_event_list.remove(this);
         }
     }
@@ -454,9 +520,9 @@ public:
     void unset (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
+            auto *lo = Loop::Object::self(c);
             lo->m_queued_event_list.remove(this);
             Loop::QueuedEventList::markRemoved(this);
         }
@@ -472,17 +538,17 @@ public:
     void appendNowNotAlready (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
         
+        auto *lo = Loop::Object::self(c);
         lo->m_queued_event_list.append(this);
     }
     
     void appendNow (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         
+        auto *lo = Loop::Object::self(c);
         if (!Loop::QueuedEventList::isRemoved(this)) {
             lo->m_queued_event_list.remove(this);
         }
@@ -492,17 +558,17 @@ public:
     void prependNowNotAlready (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
         
+        auto *lo = Loop::Object::self(c);
         lo->m_queued_event_list.prepend(this);
     }
     
     void prependNow (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         
+        auto *lo = Loop::Object::self(c);
         if (!Loop::QueuedEventList::isRemoved(this)) {
             lo->m_queued_event_list.remove(this);
         }
@@ -518,6 +584,8 @@ template <typename Loop>
 class LinuxEventLoopTimedEvent
 : private SimpleDebugObject<typename Loop::Context>
 {
+    friend Loop;
+    
 public:
     using Context = typename Loop::Context;
     using TimeType = typename Loop::TimeType;
@@ -527,7 +595,7 @@ public:
     {
         AMBRO_ASSERT(handler)
         
-        this->m_handler = handler;
+        m_handler = handler;
         Loop::TimedEventList::markRemoved(this);
         
         this->debugInit(c);
@@ -536,7 +604,6 @@ public:
     void deinit (Context c)
     {
         this->debugDeinit(c);
-        auto *lo = Loop::Object::self(c);
         
         if (!Loop::TimedEventList::isRemoved(this)) {
             remove_from_list(c);
@@ -546,7 +613,6 @@ public:
     void unset (Context c)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         
         if (!Loop::TimedEventList::isRemoved(this)) {
             remove_from_list(c);
@@ -561,26 +627,29 @@ public:
         return !Loop::TimedEventList::isRemoved(this);
     }
     
-    void appendNowNotAlready (Context c)
+    void appendAtNotAlready (Context c, TimeType time)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::TimedEventList::isRemoved(this))
         
         add_to_list(c);
-        m_time = Context::Clock::getTime(c);
+        m_time = time;
     }
     
     void appendAt (Context c, TimeType time)
     {
         this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
         
         if (!Loop::TimedEventList::isRemoved(this)) {
             remove_from_list(c);
         }
         add_to_list(c);
         m_time = time;
+    }
+    
+    void appendNowNotAlready (Context c)
+    {
+        appendAtNotAlready(c, Context::Clock::getTime(c));
     }
     
     void appendAfter (Context c, TimeType after_time)
@@ -590,22 +659,12 @@ public:
     
     void appendAfterNotAlready (Context c, TimeType after_time)
     {
-        this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::TimedEventList::isRemoved(this))
-        
-        add_to_list(c);
-        m_time = Context::Clock::getTime(c) + after_time;
+        appendAtNotAlready(c, Context::Clock::getTime(c) + after_time);
     }
     
     void appendAfterPrevious (Context c, TimeType after_time)
     {
-        this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::TimedEventList::isRemoved(this))
-        
-        add_to_list(c);
-        m_time += after_time;
+        appendAtNotAlready(c, m_time + after_time);
     }
     
     TimeType getSetTime (Context c)
@@ -619,7 +678,6 @@ private:
     void add_to_list (Context c)
     {
         auto *lo = Loop::Object::self(c);
-        
         m_expired = false;
         lo->m_timed_event_list.append(this);
     }
@@ -627,7 +685,6 @@ private:
     void remove_from_list (Context c)
     {
         auto *lo = Loop::Object::self(c);
-        
         if (m_expired) {
             lo->m_timed_event_expired_list.remove(this);
         } else {
@@ -639,6 +696,78 @@ private:
     HandlerType m_handler;
     TimeType m_time;
     bool m_expired;
+};
+
+template <typename Loop>
+class LinuxEventLoopFdEvent
+: private SimpleDebugObject<typename Loop::Context>
+{
+    friend Loop;
+    
+public:
+    using Context = typename Loop::Context;
+    using HandlerType = Callback<void(Context c, int events)>;
+    
+    void init (Context c, HandlerType handler)
+    {
+        AMBRO_ASSERT(handler)
+        
+        m_handler = handler;
+        m_fd = -1;
+        
+        this->debugInit(c);
+    }
+    
+    void deinit (Context c)
+    {
+        this->debugDeinit(c);
+        
+        if (m_fd >= 0) {
+            Loop::remove_fd_event(c, this);
+        }
+    }
+    
+    void reset (Context c)
+    {
+        this->debugAccess(c);
+        
+        if (m_fd >= 0) {
+            Loop::remove_fd_event(c, this);
+            m_fd = -1;
+        }
+    }
+    
+    void start (Context c, int fd, int events)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_fd == -1)
+        AMBRO_ASSERT(fd >= 0)
+        AMBRO_ASSERT(valid_events(events))
+        
+        m_fd = fd;
+        m_events = events;
+        Loop::add_fd_event(c, this);
+    }
+    
+    void changeEvents (Context c, int events)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_fd >= 0)
+        AMBRO_ASSERT(valid_events(events))
+        
+        m_events = events;
+        Loop::change_fd_event(c, this);
+    }
+    
+private:
+    static bool valid_events (int events)
+    {
+        return (events & ~(LinuxFdEvFlags::EV_READ|LinuxFdEvFlags::EV_WRITE)) == 0;
+    }
+    
+    HandlerType m_handler;
+    int m_fd;
+    int m_events;
 };
 
 #include <aprinter/EndNamespace.h>

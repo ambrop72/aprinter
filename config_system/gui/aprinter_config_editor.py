@@ -773,6 +773,7 @@ def editor():
                         ce.Boolean(key='DoubleSpeed'),
                     ]),
                     ce.Compound('Stm32f4UsbSerial', title='STM32F4 USB', attrs=[]),
+                    ce.Compound('LinuxStdInOutSerial', title='Linux stdin/stdout', attrs=[]),
                     ce.Compound('NullSerial', title='Null serial driver', attrs=[]),
                 ])
             ])),

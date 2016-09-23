@@ -1154,6 +1154,11 @@ def use_serial(gen, config, key, user):
         gen.add_aprinter_include('hal/stm32/Stm32f4UsbSerial.h')
         return 'Stm32f4UsbSerialService'
     
+    @serial_sel.option('LinuxStdInOutSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('hal/linux/LinuxStdInOutSerial.h')
+        return 'LinuxStdInOutSerialService'
+    
     @serial_sel.option('NullSerial')
     def option(serial_service):
         gen.add_aprinter_include('hal/generic/NullSerial.h')
