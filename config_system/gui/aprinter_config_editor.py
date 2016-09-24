@@ -301,7 +301,8 @@ def platform_Stm32f4():
 def platform_Linux():
     return ce.Compound('Linux', attrs=[
         ce.Compound('LinuxClock', key='clock', title='Clock', collapsable=True, attrs=[
-            ce.Integer(key='SubSecondBits', title='Sub-second time bits (clock precision)'),
+            ce.Integer(key='SubSecondBits', title='Sub-second time bits (clock precision)', default=21),
+            ce.Integer(key='MaxTimers', title='Maximum number of timers', default=10),
             ce.Constant(key='primary_timer', value=''),
             ce.Constant(key='avail_oc_units', value=[
                 {

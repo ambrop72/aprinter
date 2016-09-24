@@ -65,6 +65,11 @@
         if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
     }
 
+#define AMBRO_ASSERT_FORCE_MSG(e, msg) \
+    { \
+        if (!(e)) AMBRO_ASSERT_ABORT(msg " at " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
+    }
+
 #ifdef AMBROLIB_ASSERTIONS
 #define AMBRO_ASSERT(e) AMBRO_ASSERT_FORCE(e)
 #else

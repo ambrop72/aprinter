@@ -25,7 +25,6 @@
 #ifndef APRINTER_LINUX_SUPPORT_H
 #define APRINTER_LINUX_SUPPORT_H
 
-#include <assert.h>
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -41,10 +40,19 @@
 #define AMBROLIB_ABORT_ACTION { ::abort(); }
 
 #define APRINTER_DONT_DEFINE_CXA_PURE_VIRTUAL
+#define APRINTER_MAIN_WITH_ARGS
+
+struct LinuxCmdlineOptions {
+    bool lock_mem;
+    int rt_class;
+    int rt_priority;
+};
+
+extern LinuxCmdlineOptions cmdline_options;
 
 extern pthread_mutex_t interrupt_mutex;
 
-void platform_init (void);
+void platform_init (int argc, char *argv[]);
 
 inline static void cli (void)
 {
@@ -61,5 +69,15 @@ inline static void sei (void)
         abort();
     }
 }
+
+class LinuxRtThread {
+public:
+    void start (int rt_class, int rt_priority, void * (*start_func) (void *));
+    void join ();
+    
+private:
+    pthread_t m_thread;
+    void *m_stack;
+};
 
 #endif

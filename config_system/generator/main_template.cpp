@@ -102,7 +102,11 @@ extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 }
 #endif
 
+#ifdef APRINTER_MAIN_WITH_ARGS
+int main (int argc, char *argv[])
+#else
 int main ()
+#endif
 {
 $${InitCalls}
     Context c;

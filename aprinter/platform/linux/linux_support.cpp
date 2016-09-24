@@ -24,33 +24,66 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <limits.h>
 
+#include <alloca.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sched.h>
+#include <getopt.h>
+#include <sys/mman.h>
 
 #include "linux_support.h"
 
+#include <aprinter/base/Assert.h>
+
+LinuxCmdlineOptions cmdline_options;
 pthread_mutex_t interrupt_mutex;
 
-void platform_init (void)
+static bool parse_options (int argc, char *argv[]);
+
+static size_t const MainStackPrefaultSize = 16384;
+static size_t const RtThreadStackSize = PTHREAD_STACK_MIN;
+
+template <size_t Size>
+__attribute__((noinline))
+static void prefault_stack ()
+{
+    void *ptr = alloca(Size);
+    auto const volatile memset_ptr = memset;
+    memset_ptr(ptr, 0, Size);
+}
+
+void platform_init (int argc, char *argv[])
 {
     int res;
+    
+    // Parse command-line options.
+    if (!parse_options(argc, argv)) {
+        exit(1);
+    }
+    
+    // Lock memory if requested.
+    if (cmdline_options.lock_mem) {
+        res = mlockall(MCL_CURRENT|MCL_FUTURE);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "mlockall failed")
+    }
+    
+    // Pre-fault the stack of main.
+    prefault_stack<MainStackPrefaultSize>();
     
     // Initialize the interrupt_mutex.
     pthread_mutexattr_t attr;
     res = pthread_mutexattr_init(&attr);
-    if (res != 0) {
-        abort();
-    }
+    AMBRO_ASSERT_FORCE(res == 0)
     res = pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT);
-    if (res != 0) {
-        abort();
-    }
+    AMBRO_ASSERT_FORCE(res == 0)
     res = pthread_mutex_init(&interrupt_mutex, &attr);
-    if (res != 0) {
-        abort();
-    }
-    pthread_mutexattr_destroy(&attr);
+    AMBRO_ASSERT_FORCE(res == 0)
+    res = pthread_mutexattr_destroy(&attr);
+    AMBRO_ASSERT_FORCE(res == 0)
     
     // Configure SIGPIPE to SIG_IGN.
     struct sigaction act = {};
@@ -58,7 +91,117 @@ void platform_init (void)
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     res = sigaction(SIGPIPE, &act, NULL);
-    if (res != 0) {
-        abort();
+    AMBRO_ASSERT_FORCE(res == 0)
+}
+
+static bool parse_options (int argc, char *argv[])
+{
+    cmdline_options.lock_mem = false;
+    cmdline_options.rt_class = -1;
+    cmdline_options.rt_priority = -1;
+    
+    static struct option const long_options[] = {
+        {"lock-mem",    no_argument,       nullptr, 'l'},
+        {"rt-class",    required_argument, nullptr, 'c'},
+        {"rt-priority", required_argument, nullptr, 'p'},
+        {}
+    };
+    
+    while (true) {
+        int option_index = 0;
+        int opt = getopt_long(argc, argv, "lc:p:", long_options, &option_index);
+        if (opt == -1) {
+            break;
+        }
+        
+        switch (opt) {
+            case 'l': {
+                cmdline_options.lock_mem = true;
+            } break;
+            
+            case 'c': {
+                if (!strcmp(optarg, "FIFO")) {
+                    cmdline_options.rt_class = SCHED_FIFO;
+                }
+                else if (!strcmp(optarg, "RR")) {
+                    cmdline_options.rt_class = SCHED_RR;
+                }
+                else if (!strcmp(optarg, "OTHER")) {
+                    cmdline_options.rt_class = SCHED_OTHER;
+                }
+                else {
+                    fprintf(stderr, "Invalid RT class\n");
+                    return false;
+                }
+            } break;
+            
+            case 'p': {
+                int val = atoi(optarg);
+                if (val < 0) {
+                    fprintf(stderr, "Invalid RT priority\n");
+                    return false;
+                }
+                cmdline_options.rt_priority = val;
+            } break;
+            
+            default: {
+                return false;
+            } break;
+        }
     }
+    
+    if (cmdline_options.rt_class >= 0 && cmdline_options.rt_priority < 0) {
+        fprintf(stderr, "Error: RT class specified without RT priority\n");
+        return false;
+    }
+    
+    return true;
+}
+
+void LinuxRtThread::start (int rt_class, int rt_priority, void * (*start_func) (void *))
+{
+    int res;
+    pthread_attr_t attr;
+    
+    m_stack = mmap(nullptr, RtThreadStackSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    AMBRO_ASSERT_FORCE_MSG(m_stack != MAP_FAILED, "mmap failed")
+    
+    auto const volatile memset_ptr = memset;
+    memset_ptr(m_stack, 0, RtThreadStackSize);
+    
+    res = pthread_attr_init(&attr);
+    AMBRO_ASSERT_FORCE(res == 0)
+    
+    res = pthread_attr_setstack(&attr, m_stack, RtThreadStackSize);
+    AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setstack failed")
+    
+    if (rt_class >= 0) {
+        res = pthread_attr_setschedpolicy(&attr, rt_class);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setschedpolicy failed")
+        
+        struct sched_param param = {};
+        param.sched_priority = rt_priority;
+        res = pthread_attr_setschedparam(&attr, &param);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setschedparam failed")
+        
+        pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setinheritsched failed")
+    }
+    
+    res = pthread_create(&m_thread, &attr, start_func, nullptr);
+    AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_create failed")
+    
+    res = pthread_attr_destroy(&attr);
+    AMBRO_ASSERT_FORCE(res == 0)
+}
+
+void LinuxRtThread::join ()
+{
+    int res;
+    
+    res = pthread_join(m_thread, nullptr);
+    AMBRO_ASSERT_FORCE(res == 0)
+    
+    res = munmap(m_stack, RtThreadStackSize);
+    AMBRO_ASSERT_FORCE(res == 0)
 }

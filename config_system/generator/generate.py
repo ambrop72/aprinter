@@ -429,7 +429,7 @@ def setup_platform(gen, config, key):
     @platform_sel.option('Linux')
     def option(platform):
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
-        gen.add_init_call(-1, 'platform_init();')
+        gen.add_init_call(-1, 'platform_init(argc, argv);')
         gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
     
     config.do_selection(key, platform_sel)
@@ -597,7 +597,7 @@ def Stm32f4ClockDef(x):
 
 def LinuxClockDef(x):
     x.INCLUDE = 'hal/linux/LinuxClock.h'
-    x.CLOCK_SERVICE = lambda config: TemplateExpr('LinuxClockService', [config.get_int_constant('SubSecondBits')])
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('LinuxClockService', [config.get_int_constant('SubSecondBits'), config.get_int_constant('MaxTimers')])
     x.TIMER_RE = '\\A()\\Z'
     x.CHANNEL_RE = '\\A()([0-9]{1,2})\\Z'
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'LinuxClockInterruptTimerService<{}, {}>'.format(it['channel'], clearance)

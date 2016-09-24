@@ -20,7 +20,7 @@ configure_linux() {
         -I.
         -Wfatal-errors
         -Wno-undefined-internal
-        -lpthread -lm
+        -lpthread -lrt -lm
         ${CXXFLAGS} ${CCXXLDFLAGS}
     )
     

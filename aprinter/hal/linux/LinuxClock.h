@@ -28,29 +28,45 @@
 #include <stdint.h>
 
 #include <time.h>
+#include <unistd.h>
+#include <signal.h>
+#include <pthread.h>
+#include <sys/timerfd.h>
 
+#include <aprinter/platform/linux/linux_support.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Arg>
+class LinuxClockInterruptTimer;
+
+template <typename Arg>
 class LinuxClock {
-    using Context      = typename Arg::Context;
-    using ParentObject = typename Arg::ParentObject;
+    APRINTER_USE_TYPE1(Arg, Context)
+    APRINTER_USE_TYPE1(Arg, ParentObject)
     
-    static int const SubSecondBits = Arg::Params::SubSecondBits;
+    APRINTER_USE_VAL(Arg::Params, SubSecondBits)
+    APRINTER_USE_VAL(Arg::Params, MaxTimers)
     
     static_assert(SubSecondBits >= 10, "");
     static_assert(SubSecondBits <= 21, "");
+    static_assert(MaxTimers > 0, "");
+    static_assert(MaxTimers <= 64, "");
     
     static long const NsecInSec = 1000000000;
     static int const NanosShift = 63 - SubSecondBits;
     static uint64_t const NanosMul = ((uint64_t)1 << (SubSecondBits + NanosShift)) / NsecInSec;
     static uint32_t const SubSecondMask = ((uint32_t)1 << SubSecondBits) - 1;
+    
+    template <typename> friend class LinuxClockInterruptTimer;
     
 public:
     struct Object;
@@ -60,17 +76,40 @@ public:
     static constexpr double time_unit = 1.0 / time_freq;
     
 private:
+    using TheClockUtils = ClockUtilsForClock<LinuxClock<Arg>>;
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     static void init (Context c)
     {
+        auto *o = Object::self(c);
+        int res;
+        
+        for (auto i : LoopRangeAuto(MaxTimers)) {
+            o->m_timer_active[i] = false;
+            o->m_timer_handler[i] = nullptr;
+        }
+        
+        o->m_timer_fd = ::timerfd_create(CLOCK_MONOTONIC, 0);
+        AMBRO_ASSERT_FORCE(o->m_timer_fd >= 0)
+        
+        o->m_timer_thread.start(cmdline_options.rt_class, cmdline_options.rt_priority, LinuxClock::timer_thread);
+        
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
+        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
+        int res;
+        
+        // TODO: make thread terminate
+        
+        o->m_timer_thread.join();
+        
+        res = ::close(o->m_timer_fd);
+        AMBRO_ASSERT_FORCE(res == 0)
     }
     
     template <typename ThisContext>
@@ -78,8 +117,7 @@ public:
     {
         TheDebugObject::access(c);
         
-        struct timespec ts = getTimespec(c);
-        return timespecToTime(ts);
+        return timespecToTime(getTimespec(c));
     }
     
 public:
@@ -123,12 +161,104 @@ public:
         return ts;
     }
     
+private:
+    static void * timer_thread (void *)
+    {
+        Context c;
+        auto *o = Object::self(c);
+        int res;
+        
+        // Block all signals for this thread.
+        sigset_t block_signals;
+        sigfillset(&block_signals);
+        res = pthread_sigmask(SIG_SETMASK, &block_signals, nullptr);
+        AMBRO_ASSERT_FORCE(res == 0)
+        
+        while (true) {
+            // Wait for the timerfd to expire.
+            uint64_t expire_count = 0;
+            ssize_t read_res = ::read(o->m_timer_fd, &expire_count, sizeof(expire_count));
+            AMBRO_ASSERT_FORCE(read_res == sizeof(expire_count))
+            AMBRO_ASSERT_FORCE(expire_count > 0)
+            
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                // Get the current time.
+                struct timespec now_ts = getTimespec(lock_c);
+                TimeType now = timespecToTime(now_ts);
+                
+                // Call handlers for all expired timers.
+                for (auto i : LoopRangeAuto(MaxTimers)) {
+                    if (o->m_timer_active[i] && TheClockUtils::timeGreaterOrEqual(now, o->m_timer_time[i])) {
+                        o->m_timer_handler[i](lock_c);
+                    }
+                }
+                
+                // Arm (or disarm) the timerfd according to the latest timer states.
+                configure_timerfd(lock_c, now_ts, now);
+            }
+        }
+        
+        return nullptr;
+    }
+    
+    static void configure_timerfd (AtomicContext<Context> c, struct timespec now_ts, TimeType now)
+    {
+        auto *o = Object::self(c);
+        
+        bool have_first_time = false;
+        TimeType first_time;
+        
+        for (auto i : LoopRangeAuto(MaxTimers)) {
+            if (o->m_timer_active[i]) {
+                TimeType tmr_time = o->m_timer_time[i];
+                if (!TheClockUtils::timeGreaterOrEqual(tmr_time, now)) {
+                    have_first_time = true;
+                    first_time = now;
+                    break;
+                }
+                if (!have_first_time || !TheClockUtils::timeGreaterOrEqual(tmr_time, first_time)) {
+                    have_first_time = true;
+                    first_time = tmr_time;
+                }
+            }
+        }
+        
+        struct itimerspec itspec = {};
+        if (have_first_time) {
+            TimeType time_from_now = TheClockUtils::timeDifference(first_time, now);
+            itspec.it_value = addTimeToTimespec(now_ts, time_from_now);
+        }
+        
+        int res = ::timerfd_settime(o->m_timer_fd, TFD_TIMER_ABSTIME, &itspec, nullptr);
+        AMBRO_ASSERT_FORCE(res == 0)
+    }
+    
+    static void poke_timer_thread (AtomicContext<Context> c, struct timespec now_ts)
+    {
+        auto *o = Object::self(c);
+        
+        // This is used when a timer is started, to make the timer thread wake
+        // up immediately and arm the timerfd taking the changed timer into account.
+        
+        struct itimerspec itspec = {};
+        itspec.it_value = now_ts;
+        int res = ::timerfd_settime(o->m_timer_fd, TFD_TIMER_ABSTIME, &itspec, nullptr);
+        AMBRO_ASSERT_FORCE(res == 0)
+    }
+    
 public:
-    struct Object : public ObjBase<LinuxClock, ParentObject, MakeTypeList<TheDebugObject>> {};
+    struct Object : public ObjBase<LinuxClock, ParentObject, MakeTypeList<TheDebugObject>> {
+        int m_timer_fd;
+        LinuxRtThread m_timer_thread;
+        bool m_timer_active[MaxTimers];
+        TimeType m_timer_time[MaxTimers];
+        void (*(m_timer_handler[MaxTimers])) (AtomicContext<Context>);
+    };
 };
 
 APRINTER_ALIAS_STRUCT_EXT(LinuxClockService, (
-    APRINTER_AS_VALUE(int, SubSecondBits)
+    APRINTER_AS_VALUE(int, SubSecondBits),
+    APRINTER_AS_VALUE(int, MaxTimers)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Clock, (
         APRINTER_AS_TYPE(Context),
@@ -156,74 +286,92 @@ public:
     static int const Index = Params::Index;
     using ExtraClearance = typename Params::ExtraClearance;
     
+    static_assert(Index >= 0 && Index < Clock::MaxTimers, "");
+    
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
+        auto *co = Clock::Object::self(c);
+        AMBRO_ASSERT(!co->m_timer_active[Index])
+        AMBRO_ASSERT(co->m_timer_handler[Index] == nullptr)
+        
+        co->m_timer_handler[Index] = LinuxClockInterruptTimer::timer_handler;
+        
         TheDebugObject::init(c);
-        
-        o->m_running = false;
-        
-        // TODO
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
+        auto *co = Clock::Object::self(c);
         TheDebugObject::deinit(c);
         
-        // TODO
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            co->m_timer_active[Index] = false;
+        }
+        
+        co->m_timer_handler[Index] = nullptr;
     }
     
     template <typename ThisContext>
     static void setFirst (ThisContext c, TimeType time)
     {
-        auto *o = Object::self(c);
+        auto *co = Clock::Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(!o->m_running)
+        AMBRO_ASSERT(!co->m_timer_active[Index])
         
-        o->m_time = time;
-        o->m_running = true;
+        co->m_timer_time[Index] = time;
         
-        // TODO
+        struct timespec now_ts = Clock::getTimespec(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            co->m_timer_active[Index] = true;
+            Clock::poke_timer_thread(lock_c, now_ts);
+        }
     }
     
     static void setNext (HandlerContext c, TimeType time)
     {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_running)
+        auto *co = Clock::Object::self(c);
+        AMBRO_ASSERT(co->m_timer_active[Index])
         
-        o->m_time = time;
-        
-        // TODO
+        co->m_timer_time[Index] = time;
     }
     
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
-        auto *o = Object::self(c);
+        auto *co = Clock::Object::self(c);
         TheDebugObject::access(c);
         
-        o->m_running = false;
-        
-        // TODO
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            co->m_timer_active[Index] = false;
+        }
     }
     
     template <typename ThisContext>
     static TimeType getLastSetTime (ThisContext c)
     {
-        auto *o = Object::self(c);
+        auto *co = Clock::Object::self(c);
         
-        return o->m_time;
+        return co->m_timer_time[Index];
+    }
+    
+private:
+    static void timer_handler (AtomicContext<Context> c)
+    {
+        auto *co = Clock::Object::self(c);
+        AMBRO_ASSERT(co->m_timer_active[Index])
+        
+        if (!Handler::call(c)) {
+            co->m_timer_active[Index] = false;
+        }
     }
     
 public:
     struct Object : public ObjBase<LinuxClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
-        TimeType m_time;
-        bool m_running;
     };
 };
 
