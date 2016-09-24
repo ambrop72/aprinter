@@ -120,6 +120,8 @@ stdenv.mkDerivation {
     nativeBuildInputs = [ texinfo bison flex ];
     buildInputs = [ gmp mpfr libmpc isl_0_11 cloog_0_18_0 zlib libelf ];
     
+    hardeningDisable = [ "format" ];
+    
     # Limit stripping to these directories so we don't strip target libraries.
     # We do miss stripping lib/libcc.so because we must not strip in lib/gcc/.
     stripDebugList= [ "bin" "${target}/bin" "libexec" ];
