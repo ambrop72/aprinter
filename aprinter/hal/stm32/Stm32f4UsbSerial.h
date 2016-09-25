@@ -117,7 +117,7 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(out_overrun)
         
-        *out_overrun = false;
+        *out_overrun = (o->m_recv_end == BoundedModuloDec(o->m_recv_start));
         return recv_avail(o->m_recv_start, o->m_recv_end);
     }
     
@@ -142,7 +142,6 @@ public:
     static void recvClearOverrun (Context c)
     {
         TheDebugObject::access(c);
-        AMBRO_ASSERT(false)
     }
     
     static void recvForceEvent (Context c)
