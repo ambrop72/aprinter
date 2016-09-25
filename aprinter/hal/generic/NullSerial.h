@@ -95,7 +95,6 @@ public:
     
     static void recvClearOverrun (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(false)
     }
