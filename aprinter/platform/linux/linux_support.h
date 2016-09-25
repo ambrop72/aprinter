@@ -46,6 +46,8 @@ struct LinuxCmdlineOptions {
     bool lock_mem;
     int rt_class;
     int rt_priority;
+    int rt_affinity;
+    int main_affinity;
 };
 
 extern LinuxCmdlineOptions cmdline_options;
@@ -72,7 +74,7 @@ inline static void sei (void)
 
 class LinuxRtThread {
 public:
-    void start (int rt_class, int rt_priority, void * (*start_func) (void *));
+    void start (int rt_class, int rt_priority, int rt_affinity, void * (*start_func) (void *));
     void join ();
     
 private:

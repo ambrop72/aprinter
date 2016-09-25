@@ -93,7 +93,7 @@ public:
         o->m_timer_fd = ::timerfd_create(CLOCK_MONOTONIC, 0);
         AMBRO_ASSERT_FORCE(o->m_timer_fd >= 0)
         
-        o->m_timer_thread.start(cmdline_options.rt_class, cmdline_options.rt_priority, LinuxClock::timer_thread);
+        o->m_timer_thread.start(cmdline_options.rt_class, cmdline_options.rt_priority, cmdline_options.rt_affinity, LinuxClock::timer_thread);
         
         TheDebugObject::init(c);
     }

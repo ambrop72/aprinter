@@ -43,6 +43,7 @@ LinuxCmdlineOptions cmdline_options;
 pthread_mutex_t interrupt_mutex;
 
 static bool parse_options (int argc, char *argv[]);
+static void make_cpuset (int affinity, cpu_set_t *cpuset);
 
 static size_t const MainStackPrefaultSize = 16384;
 static size_t const RtThreadStackSize = PTHREAD_STACK_MIN;
@@ -69,6 +70,15 @@ void platform_init (int argc, char *argv[])
     if (cmdline_options.lock_mem) {
         res = mlockall(MCL_CURRENT|MCL_FUTURE);
         AMBRO_ASSERT_FORCE_MSG(res == 0, "mlockall failed")
+    }
+    
+    // Set main CPU affinity if requested.
+    if (cmdline_options.main_affinity != 0) {
+        cpu_set_t cpuset;
+        make_cpuset(cmdline_options.main_affinity, &cpuset);
+        
+        res = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_setaffinity_np failed")
     }
     
     // Pre-fault the stack of main.
@@ -99,17 +109,21 @@ static bool parse_options (int argc, char *argv[])
     cmdline_options.lock_mem = false;
     cmdline_options.rt_class = -1;
     cmdline_options.rt_priority = -1;
+    cmdline_options.rt_affinity = 0;
+    cmdline_options.main_affinity = 0;
     
     static struct option const long_options[] = {
-        {"lock-mem",    no_argument,       nullptr, 'l'},
-        {"rt-class",    required_argument, nullptr, 'c'},
-        {"rt-priority", required_argument, nullptr, 'p'},
+        {"lock-mem",      no_argument,       nullptr, 'l'},
+        {"rt-class",      required_argument, nullptr, 'c'},
+        {"rt-priority",   required_argument, nullptr, 'p'},
+        {"rt-affinity",   required_argument, nullptr, 'a'},
+        {"main-affinity", required_argument, nullptr, 'f'},
         {}
     };
     
     while (true) {
         int option_index = 0;
-        int opt = getopt_long(argc, argv, "lc:p:", long_options, &option_index);
+        int opt = getopt_long(argc, argv, "lc:p:a:f:", long_options, &option_index);
         if (opt == -1) {
             break;
         }
@@ -144,6 +158,24 @@ static bool parse_options (int argc, char *argv[])
                 cmdline_options.rt_priority = val;
             } break;
             
+            case 'a': {
+                int val = atoi(optarg);
+                if (val == 0) {
+                    fprintf(stderr, "Invalid RT affinity\n");
+                    return false;
+                }
+                cmdline_options.rt_affinity = val;
+            } break;
+            
+            case 'f': {
+                int val = atoi(optarg);
+                if (val == 0) {
+                    fprintf(stderr, "Invalid main affinity\n");
+                    return false;
+                }
+                cmdline_options.main_affinity = val;
+            } break;
+            
             default: {
                 return false;
             } break;
@@ -158,7 +190,7 @@ static bool parse_options (int argc, char *argv[])
     return true;
 }
 
-void LinuxRtThread::start (int rt_class, int rt_priority, void * (*start_func) (void *))
+void LinuxRtThread::start (int rt_class, int rt_priority, int rt_affinity, void * (*start_func) (void *))
 {
     int res;
     pthread_attr_t attr;
@@ -188,6 +220,14 @@ void LinuxRtThread::start (int rt_class, int rt_priority, void * (*start_func) (
         AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setinheritsched failed")
     }
     
+    if (rt_affinity != 0) {
+        cpu_set_t cpuset;
+        make_cpuset(rt_affinity, &cpuset);
+        
+        pthread_attr_setaffinity_np(&attr, sizeof(cpuset), &cpuset);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setaffinity_np failed")
+    }
+    
     res = pthread_create(&m_thread, &attr, start_func, nullptr);
     AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_create failed")
     
@@ -204,4 +244,22 @@ void LinuxRtThread::join ()
     
     res = munmap(m_stack, RtThreadStackSize);
     AMBRO_ASSERT_FORCE(res == 0)
+}
+
+static void make_cpuset (int affinity, cpu_set_t *cpuset)
+{
+    CPU_ZERO(cpuset);
+    if (affinity < 0) {
+        int cpu = 0;
+        while (affinity < 0) {
+            if ((affinity & 1) != 0) {
+                CPU_SET(cpu, cpuset);
+            }
+            cpu++;
+            affinity /= 2;
+        }
+    }
+    else if (affinity > 0 && affinity <= CPU_SETSIZE) {
+        CPU_SET((affinity - 1), cpuset);
+    }
 }
