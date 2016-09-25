@@ -781,8 +781,10 @@ public:
         AMBRO_ASSERT(m_fd >= 0)
         AMBRO_ASSERT(Loop::fd_req_events_valid(events))
         
-        m_events = events;
-        Loop::change_fd_event(c, this);
+        if (m_events != events) {
+            m_events = events;
+            Loop::change_fd_event(c, this);
+        }
     }
     
 private:

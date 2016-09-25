@@ -29,23 +29,23 @@
 
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <pthread.h>
 #include <sys/timerfd.h>
 
 #include <aprinter/platform/linux/linux_support.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Arg>
+template <typename>
 class LinuxClockInterruptTimer;
 
 template <typename Arg>
@@ -56,15 +56,13 @@ class LinuxClock {
     APRINTER_USE_VAL(Arg::Params, SubSecondBits)
     APRINTER_USE_VAL(Arg::Params, MaxTimers)
     
-    static_assert(SubSecondBits >= 10, "");
-    static_assert(SubSecondBits <= 21, "");
-    static_assert(MaxTimers > 0, "");
-    static_assert(MaxTimers <= 64, "");
+    static_assert(SubSecondBits >= 10 && SubSecondBits <= 21, "");
+    static_assert(MaxTimers > 0 && MaxTimers <= 64, "");
     
     static long const NsecInSec = 1000000000;
     static int const NanosShift = 63 - SubSecondBits;
-    static uint64_t const NanosMul = ((uint64_t)1 << (SubSecondBits + NanosShift)) / NsecInSec;
-    static uint32_t const SubSecondMask = ((uint32_t)1 << SubSecondBits) - 1;
+    static uint64_t const NanosMul = PowerOfTwo<uint64_t, SubSecondBits+NanosShift>::Value / NsecInSec;
+    static uint32_t const SubSecondMask = PowerOfTwoMinusOne<uint32_t, SubSecondBits>::Value;
     
     template <typename> friend class LinuxClockInterruptTimer;
     
@@ -72,18 +70,17 @@ public:
     struct Object;
     using TimeType = uint32_t;
     
-    static constexpr double time_freq = (uint32_t)1 << SubSecondBits;
+    static constexpr double time_freq = PowerOfTwo<uint32_t, SubSecondBits>::Value;
     static constexpr double time_unit = 1.0 / time_freq;
     
 private:
-    using TheClockUtils = ClockUtilsForClock<LinuxClock<Arg>>;
+    using TheClockUtils = ClockUtilsForClock<LinuxClock>;
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        int res;
         
         for (auto i : LoopRangeAuto(MaxTimers)) {
             o->m_timer_active[i] = false;
@@ -93,7 +90,7 @@ public:
         o->m_timer_fd = ::timerfd_create(CLOCK_MONOTONIC, 0);
         AMBRO_ASSERT_FORCE(o->m_timer_fd >= 0)
         
-        o->m_timer_thread.start(cmdline_options.rt_class, cmdline_options.rt_priority, cmdline_options.rt_affinity, LinuxClock::timer_thread);
+        o->m_timer_thread.start(APRINTER_CB_STATFUNC_T(&LinuxClock::timer_thread));
         
         TheDebugObject::init(c);
     }
@@ -104,7 +101,7 @@ public:
         TheDebugObject::deinit(c);
         int res;
         
-        // TODO: make thread terminate
+        // TODO: make thread terminate (deinit not used currently)
         
         o->m_timer_thread.join();
         
@@ -127,7 +124,7 @@ public:
         AMBRO_ASSERT(ts.tv_nsec < NsecInSec)
     }
     
-    static struct timespec getTimespec (Context c)
+    static struct timespec getTimespec (Context)
     {
         struct timespec ts;
         int res = clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -162,17 +159,12 @@ public:
     }
     
 private:
-    static void * timer_thread (void *)
+    using InternalTimerHandlerType = void (*) (AtomicContext<Context>);
+    
+    static void timer_thread ()
     {
         Context c;
         auto *o = Object::self(c);
-        int res;
-        
-        // Block all signals for this thread.
-        sigset_t block_signals;
-        sigfillset(&block_signals);
-        res = pthread_sigmask(SIG_SETMASK, &block_signals, nullptr);
-        AMBRO_ASSERT_FORCE(res == 0)
         
         while (true) {
             // Wait for the timerfd to expire.
@@ -181,11 +173,11 @@ private:
             AMBRO_ASSERT_FORCE(read_res == sizeof(expire_count))
             AMBRO_ASSERT_FORCE(expire_count > 0)
             
+            // Get the current time.
+            struct timespec now_ts = getTimespec(c);
+            TimeType now = timespecToTime(now_ts);
+            
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                // Get the current time.
-                struct timespec now_ts = getTimespec(lock_c);
-                TimeType now = timespecToTime(now_ts);
-                
                 // Call handlers for all expired timers.
                 for (auto i : LoopRangeAuto(MaxTimers)) {
                     if (o->m_timer_active[i] && TheClockUtils::timeGreaterOrEqual(now, o->m_timer_time[i])) {
@@ -197,8 +189,6 @@ private:
                 configure_timerfd(lock_c, now_ts, now);
             }
         }
-        
-        return nullptr;
     }
     
     static void configure_timerfd (AtomicContext<Context> c, struct timespec now_ts, TimeType now)
@@ -239,9 +229,12 @@ private:
         
         // This is used when a timer is started, to make the timer thread wake
         // up immediately and arm the timerfd taking the changed timer into account.
+        // It has to be done within the lock, else the adjustment may be overridden
+        // with one that does not account for the timer change.
         
         struct itimerspec itspec = {};
         itspec.it_value = now_ts;
+        
         int res = ::timerfd_settime(o->m_timer_fd, TFD_TIMER_ABSTIME, &itspec, nullptr);
         AMBRO_ASSERT_FORCE(res == 0)
     }
@@ -252,7 +245,7 @@ public:
         LinuxRtThread m_timer_thread;
         bool m_timer_active[MaxTimers];
         TimeType m_timer_time[MaxTimers];
-        void (*(m_timer_handler[MaxTimers])) (AtomicContext<Context>);
+        InternalTimerHandlerType m_timer_handler[MaxTimers];
     };
 };
 
@@ -272,23 +265,25 @@ APRINTER_ALIAS_STRUCT_EXT(LinuxClockService, (
 
 template <typename Arg>
 class LinuxClockInterruptTimer {
-    using Context      = typename Arg::Context;
-    using ParentObject = typename Arg::ParentObject;
-    using Handler      = typename Arg::Handler;
-    using Params       = typename Arg::Params;
+    APRINTER_USE_TYPE1(Arg, Context)
+    APRINTER_USE_TYPE1(Arg, ParentObject)
+    APRINTER_USE_TYPE1(Arg, Handler)
+    APRINTER_USE_TYPE1(Arg, Params)
+    
+    APRINTER_USE_VAL(Params, Index)
+    APRINTER_USE_TYPE1(Params, ExtraClearance)
+    
+    // NOTE: We don't implement ExtraClearance currently.
     
 public:
     struct Object;
-    using Clock = typename Context::Clock;
-    using TimeType = typename Clock::TimeType;
+    APRINTER_USE_TYPE1(Context, Clock)
+    APRINTER_USE_TYPE1(Clock, TimeType)
     using HandlerContext = AtomicContext<Context>;
     
-    static int const Index = Params::Index;
-    using ExtraClearance = typename Params::ExtraClearance;
-    
+private:
     static_assert(Index >= 0 && Index < Clock::MaxTimers, "");
     
-private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
@@ -371,8 +366,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<LinuxClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
-    };
+    struct Object : public ObjBase<LinuxClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 APRINTER_ALIAS_STRUCT_EXT(LinuxClockInterruptTimerService, (

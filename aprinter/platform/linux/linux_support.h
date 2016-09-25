@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLockCommon.h>
 
 // This is a stub F_CPU value of 1Hz so that the "max steps per cycle"
@@ -74,12 +75,18 @@ inline static void sei (void)
 
 class LinuxRtThread {
 public:
-    void start (int rt_class, int rt_priority, int rt_affinity, void * (*start_func) (void *));
+    using FuncType = APrinter::Callback<void()>;
+    
+    void start (FuncType start_func);
+    void start (FuncType start_func, int rt_class, int rt_priority, int rt_affinity);
     void join ();
     
 private:
-    pthread_t m_thread;
+    static void * thread_trampoline (void *arg);
+    
+    FuncType m_start_func;
     void *m_stack;
+    pthread_t m_thread;
 };
 
 #endif

@@ -190,23 +190,35 @@ static bool parse_options (int argc, char *argv[])
     return true;
 }
 
-void LinuxRtThread::start (int rt_class, int rt_priority, int rt_affinity, void * (*start_func) (void *))
+void LinuxRtThread::start (FuncType start_func)
+{
+    start(start_func, cmdline_options.rt_class, cmdline_options.rt_priority, cmdline_options.rt_affinity);
+}
+
+void LinuxRtThread::start (FuncType start_func, int rt_class, int rt_priority, int rt_affinity)
 {
     int res;
-    pthread_attr_t attr;
     
+    m_start_func = start_func;
+    
+    // Allocate the stack for the thread.
     m_stack = mmap(nullptr, RtThreadStackSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     AMBRO_ASSERT_FORCE_MSG(m_stack != MAP_FAILED, "mmap failed")
     
+    // Pre-fault the stack.
     auto const volatile memset_ptr = memset;
     memset_ptr(m_stack, 0, RtThreadStackSize);
     
+    // Create attributes.
+    pthread_attr_t attr;
     res = pthread_attr_init(&attr);
     AMBRO_ASSERT_FORCE(res == 0)
     
+    // Set stack.
     res = pthread_attr_setstack(&attr, m_stack, RtThreadStackSize);
     AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setstack failed")
     
+    // Set RT scheduling parameters.
     if (rt_class >= 0) {
         res = pthread_attr_setschedpolicy(&attr, rt_class);
         AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setschedpolicy failed")
@@ -220,6 +232,7 @@ void LinuxRtThread::start (int rt_class, int rt_priority, int rt_affinity, void 
         AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setinheritsched failed")
     }
     
+    // Set SPU affinity.
     if (rt_affinity != 0) {
         cpu_set_t cpuset;
         make_cpuset(rt_affinity, &cpuset);
@@ -228,9 +241,22 @@ void LinuxRtThread::start (int rt_class, int rt_priority, int rt_affinity, void 
         AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setaffinity_np failed")
     }
     
-    res = pthread_create(&m_thread, &attr, start_func, nullptr);
+    // Block all signals so they will be blocked in the thread.
+    sigset_t blocked_signals;
+    sigfillset(&blocked_signals);
+    sigset_t orig_signals;
+    res = pthread_sigmask(SIG_SETMASK, &blocked_signals, &orig_signals);
+    AMBRO_ASSERT_FORCE(res == 0)
+    
+    // Create the thread.
+    res = pthread_create(&m_thread, &attr, LinuxRtThread::thread_trampoline, this);
     AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_create failed")
     
+    // Restore signal mask.
+    res = pthread_sigmask(SIG_SETMASK, &orig_signals, nullptr);
+    AMBRO_ASSERT_FORCE(res == 0)
+    
+    // Destroy attributes.
     res = pthread_attr_destroy(&attr);
     AMBRO_ASSERT_FORCE(res == 0)
 }
@@ -239,11 +265,20 @@ void LinuxRtThread::join ()
 {
     int res;
     
+    // Join the thread.
     res = pthread_join(m_thread, nullptr);
     AMBRO_ASSERT_FORCE(res == 0)
     
+    // Free the stack.
     res = munmap(m_stack, RtThreadStackSize);
     AMBRO_ASSERT_FORCE(res == 0)
+}
+
+void * LinuxRtThread::thread_trampoline (void *arg)
+{
+    LinuxRtThread *th = (LinuxRtThread *)arg;
+    th->m_start_func();
+    return nullptr;
 }
 
 static void make_cpuset (int affinity, cpu_set_t *cpuset)
