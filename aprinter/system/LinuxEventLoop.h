@@ -105,13 +105,14 @@ public:
         o->timed_event_list.init();
         o->timed_event_expired_list.init();
         
-        // Initialize epoll events array state;
+        // Initialize other event-related states;
         o->cur_epoll_event = 0;
         o->num_epoll_events = 0;
+        o->timers_changed = false;
         
         // Clear the fastevent pending flags.
-        for (auto i : LoopRangeAuto(Delay::Extra::NumFastEvents)) {
-            Delay::extra(c)->m_event_pending[i] = false;
+        for (auto i : LoopRangeAuto(Extra<>::NumFastEvents)) {
+            extra(c)->m_event_pending[i] = false;
         }
         
         // Create the epoll instance.
@@ -148,8 +149,11 @@ public:
             AMBRO_ASSERT(o->timed_event_expired_list.isEmpty())
             AMBRO_ASSERT(o->cur_epoll_event == o->num_epoll_events)
             
-            // Configure timerfd to expire at the earliest timer time, or never.
-            configure_timerfd(c, now_ts, now);
+            // Make sure the timerfd is set to expire accordign to the current timers.
+            if (o->timers_changed) {
+                o->timers_changed = false;
+                configure_timerfd(c, now_ts, now);
+            }
             
             // Wait for events with epoll.
             int wait_res;
@@ -190,11 +194,11 @@ public:
             }
             
             // Dispatch any pending fastevents.
-            for (auto i : LoopRangeAuto(Delay::Extra::NumFastEvents)) {
+            for (auto i : LoopRangeAuto(Extra<>::NumFastEvents)) {
                 // Atomically set the pending flag to false and check if it was true.
-                if (Delay::extra(c)->m_event_pending[i].exchange(false)) {
+                if (extra(c)->m_event_pending[i].exchange(false)) {
                     // Call the handler.
-                    Delay::extra(c)->m_event_handler[i](c);
+                    extra(c)->m_event_handler[i](c);
                     dispatch_queued_events(c);
                 }
             }
@@ -250,8 +254,8 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(handler)
         
-        int const index = Delay::Extra::template get_event_index<EventSpec>();
-        Delay::extra(c)->m_event_handler[index] = handler;
+        int const index = Extra<>::template get_event_index<EventSpec>();
+        extra(c)->m_event_handler[index] = handler;
     }
     
     template <typename EventSpec>
@@ -259,8 +263,8 @@ public:
     {
         TheDebugObject::access(c);
         
-        int const index = Delay::Extra::template get_event_index<EventSpec>();
-        Delay::extra(c)->m_event_pending[index] = false;
+        int const index = Extra<>::template get_event_index<EventSpec>();
+        extra(c)->m_event_pending[index] = false;
     }
     
     template <typename EventSpec, typename ThisContext>
@@ -269,10 +273,10 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        int const index = Delay::Extra::template get_event_index<EventSpec>();
+        int const index = Extra<>::template get_event_index<EventSpec>();
         
         // Set the pending flag and raise the eventfd if the flag was not already set.
-        if (!Delay::extra(c)->m_event_pending[index].exchange(true)) {
+        if (!extra(c)->m_event_pending[index].exchange(true)) {
             uint64_t event_count = 1;
             ssize_t write_res = ::write(o->event_fd, &event_count, sizeof(event_count));
 #ifdef AMBROLIB_ASSERTIONS
@@ -299,10 +303,11 @@ private:
     using QueuedEventList = DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node>;
     using TimedEventList = DoubleEndedList<TimedEvent, &TimedEvent::m_list_node>;
     
-    struct Delay {
-        using Extra = typename ExtraDelay::Type;
-        static typename Extra::Object * extra (Context c) { return Extra::Object::self(c); }
-    };
+    template <typename This=LinuxEventLoop>
+    using Extra = typename This::ExtraDelay::Type;
+    
+    template <typename This=LinuxEventLoop>
+    static typename Extra<This>::Object * extra (Context c) { return Extra<>::Object::self(c); }
     
     static void control_epoll (Context c, int op, int fd, uint32_t events, void *data_ptr)
     {
@@ -348,6 +353,7 @@ private:
                 tev->m_expired = true;
                 o->timed_event_list.remove(tev);
                 o->timed_event_expired_list.append(tev);
+                o->timers_changed = true;
             }
             
             tev = next_tev;
@@ -384,9 +390,7 @@ private:
             // Compute the target timespec based on difference between first_time and now.
             TimeType time_from_now = TheClockUtils::timeDifference(first_time, now);
             itspec.it_value = Clock::addTimeToTimespec(now_ts, time_from_now);
-        } else {
-            // Leave itspec zeroed, this disarms the timerfd.
-        }
+        } // Else leave itspec zeroed, this disarms the timerfd.
         
         int res = ::timerfd_settime(o->timer_fd, TFD_TIMER_ABSTIME, &itspec, nullptr);
         AMBRO_ASSERT_FORCE(res == 0)
@@ -462,6 +466,7 @@ public:
         int epoll_fd;
         int timer_fd;
         int event_fd;
+        bool timers_changed;
         struct epoll_event epoll_events[NumEpollEvents];
     };
 };
@@ -699,6 +704,7 @@ private:
         auto *lo = Loop::Object::self(c);
         m_expired = false;
         lo->timed_event_list.append(this);
+        lo->timers_changed = true;
     }
     
     void remove_from_list (Context c)
@@ -708,6 +714,7 @@ private:
             lo->timed_event_expired_list.remove(this);
         } else {
             lo->timed_event_list.remove(this);
+            lo->timers_changed = true;
         }
     }
     
