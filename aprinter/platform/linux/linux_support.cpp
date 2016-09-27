@@ -111,6 +111,7 @@ static bool parse_options (int argc, char *argv[])
     cmdline_options.rt_priority = -1;
     cmdline_options.rt_affinity = 0;
     cmdline_options.main_affinity = 0;
+    cmdline_options.tap_dev = nullptr;
     
     static struct option const long_options[] = {
         {"lock-mem",      no_argument,       nullptr, 'l'},
@@ -118,12 +119,13 @@ static bool parse_options (int argc, char *argv[])
         {"rt-priority",   required_argument, nullptr, 'p'},
         {"rt-affinity",   required_argument, nullptr, 'a'},
         {"main-affinity", required_argument, nullptr, 'f'},
+        {"tap-dev",       required_argument, nullptr, 't'},
         {}
     };
     
     while (true) {
         int option_index = 0;
-        int opt = getopt_long(argc, argv, "lc:p:a:f:", long_options, &option_index);
+        int opt = getopt_long(argc, argv, "lc:p:a:f:t:", long_options, &option_index);
         if (opt == -1) {
             break;
         }
@@ -174,6 +176,10 @@ static bool parse_options (int argc, char *argv[])
                     return false;
                 }
                 cmdline_options.main_affinity = val;
+            } break;
+            
+            case 't': {
+                cmdline_options.tap_dev = optarg;
             } break;
             
             default: {

@@ -168,8 +168,9 @@ public:
         
         o->net_activated = true;
         
-        o->mac_addr = ReadSingleField<MacAddr>((char const *)params->mac_addr);
-        TheEthernet::activate(c, o->mac_addr.data);
+        MacAddr mac_addr = ReadSingleField<MacAddr>((char const *)params->mac_addr);
+        
+        TheEthernet::activate(c, mac_addr.data);
         o->eth_ip_iface.init(&o->driver_proxy);
         o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
         
@@ -220,7 +221,7 @@ public:
         Ip4Addr gateway = gw_setting.present ? gw_setting.addr : Ip4Addr::ZeroAddr();
         
         NetworkParams status;
-        WriteSingleField<MacAddr>((char *)status.mac_addr, o->mac_addr);
+        WriteSingleField<MacAddr>((char *)status.mac_addr, TheEthernet::getMacAddr(c));
         status.link_up = TheEthernet::getLinkUp(c);
         status.dhcp_enabled = false;
         WriteSingleField<Ip4Addr>((char *)status.ip_addr,    addr);
@@ -848,7 +849,7 @@ private:
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->net_activated)
             
-            return &o->mac_addr;
+            return TheEthernet::getMacAddr(Context());
         }
         
         size_t getEthMtu () override
@@ -947,7 +948,6 @@ public:
         TheIpTcpProto ip_tcp_proto;
         bool net_activated;
         bool eth_activated;
-        MacAddr mac_addr;
         EthDriverProxy driver_proxy;
         TheEthIpIface eth_ip_iface;
         typename TheIpStack::Iface ip_iface;

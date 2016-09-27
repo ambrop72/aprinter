@@ -28,6 +28,7 @@
 //#define APRINTER_DEBUG_MII
 
 #include <stdint.h>
+#include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/ServiceUtils.h>
@@ -76,6 +77,7 @@ public:
         ThePhy::init(c);
         o->init_state = InitState::INACTIVE;
         o->link_up = false;
+        memset(o->mac_addr, 0, 6);
     }
     
     static void deinit (Context c)
@@ -102,7 +104,8 @@ public:
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
         
         o->init_state = InitState::INITING;
-        TheMii::activate(c, mac_addr);
+        memcpy(o->mac_addr, mac_addr, 6);
+        TheMii::activate(c, o->mac_addr);
     }
     
     static bool sendFrame (Context c, SendBufferType *send_buffer)
@@ -119,6 +122,12 @@ public:
     {
         auto *o = Object::self(c);
         return o->link_up;
+    }
+    
+    static uint8_t const * getMacAddr (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->mac_addr;
     }
     
 private:
@@ -223,6 +232,7 @@ public:
         ThePhy
     >> {
         InitState init_state;
+        uint8_t mac_addr[6];
         bool link_up;
     };
 };

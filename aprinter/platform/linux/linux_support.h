@@ -49,6 +49,7 @@ struct LinuxCmdlineOptions {
     int rt_priority;
     int rt_affinity;
     int main_affinity;
+    char const *tap_dev;
 };
 
 extern LinuxCmdlineOptions cmdline_options;
