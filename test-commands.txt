@@ -64,3 +64,6 @@ M936 F0.txt
 
 # Run a local web interface forwarding API calls to machine.
 nix-build nix/ -A aprinterWebifTest -o ~/aprinter-webif-test && ~/aprinter-webif-test/bin/aprinter-webif-test
+
+# Run Linux test port.
+./aprinter-build-linux/aprinter-nixbuild.elf -l -cFIFO -p80
