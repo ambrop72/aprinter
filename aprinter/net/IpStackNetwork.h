@@ -120,10 +120,13 @@ private:
     static SeqType const EffectiveMaxRxWindow = MinValueU(TheIpTcpProto::MaxRcvWnd, TcpRxBufSize);
     
 public:
+    enum EthActivateState {NOT_ACTIVATED, ACTIVATING, ACTIVATE_FAILED, ACTIVATED};
+    
     struct NetworkParams {
+        EthActivateState activation_state : 2; // for getStatus() only 
+        bool link_up : 1; // for getStatus() only 
+        bool dhcp_enabled : 1;
         uint8_t mac_addr[6];
-        bool link_up; // for getStatus() only 
-        bool dhcp_enabled;
         uint8_t ip_addr[4];
         uint8_t ip_netmask[4];
         uint8_t ip_gateway[4];
@@ -137,8 +140,7 @@ public:
         o->event_listeners.init();
         o->ip_stack.init();
         o->ip_tcp_proto.init(&o->ip_stack);
-        o->net_activated = false;
-        o->eth_activated = false;
+        o->activation_state = NOT_ACTIVATED;
         o->driver_proxy.clear();
     }
     
@@ -147,7 +149,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->event_listeners.isEmpty())
         
-        if (o->net_activated) {
+        if (o->activation_state == ACTIVATED) {
             o->ip_iface.deinit();
             o->eth_ip_iface.deinit();
         }
@@ -163,70 +165,67 @@ public:
     static void activate (Context c, NetworkParams const *params)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(!o->net_activated)
-        AMBRO_ASSERT(!o->eth_activated)
-        
-        o->net_activated = true;
+        AMBRO_ASSERT(o->activation_state == NOT_ACTIVATED)
         
         MacAddr mac_addr = ReadSingleField<MacAddr>((char const *)params->mac_addr);
         
-        TheEthernet::activate(c, mac_addr.data);
-        o->eth_ip_iface.init(&o->driver_proxy);
-        o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
-        
-        if (!params->dhcp_enabled) {
-            Ip4Addr addr    = ReadSingleField<Ip4Addr>((char const *)params->ip_addr);
-            Ip4Addr netmask = ReadSingleField<Ip4Addr>((char const *)params->ip_netmask);
-            Ip4Addr gateway = ReadSingleField<Ip4Addr>((char const *)params->ip_gateway);
-            
-            if (addr != Ip4Addr::ZeroAddr()) {
-                o->ip_iface.setIp4Addr(IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
-            }
-            if (gateway != Ip4Addr::ZeroAddr()) {
-                o->ip_iface.setIp4Gateway(IpIfaceIp4GatewaySetting{true, gateway});
-            }
-        }
+        o->activation_state = ACTIVATING;
+        o->config = *params;
+        TheEthernet::activate(c, mac_addr);
     }
     
     static void deactivate (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->net_activated)
+        AMBRO_ASSERT(o->activation_state != NOT_ACTIVATED)
         
-        o->ip_iface.deinit();
-        o->eth_ip_iface.deinit();
+        if (o->activation_state == ACTIVATED) {
+            o->ip_iface.deinit();
+            o->eth_ip_iface.deinit();
+        }
         TheEthernet::reset(c);
-        
-        o->net_activated = false;
-        o->eth_activated = false;
+        o->activation_state = NOT_ACTIVATED;
         o->driver_proxy.clear();
     }
     
     static bool isActivated (Context c)
     {
         auto *o = Object::self(c);
-        return o->net_activated;
+        
+        return o->activation_state != NOT_ACTIVATED;
+    }
+    
+    static NetworkParams getConfig (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->activation_state != NOT_ACTIVATED)
+        
+        return o->config;
     }
     
     static NetworkParams getStatus (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->net_activated)
         
-        IpIfaceIp4AddrSetting addr_setting = o->ip_iface.getIp4Addr();
-        Ip4Addr addr = addr_setting.present ? addr_setting.addr : Ip4Addr::ZeroAddr();
-        Ip4Addr netmask = addr_setting.present ? Ip4Addr::PrefixMask(addr_setting.prefix) : Ip4Addr::ZeroAddr();
+        NetworkParams status = {};
         
-        IpIfaceIp4GatewaySetting gw_setting = o->ip_iface.getIp4Gateway();
-        Ip4Addr gateway = gw_setting.present ? gw_setting.addr : Ip4Addr::ZeroAddr();
+        status.activation_state = o->activation_state;
         
-        NetworkParams status;
-        WriteSingleField<MacAddr>((char *)status.mac_addr, TheEthernet::getMacAddr(c));
-        status.link_up = TheEthernet::getLinkUp(c);
-        status.dhcp_enabled = false;
-        WriteSingleField<Ip4Addr>((char *)status.ip_addr,    addr);
-        WriteSingleField<Ip4Addr>((char *)status.ip_netmask, netmask);
-        WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gateway);
+        if (o->activation_state == ACTIVATED) {
+            memcpy(status.mac_addr, TheEthernet::getMacAddr(c)->data, 6);
+            status.link_up = TheEthernet::getLinkUp(c);
+            
+            IpIfaceIp4AddrSetting addr_setting = o->ip_iface.getIp4Addr();
+            if (addr_setting.present) {
+                WriteSingleField<Ip4Addr>((char *)status.ip_addr, addr_setting.addr);
+                WriteSingleField<Ip4Addr>((char *)status.ip_netmask, Ip4Addr::PrefixMask(addr_setting.prefix));
+            }
+            
+            IpIfaceIp4GatewaySetting gw_setting = o->ip_iface.getIp4Gateway();
+            if (gw_setting.present) {
+                WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gw_setting.addr);
+            }
+        }
         
         return status;
     }
@@ -847,7 +846,7 @@ private:
         MacAddr const * getMacAddr () override
         {
             auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->net_activated)
+            AMBRO_ASSERT(o->activation_state == ACTIVATED)
             
             return TheEthernet::getMacAddr(Context());
         }
@@ -855,7 +854,7 @@ private:
         size_t getEthMtu () override
         {
             auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->net_activated)
+            AMBRO_ASSERT(o->activation_state == ACTIVATED)
             
             return EthMTU;
         }
@@ -863,7 +862,7 @@ private:
         IpErr sendFrame (IpBufRef frame) override
         {
             auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->net_activated)
+            AMBRO_ASSERT(o->activation_state == ACTIVATED)
             
             if (!TheEthernet::sendFrame(Context(), &frame)) {
                 return IpErr::BUFFER_FULL;
@@ -879,11 +878,28 @@ private:
     static void ethernet_activate_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->net_activated)
-        AMBRO_ASSERT(!o->eth_activated)
+        AMBRO_ASSERT(o->activation_state == ACTIVATING)
         
-        if (!error) {
-            o->eth_activated = true;
+        if (error) {
+            o->activation_state = ACTIVATE_FAILED;
+        } else {
+            o->activation_state = ACTIVATED;
+            
+            o->eth_ip_iface.init(&o->driver_proxy);
+            o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
+            
+            if (!o->config.dhcp_enabled) {
+                Ip4Addr addr    = ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
+                Ip4Addr netmask = ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
+                Ip4Addr gateway = ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
+                
+                if (addr != Ip4Addr::ZeroAddr()) {
+                    o->ip_iface.setIp4Addr(IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
+                }
+                if (gateway != Ip4Addr::ZeroAddr()) {
+                    o->ip_iface.setIp4Gateway(IpIfaceIp4GatewaySetting{true, gateway});
+                }
+            }
         }
         
         NetworkEvent event{NetworkEventType::ACTIVATION};
@@ -895,7 +911,7 @@ private:
     static void ethernet_link_handler (Context c, bool link_status)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->eth_activated)
+        AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
         // TODO: Inform IP stack about link.
         
@@ -905,10 +921,10 @@ private:
     }
     struct EthernetLinkHandler : public AMBRO_WFUNC_TD(&IpStackNetwork::ethernet_link_handler) {};
     
-    static void ethernet_receive_handler (Context c, uint8_t *data1, uint8_t *data2, size_t size1, size_t size2)
+    static void ethernet_receive_handler (Context c, char *data1, char *data2, size_t size1, size_t size2)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->eth_activated)
+        AMBRO_ASSERT(o->activation_state == ACTIVATED)
         AMBRO_ASSERT(o->driver_proxy.m_callback != nullptr)
         AMBRO_ASSERT(size2 == 0 || size1 > 0)
         
@@ -916,8 +932,8 @@ private:
             return;
         }
         
-        IpBufNode node2 = {(char *)data2, size2, nullptr};
-        IpBufNode node1 = {(char *)data1, size1, &node2};        
+        IpBufNode node2 = {data2, size2, nullptr};
+        IpBufNode node1 = {data1, size1, &node2};        
         IpBufRef frame = {&node1, 0, (size_t)(size1 + size2)};
         
         o->driver_proxy.m_callback->recvFrame(frame);
@@ -946,11 +962,11 @@ public:
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         TheIpStack ip_stack;
         TheIpTcpProto ip_tcp_proto;
-        bool net_activated;
-        bool eth_activated;
+        EthActivateState activation_state;
         EthDriverProxy driver_proxy;
         TheEthIpIface eth_ip_iface;
         typename TheIpStack::Iface ip_iface;
+        NetworkParams config;
     };
 };
 

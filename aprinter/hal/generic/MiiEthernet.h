@@ -35,6 +35,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/ipstack/proto/EthernetProto.h>
 #include <aprinter/hal/common/MiiCommon.h>
 
 #ifdef APRINTER_DEBUG_MII
@@ -77,7 +78,6 @@ public:
         ThePhy::init(c);
         o->init_state = InitState::INACTIVE;
         o->link_up = false;
-        memset(o->mac_addr, 0, 6);
     }
     
     static void deinit (Context c)
@@ -98,14 +98,14 @@ public:
         o->link_up = false;
     }
     
-    static void activate (Context c, uint8_t const *mac_addr)
+    static void activate (Context c, MacAddr mac_addr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
         
         o->init_state = InitState::INITING;
-        memcpy(o->mac_addr, mac_addr, 6);
-        TheMii::activate(c, o->mac_addr);
+        o->mac_addr = mac_addr;
+        TheMii::activate(c, o->mac_addr.data);
     }
     
     static bool sendFrame (Context c, SendBufferType *send_buffer)
@@ -124,10 +124,14 @@ public:
         return o->link_up;
     }
     
-    static uint8_t const * getMacAddr (Context c)
+    static MacAddr const * getMacAddr (Context c)
     {
         auto *o = Object::self(c);
-        return o->mac_addr;
+        
+        if (o->init_state != InitState::RUNNING) {
+            return nullptr;
+        }
+        return &o->mac_addr;
     }
     
 private:
@@ -232,7 +236,7 @@ public:
         ThePhy
     >> {
         InitState init_state;
-        uint8_t mac_addr[6];
+        MacAddr mac_addr;
         bool link_up;
     };
 };

@@ -34,6 +34,11 @@
 class MacAddr : public StructByteArray<6>
 {
 public:
+    static inline constexpr MacAddr ZeroAddr ()
+    {
+        return MacAddr{};
+    }
+    
     static inline constexpr MacAddr BroadcastAddr ()
     {
         MacAddr result = {};

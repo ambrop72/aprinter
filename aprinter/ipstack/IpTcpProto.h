@@ -27,6 +27,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>

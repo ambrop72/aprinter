@@ -395,6 +395,7 @@ def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
     arm_checksum_src_file = 'aprinter/net/inet_chksum_arm.S'
+    generic_checksum_src_file = 'aprinter/net/inet_chksum_generic.c'
     
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
@@ -417,7 +418,6 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
-        gen.register_singleton_object('checksum_src_file', {'alignment': 'u8_t'})
     
     @platform_sel.option('Stm32f4')
     def option(platform):
@@ -431,6 +431,7 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
         gen.add_init_call(-1, 'platform_init(argc, argv);')
         gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
+        gen.register_singleton_object('checksum_src_file', generic_checksum_src_file)
     
     config.do_selection(key, platform_sel)
 
@@ -1369,6 +1370,11 @@ def use_ethernet(gen, config, key, user):
             use_mii(gen, ethernet_config, 'MiiDriver', '{}::GetMii'.format(user)),
             use_phy(gen, ethernet_config, 'PhyDriver'),
         ])
+    
+    @ethernet_sel.option('LinuxTapEthernet')
+    def option(ethernet_config):
+        gen.add_aprinter_include('hal/linux/LinuxTapEthernet.h')
+        return 'LinuxTapEthernetService'
     
     return config.do_selection(key, ethernet_sel)
 

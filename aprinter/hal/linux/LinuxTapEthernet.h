@@ -41,12 +41,14 @@
 #include <net/if_arp.h>
 #include <linux/if_tun.h>
 
+#include <aprinter/platform/linux/linux_support.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/ipstack/proto/EthernetProto.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -57,7 +59,12 @@ class LinuxTapEthernet {
     APRINTER_USE_TYPE1(Arg, ClientParams)
     
     APRINTER_USE_TYPE1(ClientParams, SendBufferType)
+    APRINTER_USE_TYPE1(ClientParams, ActivateHandler)
     APRINTER_USE_TYPE1(ClientParams, ReceiveHandler)
+    
+    APRINTER_USE_TYPE1(Context::EventLoop, FdEvFlags)
+    
+    enum class InitState : uint8_t {INACTIVE, INITING, RUNNING};
     
 public:
     struct Object;
@@ -67,9 +74,9 @@ public:
     {
         auto *o = Object::self(c);
         
+        o->activate_event.init(c, APRINTER_CB_STATFUNC_T(&LinuxTapEthernet::activate_event_handler));
         o->fd_event.init(c, APRINTER_CB_STATFUNC_T(&LinuxTapEthernet::fd_event_handler));
-        o->activated = false;
-        memset(o->mac_addr, 0, 6);
+        o->init_state = InitState::INACTIVE;
     }
     
     static void deinit (Context c)
@@ -78,121 +85,40 @@ public:
         
         reset(c);
         o->fd_event.deinit(c);
+        o->activate_event.deinit(c);
     }
     
     static void reset (Context c)
     {
         auto *o = Object::self(c);
         
-        if (o->activated) {
+        if (o->init_state == InitState::RUNNING) {
             o->fd_event.reset(c);
             if (o->tap_fd >= 0) {
                 ::close(o->tap_fd);
             }
             ::free(o->write_buffer);
             ::free(o->read_buffer);
-            o->activated = false;
-            memset(o->mac_addr, 0, 6);
         }
+        
+        o->activate_event.unset(c);
+        o->init_state = InitState::INACTIVE;
     }
     
-    static void activate (Context c, uint8_t const *ignored_mac_addr)
+    static void activate (Context c, MacAddr ignored_mac_addr)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(!o->activated)
+        AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
         
-        o->activated = true;
-        o->read_buffer = nullptr;
-        o->write_buffer = nullptr;
-        
-        int sock = -1;
-        
-        do {
-            o->tap_fd = ::open("/dev/net/tun", O_RDWR);
-            if (o->tap_fd < 0) {
-                fprintf(stderr, "ERROR: Failed to open() /dev/net/tun.\n");
-                goto error:
-            }
-            
-            struct ifreq ifr;
-            
-            memset(&ifr, 0, sizeof(ifr));
-            ifr.ifr_flags |= IFF_NO_PI|IFF_TAP;
-            if (cmdline_options.tap_dev != nullptr) {
-                snprintf(ifr.ifr_name, IFNAMSIZ, "%s", cmdline_options.tap_dev);
-            }
-            
-            if (::ioctl(o->tap_fd, TUNSETIFF, (void *)&ifr) < 0) {
-                fprintf(stderr, "ERROR: ioctl(TUNSETIFF) failed.\n");
-                goto error;
-            }
-            
-            char devname_real[IFNAMSIZ];
-            strcpy(devname_real, ifr.ifr_name);
-            
-            sock = socket(AF_INET, SOCK_DGRAM, 0);
-            if (sock < 0) {
-                fprintf(stderr, "ERROR: socket(AF_INET, SOCK_DGRAM) failed.\n");
-                goto error;
-            }
-            
-            memset(&ifr, 0, sizeof(ifr));
-            strcpy(ifr.ifr_name, devname_real);
-            
-            if (::ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
-                fprintf(stderr, "ERROR: ioctl(SIOCGIFMTU) failed.\n");
-                goto error;
-            }
-            
-            o->eth_mtu = ifr.ifr_mtu + (size_t)14;
-            
-            if (o->eth_mtu < 128) {
-                fprintf(stderr, "ERROR: MTU is extremely small.\n");
-                goto error;
-            }
-            
-            memset(&ifr, 0, sizeof(ifr));
-            strcpy(ifr.ifr_name, devname_real);
-            
-            if (::ioctl(sock, SIOCGIFHWADDR, (void *)&ifr) < 0) {
-                fprintf(stderr, "ERROR: ioctl(SIOCGIFHWADDR) failed.\n");
-                goto error;
-            }
-            
-            memcpy(o->mac_addr, ifr.ifr_hwaddr.sa_data, 6);
-            
-            ::close(sock);
-        } while (false);
-        
-        o->read_buffer = ::malloc(o->eth_mtu);
-        AMBRO_ASSERT_FORCE(o->read_buffer != nullptr)
-        
-        o->write_buffer = ::malloc(o->eth_mtu);
-        AMBRO_ASSERT_FORCE(o->write_buffer != nullptr)
-        
-        Context::EventLoop::setFdNonblocking(o->tap_fd);
-        
-        o->fd_event.start(c, o->tap_fd, FdEvFlags::EV_READ);
-        
-        o->working = true;
-        return;
-        
-    error:
-        if (sock >= 0) {
-            ::close(sock);
-        }
-        if (o->tap_fd >= 0) {
-            ::close(o->tap_fd);
-            o->tap_fd = -1;
-        }
-        o->working = false;
+        o->init_state = InitState::INITING;
+        o->activate_event.prependNowNotAlready(c);
     }
     
     static bool sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
         
-        if (!o->activated || !o->working) {
+        if (o->init_state != InitState::RUNNING || !o->working) {
             return false;
         }
         
@@ -215,21 +141,122 @@ public:
     {
         auto *o = Object::self(c);
         
-        return o->activated && o->working;
+        return o->init_state == InitState::RUNNING && o->working;
     }
     
-    static uint8_t const * getMacAddr (Context c)
+    static MacAddr const * getMacAddr (Context c)
     {
         auto *o = Object::self(c);
         
-        return o->mac_addr;
+        if (o->init_state != InitState::RUNNING) {
+            return nullptr;
+        }
+        return &o->mac_addr;
     }
     
 private:
+    static void activate_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::INITING)
+        
+        int sock = -1;
+        o->read_buffer = nullptr;
+        o->write_buffer = nullptr;
+        
+        do {
+            o->tap_fd = ::open("/dev/net/tun", O_RDWR);
+            if (o->tap_fd < 0) {
+                fprintf(stderr, "ERROR: Failed to open() /dev/net/tun.\n");
+                break;
+            }
+            
+            struct ifreq ifr;
+            
+            memset(&ifr, 0, sizeof(ifr));
+            ifr.ifr_flags |= IFF_NO_PI|IFF_TAP;
+            if (cmdline_options.tap_dev != nullptr) {
+                snprintf(ifr.ifr_name, IFNAMSIZ, "%s", cmdline_options.tap_dev);
+            }
+            
+            if (::ioctl(o->tap_fd, TUNSETIFF, (void *)&ifr) < 0) {
+                fprintf(stderr, "ERROR: ioctl(TUNSETIFF) failed.\n");
+                break;
+            }
+            
+            char devname_real[IFNAMSIZ];
+            strcpy(devname_real, ifr.ifr_name);
+            
+            sock = socket(AF_INET, SOCK_DGRAM, 0);
+            if (sock < 0) {
+                fprintf(stderr, "ERROR: socket(AF_INET, SOCK_DGRAM) failed.\n");
+                break;
+            }
+            
+            memset(&ifr, 0, sizeof(ifr));
+            strcpy(ifr.ifr_name, devname_real);
+            
+            if (::ioctl(sock, SIOCGIFMTU, (void *)&ifr) < 0) {
+                fprintf(stderr, "ERROR: ioctl(SIOCGIFMTU) failed.\n");
+                break;
+            }
+            
+            o->eth_mtu = ifr.ifr_mtu + (size_t)14;
+            
+            if (o->eth_mtu < 128) {
+                fprintf(stderr, "ERROR: MTU is extremely small.\n");
+                break;
+            }
+            
+            memset(&ifr, 0, sizeof(ifr));
+            strcpy(ifr.ifr_name, devname_real);
+            
+            if (::ioctl(sock, SIOCGIFHWADDR, (void *)&ifr) < 0) {
+                fprintf(stderr, "ERROR: ioctl(SIOCGIFHWADDR) failed.\n");
+                break;
+            }
+            
+            memcpy(o->mac_addr.data, ifr.ifr_hwaddr.sa_data, 6);
+            
+            if ((o->read_buffer = (char *)::malloc(o->eth_mtu)) == nullptr) {
+                fprintf(stderr, "ERROR: malloc read buffer failed.\n");
+                break;
+            }
+            
+            if ((o->write_buffer = (char *)::malloc(o->eth_mtu)) == nullptr) {
+                fprintf(stderr, "ERROR: malloc write buffer failed.\n");
+                break;
+            }
+            
+            Context::EventLoop::setFdNonblocking(o->tap_fd);
+            
+            o->fd_event.start(c, o->tap_fd, FdEvFlags::EV_READ);
+            
+            o->init_state = InitState::RUNNING;
+            o->working = true;
+        } while (false);
+        
+        if (sock >= 0) {
+            ::close(sock);
+        }
+        
+        bool error = (o->init_state != InitState::RUNNING);
+        if (error) {
+            ::free(o->write_buffer);
+            ::free(o->read_buffer);
+            if (o->tap_fd >= 0) {
+                ::close(o->tap_fd);
+            }
+            o->init_state = InitState::INACTIVE;
+        }
+        
+        return ActivateHandler::call(c, error);
+    }
+    
     static void fd_event_handler (Context c, int events)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->activated)
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         AMBRO_ASSERT(o->working)
         
         ssize_t read_res = ::read(o->tap_fd, o->read_buffer, o->eth_mtu);
@@ -250,19 +277,20 @@ private:
         AMBRO_ASSERT(read_res <= o->eth_mtu)
         size_t frame_size = read_res;
         
-        ReceiveHandler::call(c, o->read_buffer, nullptr, frame_size, 0);
+        return ReceiveHandler::call(c, o->read_buffer, (char *)nullptr, frame_size, (size_t)0);
     }
     
-private:
+public:
     struct Object : public ObjBase<LinuxTapEthernet, ParentObject, EmptyTypeList> {
+        typename Context::EventLoop::QueuedEvent activate_event;
         typename Context::EventLoop::FdEvent fd_event;
         size_t eth_mtu;
         char *read_buffer;
         char *write_buffer;
         int tap_fd;
-        bool activated;
+        InitState init_state;
         bool working;
-        uint8_t mac_addr[6];
+        MacAddr mac_addr;
     };
 };
 

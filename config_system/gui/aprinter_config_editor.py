@@ -832,6 +832,7 @@ def editor():
                                 mii_choice(key='MiiDriver', title='MII driver'),
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
+                            ce.Compound('LinuxTapEthernet', title='Linux TAP', attrs=[]),
                         ]),
                         ce.Integer(key='NumArpEntries', title='Number of ARP entries', default=16),
                         ce.Integer(key='ArpProtectCount', title='Number of protected ARP entries', default=8),

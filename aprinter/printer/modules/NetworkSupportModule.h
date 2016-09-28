@@ -64,6 +64,13 @@ public:
         TheNetwork::enableDebugMessages(c, true);
         o->network_event_listener.init(c, APRINTER_CB_STATFUNC_T(&NetworkSupportModule::network_event_handler));
         o->network_event_listener.startListening(c);
+        
+        // If there is no configuration store then we will activate
+        // the network here already, otherwise configuration_changed will
+        // be called when the configuration is loaded from the store.
+        if (!ThePrinterMain::TheConfigManager::HasStore) {
+            configuration_changed(c);
+        }
     }
     
     static void deinit (Context c)
@@ -82,19 +89,19 @@ public:
         ConfigTypeIpAddress cfg_ip_gateway = APRINTER_CFG(Config, CIpGateway, c);
         
         if (TheNetwork::isActivated(c)) {
-            auto status = TheNetwork::getStatus(c);
+            auto config = TheNetwork::getConfig(c);
             
             bool match =
                 cfg_net_enabled &&
-                memcmp(cfg_mac.mac_addr, status.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
-                cfg_dhcp_enabled == status.dhcp_enabled &&
+                memcmp(cfg_mac.mac_addr, config.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
+                cfg_dhcp_enabled == config.dhcp_enabled &&
                 (cfg_dhcp_enabled || (
-                    memcmp(cfg_ip_addr.ip_addr,    status.ip_addr,    ConfigTypeIpAddress::Size) == 0 &&
-                    memcmp(cfg_ip_netmask.ip_addr, status.ip_netmask, ConfigTypeIpAddress::Size) == 0 &&
-                    memcmp(cfg_ip_gateway.ip_addr, status.ip_gateway, ConfigTypeIpAddress::Size) == 0
+                    memcmp(cfg_ip_addr.ip_addr,    config.ip_addr,    ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_netmask.ip_addr, config.ip_netmask, ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_gateway.ip_addr, config.ip_gateway, ConfigTypeIpAddress::Size) == 0
                 ));
             
-            if (!match) {
+            if (!match || TheNetwork::getStatus(c).activation_state == TheNetwork::ACTIVATE_FAILED) {
                 TheNetwork::deactivate(c);
             }
         }
@@ -127,11 +134,18 @@ private:
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("Network: "));
         
-        if (!TheNetwork::isActivated(c)) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Inactive"));
-        } else {
-            auto status = TheNetwork::getStatus(c);
-            
+        auto status = TheNetwork::getStatus(c);
+        
+        if (status.activation_state == TheNetwork::NOT_ACTIVATED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("NotActivated"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATING) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Activating"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATE_FAILED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("ActivationFailed"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATED) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("MAC="));
             print_mac_addr(c, cmd, status.mac_addr);
             

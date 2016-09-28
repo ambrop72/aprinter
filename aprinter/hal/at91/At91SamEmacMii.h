@@ -374,7 +374,7 @@ private:
             size2 = 0;
         }
         
-        ClientParams::ReceiveHandler::call(c, data1, data2, size1, size2);
+        ClientParams::ReceiveHandler::call(c, (char *)data1, (char *)data2, (size_t)size1, (size_t)size2);
         
         if (read_res == EMAC_OK) {
             emac_dev_read_end(&o->emac_dev, &state);
