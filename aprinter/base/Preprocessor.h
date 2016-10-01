@@ -33,8 +33,14 @@
 
 #define APRINTER_REMOVE_PARENS(...) __VA_ARGS__
 
+#include "Preprocessor_MacroMap.h"
+
 #define APRINTER_USE_TYPE1(namespace, type_name) using type_name = typename namespace::type_name;
 #define APRINTER_USE_TYPE2(namespace, type_name) using type_name = namespace::type_name;
 #define APRINTER_USE_VAL(namespace, value_name) static constexpr auto value_name = namespace::value_name;
+
+#define APRINTER_USE_TYPES1(namespace, type_names) APRINTER_AS_MAP(APRINTER_USE_TYPE1, APRINTER_AS_MAP_DELIMITER_NONE, namespace, type_names)
+#define APRINTER_USE_TYPES2(namespace, type_names) APRINTER_AS_MAP(APRINTER_USE_TYPE2, APRINTER_AS_MAP_DELIMITER_NONE, namespace, type_names)
+#define APRINTER_USE_VALS(namespace,   type_names) APRINTER_AS_MAP(APRINTER_USE_VAL,   APRINTER_AS_MAP_DELIMITER_NONE, namespace, type_names)
 
 #endif
