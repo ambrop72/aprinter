@@ -34,7 +34,6 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
@@ -890,7 +889,7 @@ private:
             // Calculate MSSes.
             uint16_t iface_mss = get_iface_mss(ip_meta.iface);
             uint16_t snd_mss;
-            if (!calc_snd_mss(iface_mss, *tcp_meta.opts, &snd_mss)) {
+            if (!TcpUtils::calc_snd_mss<MinAllowedMss>(iface_mss, *tcp_meta.opts, &snd_mss)) {
                 goto refuse;
             }
             
@@ -1987,20 +1986,11 @@ private:
     void send_tcp (Ip4Addr local_addr, Ip4Addr remote_addr,
                    TcpSegMeta const &tcp_meta, IpBufRef data=IpBufRef{})
     {
-        // Maximum length of TCP options.
-        size_t const MaxOptsLen = TcpOptionLenMSS;
-        
         // Compute length of TCP options.
-        uint8_t options = (tcp_meta.opts != nullptr) ? tcp_meta.opts->options : 0;
-        uint8_t opts_len = 0;
-        if ((options & OptionFlags::MSS) != 0) {
-            opts_len += TcpOptionLenMSS;
-        }
-        // NOTE: opts_len must be a multiple of 4, this must be considered
-        // if any other options are implemented written in the future.
+        uint8_t opts_len = (tcp_meta.opts != nullptr) ? TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
         
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator, Tcp4Header::Size+MaxOptsLen, HeaderBeforeIp4Dgram>
+        TxAllocHelper<BufAllocator, Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
             dgram_alloc(Tcp4Header::Size+opts_len);
         
         // Caculate the offset+flags field.
@@ -2018,12 +2008,8 @@ private:
         tcp_header.set(Tcp4Header::UrgentPtr(),   0);
         
         // Write any TCP options.
-        char *opts_data = dgram_alloc.getPtr() + Tcp4Header::Size;
-        if ((options & OptionFlags::MSS) != 0) {
-            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionMSS,       opts_data + 0);
-            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionLenMSS,    opts_data + 1);
-            WriteBinaryInt<uint16_t, BinaryBigEndian>(tcp_meta.opts->mss, opts_data + 2);
-            opts_data += TcpOptionLenMSS;
+        if (tcp_meta.opts != nullptr) {
+            TcpUtils::write_options(*tcp_meta.opts, dgram_alloc.getPtr() + Tcp4Header::Size);
         }
         
         // Construct the datagram reference including any data.
@@ -2047,19 +2033,6 @@ private:
         // Send the datagram.
         Ip4DgramMeta meta = {local_addr, remote_addr, TcpTTL, Ip4ProtocolTcp};
         m_stack->sendIp4Dgram(meta, dgram);
-    }
-    
-    static bool calc_snd_mss (uint16_t iface_mss, TcpOptions const &tcp_opts, uint16_t *out_mss)
-    {
-        uint16_t mss = iface_mss;
-        if ((tcp_opts.options & OptionFlags::MSS) != 0) {
-            mss = MinValue(mss, tcp_opts.mss);
-        }
-        if (mss < MinAllowedMss) {
-            return false;
-        }
-        *out_mss = mss;
-        return true;
     }
     
     static uint16_t get_iface_mss (Iface *iface)

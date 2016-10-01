@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/ipstack/Buf.h>
@@ -193,6 +194,43 @@ namespace TcpUtils
         // Extend it to reference the entire segment data and return it to the caller.
         buf.tot_len = data_len;
         *out_data = buf;
+    }
+    
+    static size_t const MaxOptionsWriteLen = TcpOptionLenMSS;
+    
+    static inline uint8_t calc_options_len (TcpOptions const &tcp_opts)
+    {
+        uint8_t opts_len = 0;
+        if ((tcp_opts.options & OptionFlags::MSS) != 0) {
+            opts_len += TcpOptionLenMSS;
+        }
+        AMBRO_ASSERT(opts_len <= MaxOptionsWriteLen)
+        AMBRO_ASSERT(opts_len % 4 == 0) // caller needs padding to 4-byte alignment
+        return opts_len;
+    }
+    
+    static inline void write_options (TcpOptions const &tcp_opts, char *out)
+    {
+        if ((tcp_opts.options & OptionFlags::MSS) != 0) {
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionMSS,       out + 0);
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionLenMSS,    out + 1);
+            WriteBinaryInt<uint16_t, BinaryBigEndian>(tcp_opts.mss,       out + 2);
+            out += TcpOptionLenMSS;
+        }
+    }
+    
+    template <uint16_t MinAllowedMss>
+    static bool calc_snd_mss (uint16_t iface_mss, TcpOptions const &tcp_opts, uint16_t *out_mss)
+    {
+        uint16_t mss = iface_mss;
+        if ((tcp_opts.options & OptionFlags::MSS) != 0) {
+            mss = MinValue(mss, tcp_opts.mss);
+        }
+        if (mss < MinAllowedMss) {
+            return false;
+        }
+        *out_mss = mss;
+        return true;
     }
 }
 
