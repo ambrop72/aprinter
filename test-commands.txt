@@ -66,4 +66,8 @@ M936 F0.txt
 nix-build nix/ -A aprinterWebifTest -o ~/aprinter-webif-test && ~/aprinter-webif-test/bin/aprinter-webif-test
 
 # Run Linux test port.
-./aprinter-build-linux/aprinter-nixbuild.elf -l -cFIFO -p80
+./aprinter-build-linux/aprinter-nixbuild.elf -l -cFIFO -p80 -ttap9
+
+# TAP config for Linux
+ip tuntap add dev tap9 mode tap user ambro
+ifconfig tap9 192.168.64.1/24
