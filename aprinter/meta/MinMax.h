@@ -48,6 +48,12 @@ constexpr T AbsoluteValue (T op)
     return (op > 0) ? op : -op;
 }
 
+template <typename T>
+constexpr T AbsoluteDiff (T op1, T op2)
+{
+    return (op1 > op2) ? (op1 - op2) : (op2 - op1);
+}
+
 template <typename T1, typename T2>
 using MinValueURetType = If<(IntTypeInfo<T1>::NumBits < IntTypeInfo<T2>::NumBits), T1, T2>;
 

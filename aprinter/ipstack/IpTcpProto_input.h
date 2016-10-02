@@ -48,7 +48,6 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpPcb, PcbFlags, Output))
-    APRINTER_USE_VALS(TcpProto, (pcb_has_flag, pcb_set_flag, pcb_clear_flag))
     
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
@@ -149,7 +148,7 @@ public:
         pcb->rcv_wnd += wnd_ext;
         
         // Don't do anything else if we're in the connectionAborted callback.
-        if (pcb_has_flag(pcb, PcbFlags::ABORTING)) {
+        if (pcb->hasFlag(PcbFlags::ABORTING)) {
             return;
         }
         
@@ -225,6 +224,7 @@ private:
             pcb->snd_buf_cur = IpBufRef::NullRef();
             pcb->snd_psh_index = 0;
             pcb->snd_mss = snd_mss;
+            pcb->rto = TcpProto::InitialRtxTime;
             
             // These will be initialized at transition to ESTABLISHED:
             // snd_wnd, snd_wl1, snd_wl2
@@ -456,24 +456,30 @@ private:
                 SeqType acked = seq_diff(tcp_meta.ack_num, pcb->snd_una);
                 AMBRO_ASSERT(acked > 0)
                 
+                // Handle end of round-trip-time measurement.
+                if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
+                    seq_lt(pcb->rtt_test_seq, tcp_meta.ack_num, pcb->snd_una))
+                {
+                    Output::pcb_rtt_test_seq_acked(pcb);
+                }
+                
                 // Update snd_una due to sequences having been ACKed.
                 pcb->snd_una = tcp_meta.ack_num;
                 
-                // Because snd_wnd is relative to snd_una, a matching decrease of snd_wnd
-                // is neeeded.
-                if (AMBRO_LIKELY(acked <= pcb->snd_wnd)) {
-                    pcb->snd_wnd -= acked;
-                } else {
-                    // More has been ACKed than the send window. As snd_wnd annot be made
-                    // negative, this is effectively an increase of the send window.
-                    // This warrants a pcb_output but we're setting that up anyway next.
-                    pcb->snd_wnd = 0;
-                }
+                // The snd_wnd needs adjustment because it is relative to snd_una.
+                pcb->snd_wnd -= MinValue(pcb->snd_wnd, acked);
                 
-                // Clear the retransmission timeout and schedule pcb_output to
-                // be done shortly, which will res-set the timeout as needed.
+                // Stop the rtx_timer. Consider that:
+                // - We might be invalidating the assert pcb_has_snd_outstanding
+                //   in rtx_timer_handler as we process the ACK below.
+                // - If the rtx_timer is set for retransmission we might then
+                //   the above decrease of snd_wnd might be invalidating the
+                //   assert snd_wnd!=0 assert in pcb_rtx_timer_handler.
                 pcb->rtx_timer.unset(Context());
-                pcb_set_flag(pcb, PcbFlags::OUT_PENDING);
+                
+                // Schedule pcb_output, so that the rtx_timer will be restarted
+                // if needed (for retransmission or zero-window probe).
+                pcb->setFlag(PcbFlags::OUT_PENDING);
                 
                 // Check if our FIN has just been acked.
                 bool fin_acked = Output::pcb_fin_acked(pcb);
@@ -489,7 +495,7 @@ private:
                     AMBRO_ASSERT(pcb->snd_psh_index <= pcb->snd_buf.tot_len)
                     
                     // Advance the send buffer.
-                    size_t cur_offset = Output::pcb_snd_cur_offset(pcb);
+                    size_t cur_offset = Output::pcb_snd_offset(pcb);
                     if (data_acked >= cur_offset) {
                         pcb->snd_buf_cur.skipBytes(data_acked - cur_offset);
                         pcb->snd_buf = pcb->snd_buf_cur;
@@ -528,13 +534,12 @@ private:
                     if (pcb->state == TcpState::FIN_WAIT_1) {
                         // FIN is accked in FIN_WAIT_1, transition to FIN_WAIT_2.
                         pcb->state = TcpState::FIN_WAIT_2;
-                        // At this transition output_timer and rtx_timer must
-                        // be unset due to assert in their handlers.
+                        // At this transition output_timer and rtx_timer must be unset
+                        // due to assert in their handlers (rtx_timer was unset above).
                         pcb->output_timer.unset(Context());
-                        // rtx_timer was unset above already.
                     }
                     else if (pcb->state == TcpState::CLOSING) {
-                        // Transition to TIME_WAIT; pcb_unlink_con is done by pcb_go_to_time_wait.
+                        // Transition to TIME_WAIT (pcb_unlink_con is done by pcb_go_to_time_wait).
                         // Further processing below is not applicable so return here.
                         return TcpProto::pcb_go_to_time_wait(pcb);
                     }
@@ -566,9 +571,21 @@ private:
                     pcb->snd_wl1 = tcp_meta.seq_num;
                     pcb->snd_wl2 = tcp_meta.ack_num;
                     
-                    // If the window has increased, pcb_output is warranted.
+                    // If the window has increased, schedule pcb_output because it may
+                    // be possible to send something more.
                     if (pcb->snd_wnd > old_snd_wnd) {
-                        pcb_set_flag(pcb, PcbFlags::OUT_PENDING);
+                        pcb->setFlag(PcbFlags::OUT_PENDING);
+                    }
+                    
+                    // If this update invalidates the third assert in pcb_rtx_timer_handler
+                    // (zero-window probe scheduled but we no longer have zero window
+                    // or retransmission scheduled but we now have zero window), then we
+                    // stop the rtx_timer and schedule pcb_output.
+                    if (pcb->rtx_timer.isSet(Context()) &&
+                        (pcb->snd_wnd == 0) != pcb->hasFlag(PcbFlags::ZERO_WINDOW))
+                    {
+                        pcb->rtx_timer.unset(Context());
+                        pcb->setFlag(PcbFlags::OUT_PENDING);
                     }
                 }
             }
@@ -602,7 +619,7 @@ private:
                 }
                 
                 // Send an ACK (below).
-                pcb_set_flag(pcb, PcbFlags::ACK_PENDING);
+                pcb->setFlag(PcbFlags::ACK_PENDING);
                 
                 // If a FIN was received, make appropriate state transitions, except the
                 // FIN_WAIT_2->TIME_WAIT transition which is done after the callbacks.
@@ -650,17 +667,17 @@ private:
         }
         else if (pcb->state == TcpState::TIME_WAIT) {
             // Reply with an ACK, and restart the timeout.
-            pcb_set_flag(pcb, PcbFlags::ACK_PENDING);
+            pcb->setFlag(PcbFlags::ACK_PENDING);
             pcb->abrt_timer.appendAfter(Context(), TcpProto::TimeWaitTimeTicks);
         }
         
         // Try to output if desired.
-        if (pcb_has_flag(pcb, PcbFlags::OUT_PENDING)) {
-            pcb_clear_flag(pcb, PcbFlags::OUT_PENDING);
+        if (pcb->hasFlag(PcbFlags::OUT_PENDING)) {
+            pcb->clearFlag(PcbFlags::OUT_PENDING);
             if (can_output_in_state(pcb->state)) {
-                bool sent_something = Output::pcb_output(tcp, pcb);
-                if (sent_something) {
-                    pcb_clear_flag(pcb, PcbFlags::ACK_PENDING);
+                bool sent_ack = Output::pcb_output(pcb);
+                if (sent_ack) {
+                    pcb->clearFlag(PcbFlags::ACK_PENDING);
                 }
             }
         }
@@ -668,8 +685,8 @@ private:
         // Send an empty ACK if desired.
         // Note, ACK_PENDING will have been cleared above if pcb_output sent anything,
         // in that case we don't need an empty ACK here.
-        if (pcb_has_flag(pcb, PcbFlags::ACK_PENDING)) {
-            pcb_clear_flag(pcb, PcbFlags::ACK_PENDING);
+        if (pcb->hasFlag(PcbFlags::ACK_PENDING)) {
+            pcb->clearFlag(PcbFlags::ACK_PENDING);
             Output::pcb_send_empty_ack(tcp, pcb);
         }
     }

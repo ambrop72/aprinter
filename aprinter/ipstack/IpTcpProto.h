@@ -31,6 +31,8 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/BitsInFloat.h>
+#include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Callback.h>
@@ -73,17 +75,34 @@ public:
 private:
     APRINTER_USE_TYPES2(TcpUtils, (TcpState))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
-                                 can_output_in_state, snd_not_closed_in_state))
+                                 can_output_in_state, snd_open_in_state))
     
     // PCB flags, see flags in TcpPcb.
     struct PcbFlags { enum : uint8_t {
-        ACK_PENDING = 1 << 0,
-        OUT_PENDING = 1 << 1,
-        FIN_SENT    = 1 << 2,
-        FIN_PENDING = 1 << 3,
-        ZERO_WINDOW = 1 << 4,
-        ABORTING    = 1 << 5,
+        ACK_PENDING = 1 << 0, // ACK is needed; used in input processing
+        OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
+        FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
+        FIN_PENDING = 1 << 3, // A FIN is to be transmitted
+        ZERO_WINDOW = 1 << 4, // The rtx_timer is running for a zero-window probe
+        ABORTING    = 1 << 5, // The connectionAborted callback is being called
+        RTT_PENDING = 1 << 6, // Round-trip-time is being measured
+        RTT_VALID   = 1 << 7, // Round-trip-time is not in initial state
     }; };
+    
+    // For retransmission time calculations we right-shift the Clock time
+    // to obtain granularity between 1ms and 2ms.
+    static int const RttShift = BitsInFloat(1e-3 / Clock::time_unit);
+    static_assert(RttShift >= 0, "");
+    static constexpr double RttTimeFreq = Clock::time_freq / PowerOfTwoFunc<double>(RttShift);
+    
+    // We store such scaled times in 16-bit variables.
+    // This gives us a range of at least 65 seconds.
+    using RttType = uint16_t;
+    static RttType const RttTypeMax = (RttType)-1;
+    static constexpr double RttTypeMaxDbl = RttTypeMax;
+    
+    // For intermediate RTT results we need a larger type.
+    using RttNextType = uint32_t;
     
     /**
      * A TCP Protocol Control Block.
@@ -124,6 +143,13 @@ private:
         SeqType rcv_ann;
         SeqType rcv_ann_thres;
         
+        // Round-trip-time and retransmission time management.
+        SeqType rtt_test_seq;
+        TimeType rtt_test_time;
+        RttType rttvar;
+        RttType srtt;
+        RttType rto;
+        
         // MSSes
         uint16_t snd_mss;
         uint16_t rcv_mss;
@@ -131,19 +157,18 @@ private:
         // PCB state.
         TcpState state;
         
-        // Flags:
-        // ACK_PENDING - ACK is needed; used in input processing
-        // OUT_PENDING - pcb_output is needed; used in input processing
-        // FIN_SENT    - A FIN has been sent, and is included in snd_nxt
-        // FIN_PENDING - A FIN is to be transmitted
-        // ZERO_WINDOW - The rtx_timer has been set due to zero window
-        // ABORTING    - The connectionAborted callback is being called
+        // Flags (see comments in PcbFlags).
         uint8_t flags;
+        
+        // Convenience functions.
+        inline bool hasFlag (uint8_t flag) { return (flags & flag) != 0; }
+        inline void setFlag (uint8_t flag) { flags |= flag; }
+        inline void clearFlag (uint8_t flag) { flags &= ~flag; }
         
         // Trampolines for timer handlers.
         void abrt_timer_handler (Context) { tcp->pcb_abrt_timer_handler(this); }
-        void output_timer_handler (Context) { Output::pcb_output_timer_handler(tcp, this); }
-        void rtx_timer_handler (Context) { Output::pcb_rtx_timer_handler(tcp, this); }
+        void output_timer_handler (Context) { Output::pcb_output_timer_handler(this); }
+        void rtx_timer_handler (Context) { Output::pcb_rtx_timer_handler(this); }
     };
     
 private:
@@ -156,11 +181,7 @@ private:
     // Don't allow the remote host to lower the MSS beyond this.
     static uint16_t const MinAllowedMss = 128;
     
-    // TODO: Retransmission time management
     // TODO: Zero-window probe time management
-    
-    // Retransmission time (currently stupid and hardcoded).
-    static TimeType const RetransmissionTimeTicks = 0.5   * Clock::time_freq;
     
     // Zero-window probe time (currently stupid and hardcoded).
     static TimeType const ZeroWindowTimeTicks     = 0.5   * Clock::time_freq;
@@ -176,6 +197,15 @@ private:
     
     // Time after the send buffer is extended to calling pcb_output.
     static TimeType const OutputTimerTicks        = 0.0005 * Clock::time_freq;
+    
+    // Initial retransmission time, before any round-trip-time measurement.
+    static RttType const InitialRtxTime           = 1.0 * RttTimeFreq;
+    
+    // Minimum retransmission time.
+    static RttType const MinRtxTime               = 0.25 * RttTimeFreq;
+    
+    // Maximum retransmission time (need care not to overflow RttType).
+    static RttType const MaxRtxTime = MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
     
 private:
     template <typename> friend class IpTcpProto_input;
@@ -752,7 +782,7 @@ public:
             // Note that we ignore the request after endSending was called.
             // Because we pushed in pcb_end_sending, retransmissions of the
             // FIN will occur internally as needed.
-            if (snd_not_closed_in_state(m_pcb->state)) {
+            if (snd_open_in_state(m_pcb->state)) {
                 Output::pcb_push_output(m_tcp, m_pcb);
             }
         }
@@ -768,7 +798,7 @@ public:
         void assert_pcb_sending ()
         {
             assert_pcb();
-            AMBRO_ASSERT(snd_not_closed_in_state(m_pcb->state))
+            AMBRO_ASSERT(snd_open_in_state(m_pcb->state))
         }
         
     private:
@@ -792,7 +822,7 @@ private:
         // has no associated TcpConnection. For the latter case use the least
         // recently used such PCB.
         for (TcpPcb &pcb : m_pcbs) {
-            if (pcb_has_flag(&pcb, PcbFlags::ABORTING)) {
+            if (pcb.hasFlag(PcbFlags::ABORTING)) {
                 // Ignore PCB being aborted in pcb_abort.
                 continue;
             }
@@ -844,15 +874,15 @@ private:
     void pcb_abort (TcpPcb *pcb, bool send_rst)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
-        AMBRO_ASSERT(!pcb_has_flag(pcb, PcbFlags::ABORTING))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::ABORTING))
         
         // If there is an associated TcpConnection, call the connectionAborted
         // callback. During set the flag ABORTING durring the callback so we
         // can tell if we're being called back from here.
         if (pcb->con != nullptr) {
-            pcb_set_flag(pcb, PcbFlags::ABORTING);
+            pcb->setFlag(PcbFlags::ABORTING);
             pcb->con->m_callback->connectionAborted();
-            pcb_clear_flag(pcb, PcbFlags::ABORTING);
+            pcb->clearFlag(PcbFlags::ABORTING);
         }
         
         // Send RST if desired.
@@ -955,7 +985,7 @@ private:
         AMBRO_ASSERT(pcb->con == nullptr)
         
         // Ignore this if it we're in the connectionAborted callback.
-        if (pcb_has_flag(pcb, PcbFlags::ABORTING)) {
+        if (pcb->hasFlag(PcbFlags::ABORTING)) {
             return;
         }
         
@@ -973,7 +1003,7 @@ private:
             }
             
             // Assume end of data from user.
-            if (snd_not_closed_in_state(pcb->state)) {
+            if (snd_open_in_state(pcb->state)) {
                 Output::pcb_end_sending(this, pcb);
             }
         }
@@ -999,21 +1029,6 @@ private:
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
         pcb_abort(pcb);
-    }
-    
-    inline static bool pcb_has_flag (TcpPcb *pcb, uint8_t flag)
-    {
-        return (pcb->flags & flag) != 0;
-    }
-    
-    inline static void pcb_set_flag (TcpPcb *pcb, uint8_t flag)
-    {
-        pcb->flags |= flag;
-    }
-    
-    inline static void pcb_clear_flag (TcpPcb *pcb, uint8_t flag)
-    {
-        pcb->flags &= ~flag;
     }
     
     // Call a TcpConnection callback, if there is any TcpConnection associated.

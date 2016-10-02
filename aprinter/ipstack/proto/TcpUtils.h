@@ -123,7 +123,7 @@ namespace TcpUtils
                               TcpState::LAST_ACK);
     }
     
-    static inline bool snd_not_closed_in_state (TcpState state)
+    static inline bool snd_open_in_state (TcpState state)
     {
         return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
     }
