@@ -469,12 +469,9 @@ private:
                 // The snd_wnd needs adjustment because it is relative to snd_una.
                 pcb->snd_wnd -= MinValue(pcb->snd_wnd, acked);
                 
-                // Stop the rtx_timer. Consider that:
-                // - We might be invalidating the assert pcb_has_snd_outstanding
-                //   in rtx_timer_handler as we process the ACK below.
-                // - If the rtx_timer is set for retransmission we might then
-                //   the above decrease of snd_wnd might be invalidating the
-                //   assert snd_wnd!=0 assert in pcb_rtx_timer_handler.
+                // Stop the rtx_timer. Consider that by adjusting the
+                // window here and in handling the ACK below, we might be
+                // invalidating the asserts in pcb_rtx_timer_handler.
                 pcb->rtx_timer.unset(Context());
                 
                 // Schedule pcb_output, so that the rtx_timer will be restarted
@@ -577,14 +574,17 @@ private:
                         pcb->setFlag(PcbFlags::OUT_PENDING);
                     }
                     
-                    // If this update invalidates the third assert in pcb_rtx_timer_handler
-                    // (zero-window probe scheduled but we no longer have zero window
-                    // or retransmission scheduled but we now have zero window), then we
-                    // stop the rtx_timer and schedule pcb_output.
-                    if (pcb->rtx_timer.isSet(Context()) &&
-                        (pcb->snd_wnd == 0) != pcb->hasFlag(PcbFlags::ZERO_WINDOW))
-                    {
+                    // Check if we need to end widow probing.
+                    // This is done by checking if the assert pcb_need_rtx_timer
+                    // has been invalidated while the rtx_timer was running.
+                    if (pcb->rtx_timer.isSet(Context()) && !Output::pcb_need_rtx_timer(pcb)) {
+                        // Stop the timer to stop window probes and avoid hitting the assert.
                         pcb->rtx_timer.unset(Context());
+                        
+                        // Undo any increase of the retransmission time.
+                        Output::pcb_update_rto(pcb);
+                        
+                        // Schedule pcb_output which should now send something.
                         pcb->setFlag(PcbFlags::OUT_PENDING);
                     }
                 }

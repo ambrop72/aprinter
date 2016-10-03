@@ -83,10 +83,9 @@ private:
         OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
         FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
         FIN_PENDING = 1 << 3, // A FIN is to be transmitted
-        ZERO_WINDOW = 1 << 4, // The rtx_timer is running for a zero-window probe
-        ABORTING    = 1 << 5, // The connectionAborted callback is being called
-        RTT_PENDING = 1 << 6, // Round-trip-time is being measured
-        RTT_VALID   = 1 << 7, // Round-trip-time is not in initial state
+        ABORTING    = 1 << 4, // The connectionAborted callback is being called
+        RTT_PENDING = 1 << 5, // Round-trip-time is being measured
+        RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -151,7 +150,7 @@ private:
         RttType rto;
         
         // MSSes
-        uint16_t snd_mss;
+        uint16_t snd_mss; // NOTE: If updating this, consider invalidation of pcb_need_rtx_timer!
         uint16_t rcv_mss;
         
         // PCB state.
@@ -180,11 +179,6 @@ private:
     
     // Don't allow the remote host to lower the MSS beyond this.
     static uint16_t const MinAllowedMss = 128;
-    
-    // TODO: Zero-window probe time management
-    
-    // Zero-window probe time (currently stupid and hardcoded).
-    static TimeType const ZeroWindowTimeTicks     = 0.5   * Clock::time_freq;
     
     // SYN_RCVD state timeout.
     static TimeType const SynRcvdTimeoutTicks     = 20.0  * Clock::time_freq;
