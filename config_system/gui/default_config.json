@@ -4040,19 +4040,46 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "_compoundName": "NoNetwork"
+          "NumArpEntries": 16,
+          "ArpProtectCount": 8,
+          "EthernetDriver": {
+            "_compoundName": "LinuxTapEthernet"
+          },
+          "IpAddress": "192.168.64.10",
+          "IpGateway": "192.168.64.1",
+          "IpNetmask": "255.255.255.0",
+          "MacAddress": "00:00:00:00:00:00",
+          "NetEnabled": true,
+          "DhcpEnabled": false,
+          "NumTcpPcbs": 16,
+          "TcpRxBuf": 5840,
+          "TcpTxBuf": 7300,
+          "TcpWndUpdThrDiv": 4,
+          "_compoundName": "Network",
+          "tcpconsole": {
+            "MaxClients": 2,
+            "MaxCommandSize": 256,
+            "MaxParts": 16,
+            "MaxPcbs": 4,
+            "Port": 23,
+            "SendBufTimeout": 5,
+            "_compoundName": "TcpConsole"
+          },
+          "webinterface": {
+            "_compoundName": "NoWebInterface"
+          }
         }
       },
       "performance": {
         "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 256,
-        "ExtraSendBufClearance": 1024,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 512,
         "FpType": "double",
         "LookaheadBufferSize": 32,
         "EventChannelBufferSize": 64,
-        "MaxMsgSize": 256,
+        "MaxMsgSize": 128,
         "MaxStepsPerCycle": 100000,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
