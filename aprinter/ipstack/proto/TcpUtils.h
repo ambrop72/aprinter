@@ -222,10 +222,8 @@ namespace TcpUtils
     template <uint16_t MinAllowedMss>
     static bool calc_snd_mss (uint16_t iface_mss, TcpOptions const &tcp_opts, uint16_t *out_mss)
     {
-        uint16_t mss = iface_mss;
-        if ((tcp_opts.options & OptionFlags::MSS) != 0) {
-            mss = MinValue(mss, tcp_opts.mss);
-        }
+        uint16_t req_mss = ((tcp_opts.options & OptionFlags::MSS) != 0) ? tcp_opts.mss : 536;
+        uint16_t mss = MinValue(iface_mss, req_mss);
         if (mss < MinAllowedMss) {
             return false;
         }
