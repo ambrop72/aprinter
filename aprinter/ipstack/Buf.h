@@ -139,6 +139,21 @@ struct IpBufRef {
         });
     }
     
+    inline void giveBytes (size_t amount, char const *src)
+    {
+        processBytes(amount, [&](char *data, size_t len) {
+            memcpy(data, src, len);
+            src += len;
+        });
+    }
+    
+    inline void giveBuf (IpBufRef buf)
+    {
+        buf.processBytes(buf.tot_len, [&](char *data, size_t len) {
+            giveBytes(len, data);
+        });
+    }
+    
     inline size_t advanceToData ()
     {
         AMBRO_ASSERT(tot_len > 0)

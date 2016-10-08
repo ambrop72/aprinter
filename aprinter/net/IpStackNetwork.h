@@ -93,8 +93,9 @@ private:
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator>))
     
     using TheIpTcpProtoService = IpTcpProtoService<
-        IpTTL,     // TcpTTL
-        NumTcpPcbs
+        IpTTL,
+        NumTcpPcbs,
+        4 // NumOosSegs
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
     

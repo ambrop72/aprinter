@@ -57,7 +57,7 @@ template <typename Arg>
 class IpTcpProto :
     private Arg::TheIpStack::ProtoListenerCallback
 {
-    APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs))
+    APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, TheIpStack))
     
     APRINTER_USE_TYPE1(Context, Clock)
@@ -65,6 +65,9 @@ class IpTcpProto :
     APRINTER_USE_TYPE1(Context::EventLoop, TimedEvent)
     
     APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface))
+    
+    static_assert(NumTcpPcbs > 0, "");
+    static_assert(NumOosSegs > 0, "");
     
 public:
     class TcpListener;
@@ -86,6 +89,7 @@ private:
         ABORTING    = 1 << 4, // The connectionAborted callback is being called
         RTT_PENDING = 1 << 5, // Round-trip-time is being measured
         RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
+        OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -102,6 +106,11 @@ private:
     
     // For intermediate RTT results we need a larger type.
     using RttNextType = uint32_t;
+    
+    struct OosSeg {
+        SeqType start;
+        SeqType end;
+    };
     
     /**
      * A TCP Protocol Control Block.
@@ -141,6 +150,11 @@ private:
         SeqType rcv_wnd;
         SeqType rcv_ann;
         SeqType rcv_ann_thres;
+        IpBufRef rcv_buf;
+        
+        // Out-of-sequence segment information.
+        OosSeg ooseq[NumOosSegs];
+        SeqType ooseq_fin;
         
         // Round-trip-time and retransmission time management.
         SeqType rtt_test_seq;
@@ -158,6 +172,9 @@ private:
         
         // Flags (see comments in PcbFlags).
         uint8_t flags;
+        
+        // Number of valid elements in ooseq_segs;
+        uint8_t num_ooseq;
         
         // Convenience functions.
         inline bool hasFlag (uint8_t flag) { return (flags & flag) != 0; }
@@ -341,7 +358,7 @@ public:
                     if (pcb.lis == this) {
                         pcb.lis = nullptr;
                         if (pcb.state == TcpState::SYN_RCVD) {
-                            m_tcp->pcb_abort(&pcb, false);
+                            pcb_abort(&pcb, false);
                         }
                     }
                 }
@@ -447,9 +464,8 @@ public:
          * the receive window by the amount of received data. The user should
          * generally call extendReceiveWindow after having processed the
          * received data to maintain reception.
-         * 
          */
-        virtual void dataReceived (IpBufRef data) = 0;
+        virtual void dataReceived (size_t amount) = 0;
         
         /**
          * Called when the end of data has been received.
@@ -621,23 +637,40 @@ public:
             return m_pcb->rcv_wnd;
         }
         
-        /**
-         * Extends the receive window.
-         * 
-         * wnd_ext is the number of bytes to extend the window by.
-         * force_wnd_update will force sending a window update to the peer.
-         * The receive window must not be extended beyond MaxRcvWnd.
-         * 
-         * May be called in connected state only.
-         */
-        void extendReceiveWindow (SeqType wnd_ext, bool force_wnd_update)
+        void setRecvBuf (IpBufRef rcv_buf)
         {
             assert_pcb();
-            AMBRO_ASSERT(m_pcb->rcv_wnd <= MaxRcvWnd)
-            AMBRO_ASSERT(wnd_ext <= MaxRcvWnd - m_pcb->rcv_wnd)
+            AMBRO_ASSERT(m_pcb->rcv_buf.tot_len == 0)
+            AMBRO_ASSERT(rcv_buf.tot_len >= m_pcb->rcv_wnd)
+            AMBRO_ASSERT(rcv_buf.tot_len <= MaxRcvWnd)
             
-            // Handle in private function.
-            Input::pcb_extend_receive_window(m_tcp, m_pcb, wnd_ext, force_wnd_update);
+            m_pcb->rcv_buf = rcv_buf;
+            m_pcb->rcv_wnd = rcv_buf.tot_len;
+            
+            if (rcv_buf.tot_len > 0) {
+                Input::pcb_rcv_buf_extended(m_pcb);
+            }
+        }
+        
+        void extendRecvBuf (size_t amount)
+        {
+            assert_pcb();
+            AMBRO_ASSERT(m_pcb->rcv_wnd == m_pcb->rcv_buf.tot_len)
+            AMBRO_ASSERT(amount <= m_pcb->rcv_wnd - MaxRcvWnd)
+            
+            m_pcb->rcv_buf.tot_len += amount;
+            m_pcb->rcv_wnd = m_pcb->rcv_buf.tot_len;
+            
+            if (amount > 0) {
+                Input::pcb_rcv_buf_extended(m_pcb);
+            }
+        }
+        
+        IpBufRef getRecvBuf ()
+        {
+            assert_pcb();
+            
+            return m_pcb->rcv_buf;
         }
         
         /**
@@ -859,13 +892,13 @@ private:
         return the_pcb;
     }
     
-    inline void pcb_abort (TcpPcb *pcb)
+    inline static void pcb_abort (TcpPcb *pcb)
     {
         bool send_rst = pcb->state != OneOf(TcpState::SYN_RCVD, TcpState::TIME_WAIT);
         pcb_abort(pcb, send_rst);
     }
     
-    void pcb_abort (TcpPcb *pcb, bool send_rst)
+    static void pcb_abort (TcpPcb *pcb, bool send_rst)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::ABORTING))
@@ -893,8 +926,8 @@ private:
         // If this is called from input processing of this PCB,
         // clear m_current_pcb. This way, input processing can
         // detect aborts performed from within user callbacks.
-        if (m_current_pcb == pcb) {
-            m_current_pcb = nullptr;
+        if (pcb->tcp->m_current_pcb == pcb) {
+            pcb->tcp->m_current_pcb = nullptr;
         }
         
         // Reset PCB to initial state.
@@ -1029,17 +1062,21 @@ private:
     // Returns false if the PCB was aborted, else true. This must be used from
     // pcb_input only as it relies on m_current_pcb to detect an abort.
     template <typename Callback>
-    bool pcb_callback (TcpPcb *pcb, Callback callback)
+    static bool pcb_callback (TcpPcb *pcb, Callback callback)
     {
-        AMBRO_ASSERT(m_current_pcb == pcb)
+        AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
         
         if (pcb->con != nullptr) {
             AMBRO_ASSERT(pcb->con->m_pcb == pcb)
+            
+            IpTcpProto *tcp = pcb->tcp;
             callback(pcb->con->m_callback);
-            if (m_current_pcb == nullptr) {
+            
+            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
                 return false;
             }
         }
+        
         return true;
     }
     
@@ -1078,7 +1115,8 @@ private:
 
 APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     APRINTER_AS_VALUE(uint8_t, TcpTTL),
-    APRINTER_AS_VALUE(int, NumTcpPcbs)
+    APRINTER_AS_VALUE(int, NumTcpPcbs),
+    APRINTER_AS_VALUE(uint8_t, NumOosSegs)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
