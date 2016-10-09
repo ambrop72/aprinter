@@ -42,6 +42,10 @@ namespace TcpUtils
     using SeqType = uint32_t;
     using PortType = uint16_t;
     
+    // TCP states.
+    // Note, FIN_WAIT_2_TIME_WAIT is used transiently when we
+    // were in FIN_WAIT_2 and have just received a FIN, but we
+    // we will only go to TIME_WAIT after calling callbacks.
     enum class TcpState : uint8_t {
         CLOSED,
         SYN_SENT,
@@ -51,6 +55,7 @@ namespace TcpUtils
         LAST_ACK,
         FIN_WAIT_1,
         FIN_WAIT_2,
+        FIN_WAIT_2_TIME_WAIT,
         CLOSING,
         TIME_WAIT
     };

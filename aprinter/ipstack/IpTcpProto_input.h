@@ -142,31 +142,40 @@ public:
         return seq_diff(new_rcv_ann, pcb->rcv_ann);
     }
     
-    static void pcb_extend_receive_window (TcpProto *tcp, TcpPcb *pcb, SeqType wnd_ext, bool force_wnd_update)
+    static void pcb_rcv_buf_extended (TcpPcb *pcb, bool force_wnd_update)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AMBRO_ASSERT(pcb->con != nullptr)
         
-        // Extend the receive window.
-        pcb->rcv_wnd += wnd_ext;
-        
-        // Don't do anything else if we're in the connectionAborted callback.
+        // Don't do anything else we're in the connectionAborted callback.
         if (pcb->hasFlag(PcbFlags::ABORTING)) {
             return;
         }
         
-        // If we already received a FIN, there's no need to send window updates.
-        if (!accepting_data_in_state(pcb->state)) {
-            return;
+        // If we haven't received a FIN yet, update the receive window.
+        if (accepting_data_in_state(pcb->state)) {
+            pcb_update_rcv_wnd(pcb, force_wnd_update);
+        }
+    }
+    
+    static void pcb_update_rcv_wnd (TcpPcb *pcb, bool force_wnd_update)
+    {
+        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        
+        // Update the receive window based on the receive buffer.
+        SeqType avail_wnd = MinValueU(pcb->rcv_buf.tot_len, TcpProto::MaxRcvWnd);
+        if (pcb->rcv_wnd < avail_wnd) {
+            pcb->rcv_wnd = avail_wnd;
         }
         
-        // Force window update if the threshold has exceeded.
+        // Force window update if the threshold is exceeded.
         if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
             force_wnd_update = true;
         }
         
         // Generate a window update if needed.
         if (force_wnd_update) {
-            Output::pcb_need_ack(tcp, pcb);
+            Output::pcb_need_ack(pcb->tcp, pcb);
         }
     }
     
@@ -667,14 +676,17 @@ private:
     static bool pcb_input_rcv_processing (TcpPcb *pcb, SeqType eff_seq, bool seg_fin,
                                           IpBufRef tcp_data)
     {
+        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        
         // We only get here if the segment fits into the receive window.
         size_t data_offset = seq_diff(eff_seq, pcb->rcv_nxt);
         AMBRO_ASSERT(data_offset <= pcb->rcv_wnd)
         AMBRO_ASSERT(tcp_data.tot_len + seg_fin <= pcb->rcv_wnd - data_offset)
         
-        // The receive buffer should be at least as large as the window.
-        // The application is expected to ensure this. Otherwise abort.
-        if (AMBRO_UNLIKELY(pcb->rcv_buf.tot_len < pcb->rcv_wnd)) {
+        // Abort the connection if we have no place to put received data.
+        // This includes when the connection was abandoned.
+        if (AMBRO_UNLIKELY(tcp_data.tot_len > 0 &&
+                           pcb->rcv_buf.tot_len < data_offset + tcp_data.tot_len)) {
             TcpProto::pcb_abort(pcb, true);
             return false;
         }
@@ -690,7 +702,8 @@ private:
         
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        if (data_offset == 0 && pcb->num_ooseq == 0 && !pcb->hasFlag(PcbFlags::OOSEQ_FIN)) {
+        if (AMBRO_LIKELY(data_offset == 0 && pcb->num_ooseq == 0 &&
+                         !pcb->hasFlag(PcbFlags::OOSEQ_FIN))) {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
@@ -719,6 +732,14 @@ private:
             // Get data or FIN from the out-of-sequence buffer.
             pop_ooseq(pcb, rcv_datalen, rcv_fin);
             
+            // If we got any data out of OOS buffering here then the receive buffer
+            // can necessarily be shifted by that much. This is  because the data was
+            // written into the receive buffer when it was received, and the only
+            // concern is if the connection was then abandoned. But in that case we
+            // would not get any more data out since we have not put any more data
+            // in and we always consume all available data after adding some.
+            AMBRO_ASSERT(rcv_datalen == 0 || pcb->rcv_buf.tot_len >= rcv_datalen)
+            
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
                 pcb->rcv_buf.skipBytes(rcv_datalen);
@@ -743,27 +764,32 @@ private:
                 pcb->rcv_ann = pcb->rcv_nxt;
             }
             
-            // Send an ACK (below).
+            // Send an ACK later.
             pcb->setFlag(PcbFlags::ACK_PENDING);
             
-            // If a FIN was received, make appropriate state transitions, except the
-            // FIN_WAIT_2->TIME_WAIT transition which is done after the callbacks.
             if (AMBRO_UNLIKELY(rcv_fin)) {
+                // Make appropriate state transitions due to receiving a FIN.
                 if (pcb->state == TcpState::ESTABLISHED) {
                     pcb->state = TcpState::CLOSE_WAIT;
                 }
                 else if (pcb->state == TcpState::FIN_WAIT_1) {
                     pcb->state = TcpState::CLOSING;
                 }
+                else {
+                    AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
+                    // Go to FIN_WAIT_2_TIME_WAIT and below continue to TIME_WAIT.
+                    // This way we inhibit any cb_rcv_buf_extended processing from
+                    // the dataReceived and endReceived callbacks below.
+                    pcb->state = TcpState::FIN_WAIT_2_TIME_WAIT;
+                }
+            }
+            // It may be possible to enlarge rcv_wnd as it may have been bounded to MaxRcvWnd.
+            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb->rcv_buf.tot_len)) {
+                // The if is redundant but reduces overhead since this is needed rarely.
+                pcb_update_rcv_wnd(pcb, false);
             }
             
             if (rcv_datalen > 0) {
-                // If the user has abandoned the connection, abort with RST.
-                if (pcb->con == nullptr) {
-                    TcpProto::pcb_abort(pcb, true);
-                    return false;
-                }
-                
                 // Give any the data to the user.
                 if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataReceived(rcv_datalen); })) {
                     return false;
@@ -781,10 +807,8 @@ private:
                 // Possible transitions in callback (except to CLOSED):
                 // - CLOSE_WAIT->LAST_ACK
                 
-                // In FIN_WAIT_2 state we need to transition the PCB to TIME_WAIT.
-                // This includes pcb_unlink_con since both endSent and endReceived
-                // callbacks have now been called.
-                if (pcb->state == TcpState::FIN_WAIT_2) {
+                // Complete transition from FIN_WAIT_2 to TIME_WAIT.
+                if (pcb->state == TcpState::FIN_WAIT_2_TIME_WAIT) {
                     TcpProto::pcb_go_to_time_wait(pcb);
                 }
             }
@@ -895,6 +919,7 @@ private:
     {
         // Consume out-of-sequence data.
         if (pcb->num_ooseq > 0 && pcb->ooseq[0].start == pcb->rcv_nxt) {
+            AMBRO_ASSERT(pcb->num_ooseq == 1 || !seq_lte(pcb->ooseq[1].start, pcb->ooseq[0].end, pcb->rcv_nxt))
             datalen = seq_diff(pcb->ooseq[0].end, pcb->ooseq[0].start);
             if (pcb->num_ooseq > 1) {
                 ::memmove(&pcb->ooseq[0], &pcb->ooseq[1], (pcb->num_ooseq - 1) * sizeof(OosSeg));

@@ -78,7 +78,8 @@ public:
 private:
     APRINTER_USE_TYPES2(TcpUtils, (TcpState))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
-                                 can_output_in_state, snd_open_in_state))
+                                 can_output_in_state, snd_open_in_state,
+                                 seq_diff))
     
     // PCB flags, see flags in TcpPcb.
     struct PcbFlags { enum : uint8_t {
@@ -460,34 +461,26 @@ public:
         /**
          * Called when some data has been received.
          * 
-         * Each dataReceived callback implies an automatic decrement of
-         * the receive window by the amount of received data. The user should
-         * generally call extendReceiveWindow after having processed the
-         * received data to maintain reception.
+         * Each dataReceived callback corresponds to shifting of the receive
+         * buffer by that amount.
          */
         virtual void dataReceived (size_t amount) = 0;
         
         /**
          * Called when the end of data has been received.
-         * 
-         * After this, there will be no further dataReceived or endReceived
-         * callbacks.
-         * 
-         * Note that connection object may just have entered not-connected
-         * state, if endSent has already been called.
          */
         virtual void endReceived () = 0;
         
         /**
          * Called when some data has been sent and acknowledged.
+         * 
+         * Each dataSent callback corresponds to shifting of the send buffer
+         * by that amount.
          */
         virtual void dataSent (size_t amount) = 0;
         
         /**
          * Called when the end of data has been sent and acknowledged.
-         * 
-         * Note that connection object may just have entered not-connected
-         * state, if endReceived has already been called.
          */
         virtual void endSent () = 0;
     };
@@ -623,10 +616,10 @@ public:
         /**
          * Get the current receive window.
          * 
-         * This is the number of data bytes that the connection is prepared to accept.
-         * The connection starts with an initial receive window as per configuration
-         * of the listener. The receive window is then managed entirely by the user
-         * by extending it using extendReceiveWindow.
+         * The intended use is that this is called when the connection is established
+         * and the application sets a receive buffer using setRecvBuf for at least this
+         * much data. Note that the value returned here otherwise might not exactly
+         * match the size of the receive buffer.
          * 
          * May be called in connected state only.
          */
@@ -637,35 +630,49 @@ public:
             return m_pcb->rcv_wnd;
         }
         
-        void setRecvBuf (IpBufRef rcv_buf)
+        /**
+         * Set the receive buffer for the connection.
+         * 
+         * This is only allowed when the receive buffer is empty and really
+         * should be called only once when the connection is established.
+         * From that point on, extendRecvBuf should be used.
+         * 
+         * May be called in connected state only.
+         */
+        void setRecvBuf (IpBufRef rcv_buf, bool force_wnd_update=false)
         {
             assert_pcb();
             AMBRO_ASSERT(m_pcb->rcv_buf.tot_len == 0)
-            AMBRO_ASSERT(rcv_buf.tot_len >= m_pcb->rcv_wnd)
-            AMBRO_ASSERT(rcv_buf.tot_len <= MaxRcvWnd)
             
             m_pcb->rcv_buf = rcv_buf;
-            m_pcb->rcv_wnd = rcv_buf.tot_len;
-            
-            if (rcv_buf.tot_len > 0) {
-                Input::pcb_rcv_buf_extended(m_pcb);
-            }
+            Input::pcb_rcv_buf_extended(m_pcb, force_wnd_update);
         }
         
-        void extendRecvBuf (size_t amount)
+        /**
+         * Extend the receive buffer.
+         * 
+         * This typically results in an extension of the receive window, but
+         * note that the receive window is managed by the TCP and may not
+         * directly correspond to the size of the receive buffer.
+         * 
+         * May be called in connected state only.
+         */
+        void extendRecvBuf (size_t amount, bool force_wnd_update=false)
         {
             assert_pcb();
-            AMBRO_ASSERT(m_pcb->rcv_wnd == m_pcb->rcv_buf.tot_len)
-            AMBRO_ASSERT(amount <= m_pcb->rcv_wnd - MaxRcvWnd)
+            AMBRO_ASSERT(amount <= SIZE_MAX - m_pcb->rcv_buf.tot_len)
             
             m_pcb->rcv_buf.tot_len += amount;
-            m_pcb->rcv_wnd = m_pcb->rcv_buf.tot_len;
-            
-            if (amount > 0) {
-                Input::pcb_rcv_buf_extended(m_pcb);
-            }
+            Input::pcb_rcv_buf_extended(m_pcb, force_wnd_update);
         }
         
+        /**
+         * Get the current receive buffer reference.
+         * 
+         * This references the memory which is ready to receive new data.
+         * 
+         * May be called in connected state only.
+         */
         IpBufRef getRecvBuf ()
         {
             assert_pcb();
@@ -914,7 +921,7 @@ private:
         
         // Send RST if desired.
         if (send_rst) {
-            Output::pcb_send_rst(this, pcb);
+            Output::pcb_send_rst(pcb->tcp, pcb);
         }
         
         // Disassociate any TcpConnection.
@@ -1035,14 +1042,18 @@ private:
             }
         }
         
-        // If we haven't yet received a FIN, ensure we have nonzero window.
-        // Also send a window update if we haven't advertised being able to
-        // receive anything more.
+        // Reset the receive buffer. After abandining, we may not write
+        // to the receive buffer which is now considered inaccessible,
+        // and we will abort the connection if any more data is received.
+        pcb->rcv_buf = IpBufRef{};
+        
+        // If we haven't received a FIN, ensure that at least rcv_mss
+        // window is advertised.
         if (accepting_data_in_state(pcb->state)) {
-            if (pcb->rcv_wnd == 0) {
-                pcb->rcv_wnd++;
+            if (pcb->rcv_wnd < pcb->rcv_mss) {
+                pcb->rcv_wnd = pcb->rcv_mss;
             }
-            if (pcb->rcv_ann == pcb->rcv_nxt) {
+            if (seq_diff(pcb->rcv_ann, pcb->rcv_nxt) < pcb->rcv_mss) {
                 Output::pcb_need_ack(this, pcb);
             }
         }
