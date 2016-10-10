@@ -68,7 +68,7 @@ public:
     }
     
     // Send SYN+ACK packet in SYN_RCVD state, with MSS option.
-    static void pcb_send_syn_ack (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_send_syn_ack (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD)
         
@@ -77,36 +77,36 @@ public:
         tcp_opts.mss = pcb->rcv_mss;
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
-        send_tcp(tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
     }
     
     // Send an empty ACK (which may be a window update).
-    static void pcb_send_empty_ack (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_send_empty_ack (TcpPcb *pcb)
     {
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
-        send_tcp(tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
     }
     
     // Send an RST for this PCB.
-    static void pcb_send_rst (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_send_rst (TcpPcb *pcb)
     {
-        send_rst(tcp, pcb->local_addr, pcb->remote_addr,
+        send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                  pcb->local_port, pcb->remote_port,
                  pcb->snd_nxt, true, pcb->rcv_nxt);
     }
     
-    static void pcb_need_ack (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_need_ack (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
         // If we're in input processing just set a flag that ACK is
         // needed which will be picked up at the end, otherwise send
         // an ACK ourselves.
-        if (tcp->m_current_pcb == pcb) {
+        if (pcb->tcp->m_current_pcb == pcb) {
             pcb->setFlag(PcbFlags::ACK_PENDING);
         } else {
-            pcb_send_empty_ack(tcp, pcb);
+            pcb_send_empty_ack(pcb);
         }
     }
     
@@ -120,7 +120,7 @@ public:
         }
     }
     
-    static void pcb_end_sending (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_end_sending (TcpPcb *pcb)
     {
         AMBRO_ASSERT(snd_open_in_state(pcb->state))
         
@@ -137,10 +137,10 @@ public:
         pcb->setFlag(PcbFlags::FIN_PENDING);
         
         // Push output.
-        pcb_push_output(tcp, pcb);
+        pcb_push_output(pcb);
     }
     
-    static void pcb_push_output (TcpProto *tcp, TcpPcb *pcb)
+    static void pcb_push_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
@@ -153,7 +153,7 @@ public:
         pcb->snd_psh_index = pcb->snd_buf.tot_len;
         
         // Schedule a call to pcb_output soon.
-        if (pcb == tcp->m_current_pcb) {
+        if (pcb == pcb->tcp->m_current_pcb) {
             pcb->setFlag(PcbFlags::OUT_PENDING);
         } else {
             if (!pcb->output_timer.isSet(Context())) {

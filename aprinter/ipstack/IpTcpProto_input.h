@@ -116,7 +116,7 @@ public:
             if (lis->m_port == tcp_meta.local_port &&
                 (lis->m_addr == ip_meta.local_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
             {
-                return listen_input(tcp, lis, ip_meta, tcp_meta, tcp_data.tot_len);
+                return listen_input(lis, ip_meta, tcp_meta, tcp_data.tot_len);
             }
         }
         
@@ -142,7 +142,7 @@ public:
         return seq_diff(new_rcv_ann, pcb->rcv_ann);
     }
     
-    static void pcb_rcv_buf_extended (TcpPcb *pcb, bool force_wnd_update)
+    static void pcb_rcv_buf_extended (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(pcb->con != nullptr)
@@ -154,11 +154,11 @@ public:
         
         // If we haven't received a FIN yet, update the receive window.
         if (accepting_data_in_state(pcb->state)) {
-            pcb_update_rcv_wnd(pcb, force_wnd_update);
+            pcb_update_rcv_wnd(pcb);
         }
     }
     
-    static void pcb_update_rcv_wnd (TcpPcb *pcb, bool force_wnd_update)
+    static void pcb_update_rcv_wnd (TcpPcb *pcb)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
@@ -168,19 +168,14 @@ public:
             pcb->rcv_wnd = avail_wnd;
         }
         
-        // Force window update if the threshold is exceeded.
-        if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
-            force_wnd_update = true;
-        }
-        
         // Generate a window update if needed.
-        if (force_wnd_update) {
-            Output::pcb_need_ack(pcb->tcp, pcb);
+        if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
+            Output::pcb_need_ack(pcb);
         }
     }
     
 private:
-    static void listen_input (TcpProto *tcp, TcpListener *lis, Ip4DgramMeta const &ip_meta,
+    static void listen_input (TcpListener *lis, Ip4DgramMeta const &ip_meta,
                               TcpSegMeta const &tcp_meta, size_t tcp_data_len)
     {
         do {
@@ -208,7 +203,7 @@ private:
             }
             
             // Allocate a PCB.
-            TcpPcb *pcb = tcp->allocate_pcb();
+            TcpPcb *pcb = lis->m_tcp->allocate_pcb();
             if (pcb == nullptr) {
                 goto refuse;
             }
@@ -250,13 +245,13 @@ private:
             pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
             
             // Reply with a SYN+ACK.
-            Output::pcb_send_syn_ack(tcp, pcb);
+            Output::pcb_send_syn_ack(pcb);
             return;
         } while (false);
         
     refuse:
         // Refuse connection by RST.
-        Output::send_rst_reply(tcp, ip_meta, tcp_meta, tcp_data_len);
+        Output::send_rst_reply(lis->m_tcp, ip_meta, tcp_meta, tcp_data_len);
     }
     
     inline static bool pcb_try_input (TcpProto *tcp, TcpPcb *pcb, Ip4DgramMeta const &ip_meta,
@@ -335,7 +330,7 @@ private:
         // in that case we don't need an empty ACK here.
         if (pcb->hasFlag(PcbFlags::ACK_PENDING)) {
             pcb->clearFlag(PcbFlags::ACK_PENDING);
-            Output::pcb_send_empty_ack(pcb->tcp, pcb);
+            Output::pcb_send_empty_ack(pcb);
         }
     }
     
@@ -355,7 +350,7 @@ private:
                 }
                 else if (seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt)) {
                     // We're slightly violating RFC 5961 by allowing seq_num at nxt_wnd.
-                    Output::pcb_send_empty_ack(pcb->tcp, pcb);
+                    Output::pcb_send_empty_ack(pcb);
                 }
             }
             else if ((tcp_meta.flags & Tcp4FlagSyn) != 0) {
@@ -365,10 +360,10 @@ private:
                 {
                     // This seems to be a retransmission of the SYN, retransmit our
                     // SYN+ACK and bump the abort timeout.
-                    Output::pcb_send_syn_ack(pcb->tcp, pcb);
+                    Output::pcb_send_syn_ack(pcb);
                     pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
                 } else {
-                    Output::pcb_send_empty_ack(pcb->tcp, pcb);
+                    Output::pcb_send_empty_ack(pcb);
                 }
             }
             // Segment without none of RST, SYN and ACK should never be sent.
@@ -406,7 +401,7 @@ private:
         
         // If not acceptable, send any appropriate response and drop.
         if (AMBRO_UNLIKELY(!acceptable)) {
-            Output::pcb_send_empty_ack(pcb->tcp, pcb);
+            Output::pcb_send_empty_ack(pcb);
             return false;
         }
         
@@ -443,7 +438,7 @@ private:
         SeqType past_ack_num = seq_diff(pcb->snd_una, TcpProto::MaxAckBefore);
         bool valid_ack = seq_lte(tcp_meta.ack_num, pcb->snd_nxt, past_ack_num);
         if (AMBRO_UNLIKELY(!valid_ack)) {
-            Output::pcb_send_empty_ack(pcb->tcp, pcb);
+            Output::pcb_send_empty_ack(pcb);
             return false;
         }
         
@@ -597,12 +592,12 @@ private:
                                                     TcpState::LAST_ACK))
                 
                 // Report end-sent event to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->endSent(); })) {
+                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataSent(0); })) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED): none.
                 
-                // In states where the endReceived has already been called
+                // In states where a dataReceived(0) has already been called
                 // (CLOSING and LAST_ACK), we need to now disassociate the PCB
                 // and the TcpConnection, using pcb_unlink_con.
                 
@@ -779,14 +774,14 @@ private:
                     AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
                     // Go to FIN_WAIT_2_TIME_WAIT and below continue to TIME_WAIT.
                     // This way we inhibit any cb_rcv_buf_extended processing from
-                    // the dataReceived and endReceived callbacks below.
+                    // the dataReceived callback below.
                     pcb->state = TcpState::FIN_WAIT_2_TIME_WAIT;
                 }
             }
             // It may be possible to enlarge rcv_wnd as it may have been bounded to MaxRcvWnd.
             else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb->rcv_buf.tot_len)) {
                 // The if is redundant but reduces overhead since this is needed rarely.
-                pcb_update_rcv_wnd(pcb, false);
+                pcb_update_rcv_wnd(pcb);
             }
             
             if (rcv_datalen > 0) {
@@ -801,7 +796,7 @@ private:
             
             if (AMBRO_UNLIKELY(rcv_fin)) {
                 // Report end-received event to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->endReceived(); })) {
+                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataReceived(0); })) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -837,7 +832,7 @@ private:
             }
         } else {
             if (seg_fin && pcb->num_ooseq > 0 &&
-                !seq_lte(pcb->ooseq[pcb->num_ooseq-1].end_seq, seg_end, pcb->rcv_nxt)) {
+                !seq_lte(pcb->ooseq[pcb->num_ooseq-1].end, seg_end, pcb->rcv_nxt)) {
                 return false;
             }
         }
@@ -854,7 +849,7 @@ private:
             // after the new segment, we insert a new segment here. Otherwise
             // the new segment intersects or touches [pos] and we merge the
             // new segment with [pos] and possibly subsequent segments.
-            if (pos >= pcb->num_ooseq || seg_lt(seg_end, pcb->ooseq[pos].start, pcb->rcv_nxt)) {
+            if (pos >= pcb->num_ooseq || seq_lt(seg_end, pcb->ooseq[pos].start, pcb->rcv_nxt)) {
                 // If all segment slots are used and we are not inserting to the end,
                 // release the last slot. This ensures that we can always accept
                 // in-sequence data, and not stall after all slots are exhausted.
@@ -877,7 +872,7 @@ private:
                 }
                 
                 // Extend the existing segment to the right if needed.
-                if (!seg_lte(seg_end, pcb->ooseq[pos].end, pcb->rcv_nxt)) {
+                if (!seq_lte(seg_end, pcb->ooseq[pos].end, pcb->rcv_nxt)) {
                     pcb->ooseq[pos].end = seg_end;
                     
                     // Merge the extended segment [pos] with any subsequent segments

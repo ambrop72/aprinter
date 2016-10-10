@@ -459,30 +459,21 @@ public:
         virtual void connectionAborted () = 0;
         
         /**
-         * Called when some data has been received.
+         * Called when some data or FIN has been received.
          * 
-         * Each dataReceived callback corresponds to shifting of the receive
-         * buffer by that amount.
+         * Each callback corresponds to shifting of the receive
+         * buffer by that amount. Zero amount indicates that FIN
+         * was received.
          */
         virtual void dataReceived (size_t amount) = 0;
         
         /**
-         * Called when the end of data has been received.
-         */
-        virtual void endReceived () = 0;
-        
-        /**
-         * Called when some data has been sent and acknowledged.
+         * Called when some data or FIN has been acknowledged.
          * 
          * Each dataSent callback corresponds to shifting of the send buffer
-         * by that amount.
+         * by that amount. Zero amount indicates that FIN was acknowledged.
          */
         virtual void dataSent (size_t amount) = 0;
-        
-        /**
-         * Called when the end of data has been sent and acknowledged.
-         */
-        virtual void endSent () = 0;
     };
     
     /**
@@ -550,7 +541,7 @@ public:
          * After this, the connection object enters connected state. It remains in
          * connected state until the first of the following:
          * 1) The connectionAborted callback has been called.
-         * 2) Both endReceived and endSent callbacks have been called.
+         * 2) Both dataReceived(0) and dataSent(0) callbacks have been called.
          * 
          * Upon one of the above, the connection object automatically transitions
          * back to not-connected state. The transition happens after the callback
@@ -639,13 +630,13 @@ public:
          * 
          * May be called in connected state only.
          */
-        void setRecvBuf (IpBufRef rcv_buf, bool force_wnd_update=false)
+        void setRecvBuf (IpBufRef rcv_buf)
         {
             assert_pcb();
             AMBRO_ASSERT(m_pcb->rcv_buf.tot_len == 0)
             
             m_pcb->rcv_buf = rcv_buf;
-            Input::pcb_rcv_buf_extended(m_pcb, force_wnd_update);
+            Input::pcb_rcv_buf_extended(m_pcb);
         }
         
         /**
@@ -657,13 +648,13 @@ public:
          * 
          * May be called in connected state only.
          */
-        void extendRecvBuf (size_t amount, bool force_wnd_update=false)
+        void extendRecvBuf (size_t amount)
         {
             assert_pcb();
             AMBRO_ASSERT(amount <= SIZE_MAX - m_pcb->rcv_buf.tot_len)
             
             m_pcb->rcv_buf.tot_len += amount;
-            Input::pcb_rcv_buf_extended(m_pcb, force_wnd_update);
+            Input::pcb_rcv_buf_extended(m_pcb);
         }
         
         /**
@@ -787,8 +778,8 @@ public:
          * After this is called, no further calls of setSendBuf, extendSendBuf
          * and endSending must be made.
          * Successful sending and acknowledgement of the end of data is reported
-         * through the endSent callback. The endSent callback is only called
-         * after all queued data has been reported sent using dataSent callbacks.
+         * through a dataSent(0) callback. The dataSent(0) callback is only called
+         * after all queued data has been reported sent using dataSent(>0) callbacks.
          * 
          * May be called in connected state only.
          * Must not be called after endSending.
@@ -798,7 +789,7 @@ public:
             assert_pcb_sending();
             
             // Handle in private function.
-            Output::pcb_end_sending(m_tcp, m_pcb);
+            Output::pcb_end_sending(m_pcb);
         }
         
         /**
@@ -817,7 +808,7 @@ public:
             // Because we pushed in pcb_end_sending, retransmissions of the
             // FIN will occur internally as needed.
             if (snd_open_in_state(m_pcb->state)) {
-                Output::pcb_push_output(m_tcp, m_pcb);
+                Output::pcb_push_output(m_pcb);
             }
         }
         
@@ -921,7 +912,7 @@ private:
         
         // Send RST if desired.
         if (send_rst) {
-            Output::pcb_send_rst(pcb->tcp, pcb);
+            Output::pcb_send_rst(pcb);
         }
         
         // Disassociate any TcpConnection.
@@ -941,7 +932,6 @@ private:
         pcb->abrt_timer.unset(Context());
         pcb->output_timer.unset(Context());
         pcb->rtx_timer.unset(Context());
-        AMBRO_ASSERT(pcb->tcp == this)
         AMBRO_ASSERT(pcb->con == nullptr)
         AMBRO_ASSERT(pcb->lis == nullptr)
         pcb->state = TcpState::CLOSED;
@@ -1038,7 +1028,7 @@ private:
             
             // Assume end of data from user.
             if (snd_open_in_state(pcb->state)) {
-                Output::pcb_end_sending(this, pcb);
+                Output::pcb_end_sending(pcb);
             }
         }
         
@@ -1054,7 +1044,7 @@ private:
                 pcb->rcv_wnd = pcb->rcv_mss;
             }
             if (seq_diff(pcb->rcv_ann, pcb->rcv_nxt) < pcb->rcv_mss) {
-                Output::pcb_need_ack(this, pcb);
+                Output::pcb_need_ack(pcb);
             }
         }
         

@@ -1285,7 +1285,9 @@ def get_letter_number_name(config, key):
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
 class NetworkConfigState(object):
-    def __init__(self):
+    def __init__(self, min_send_buf, min_recv_buf):
+        self.min_send_buf = min_send_buf
+        self.min_recv_buf = min_recv_buf
         self._num_listeners = 0
         self._num_connections = 0
         self._num_queued_connections = 0
@@ -1318,19 +1320,11 @@ def setup_network(gen, config, key):
         if not 2 <= num_tcp_pcbs <= 128:
             network_config.key_path('NumTcpPcbs').error('Value out of range.')
         
-        tcp_max_mss = 1460
-        
-        tcp_tx_buf = network_config.get_int('TcpTxBuf')
-        if not 2*tcp_max_mss <= tcp_tx_buf <= 20000:
-            network_config.key_path('TcpTxBuf').error('Value out of range.')
-        
-        tcp_rx_buf = network_config.get_int('TcpRxBuf')
-        if not 2*tcp_max_mss <= tcp_rx_buf <= 20000:
-            network_config.key_path('TcpRxBuf').error('Value out of range.')
+        num_oos_segs = network_config.get_int('NumOosSegs')
+        if not 2 <= num_oos_segs <= 32:
+            network_config.key_path('NumOosSegs').error('Value out of range.')
         
         tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
-        if not 2 <= tcp_wnd_upd_thr_div <= tcp_rx_buf/16:
-            network_config.key_path('TcpWndUpdThrDiv').error('Value out of range.')
         
         checksum_src_file = gen.get_singleton_object('checksum_src_file')
         gen.add_extra_source(checksum_src_file)
@@ -1340,15 +1334,18 @@ def setup_network(gen, config, key):
             num_arp_entries,
             arp_protect_count,
             num_tcp_pcbs,
-            tcp_tx_buf,
-            tcp_rx_buf,
+            num_oos_segs,
             tcp_wnd_upd_thr_div,
         ])
         service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
         network_expr = TemplateExpr('NetworkService::Compose', ['Context', 'Program'])
         gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, code_before=service_code, context_name='Network', is_fast_event_root=True)
         
-        network_state = NetworkConfigState()
+        tcp_max_mss = 1460
+        min_send_buf = 2*tcp_max_mss
+        min_recv_buf = 2*tcp_max_mss
+        
+        network_state = NetworkConfigState(min_send_buf, min_recv_buf)
         gen.register_singleton_object('network', network_state)
         
         def finalize():
@@ -1629,6 +1626,8 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
                 if have_network:
+                    network = gen.get_singleton_object('network')
+                    
                     for network_config in board_data.get_config('network_config').enter_config('network'):
                         gen.add_aprinter_include('printer/modules/NetworkSupportModule.h')
                         network_support_module = gen.add_module()
@@ -1669,6 +1668,14 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (1 <= console_max_command_size <= 512):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
                             
+                            console_send_buf_size = tcpconsole_config.get_int('SendBufferSize')
+                            if console_send_buf_size < network.min_send_buf:
+                                tcpconsole_config.key_path('SendBufferSize').error('Bad value.')
+                            
+                            console_recv_buf_size = tcpconsole_config.get_int('RecvBufferSize')
+                            if console_recv_buf_size < network.min_recv_buf:
+                                tcpconsole_config.key_path('RecvBufferSize').error('Bad value.')
+                            
                             gen.add_aprinter_include('printer/modules/TcpConsoleModule.h')
                             gen.add_aprinter_include('printer/utils/GcodeParser.h')
                             
@@ -1681,10 +1688,12 @@ def generate(config_root_data, cfg_name, main_template):
                                 console_max_clients,
                                 console_max_pcbs,
                                 console_max_command_size,
+                                console_send_buf_size,
+                                console_recv_buf_size,
                                 gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
                             ]))
                             
-                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=console_max_clients)
+                            network.add_resource_counts(listeners=1, connections=console_max_clients)
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
                         
@@ -1757,7 +1766,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 gen.add_float_constant('WebInterfaceGcodeSendBufTimeout', webif_config.get_float('GcodeSendBufTimeout')),
                             ]))
                             
-                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
+                            network.add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
                             
                         network_config.do_selection('webinterface', webif_sel)
                 
