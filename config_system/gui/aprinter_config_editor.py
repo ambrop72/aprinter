@@ -856,6 +856,7 @@ def editor():
                                 ce.Integer(key='SendBufferSize', title='Send buffer size [bytes]', default=3*1460),
                                 ce.Integer(key='RecvBufferSize', title='Receive buffer size [bytes]', default=2*1460),
                                 ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space [s]', default=5.0),
+                                ce.Float(key='SendEndTimeout', title='Timeout when waiting to send remaining data [s]', default=10.0),
                             ]),
                         ]),
                         ce.OneOf(key='webinterface', title='Web interface', choices=[

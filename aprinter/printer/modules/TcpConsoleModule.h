@@ -78,6 +78,7 @@ private:
     static size_t const RecvMirrorSize = MaxCommandSize - 1;
     
     static TimeType const SendBufTimeoutTicks = Params::SendBufTimeout::value() * Context::Clock::time_freq;
+    static TimeType const SendEndTimeoutTicks = Params::SendEndTimeout::value() * Context::Clock::time_freq;
     
 public:
     static void init (Context c)
@@ -127,7 +128,12 @@ private:
     
     struct Client : private TheConvenientStream::UserCallback, TheNetwork::TcpConnectionCallback
     {
-        enum class State : uint8_t {NOT_CONNECTED, CONNECTED, DISCONNECTED_WAIT_CMD};
+        enum class State : uint8_t {NOT_CONNECTED, CONNECTED, SENDING_END, WAITING_CMD};
+        
+        static bool state_not_disconnected (State state)
+        {
+            return state == OneOf(State::CONNECTED, State::SENDING_END, State::WAITING_CMD);
+        }
         
         void init (Context c)
         {
@@ -138,6 +144,7 @@ private:
         void deinit (Context c)
         {
             if (m_state != State::NOT_CONNECTED) {
+                m_send_timeout_event.deinit(c);
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
@@ -162,14 +169,16 @@ private:
             
             m_gcode_parser.init(c);
             m_command_stream.init(c, SendBufTimeoutTicks, this, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
+            m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
             
             m_state = State::CONNECTED;
         }
         
         void disconnect (Context c)
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
+            m_send_timeout_event.deinit(c);
             m_command_stream.deinit(c);
             m_gcode_parser.deinit(c);
             
@@ -180,48 +189,76 @@ private:
         
         void start_disconnect (Context c)
         {
-            AMBRO_ASSERT(m_state == State::CONNECTED)
+            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
             if (m_command_stream.tryCancelCommand(c)) {
                 disconnect(c);
             } else {
                 m_connection.reset(c);
-                m_state = State::DISCONNECTED_WAIT_CMD;
+                m_state = State::WAITING_CMD;
                 m_command_stream.updateSendBufEvent(c);
+                m_send_timeout_event.unset(c);
             }
+        }
+        
+        void start_send_end (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            
+            m_connection.closeSending(c);
+            m_state = State::SENDING_END;
+            m_command_stream.updateSendBufEvent(c);
+            m_command_stream.unsetNextEvent(c);
+            m_send_timeout_event.appendAfter(c, SendEndTimeoutTicks);
         }
         
         void connectionAborted (Context c) override
         {
-            AMBRO_ASSERT(m_state == State::CONNECTED)
+            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
             m_command_stream.setAcceptMsg(c, false);
-            auto err = AMBRO_PSTR("//TcpConsoleError\n");
-            ThePrinterMain::print_pgm_string(c, err);
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleError\n"));
             
             start_disconnect(c);
         }
         
         void dataReceived (Context c, size_t amount) override
         {
-            AMBRO_ASSERT(m_state == State::CONNECTED)
+            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
-            m_command_stream.setNextEventIfNoCommand(c);
+            if (m_state == State::CONNECTED) {
+                m_command_stream.setNextEventIfNoCommand(c);
+            }
         }
         
         void dataSent (Context c, size_t amount) override
         {
-            AMBRO_ASSERT(m_state == State::CONNECTED)
+            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
-            m_command_stream.updateSendBufEvent(c);
+            if (m_state == State::CONNECTED) {
+                m_command_stream.updateSendBufEvent(c);
+            } else {
+                if (amount == 0) {
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleEndSent\n"));
+                    start_disconnect(c);
+                }
+            }
+        }
+        
+        void send_timeout_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::SENDING_END)
+            
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendEndTimeout\n"));
+            start_disconnect(c);
         }
         
         void next_event_handler (Context c)
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::WAITING_CMD))
             AMBRO_ASSERT(!m_command_stream.hasCommand(c))
             
-            if (m_state == State::DISCONNECTED_WAIT_CMD) {
+            if (m_state == State::WAITING_CMD) {
                 return disconnect(c);
             }
             
@@ -238,26 +275,28 @@ private:
             
             if (line_buffer_exhausted || m_connection.wasEndReceived(c)) {
                 m_command_stream.setAcceptMsg(c, false);
-                auto err = line_buffer_exhausted ? AMBRO_PSTR("//TcpConsoleLineTooLong\n") : AMBRO_PSTR("//TcpConsoleDisconnected\n");
+                auto err = line_buffer_exhausted ? AMBRO_PSTR("//TcpConsoleLineTooLong\n") : AMBRO_PSTR("//TcpConsoleClosed\n");
                 ThePrinterMain::print_pgm_string(c, err);
-                return disconnect(c);
+                start_send_end(c);
             }
         }
         
         void finish_command_impl (Context c) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
-            if (m_state == State::CONNECTED) {
+            if (m_state == OneOf(State::CONNECTED, State::SENDING_END)) {
                 m_connection.consumeRecvData(c, m_gcode_parser.getLength(c));
             }
             
-            m_command_stream.setNextEventAfterCommandFinished(c);
+            if (m_state != State::SENDING_END) {
+                m_command_stream.setNextEventAfterCommandFinished(c);
+            }
         }
         
         void reply_poke_impl (Context c, bool push) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (push && m_state == State::CONNECTED) {
                 m_connection.pokeSending(c);
@@ -266,7 +305,7 @@ private:
         
         void reply_append_buffer_impl (Context c, char const *str, size_t length) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == State::CONNECTED && !m_command_stream.isSendOverrunBeingRaised(c)) {
                 size_t avail = m_connection.getSendBufferSpace(c);
@@ -280,16 +319,16 @@ private:
         
         size_t get_send_buf_avail_impl (Context c) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
             return (m_state != State::CONNECTED) ? (size_t)-1 : m_connection.getSendBufferSpace(c);
         }
         
         void commandStreamError (Context c, typename TheConvenientStream::Error error) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
-            // Ignore errors if we're disconnected already and waiting for command to finish.
+            // Ignore errors if we're no longer fully connected.
             if (m_state != State::CONNECTED) {
                 return;
             }
@@ -303,12 +342,12 @@ private:
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
             }
             
-            start_disconnect(c);
+            start_send_end(c);
         }
         
         bool mayWaitForSendBuf (Context c, size_t length) override
         {
-            AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::DISCONNECTED_WAIT_CMD))
+            AMBRO_ASSERT(state_not_disconnected(m_state))
             
             return (m_state != State::CONNECTED || length <= GuaranteedSendBuf);
         }
@@ -316,6 +355,7 @@ private:
         TheTcpConnection m_connection;
         TheGcodeParser m_gcode_parser;
         TheConvenientStream m_command_stream;
+        typename Context::EventLoop::TimedEvent m_send_timeout_event;
         State m_state;
         char m_send_buf[SendBufferSize];
         char m_recv_buf[RecvBufferSize+RecvMirrorSize];
@@ -336,7 +376,8 @@ APRINTER_ALIAS_STRUCT_EXT(TcpConsoleModuleService, (
     APRINTER_AS_VALUE(size_t, MaxCommandSize),
     APRINTER_AS_VALUE(size_t, SendBufferSize),
     APRINTER_AS_VALUE(size_t, RecvBufferSize),
-    APRINTER_AS_TYPE(SendBufTimeout)
+    APRINTER_AS_TYPE(SendBufTimeout),
+    APRINTER_AS_TYPE(SendEndTimeout)
 ), (
     APRINTER_MODULE_TEMPLATE(TcpConsoleModuleService, TcpConsoleModule)
 ))

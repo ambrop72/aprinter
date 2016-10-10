@@ -1691,6 +1691,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 console_send_buf_size,
                                 console_recv_buf_size,
                                 gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
+                                gen.add_float_constant('TcpConsoleSendEndTimeout', tcpconsole_config.get_float('SendEndTimeout')),
                             ]))
                             
                             network.add_resource_counts(listeners=1, connections=console_max_clients)
