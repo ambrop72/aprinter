@@ -452,7 +452,7 @@ private:
         }
     }
     
-    void pcb_con_abandoned (TcpPcb *pcb)
+    static void pcb_con_abandoned (TcpPcb *pcb)
     {
         AMBRO_ASSERT(state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr)

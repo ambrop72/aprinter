@@ -85,12 +85,10 @@ public:
          * newly accepted connections. Upon init, the listener is in not-listening
          * state, and listenIp4 should be called to start listening.
          */
-        void init (TcpProto *tcp, TcpListenerCallback *callback)
+        void init (TcpListenerCallback *callback)
         {
-            AMBRO_ASSERT(tcp != nullptr)
             AMBRO_ASSERT(callback != nullptr)
             
-            m_tcp = tcp;
             m_callback = callback;
             m_initial_rcv_wnd = 0;
             m_accept_pcb = nullptr;
@@ -163,17 +161,19 @@ public:
          * Return success/failure to start listening. It can fail only if there
          * is another listener listening on the same pair of address and port.
          */
-        bool listenIp4 (Ip4Addr addr, PortType port, int max_pcbs)
+        bool listenIp4 (TcpProto *tcp, Ip4Addr addr, PortType port, int max_pcbs)
         {
             AMBRO_ASSERT(!m_listening)
+            AMBRO_ASSERT(tcp != nullptr)
             AMBRO_ASSERT(max_pcbs > 0)
             
             // Check if there is an existing listener listning on this address+port.
-            if (m_tcp->find_listener(addr, port) != nullptr) {
+            if (tcp->find_listener(addr, port) != nullptr) {
                 return false;
             }
             
             // Set up listening.
+            m_tcp = tcp;
             m_addr = addr;
             m_port = port;
             m_max_pcbs = max_pcbs;
@@ -260,12 +260,10 @@ public:
          * A callback interface must be provided which is used to inform the
          * user of various events related to the connection.
          */
-        void init (TcpProto *tcp, TcpConnectionCallback *callback)
+        void init (TcpConnectionCallback *callback)
         {
-            AMBRO_ASSERT(tcp != nullptr)
             AMBRO_ASSERT(callback != nullptr)
             
-            m_tcp = tcp;
             m_callback = callback;
             m_pcb = nullptr;
         }
@@ -298,7 +296,7 @@ public:
                 m_pcb = nullptr;
                 
                 // Handle abandonment of connection.
-                m_tcp->pcb_con_abandoned(pcb);
+                TcpProto::pcb_con_abandoned(pcb);
             }
         }
         
@@ -598,7 +596,6 @@ public:
         }
         
     private:
-        TcpProto *m_tcp;
         TcpConnectionCallback *m_callback;
         TcpPcb *m_pcb;
     };    

@@ -335,7 +335,7 @@ public:
             
             m_dequeue_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpListener::dequeue_event_handler, this));
             m_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpListener::timeout_event_handler, this));
-            m_ip_listener.init(&o->ip_tcp_proto, this);
+            m_ip_listener.init(this);
             m_accept_handler = accept_handler;
         }
         
@@ -364,7 +364,7 @@ public:
             AMBRO_ASSERT(params.queue_size == 0 || params.queue_entries != nullptr)
             
             // Start listening.
-            if (!m_ip_listener.listenIp4(Ip4Addr::ZeroAddr(), params.port, params.max_pcbs)) {
+            if (!m_ip_listener.listenIp4(&o->ip_tcp_proto, Ip4Addr::ZeroAddr(), params.port, params.max_pcbs)) {
                 return false;
             }
             
@@ -378,7 +378,7 @@ public:
             for (int i = 0; i < m_queue_size; i++) {
                 TcpListenerQueueEntry *entry = &m_queue[i];
                 entry->m_listener = this;
-                entry->m_ip_connection.init(&o->ip_tcp_proto, entry);
+                entry->m_ip_connection.init(entry);
             }
             
             // If there is no queue, raise the initial receive window.
@@ -570,10 +570,9 @@ public:
         
         void init (Context c, TcpConnectionCallback *callback)
         {
-            auto *o = Object::self(c);
             AMBRO_ASSERT(callback != nullptr)
             
-            m_ip_connection.init(&o->ip_tcp_proto, this);
+            m_ip_connection.init(this);
             m_callback = callback;
             m_state = State::IDLE;
         }
