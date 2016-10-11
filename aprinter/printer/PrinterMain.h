@@ -890,13 +890,13 @@ private:
             o->msg_length = 0;
         }
         
-    private:
-        void reply_poke (Context c, bool push=false)
+    public:
+        void reply_poke (Context c, bool push=false) override
         {
             poke_with_inhibit(c, nullptr);
         }
         
-        void reply_append_buffer (Context c, char const *str, size_t length)
+        void reply_append_buffer (Context c, char const *str, size_t length) override
         {
             auto *o = Object::self(c);
             
@@ -906,7 +906,7 @@ private:
         }
         
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
-        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
+        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length) override
         {
             auto *o = Object::self(c);
             

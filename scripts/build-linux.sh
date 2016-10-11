@@ -22,7 +22,7 @@ configure_linux() {
         -std=c99
     )
     FLAGS_CXX=(
-        -std=c++14 -fno-access-control -ftemplate-depth=1024
+        -std=c++14 -ftemplate-depth=1024
     )
     FLAGS_C_CXX=(
         -DNDEBUG

@@ -75,6 +75,7 @@ public:
     class TcpListener {
         template <typename> friend class IpTcpProto;
         template <typename> friend class IpTcpProto_input;
+        friend class TcpConnection;
         
     public:
         /**

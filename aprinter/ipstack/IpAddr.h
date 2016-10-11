@@ -35,6 +35,7 @@
 template <typename AddrType, typename ElemType, int Length>
 class IpGenericAddr : public StructIntArray<ElemType, Length>
 {
+public:
     static int const Bits      = 8 * IpGenericAddr::Size;
     static int const ElemBits  = 8 * IpGenericAddr::ElemSize;
     
