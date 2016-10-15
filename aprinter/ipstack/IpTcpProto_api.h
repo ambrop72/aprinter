@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
@@ -39,13 +40,14 @@
 
 template <typename> class IpTcpProto;
 template <typename> class IpTcpProto_input;
+template <typename> class IpTcpProto_output;
 
 template <typename TcpProto>
 class IpTcpProto_api
 {
     APRINTER_USE_TYPES2(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output))
+    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, PcbFlags, Input, Output))
     
 public:
     class TcpConnection;
@@ -81,7 +83,7 @@ public:
         /**
          * Initialize the listener.
          * 
-         * A callback listener must be provided, which is used to inform of
+         * A callback interface must be provided, which is used to inform of
          * newly accepted connections. Upon init, the listener is in not-listening
          * state, and listenIp4 should be called to start listening.
          */
@@ -115,26 +117,16 @@ public:
          */
         void reset ()
         {
-            AMBRO_ASSERT(m_accept_pcb == nullptr)
-            
+            // Stop listening.
             if (m_listening) {
-                // Set not-listening, remove from listeners list.
-                m_listening = false;
                 m_tcp->m_listeners_list.remove(this);
-                
-                // Disassociate any PCBs associated with this listener,
-                // and also abort any such PCBs in SYN_RCVD state (without RST).
-                for (TcpPcb &pcb : m_tcp->m_pcbs) {
-                    if (pcb.lis == this) {
-                        pcb.lis = nullptr;
-                        if (pcb.state == TcpState::SYN_RCVD) {
-                            TcpProto::pcb_abort(&pcb, false);
-                        }
-                    }
-                }
+                m_tcp->unlink_listener(this);
             }
             
+            // Reset variables.
             m_initial_rcv_wnd = 0;
+            m_accept_pcb = nullptr;
+            m_listening = false;
         }
         
         /**
@@ -172,7 +164,7 @@ public:
                 return false;
             }
             
-            // Set up listening.
+            // Start listening.
             m_tcp = tcp;
             m_addr = addr;
             m_port = port;
@@ -188,19 +180,18 @@ public:
          * Set the initial receive window used for connections to this listener.
          * 
          * The default initial receive window is 0, which means that a newly accepted
-         * connection will not receive data before the user extends he window using
+         * connection will not receive data before the user extends the window using
          * extendReceiveWindow.
          * 
          * Note that the initial receive window is applied to a new connection when
          * the SYN is received, not when the connectionEstablished callback is called.
          * Hence the user should generaly use getReceiveWindow to determine the actual
-         * receive window of a new connection.
+         * receive window of a new connection. Further, the TCP may still use a
+         * smaller initial receive window than configued with this function.
          */
-        void setInitialReceiveWindow (SeqType rcv_wnd)
+        void setInitialReceiveWindow (size_t rcv_wnd)
         {
-            AMBRO_ASSERT(rcv_wnd <= TcpProto::MaxRcvWnd)
-            
-            m_initial_rcv_wnd = rcv_wnd;
+            m_initial_rcv_wnd = MinValueU(TcpProto::MaxRcvWnd, rcv_wnd);
         }
         
     private:
@@ -222,10 +213,9 @@ public:
     class TcpConnectionCallback {
     public:
         /**
-         * Called when the connection is aborted abnormally.
-         * 
-         * A connectionAborted callback implies a transition of the connection
-         * object from connected to not-connected state.
+         * Called when the connection is aborted.
+         * This callback corresponds to a transition from CONNECTED
+         * to CLOSED state, which happens just before the callback.
          */
         virtual void connectionAborted () = 0;
         
@@ -239,7 +229,7 @@ public:
         virtual void dataReceived (size_t amount) = 0;
         
         /**
-         * Called when some data or FIN has been acknowledged.
+         * Called when some data or FIN has been sent and acknowledged.
          * 
          * Each dataSent callback corresponds to shifting of the send buffer
          * by that amount. Zero amount indicates that FIN was acknowledged.
@@ -249,16 +239,28 @@ public:
     
     /**
      * Represents a TCP connection.
+     * Conceptually, the connection object has three main states:
+     * - INIT: No connection has been made yet.
+     * - CONNECTED: There is an active connection.
+     * - CLOSED: There was a connection but is no more.
      */
     class TcpConnection {
         template <typename> friend class IpTcpProto;
+        template <typename> friend class IpTcpProto_input;
+        template <typename> friend class IpTcpProto_output;
+        
+        // Flag definitions for m_flags.
+        struct Flags { enum : uint8_t {
+            STARTED      = 1 << 0, // We are not in INIT state.
+            SND_CLOSED   = 1 << 1, // Sending was closed.
+            END_SENT     = 1 << 2, // FIN was sent and acked.
+            END_RECEIVED = 1 << 3, // FIN was received.
+        }; };
         
     public:
         /**
-         * Initializes the connection object to a default not-connected state.
-         * 
-         * A callback interface must be provided which is used to inform the
-         * user of various events related to the connection.
+         * Initializes the connection object.
+         * The object is initialized in INIT state.
          */
         void init (TcpConnectionCallback *callback)
         {
@@ -266,14 +268,13 @@ public:
             
             m_callback = callback;
             m_pcb = nullptr;
+            m_snd_buf = IpBufRef{};
+            m_rcv_buf = IpBufRef{};
+            m_flags = 0;
         }
         
         /**
-         * Deinitialzies the connection object, abandoning any associated connection.
-         * 
-         * This is permitted in any (initialized) state but the effects depend on
-         * the states of the connection, and are not defined in detail here. In any
-         * case, no more callbacks will be done.
+         * Deinitializes the connection object.
          */
         void deinit ()
         {
@@ -281,44 +282,37 @@ public:
         }
         
         /**
-         * Reset the connection object to its default not-connected state.
-         * 
-         * This is similar to deinit except that the connection object remains valid.
+         * Resets the connection object.
+         * This brings the object to INIT state.
          */
         void reset ()
         {
             if (m_pcb != nullptr) {
-                TcpPcb *pcb = m_pcb;
-                AMBRO_ASSERT(pcb->con == this)
+                assert_started();
                 
                 // Disassociate with the PCB.
+                TcpPcb *pcb = m_pcb;
                 pcb->con = nullptr;
                 m_pcb = nullptr;
                 
                 // Handle abandonment of connection.
-                TcpProto::pcb_con_abandoned(pcb);
+                TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0);
             }
+            
+            // Reset other variables.
+            m_snd_buf = IpBufRef{};
+            m_rcv_buf = IpBufRef{};
+            m_flags = 0;
         }
         
         /**
-         * Accepts a new connection from a listener into this connection object.
-         * 
-         * May only be called outside of the connectionEstablished callback of a
-         * listener, and at most once.
-         * May be called in not-connected state only.
-         * 
-         * After this, the connection object enters connected state. It remains in
-         * connected state until the first of the following:
-         * 1) The connectionAborted callback has been called.
-         * 2) Both dataReceived(0) and dataSent(0) callbacks have been called.
-         * 
-         * Upon one of the above, the connection object automatically transitions
-         * back to not-connected state. The transition happens after the callback
-         * returns, which notably allows calling getSendBuf from within the callback.
+         * Accepts a connection.
+         * This brings the object from the INIT to CONNECTED state.
+         * May only be called in INIT state.
          */
         void acceptConnection (TcpListener *lis)
         {
-            AMBRO_ASSERT(m_pcb == nullptr)
+            assert_init();
             AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
             AMBRO_ASSERT(lis->m_accept_pcb->lis == lis)
             AMBRO_ASSERT(lis->m_accept_pcb->con == nullptr)
@@ -328,132 +322,155 @@ public:
             m_pcb = lis->m_accept_pcb;
             m_pcb->con = this;
             
-            // Clear the PCB from the listener so pcb_input knows about the accept.
+            // Set STARTED flag to indicate we're no longer in INIT state.
+            m_flags = Flags::STARTED;
+            
+            // Clear the m_accept_pcb link from the listener.
             lis->m_accept_pcb = nullptr;
         }
         
         /**
-         * Move a connection from another TcpConnection object to this one.
-         * 
-         * This connection object must be in not-connected state.
-         * The src_con must be in connected state.
+         * Move a connection from another connection object.
+         * The source connection object must be in CONNECTED state.
+         * This brings this object from the INIT to CONNECTED state.
+         * May only be called in INIT state.
          */
         void moveConnection (TcpConnection *src_con)
         {
-            AMBRO_ASSERT(m_pcb == nullptr)
-            AMBRO_ASSERT(src_con->m_pcb != nullptr)
+            assert_init();
+            src_con->assert_connected();
             
             // Move the PCB association.
             m_pcb = src_con->m_pcb;
             m_pcb->con = this;
             src_con->m_pcb = nullptr;
+            
+            // Copy the other state.
+            m_snd_buf = src_con->m_snd_buf;
+            m_rcv_buf = src_con->m_rcv_buf;
+            m_flags = src_con->m_flags;
+            
+            // Reset other variables in the source.
+            src_con->m_snd_buf = IpBufRef{};
+            src_con->m_rcv_buf = IpBufRef{};
+            src_con->m_flags = 0;
         }
         
         /**
-         * Returns whether the connection object is in connected state.
+         * Returns whether the object is in INIT state.
          */
-        bool hasConnection ()
+        inline bool isInit ()
+        {
+            return m_flags == 0;
+        }
+        
+        /**
+         * Returns whether the object is in CONNECTED state.
+         */
+        inline bool isConnected ()
         {
             return m_pcb != nullptr;
         }
         
         /**
-         * Set the threshold for sending window updates.
-         * 
-         * rcv_ann_thres must be positive and not exceed MaxRcvWnd.
-         * May be called in connected state only.
+         * Sets the window update threshold.
+         * If the threshold is being raised outside of initializing a new
+         * connection, is advised to then call extendRecvBuf(0) which will
+         * ensure that a window update is sent if it is now needed.
+         * May only be called in CONNECTED state.
+         * The threshold value must be positive and not exceed MaxRcvWnd.
          */
         void setWindowUpdateThreshold (SeqType rcv_ann_thres)
         {
-            assert_pcb();
+            assert_connected();
             AMBRO_ASSERT(rcv_ann_thres > 0)
             AMBRO_ASSERT(rcv_ann_thres <= TcpProto::MaxRcvWnd)
             
-            // Set the threshold.
             m_pcb->rcv_ann_thres = rcv_ann_thres;
         }
         
         /**
-         * Get the current receive window.
-         * 
-         * The intended use is that this is called when the connection is established
-         * and the application sets a receive buffer using setRecvBuf for at least this
-         * much data. Note that the value returned here otherwise might not exactly
-         * match the size of the receive buffer.
-         * 
-         * May be called in connected state only.
+         * Returns the current receive window.
+         * May only be called in CONNECTED state.
+         * This is intended to be used when a connection is accepted to determine
+         * the minimum amount of receive buffer which must be available.
          */
-        SeqType getReceiveWindow ()
+        size_t getReceiveWindow ()
         {
-            assert_pcb();
+            assert_connected();
             
+            AMBRO_ASSERT(m_pcb->rcv_wnd <= SIZE_MAX)
             return m_pcb->rcv_wnd;
         }
         
         /**
-         * Set the receive buffer for the connection.
-         * 
-         * This is only allowed when the receive buffer is empty and really
-         * should be called only once when the connection is established.
-         * From that point on, extendRecvBuf should be used.
-         * 
-         * May be called in connected state only.
+         * Sets the receive buffer.
+         * Typically the application will call this once just after a connection
+         * is established.
+         * May only be called in CONNECTED or CLOSED state.
+         * May only be called when the current receive buffer has zero length.
          */
         void setRecvBuf (IpBufRef rcv_buf)
         {
-            assert_pcb();
-            AMBRO_ASSERT(m_pcb->rcv_buf.tot_len == 0)
+            assert_started();
+            AMBRO_ASSERT(m_rcv_buf.tot_len == 0)
             
-            m_pcb->rcv_buf = rcv_buf;
-            Input::pcb_rcv_buf_extended(m_pcb);
+            m_rcv_buf = rcv_buf;
+            
+            if (m_pcb != nullptr) {
+                Input::pcb_rcv_buf_extended(m_pcb);
+            }
         }
         
         /**
-         * Extend the receive buffer.
-         * 
-         * This typically results in an extension of the receive window, but
-         * note that the receive window is managed by the TCP and may not
-         * directly correspond to the size of the receive buffer.
-         * 
-         * May be called in connected state only.
+         * Extends the receive buffer for the specified amount.
+         * May only be called in CONNECTED or CLOSED state.
          */
         void extendRecvBuf (size_t amount)
         {
-            assert_pcb();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_pcb->rcv_buf.tot_len)
+            assert_started();
+            AMBRO_ASSERT(amount <= SIZE_MAX - m_rcv_buf.tot_len)
             
-            m_pcb->rcv_buf.tot_len += amount;
-            Input::pcb_rcv_buf_extended(m_pcb);
+            // Extend the receive buffer.
+            m_rcv_buf.tot_len += amount;
+            
+            if (m_pcb != nullptr) {
+                // Inform the input code, so it can update rcv_wnd
+                // and possibly send a window update.
+                Input::pcb_rcv_buf_extended(m_pcb);
+            }
         }
         
         /**
-         * Get the current receive buffer reference.
-         * 
-         * This references the memory which is ready to receive new data.
-         * 
-         * May be called in connected state only.
+         * Returns the current receive buffer.
+         * May only be called in CONNECTED or CLOSED state.
          */
         IpBufRef getRecvBuf ()
         {
-            assert_pcb();
+            assert_started();
             
-            return m_pcb->rcv_buf;
+            return m_rcv_buf;
         }
         
         /**
-         * Returns the amount of send buffer space that may be unsent
-         * indefinitely in the absence of sendPush.
-         * 
-         * The reason for this is that the TCP may delay transmission
-         * until a full segment may be sent, to improve efficiency.
-         * The value returned may change but it will never exceed the
-         * initial value when a connection is established.
-         * 
-         * May be called in connected state only.
+         * Returns whether a FIN was received.
+         * May only be called in CONNECTED or CLOSED state.
+         */
+        bool wasEndReceived ()
+        {
+            assert_started();
+            
+            return (m_flags & Flags::END_RECEIVED) != 0;
+        }
+        
+        /**
+         * Returns the amount of send buffer that could remain unsent
+         * indefinitely in the absence of sendPush or endSending.
+         * May only be called in CONNECTED state.
          */
         size_t getSndBufOverhead ()
         {
-            assert_pcb();
+            assert_connected();
             
             // Sending can be delayed for segmentation only when we have
             // less than the MSS data left to send, hence return mss-1.
@@ -461,144 +478,216 @@ public:
         }
         
         /**
-         * Set the send buffer for the connection.
-         * 
-         * This is only allowed when the send buffer of the connection is empty,
-         * which is the initial state. In order to queue more data for sending
-         * after some data is already queueued, the user should extend the pointed-to
-         * IpBufNode structures then call extendSendBuf. To send data, it is only
-         * really necessary to call setSendBuf once, since calling extendSendBuf is
-         * still possible after all queued data has been sent.
-         * 
-         * The user is responsible for ensuring that any pointed-to IpBufRef and
-         * data buffers remain valid until the associated that is reported as sent
-         * by the dataSent callback. The exact meaning of this is not described here,
-         * but essentially you must assume as if the TCP uses IpBufRef::skipBytes
-         * to advance over sent data.
-         * 
-         * DANGER: Currently skipBytes is conservative in advancing to the next
-         * buffer in the chain as it would only advance when it needs more data
-         * not already when the current buffer is exhausted. So the TCP may
-         * possibly still reference an IpBufNode even when all its data has been
-         * reported as sent. You can only be sure that an IpBufNode is no longer
-         * referenced after the connection reports having send more than the data
-         * in that buffer.
-         * 
-         * May be called in connected state only.
-         * Must not be called after endSending.
+         * Sets the send buffer.
+         * Typically the application will call this once just after a connection
+         * is established.
+         * May only be called in CONNECTED or CLOSED state.
+         * May only be called before endSending is called.
+         * May only be called when the current send buffer has zero length.
          */
         void setSendBuf (IpBufRef snd_buf)
         {
-            assert_pcb_sending();
-            AMBRO_ASSERT(m_pcb->snd_buf.tot_len == 0)
-            AMBRO_ASSERT(m_pcb->snd_buf_cur.tot_len == 0) // implied
+            assert_sending();
+            AMBRO_ASSERT(m_snd_buf.tot_len == 0)
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->snd_buf_cur.tot_len == 0)
             
-            // Set the send buffer references.
-            m_pcb->snd_buf = snd_buf;
-            m_pcb->snd_buf_cur = snd_buf;
+            // Set the send buffer.
+            m_snd_buf = snd_buf;
             
-            // Handle send buffer extension.
-            if (snd_buf.tot_len > 0) {
+            if (m_pcb != nullptr) {
+                // Also update snd_buf_cur. It just needs to be set to the
+                // same as we don't allow calling this with nonempty snd_buf.
+                m_pcb->snd_buf_cur = snd_buf;
+                
+                // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_pcb);
             }
         }
         
         /**
-         * Extend the send buffer for the connection.
-         * 
-         * This simply makes the TCP assume there is that much more data ready
-         * for sending. See setSendBuf for more information about sending data.
-         * 
-         * May be called in connected state only.
-         * Must not be called after endSending.
+         * Extends the send buffer for the specified amount.
+         * May only be called in CONNECTED or CLOSED state.
+         * May only be called before endSending is called.
          */
         void extendSendBuf (size_t amount)
         {
-            assert_pcb_sending();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_pcb->snd_buf.tot_len)
+            assert_sending();
+            AMBRO_ASSERT(amount <= SIZE_MAX - m_snd_buf.tot_len)
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->snd_buf_cur.tot_len <= m_snd_buf.tot_len)
             
             // Increment the amount of data in the send buffer.
-            m_pcb->snd_buf.tot_len += amount;
-            m_pcb->snd_buf_cur.tot_len += amount;
+            m_snd_buf.tot_len += amount;
             
-            // Handle send buffer extension.
-            if (amount > 0) {
+            if (m_pcb != nullptr) {
+                // Also adjust snd_buf_cur.
+                m_pcb->snd_buf_cur.tot_len += amount;
+                
+                // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_pcb);
             }
         }
         
         /**
-         * Get the current send buffer reference.
-         * 
-         * This references data which has been queued but not yet acknowledged.
-         * 
-         * May be called in connected state only.
+         * Returns the current send buffer.
+         * May only be called in CONNECTED or CLOSED state.
          */
         IpBufRef getSendBuf ()
         {
-            assert_pcb();
+            assert_started();
             
-            return m_pcb->snd_buf;
+            return m_snd_buf;
         }
         
         /**
-         * Report the end of the data stream.
-         * 
-         * After this is called, no further calls of setSendBuf, extendSendBuf
-         * and endSending must be made.
-         * Successful sending and acknowledgement of the end of data is reported
-         * through a dataSent(0) callback. The dataSent(0) callback is only called
-         * after all queued data has been reported sent using dataSent(>0) callbacks.
-         * 
-         * May be called in connected state only.
-         * Must not be called after endSending.
+         * Indicates the end of the data stream, i.e. queues a FIN.
+         * May only be called in CONNECTED or CLOSED state.
+         * May only be called before endSending is called.
          */
-        void endSending ()
+        void closeSending ()
         {
-            assert_pcb_sending();
+            assert_sending();
             
-            // Handle in private function.
-            Output::pcb_end_sending(m_pcb);
+            // Remember that sending is closed.
+            m_flags |= Flags::SND_CLOSED;
+            
+            if (m_pcb != nullptr) {
+                // Inform the output code, e.g. to adjust the PCB state
+                // and send a FIN.
+                Output::pcb_end_sending(m_pcb);
+            }
         }
         
         /**
-         * Push sending of data.
-         * 
-         * This will result in a PSH flag and also will prevent delay of sending
-         * the current queued data due to waiting until a full segment can be sent.
-         * 
-         * May be called in connected state only.
+         * Returns whethercloseSending has been called.
+         * May only be called in CONNECTED or CLOSED state.
+         */
+        bool wasSendingClosed ()
+        {
+            assert_started();
+            
+            return (m_flags & Flags::SND_CLOSED) != 0;
+        }
+        
+        /**
+         * Returns whether a FIN was sent and acknowledged.
+         * May only be called in CONNECTED or CLOSED state.
+         */
+        bool wasEndSent ()
+        {
+            assert_started();
+            
+            return (m_flags & Flags::END_SENT) != 0;
+        }
+        
+        /**
+         * Push sending of currently queued data.
+         * May only be called in CONNECTED or CLOSED state.
          */
         void sendPush ()
         {
-            assert_pcb();
+            assert_started();
             
-            // Note that we ignore the request after endSending was called.
-            // Because we pushed in pcb_end_sending, retransmissions of the
-            // FIN will occur internally as needed.
-            if (snd_open_in_state(m_pcb->state)) {
+            // Tell the output code to push, if necessary.
+            if (m_pcb != nullptr && snd_open_in_state(m_pcb->state)) {
                 Output::pcb_push_output(m_pcb);
             }
         }
         
     private:
-        void assert_pcb ()
+        void assert_init ()
         {
-            AMBRO_ASSERT(m_pcb != nullptr)
-            AMBRO_ASSERT(m_pcb->con == this)
-            AMBRO_ASSERT(state_is_active(m_pcb->state))
+            AMBRO_ASSERT(m_flags == 0)
+            AMBRO_ASSERT(m_pcb == nullptr)
         }
         
-        void assert_pcb_sending ()
+        void assert_started ()
         {
-            assert_pcb();
-            AMBRO_ASSERT(snd_open_in_state(m_pcb->state))
+            AMBRO_ASSERT((m_flags & Flags::STARTED) != 0)
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->con == this)
+            AMBRO_ASSERT(m_pcb == nullptr || state_is_active(m_pcb->state))
+            AMBRO_ASSERT(m_pcb == nullptr || snd_open_in_state(m_pcb->state) == ((m_flags & Flags::SND_CLOSED) == 0))
+        }
+        
+        void assert_connected ()
+        {
+            assert_started();
+            AMBRO_ASSERT(m_pcb != nullptr)
+        }
+        
+        void assert_sending ()
+        {
+            assert_started();
+            AMBRO_ASSERT((m_flags & Flags::SND_CLOSED) == 0)
+        }
+        
+    private:
+        // These are called by TCP internals when various things happen.
+        
+        void pcb_aborted ()
+        {
+            assert_connected();
+            
+            // Disassociate with the PCB.
+            TcpPcb *pcb = m_pcb;
+            pcb->con = nullptr;
+            m_pcb = nullptr;
+            
+            // Call the application callback.
+            m_callback->connectionAborted();
+        }
+        
+        void data_sent (size_t amount)
+        {
+            assert_connected();
+            AMBRO_ASSERT((m_flags & Flags::END_SENT) == 0)
+            AMBRO_ASSERT(amount > 0)
+            
+            // Call the application callback.
+            m_callback->dataSent(amount);
+        }
+        
+        void end_sent ()
+        {
+            assert_connected();
+            AMBRO_ASSERT((m_flags & Flags::END_SENT) == 0)
+            AMBRO_ASSERT((m_flags & Flags::SND_CLOSED) != 0)
+            
+            // Remember that end was sent.
+            m_flags |= Flags::END_SENT;
+            
+            // Call the application callback.
+            m_callback->dataSent(0);
+        }
+        
+        void data_received (size_t amount)
+        {
+            assert_connected();
+            AMBRO_ASSERT((m_flags & Flags::END_RECEIVED) == 0)
+            AMBRO_ASSERT(amount > 0)
+            
+            // Call the application callback.
+            m_callback->dataReceived(amount);
+        }
+        
+        void end_received ()
+        {
+            assert_connected();
+            AMBRO_ASSERT((m_flags & Flags::END_RECEIVED) == 0)
+            
+            // Remember that end was received.
+            m_flags |= Flags::END_RECEIVED;
+            
+            // Call the application callback.
+            m_callback->dataReceived(0);
         }
         
     private:
         TcpConnectionCallback *m_callback;
         TcpPcb *m_pcb;
-    };    
+        IpBufRef m_snd_buf;
+        IpBufRef m_rcv_buf;
+        uint8_t m_flags;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

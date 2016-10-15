@@ -217,7 +217,7 @@ private:
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
             m_command_stream.setAcceptMsg(c, false);
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleError\n"));
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAborted\n"));
             
             start_disconnect(c);
         }
@@ -239,7 +239,7 @@ private:
                 m_command_stream.updateSendBufEvent(c);
             } else {
                 if (amount == 0) {
-                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleEndSent\n"));
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleClosed\n"));
                     start_disconnect(c);
                 }
             }
@@ -275,8 +275,9 @@ private:
             
             if (line_buffer_exhausted || m_connection.wasEndReceived(c)) {
                 m_command_stream.setAcceptMsg(c, false);
-                auto err = line_buffer_exhausted ? AMBRO_PSTR("//TcpConsoleLineTooLong\n") : AMBRO_PSTR("//TcpConsoleClosed\n");
-                ThePrinterMain::print_pgm_string(c, err);
+                if (line_buffer_exhausted) {
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
+                }
                 start_send_end(c);
             }
         }

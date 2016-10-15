@@ -292,7 +292,7 @@ public:
     private:
         void connectionAborted () override
         {
-            AMBRO_ASSERT(m_ip_connection.hasConnection())
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
             m_ip_connection.reset();
             m_listener->update_timeout(Context());
@@ -428,7 +428,7 @@ public:
             if (m_ip_listener.hasAcceptPending()) {
                 for (int i = 0; i < m_queue_size; i++) {
                     TcpListenerQueueEntry *entry = &m_queue[i];
-                    if (!entry->m_ip_connection.hasConnection()) {
+                    if (entry->m_ip_connection.isInit()) {
                         entry->m_ip_connection.acceptConnection(&m_ip_listener);
                         entry->m_time = Context::Clock::getTime(c);
                         update_timeout(c);
@@ -450,7 +450,7 @@ public:
             TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
             
             while (oldest_entry != nullptr) {
-                AMBRO_ASSERT(oldest_entry->m_ip_connection.hasConnection())
+                AMBRO_ASSERT(!oldest_entry->m_ip_connection.isInit())
                 
                 // Call the accept handler, while publishing the connection.
                 m_queued_to_accept = oldest_entry;
@@ -458,7 +458,7 @@ public:
                 m_queued_to_accept = nullptr;
                 
                 // If the connection was not taken, stop trying.
-                if (oldest_entry->m_ip_connection.hasConnection()) {
+                if (!oldest_entry->m_ip_connection.isInit()) {
                     break;
                 }
                 
@@ -522,7 +522,7 @@ public:
             TcpListenerQueueEntry *oldest_entry = nullptr;
             for (int i = 0; i < m_queue_size; i++) {
                 TcpListenerQueueEntry *entry = &m_queue[i];
-                if (entry->m_ip_connection.hasConnection() &&
+                if (!entry->m_ip_connection.isInit() &&
                     (oldest_entry == nullptr || !TheClockUtils::timeGreaterOrEqual(entry->m_time, oldest_entry->m_time)))
                 {
                     oldest_entry = entry;
@@ -557,7 +557,7 @@ public:
     };
     
     class TcpConnection : private IpTcpConnectionCallback {
-        enum class State : uint8_t {IDLE, ESTABLISHED, END_SENT, END_RECEIVED, CLOSED};
+        //enum class State : uint8_t {IDLE, ESTABLISHED, END_SENT, END_RECEIVED, CLOSED};
         
     public:
         static size_t const MinSendBufSize = 2*TcpMaxMSS;
@@ -574,7 +574,6 @@ public:
             
             m_ip_connection.init(this);
             m_callback = callback;
-            m_state = State::IDLE;
         }
         
         void deinit (Context c)
@@ -585,24 +584,19 @@ public:
         void reset (Context c)
         {
             m_ip_connection.reset();
-            m_state = State::IDLE;
         }
         
         void acceptConnection (Context c, TcpListener *listener, TcpConnectionBufferInfo const &bufinfo)
         {
-            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(m_ip_connection.isInit())
             AMBRO_ASSERT(listener->m_ip_listener.isListening())
             AMBRO_ASSERT(bufinfo.send_buf_size >= MinSendBufSize)
             AMBRO_ASSERT(bufinfo.recv_buf_size >= MinRecvBufSize)
             AMBRO_ASSERT(bufinfo.recv_buf_mirror < bufinfo.recv_buf_size)
             
-            m_state = State::ESTABLISHED;
             m_send_buf_node = IpBufNode{bufinfo.send_buf, bufinfo.send_buf_size, &m_send_buf_node};
             m_recv_buf_node = IpBufNode{bufinfo.recv_buf, bufinfo.recv_buf_size, &m_recv_buf_node};
             m_recv_buf_mirror = bufinfo.recv_buf_mirror;
-            m_send_closed = false;
-            m_end_sent = false;
-            m_end_received = false;
             
             listener->acceptIpConnection(c, &m_ip_connection);
             setup_connection();
@@ -610,15 +604,14 @@ public:
         
         size_t getRecvBufferUsed (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
-            IpBufRef rcv_buf = get_recv_buf();
-            return m_recv_buf_node.len - rcv_buf.tot_len;
+            return m_recv_buf_node.len - get_recv_buf().tot_len;
         }
         
         WrapBuffer getRecvBufferPtr (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
             IpBufRef rcv_buf = get_recv_buf();
             size_t write_offset = (rcv_buf.offset == m_recv_buf_node.len) ? 0 : rcv_buf.offset;
@@ -628,44 +621,39 @@ public:
         
         void consumeRecvData (Context c, size_t amount)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             AMBRO_ASSERT(amount <= getRecvBufferUsed(c))
             
-            if (m_state == State::CLOSED) {
-                m_closed_recv_buf.tot_len += amount;
-            } else {
-                m_ip_connection.extendRecvBuf(amount);
-            }
+            m_ip_connection.extendRecvBuf(amount);
         }
         
         void copyRecvData (Context c, MemRef data)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             AMBRO_ASSERT(data.len <= getRecvBufferUsed(c))
             
             getRecvBufferPtr(c).copyOut(data);
-            consumeRecvData(data.len);
+            m_ip_connection.extendRecvBuf(data.len);
         }
         
         bool wasEndReceived (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
-            return m_end_received;
+            return m_ip_connection.wasEndReceived();
         }
         
         size_t getSendBufferSpace (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
-            IpBufRef snd_buf = get_send_buf();
-            return m_send_buf_node.len - snd_buf.tot_len;
+            return m_send_buf_node.len - get_send_buf().tot_len;
         }
         
         WrapBuffer getSendBufferPtr (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
-            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            AMBRO_ASSERT(!m_ip_connection.wasSendingClosed())
             
             IpBufRef snd_buf = get_send_buf();
             size_t read_offset = (snd_buf.offset == m_send_buf_node.len) ? 0 : snd_buf.offset;
@@ -675,61 +663,51 @@ public:
         
         void provideSendData (Context c, size_t amount)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
-            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            AMBRO_ASSERT(!m_ip_connection.wasSendingClosed())
             AMBRO_ASSERT(amount <= getSendBufferSpace(c))
             
-            if (m_state == State::CLOSED) {
-                m_closed_send_buf.tot_len += amount;
-            } else {
-                m_ip_connection.extendSendBuf(amount);
-            }
+            m_ip_connection.extendSendBuf(amount);
         }
         
         void copySendData (Context c, MemRef data)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
-            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            AMBRO_ASSERT(!m_ip_connection.wasSendingClosed())
             AMBRO_ASSERT(data.len <= getSendBufferSpace(c))
             
             getSendBufferPtr(c).copyIn(data);
-            provideSendData(c, data.len);
+            m_ip_connection.extendSendBuf(data.len);
         }
         
         void pokeSending (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
-            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            AMBRO_ASSERT(!m_ip_connection.wasSendingClosed())
             
-            if (m_state != State::CLOSED) {
-                m_ip_connection.sendPush();
-            }
+            m_ip_connection.sendPush();
         }
         
         void closeSending (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
-            AMBRO_ASSERT(!m_send_closed)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            AMBRO_ASSERT(!m_ip_connection.wasSendingClosed())
             
-            m_send_closed = true;
-            if (m_state != State::CLOSED) {
-                m_ip_connection.endSending();
-            }
+            m_ip_connection.closeSending();
         }
         
         bool wasSendingClosed (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
-            return m_send_closed;
+            return m_ip_connection.wasSendingClosed();
         }
         
         bool hasUnsentDataOrEnd (Context c)
         {
-            AMBRO_ASSERT(m_state != State::IDLE)
+            AMBRO_ASSERT(!m_ip_connection.isInit())
             
-            IpBufRef snd_buf = get_send_buf();
-            return snd_buf.tot_len > 0 || (m_send_closed && !m_end_sent);
+            return get_send_buf().tot_len > 0 || (m_ip_connection.wasSendingClosed() && !m_ip_connection.wasEndSent());
         }
         
     private:
@@ -747,35 +725,14 @@ public:
             m_ip_connection.setRecvBuf(IpBufRef{&m_recv_buf_node, (size_t)0, m_recv_buf_node.len});
         }
         
-        void go_to_closed ()
-        {
-            m_state = State::CLOSED;
-            m_closed_send_buf = m_ip_connection.getSendBuf();
-            m_closed_recv_buf = m_ip_connection.getRecvBuf();
-        }
-        
         void connectionAborted () override
         {
-            AMBRO_ASSERT(state_is_active(m_state))
-            
-            go_to_closed();
             m_callback->connectionAborted(Context());
         }
         
         void dataReceived (size_t amount) override
         {
-            AMBRO_ASSERT(state_is_recving(m_state))
-            AMBRO_ASSERT(!m_end_received)
-            
-            if (amount == 0) {
-                m_end_received = true;
-                if (m_state == State::ESTABLISHED) {
-                    m_state = State::END_RECEIVED;
-                } else {
-                    go_to_closed();
-                }
-            }
-            else if (m_recv_buf_mirror > 0) {
+            if (amount > 0 && m_recv_buf_mirror > 0) {
                 // Calculate the offset in the buffer to which new data was written.
                 IpBufRef rcv_buf = m_ip_connection.getRecvBuf();
                 AMBRO_ASSERT(rcv_buf.tot_len + amount <= m_recv_buf_node.len)
@@ -797,40 +754,12 @@ public:
         
         void dataSent (size_t amount) override
         {
-            AMBRO_ASSERT(state_is_sending(m_state))
-            AMBRO_ASSERT(amount != 0 || m_send_closed)
-            AMBRO_ASSERT(!m_end_sent)
-            
-            if (amount == 0) {
-                m_end_sent = true;
-                if (m_state == State::ESTABLISHED) {
-                    m_state = State::END_SENT;
-                } else {
-                    go_to_closed();
-                }
-            }
-            
             m_callback->dataSent(Context(), amount);
-        }
-        
-        inline static bool state_is_active (State state)
-        {
-            return state == OneOf(State::ESTABLISHED, State::END_SENT, State::END_RECEIVED);
-        }
-        
-        inline static bool state_is_recving (State state)
-        {
-            return state == OneOf(State::ESTABLISHED, State::END_SENT);
-        }
-        
-        inline static bool state_is_sending (State state)
-        {
-            return state == OneOf(State::ESTABLISHED, State::END_RECEIVED);
         }
         
         inline IpBufRef get_send_buf ()
         {
-            IpBufRef snd_buf = (m_state == State::CLOSED) ? m_closed_send_buf : m_ip_connection.getSendBuf();
+            IpBufRef snd_buf = m_ip_connection.getSendBuf();
             AMBRO_ASSERT(snd_buf.tot_len <= m_send_buf_node.len)
             AMBRO_ASSERT(snd_buf.offset <= m_send_buf_node.len)
             return snd_buf;
@@ -838,7 +767,7 @@ public:
         
         inline IpBufRef get_recv_buf ()
         {
-            IpBufRef rcv_buf = (m_state == State::CLOSED) ? m_closed_recv_buf : m_ip_connection.getRecvBuf();
+            IpBufRef rcv_buf = m_ip_connection.getRecvBuf();
             AMBRO_ASSERT(rcv_buf.tot_len <= m_recv_buf_node.len)
             AMBRO_ASSERT(rcv_buf.offset <= m_recv_buf_node.len)
             return rcv_buf;
@@ -858,12 +787,6 @@ public:
         IpBufNode m_send_buf_node;
         IpBufNode m_recv_buf_node;
         size_t m_recv_buf_mirror;
-        IpBufRef m_closed_send_buf;
-        IpBufRef m_closed_recv_buf;
-        State m_state;
-        bool m_send_closed;
-        bool m_end_sent;
-        bool m_end_received;
     };
     
 private:

@@ -52,6 +52,11 @@ class IpTcpProto_input
                                    Output, OosSeg))
     
 public:
+    inline static size_t pcb_rcv_buf_len (TcpPcb *pcb)
+    {
+        return (pcb->con != nullptr) ? pcb->con->m_rcv_buf.tot_len : 0;
+    }
+    
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
         // The local address must be the address of the incoming interface.
@@ -147,11 +152,6 @@ public:
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(pcb->con != nullptr)
         
-        // Don't do anything else we're in the connectionAborted callback.
-        if (pcb->hasFlag(PcbFlags::ABORTING)) {
-            return;
-        }
-        
         // If we haven't received a FIN yet, update the receive window.
         if (accepting_data_in_state(pcb->state)) {
             pcb_update_rcv_wnd(pcb);
@@ -163,7 +163,7 @@ public:
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = MinValueU(pcb->rcv_buf.tot_len, TcpProto::MaxRcvWnd);
+        SeqType avail_wnd = MinValueU(pcb_rcv_buf_len(pcb), TcpProto::MaxRcvWnd);
         if (pcb->rcv_wnd < avail_wnd) {
             pcb->rcv_wnd = avail_wnd;
         }
@@ -224,11 +224,9 @@ private:
             pcb->rcv_ann = pcb->rcv_nxt;
             pcb->rcv_ann_thres = TcpProto::DefaultWndAnnThreshold;
             pcb->rcv_mss = iface_mss;
-            pcb->rcv_buf = IpBufRef::NullRef();
             pcb->snd_una = iss;
             pcb->snd_nxt = seq_add(iss, 1);
-            pcb->snd_buf = IpBufRef::NullRef();
-            pcb->snd_buf_cur = IpBufRef::NullRef();
+            pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
             pcb->snd_mss = snd_mss;
             pcb->rto = TcpProto::InitialRtxTime;
@@ -560,24 +558,27 @@ private:
             size_t data_acked = data_acked_seq;
             
             if (data_acked > 0) {
-                AMBRO_ASSERT(data_acked <= pcb->snd_buf.tot_len)
-                AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->snd_buf.tot_len)
-                AMBRO_ASSERT(pcb->snd_psh_index <= pcb->snd_buf.tot_len)
+                // We necessarily still have a TcpConnection, if the connection was
+                // abandoned with unsent/unacked data, it would have been aborted.
+                AMBRO_ASSERT(pcb->con != nullptr)
+                AMBRO_ASSERT(data_acked <= pcb->con->m_snd_buf.tot_len)
+                AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->con->m_snd_buf.tot_len)
+                AMBRO_ASSERT(pcb->snd_psh_index <= pcb->con->m_snd_buf.tot_len)
                 
                 // Advance the send buffer.
                 size_t cur_offset = Output::pcb_snd_offset(pcb);
                 if (data_acked >= cur_offset) {
                     pcb->snd_buf_cur.skipBytes(data_acked - cur_offset);
-                    pcb->snd_buf = pcb->snd_buf_cur;
+                    pcb->con->m_snd_buf = pcb->snd_buf_cur;
                 } else {
-                    pcb->snd_buf.skipBytes(data_acked);
+                    pcb->con->m_snd_buf.skipBytes(data_acked);
                 }
                 
                 // Adjust the push index.
                 pcb->snd_psh_index -= MinValue(pcb->snd_psh_index, data_acked);
                 
                 // Report data-sent event to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataSent(data_acked); })) {
+                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_sent(data_acked); }))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -591,15 +592,11 @@ private:
                 AMBRO_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
                                                     TcpState::LAST_ACK))
                 
-                // Report end-sent event to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataSent(0); })) {
+                // Tell TcpConnection and application about end sent.
+                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->end_sent(); }))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED): none.
-                
-                // In states where a dataReceived(0) has already been called
-                // (CLOSING and LAST_ACK), we need to now disassociate the PCB
-                // and the TcpConnection, using pcb_unlink_con.
                 
                 if (pcb->state == TcpState::FIN_WAIT_1) {
                     // FIN is accked in FIN_WAIT_1, transition to FIN_WAIT_2.
@@ -609,15 +606,14 @@ private:
                     pcb->output_timer.unset(Context());
                 }
                 else if (pcb->state == TcpState::CLOSING) {
-                    // Transition to TIME_WAIT (pcb_unlink_con is done by pcb_go_to_time_wait).
+                    // Transition to TIME_WAIT.
                     // Further processing below is not applicable so return here.
                     TcpProto::pcb_go_to_time_wait(pcb);
                     return false;
                 }
                 else {
                     AMBRO_ASSERT(pcb->state == TcpState::LAST_ACK)
-                    // Close the PCB; do pcb_unlink_con first to prevent connectionAborted.
-                    TcpProto::pcb_unlink_con(pcb); 
+                    // Close the PCB.
                     TcpProto::pcb_abort(pcb, false);
                     return false;
                 }
@@ -681,7 +677,7 @@ private:
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
         if (AMBRO_UNLIKELY(tcp_data.tot_len > 0 &&
-                           pcb->rcv_buf.tot_len < data_offset + tcp_data.tot_len)) {
+                           pcb_rcv_buf_len(pcb) < data_offset + tcp_data.tot_len)) {
             TcpProto::pcb_abort(pcb, true);
             return false;
         }
@@ -705,7 +701,8 @@ private:
             
             // Copy any received data into the receive buffer, shifting it.
             if (rcv_datalen > 0) {
-                pcb->rcv_buf.giveBuf(tcp_data);
+                AMBRO_ASSERT(pcb->con != nullptr)
+                pcb->con->m_rcv_buf.giveBuf(tcp_data);
             }
         } else {
             // Remember information about out-of-sequence data and FIN.
@@ -719,7 +716,8 @@ private:
             
             // Copy any received data into the receive buffer.
             if (tcp_data.tot_len > 0) {
-                IpBufRef dst_buf = pcb->rcv_buf;
+                AMBRO_ASSERT(pcb->con != nullptr)
+                IpBufRef dst_buf = pcb->con->m_rcv_buf;
                 dst_buf.skipBytes(data_offset);
                 dst_buf.giveBuf(tcp_data);
             }
@@ -728,16 +726,17 @@ private:
             pop_ooseq(pcb, rcv_datalen, rcv_fin);
             
             // If we got any data out of OOS buffering here then the receive buffer
-            // can necessarily be shifted by that much. This is  because the data was
+            // can necessarily be shifted by that much. This is because the data was
             // written into the receive buffer when it was received, and the only
             // concern is if the connection was then abandoned. But in that case we
             // would not get any more data out since we have not put any more data
             // in and we always consume all available data after adding some.
-            AMBRO_ASSERT(rcv_datalen == 0 || pcb->rcv_buf.tot_len >= rcv_datalen)
+            AMBRO_ASSERT(pcb_rcv_buf_len(pcb) >= rcv_datalen)
             
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
-                pcb->rcv_buf.skipBytes(rcv_datalen);
+                AMBRO_ASSERT(pcb->con != nullptr)
+                pcb->con->m_rcv_buf.skipBytes(rcv_datalen);
             }
         }
         
@@ -779,14 +778,14 @@ private:
                 }
             }
             // It may be possible to enlarge rcv_wnd as it may have been bounded to MaxRcvWnd.
-            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb->rcv_buf.tot_len)) {
+            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb_rcv_buf_len(pcb))) {
                 // The if is redundant but reduces overhead since this is needed rarely.
                 pcb_update_rcv_wnd(pcb);
             }
             
             if (rcv_datalen > 0) {
-                // Give any the data to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataReceived(rcv_datalen); })) {
+                // Give any data to the user.
+                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_received(rcv_datalen); }))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -795,8 +794,8 @@ private:
             }
             
             if (AMBRO_UNLIKELY(rcv_fin)) {
-                // Report end-received event to the user.
-                if (!TcpProto::pcb_callback(pcb, [&](auto cb) { cb->dataReceived(0); })) {
+                // Tell TcpConnection and application about end received.
+                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->end_received(); }))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):

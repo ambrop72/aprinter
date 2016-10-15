@@ -206,11 +206,6 @@ struct IpBufRef {
             new_tot_len
         };
     }
-    
-    static constexpr inline IpBufRef NullRef ()
-    {
-        return IpBufRef {nullptr, 0, 0};
-    }
 };
 
 class StackBufAllocator {

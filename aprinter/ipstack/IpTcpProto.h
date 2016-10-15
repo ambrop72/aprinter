@@ -97,7 +97,7 @@ private:
         OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
         FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
         FIN_PENDING = 1 << 3, // A FIN is to be transmitted
-        ABORTING    = 1 << 4, // The connectionAborted callback is being called
+        PROTECT     = 1 << 4, // Prevent allocate_pcb from taking this PCB
         RTT_PENDING = 1 << 5, // Round-trip-time is being measured
         RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
         OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
@@ -158,7 +158,6 @@ private:
         SeqType snd_wnd;
         SeqType snd_wl1;
         SeqType snd_wl2;
-        IpBufRef snd_buf;
         IpBufRef snd_buf_cur;
         size_t snd_psh_index;
         
@@ -167,7 +166,6 @@ private:
         SeqType rcv_wnd;
         SeqType rcv_ann;
         SeqType rcv_ann_thres;
-        IpBufRef rcv_buf;
         
         // Out-of-sequence segment information.
         OosSeg ooseq[NumOosSegs];
@@ -199,7 +197,7 @@ private:
         inline void clearFlag (uint8_t flag) { flags &= ~flag; }
         
         // Trampolines for timer handlers.
-        void abrt_timer_handler (Context) { tcp->pcb_abrt_timer_handler(this); }
+        void abrt_timer_handler (Context) { pcb_abrt_timer_handler(this); }
         void output_timer_handler (Context) { Output::pcb_output_timer_handler(this); }
         void rtx_timer_handler (Context) { Output::pcb_rtx_timer_handler(this); }
     };
@@ -296,8 +294,8 @@ private:
         // has no associated TcpConnection. For the latter case use the least
         // recently used such PCB.
         for (TcpPcb &pcb : m_pcbs) {
-            if (pcb.hasFlag(PcbFlags::ABORTING)) {
-                // Ignore PCB being aborted in pcb_abort.
+            if (pcb.hasFlag(PcbFlags::PROTECT)) {
+                // Don't take protected PCB.
                 continue;
             }
             
@@ -348,23 +346,14 @@ private:
     static void pcb_abort (TcpPcb *pcb, bool send_rst)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
-        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::ABORTING))
-        
-        // If there is an associated TcpConnection, call the connectionAborted
-        // callback. During set the flag ABORTING durring the callback so we
-        // can tell if we're being called back from here.
-        if (pcb->con != nullptr) {
-            pcb->setFlag(PcbFlags::ABORTING);
-            pcb->con->m_callback->connectionAborted();
-            pcb->clearFlag(PcbFlags::ABORTING);
-        }
         
         // Send RST if desired.
         if (send_rst) {
             Output::pcb_send_rst(pcb);
         }
         
-        // Disassociate any TcpConnection.
+        // Disassociate any TcpConnection. This will call the
+        // connectionAborted callback if we do have a TcpConnection.
         pcb_unlink_con(pcb);
         
         // Disassociate any TcpListener.
@@ -390,15 +379,11 @@ private:
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
         
-        // If there way any TcpConnection, disassociate it.
-        // Note that there is no need for an aborted callbacks because the
-        // user already knows that the connection is closed because they
-        // have received both end-sent and end-received callbacks.
+        // Disassociate any TcpConnection. This will call the
+        // connectionAborted callback if we do have a TcpConnection.
         pcb_unlink_con(pcb);
         
         // Disassociate any TcpListener.
-        // We don't want abandoned connections to contributing to the
-        // listener's PCB count and prevent new connections.
         pcb_unlink_lis(pcb);
         
         // Set snd_nxt to snd_una in order to not accept any more acknowledgements.
@@ -421,14 +406,18 @@ private:
     static void pcb_unlink_con (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::PROTECT))
         
         if (pcb->con != nullptr) {
+            // Use the protect flag to prevent allocate_pcb from taking the PCB.
+            pcb->setFlag(PcbFlags::PROTECT);
+            
+            // Inform the connection object about the aborting.
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con->m_pcb == pcb)
+            con->pcb_aborted();
             
-            // Disassociate the TcpConnection and the PCB.
-            con->m_pcb = nullptr;
-            pcb->con = nullptr;
+            pcb->clearFlag(PcbFlags::PROTECT);
         }
     }
     
@@ -452,15 +441,11 @@ private:
         }
     }
     
-    static void pcb_con_abandoned (TcpPcb *pcb)
+    static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty)
     {
         AMBRO_ASSERT(state_is_active(pcb->state))
-        AMBRO_ASSERT(pcb->con == nullptr)
-        
-        // Ignore this if it we're in the connectionAborted callback.
-        if (pcb->hasFlag(PcbFlags::ABORTING)) {
-            return;
-        }
+        AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection haa just disassociated itself
+        AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
         
         // Disassociate any TcpListener.
         // We don't want abandoned connections to contributing to the
@@ -471,7 +456,7 @@ private:
         if (can_output_in_state(pcb->state)) {
             // If not all data has been sent we have to abort because we
             // may no longer reference the remaining data; send RST.
-            if (pcb->snd_buf.tot_len > 0) {
+            if (snd_buf_nonempty) {
                 return pcb_abort(pcb, true);
             }
             
@@ -480,11 +465,6 @@ private:
                 Output::pcb_end_sending(pcb);
             }
         }
-        
-        // Reset the receive buffer. After abandining, we may not write
-        // to the receive buffer which is now considered inaccessible,
-        // and we will abort the connection if any more data is received.
-        pcb->rcv_buf = IpBufRef{};
         
         // If we haven't received a FIN, ensure that at least rcv_mss
         // window is advertised.
@@ -501,33 +481,29 @@ private:
         pcb->abrt_timer.appendAfter(Context(), AbandonedTimeoutTicks);
     }
     
-    void pcb_abrt_timer_handler (TcpPcb *pcb)
+    static void pcb_abrt_timer_handler (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
         pcb_abort(pcb);
     }
     
-    // Call a TcpConnection callback, if there is any TcpConnection associated.
-    // Returns false if the PCB was aborted, else true. This must be used from
-    // pcb_input only as it relies on m_current_pcb to detect an abort.
-    template <typename Callback>
-    static bool pcb_callback (TcpPcb *pcb, Callback callback)
+    // This is used from input processing to call one of the TcpConnection
+    // private functions then check whether the PCB is still alive.
+    template <typename Action>
+    inline static bool pcb_event (TcpPcb *pcb, Action action)
     {
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
+        AMBRO_ASSERT(pcb->con == nullptr || pcb->con->m_pcb == pcb)
         
-        if (pcb->con != nullptr) {
-            AMBRO_ASSERT(pcb->con->m_pcb == pcb)
-            
-            IpTcpProto *tcp = pcb->tcp;
-            callback(pcb->con->m_callback);
-            
-            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
-                return false;
-            }
+        if (pcb->con == nullptr) {
+            return true;
         }
         
-        return true;
+        IpTcpProto *tcp = pcb->tcp;
+        action(pcb->con);
+        
+        return tcp->m_current_pcb != nullptr;
     }
     
     static uint16_t get_iface_mss (Iface *iface)
@@ -551,6 +527,20 @@ private:
             }
         }
         return nullptr;
+    }
+    
+    void unlink_listener (TcpListener *lis)
+    {
+        // Disassociate any PCBs associated with this listener,
+        // and also abort any such PCBs in SYN_RCVD state (without RST).
+        for (TcpPcb &pcb : m_pcbs) {
+            if (pcb.lis == lis) {
+                pcb.lis = nullptr;
+                if (pcb.state == TcpState::SYN_RCVD) {
+                    pcb_abort(&pcb, false);
+                }
+            }
+        }
     }
     
 private:
