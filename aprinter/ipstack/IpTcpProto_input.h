@@ -52,11 +52,6 @@ class IpTcpProto_input
                                    Output, OosSeg))
     
 public:
-    inline static size_t pcb_rcv_buf_len (TcpPcb *pcb)
-    {
-        return (pcb->con != nullptr) ? pcb->con->m_rcv_buf.tot_len : 0;
-    }
-    
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
         // The local address must be the address of the incoming interface.
@@ -163,7 +158,7 @@ public:
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = MinValueU(pcb_rcv_buf_len(pcb), TcpProto::MaxRcvWnd);
+        SeqType avail_wnd = MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
         if (pcb->rcv_wnd < avail_wnd) {
             pcb->rcv_wnd = avail_wnd;
         }
@@ -677,7 +672,7 @@ private:
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
         if (AMBRO_UNLIKELY(tcp_data.tot_len > 0 &&
-                           pcb_rcv_buf_len(pcb) < data_offset + tcp_data.tot_len)) {
+                           pcb->rcvBufLen() < data_offset + tcp_data.tot_len)) {
             TcpProto::pcb_abort(pcb, true);
             return false;
         }
@@ -731,7 +726,7 @@ private:
             // concern is if the connection was then abandoned. But in that case we
             // would not get any more data out since we have not put any more data
             // in and we always consume all available data after adding some.
-            AMBRO_ASSERT(pcb_rcv_buf_len(pcb) >= rcv_datalen)
+            AMBRO_ASSERT(pcb->rcvBufLen() >= rcv_datalen)
             
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
@@ -778,7 +773,7 @@ private:
                 }
             }
             // It may be possible to enlarge rcv_wnd as it may have been bounded to MaxRcvWnd.
-            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb_rcv_buf_len(pcb))) {
+            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb->rcvBufLen())) {
                 // The if is redundant but reduces overhead since this is needed rarely.
                 pcb_update_rcv_wnd(pcb);
             }

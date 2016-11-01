@@ -47,7 +47,7 @@ class IpTcpProto_api
 {
     APRINTER_USE_TYPES2(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, PcbFlags, Input, Output))
+    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output))
     
 public:
     class TcpConnection;
@@ -395,7 +395,7 @@ public:
          * This is intended to be used when a connection is accepted to determine
          * the minimum amount of receive buffer which must be available.
          */
-        size_t getReceiveWindow ()
+        inline size_t getReceiveWindow ()
         {
             assert_connected();
             
@@ -415,9 +415,12 @@ public:
             assert_started();
             AMBRO_ASSERT(m_rcv_buf.tot_len == 0)
             
+            // Set the receive buffer.
             m_rcv_buf = rcv_buf;
             
             if (m_pcb != nullptr) {
+                // Inform the input code, so it can update rcv_wnd
+                // and possibly send a window update.
                 Input::pcb_rcv_buf_extended(m_pcb);
             }
         }
@@ -445,7 +448,7 @@ public:
          * Returns the current receive buffer.
          * May only be called in CONNECTED or CLOSED state.
          */
-        IpBufRef getRecvBuf ()
+        inline IpBufRef getRecvBuf ()
         {
             assert_started();
             
@@ -456,7 +459,7 @@ public:
          * Returns whether a FIN was received.
          * May only be called in CONNECTED or CLOSED state.
          */
-        bool wasEndReceived ()
+        inline bool wasEndReceived ()
         {
             assert_started();
             
@@ -468,7 +471,7 @@ public:
          * indefinitely in the absence of sendPush or endSending.
          * May only be called in CONNECTED state.
          */
-        size_t getSndBufOverhead ()
+        inline size_t getSndBufOverhead ()
         {
             assert_connected();
             
@@ -531,7 +534,7 @@ public:
          * Returns the current send buffer.
          * May only be called in CONNECTED or CLOSED state.
          */
-        IpBufRef getSendBuf ()
+        inline IpBufRef getSendBuf ()
         {
             assert_started();
             
@@ -561,7 +564,7 @@ public:
          * Returns whethercloseSending has been called.
          * May only be called in CONNECTED or CLOSED state.
          */
-        bool wasSendingClosed ()
+        inline bool wasSendingClosed ()
         {
             assert_started();
             
@@ -572,7 +575,7 @@ public:
          * Returns whether a FIN was sent and acknowledged.
          * May only be called in CONNECTED or CLOSED state.
          */
-        bool wasEndSent ()
+        inline bool wasEndSent ()
         {
             assert_started();
             
@@ -588,7 +591,7 @@ public:
             assert_started();
             
             // Tell the output code to push, if necessary.
-            if (m_pcb != nullptr && snd_open_in_state(m_pcb->state)) {
+            if (m_pcb != nullptr && (m_flags & Flags::SND_CLOSED) == 0) {
                 Output::pcb_push_output(m_pcb);
             }
         }

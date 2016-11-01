@@ -384,8 +384,7 @@ public:
             // If there is no queue, raise the initial receive window.
             // If there is a queue, we have to leave it at zero.
             if (m_queue_size == 0) {
-                SeqType rcv_wnd = MinValueU(params.min_rcv_buf_size, TheIpTcpProto::MaxRcvWnd);
-                m_ip_listener.setInitialReceiveWindow(rcv_wnd);
+                m_ip_listener.setInitialReceiveWindow(params.min_rcv_buf_size);
             }
             
             return true;
@@ -557,8 +556,6 @@ public:
     };
     
     class TcpConnection : private IpTcpConnectionCallback {
-        //enum class State : uint8_t {IDLE, ESTABLISHED, END_SENT, END_RECEIVED, CLOSED};
-        
     public:
         static size_t const MinSendBufSize = 2*TcpMaxMSS;
         static size_t const MinRecvBufSize = 2*TcpMaxMSS;
@@ -701,13 +698,6 @@ public:
             AMBRO_ASSERT(!m_ip_connection.isInit())
             
             return m_ip_connection.wasSendingClosed();
-        }
-        
-        bool hasUnsentDataOrEnd (Context c)
-        {
-            AMBRO_ASSERT(!m_ip_connection.isInit())
-            
-            return get_send_buf().tot_len > 0 || (m_ip_connection.wasSendingClosed() && !m_ip_connection.wasEndSent());
         }
         
     private:

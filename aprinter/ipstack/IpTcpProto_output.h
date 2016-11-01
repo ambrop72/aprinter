@@ -53,11 +53,6 @@ class IpTcpProto_output
     APRINTER_USE_VALS(TcpProto::TheIpStack, (HeaderBeforeIp4Dgram))
     
 public:
-    inline static size_t pcb_snd_buf_len (TcpPcb *pcb)
-    {
-        return (pcb->con != nullptr) ? pcb->con->m_snd_buf.tot_len : 0;
-    }
-    
     // Check if our FIN has been ACKed.
     static bool pcb_fin_acked (TcpPcb *pcb)
     {
@@ -67,11 +62,9 @@ public:
     // Calculate the offset of the current send buffer position.
     static size_t pcb_snd_offset (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->con == nullptr ||
-                     pcb->snd_buf_cur.tot_len <= pcb->con->m_snd_buf.tot_len)
+        AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->sndBufLen())
         
-        return (pcb->con == nullptr) ? 0 :
-               (pcb->con->m_snd_buf.tot_len - pcb->snd_buf_cur.tot_len);
+        return pcb->sndBufLen() - pcb->snd_buf_cur.tot_len;
     }
     
     // Send SYN+ACK packet in SYN_RCVD state, with MSS option.
@@ -152,7 +145,7 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
         // Set the push index to the end of the send buffer.
-        pcb->snd_psh_index = pcb_snd_buf_len(pcb);
+        pcb->snd_psh_index = pcb->sndBufLen();
         
         // Schedule a call to pcb_output soon.
         if (pcb == pcb->tcp->m_current_pcb) {
@@ -169,7 +162,7 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        return pcb_snd_buf_len(pcb) > 0 || !snd_open_in_state(pcb->state);
+        return pcb->sndBufLen() > 0 || !snd_open_in_state(pcb->state);
     }
     
     // Determine of the rtx_timer needs to be running.
@@ -181,7 +174,7 @@ public:
         // Need the timer either if we have any sent but unacknowledged
         // data/FIN or if the send window is empty while delaying transmission
         // is not acceptable.
-        return pcb->snd_buf_cur.tot_len < pcb_snd_buf_len(pcb) ||
+        return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
                pcb->hasFlag(PcbFlags::FIN_SENT) ||
                (pcb->snd_wnd == 0 && !pcb_may_delay_snd(pcb));
     }
@@ -197,7 +190,7 @@ public:
     static SeqType pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(data.tot_len <= pcb_snd_buf_len(pcb))
+        AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
         AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
         AMBRO_ASSERT(data.tot_len > 0 || fin)
         AMBRO_ASSERT(rem_wnd > 0)
@@ -206,7 +199,7 @@ public:
         size_t seg_data_len = MinValueU(data.tot_len, MinValueU(rem_wnd, pcb->snd_mss));
         
         // Determine offset from start of send buffer.
-        size_t offset = pcb_snd_buf_len(pcb) - data.tot_len;
+        size_t offset = pcb->sndBufLen() - data.tot_len;
         
         // Determine segment flags, calculate sequence length.
         FlagsType seg_flags = Tcp4FlagAck;

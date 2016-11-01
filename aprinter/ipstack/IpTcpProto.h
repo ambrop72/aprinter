@@ -191,10 +191,14 @@ private:
         // Number of valid elements in ooseq_segs;
         uint8_t num_ooseq;
         
-        // Convenience functions.
+        // Convenience functions for flags.
         inline bool hasFlag (uint8_t flag) { return (flags & flag) != 0; }
         inline void setFlag (uint8_t flag) { flags |= flag; }
         inline void clearFlag (uint8_t flag) { flags &= ~flag; }
+        
+        // Convenience functions for buffer length.
+        inline size_t sndBufLen () { return (con != nullptr) ? con->m_snd_buf.tot_len : 0; }
+        inline size_t rcvBufLen () { return (con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
         
         // Trampolines for timer handlers.
         void abrt_timer_handler (Context) { pcb_abrt_timer_handler(this); }
@@ -445,25 +449,23 @@ private:
     {
         AMBRO_ASSERT(state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection haa just disassociated itself
+        AMBRO_ASSERT(!snd_buf_nonempty || can_output_in_state(pcb->state))
         AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
+        
+        // If not all data has been sent we have to abort because we
+        // may no longer reference the remaining data; send RST.
+        if (snd_buf_nonempty) {
+            return pcb_abort(pcb, true);
+        }
         
         // Disassociate any TcpListener.
         // We don't want abandoned connections to contributing to the
         // listener's PCB count and prevent new connections.
         pcb_unlink_lis(pcb);
         
-        // Has a FIN not yet been sent and acknowledged?
-        if (can_output_in_state(pcb->state)) {
-            // If not all data has been sent we have to abort because we
-            // may no longer reference the remaining data; send RST.
-            if (snd_buf_nonempty) {
-                return pcb_abort(pcb, true);
-            }
-            
-            // Assume end of data from user.
-            if (snd_open_in_state(pcb->state)) {
-                Output::pcb_end_sending(pcb);
-            }
+        // Arrange for sending the FIN.
+        if (snd_open_in_state(pcb->state)) {
+            Output::pcb_end_sending(pcb);
         }
         
         // If we haven't received a FIN, ensure that at least rcv_mss
