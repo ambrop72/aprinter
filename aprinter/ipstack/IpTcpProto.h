@@ -370,12 +370,10 @@ private:
             pcb->tcp->m_current_pcb = nullptr;
         }
         
-        // Reset PCB to initial state.
+        // Reset other relevant fields to initial state.
         pcb->abrt_timer.unset(Context());
         pcb->output_timer.unset(Context());
         pcb->rtx_timer.unset(Context());
-        AMBRO_ASSERT(pcb->con == nullptr)
-        AMBRO_ASSERT(pcb->lis == nullptr)
         pcb->state = TcpState::CLOSED;
     }
     
@@ -421,6 +419,7 @@ private:
             AMBRO_ASSERT(con->m_pcb == pcb)
             con->pcb_aborted();
             
+            AMBRO_ASSERT(pcb->con == nullptr)
             pcb->clearFlag(PcbFlags::PROTECT);
         }
     }
