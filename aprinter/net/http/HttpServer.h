@@ -42,6 +42,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
@@ -50,12 +51,8 @@
 
 template <typename Arg>
 class HttpServer {
-    using Context         = typename Arg::Context;
-    using ParentObject    = typename Arg::ParentObject;
-    using TheMain         = typename Arg::TheMain;
-    using RequestHandler  = typename Arg::RequestHandler;
-    using UserClientState = typename Arg::UserClientState;
-    using Params          = typename Arg::Params;
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, TheMain, RequestHandler,
+                              UserClientState, Params))
     
 public:
     struct Object;
@@ -63,15 +60,10 @@ public:
 private:
     class Client;
     
-    using TimeType = typename Context::Clock::TimeType;
-    using TheNetwork = typename Context::Network;
-    using TheTcpListener            = typename TheNetwork::TcpListener;
-    using TheTcpListenerQueueParams = typename TheNetwork::TcpListenerQueueParams;
-    using TheTcpListenerQueueEntry  = typename TheNetwork::TcpListenerQueueEntry;
-    using TheTcpConnection          = typename TheNetwork::TcpConnection;
-    
-    static size_t const RxBufferSize = TheTcpConnection::RequiredRxBufSize;
-    static size_t const TxBufferSize = TheTcpConnection::ProvidedTxBufSize;
+    APRINTER_USE_TYPE1(Context::Clock, TimeType)
+    APRINTER_USE_TYPE1(Context, Network)
+    APRINTER_USE_TYPES1(Network, (TcpListener, TcpListenParams, TcpListenerQueueEntry,
+                                  TcpConnection, TcpConnectionBufferInfo))
     
     // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
     // This has to be set to a sufficiently large value that accomodates the worst case
@@ -82,19 +74,31 @@ private:
     static_assert(Params::Net::MaxClients > 0, "");
     static_assert(Params::Net::QueueSize >= 0, "");
     static_assert(Params::Net::MaxPcbs > 0, "");
+    static_assert(Params::Net::SendBufferSize >= TcpConnection::MinSendBufSize, "");
+    static_assert(Params::Net::RecvBufferSize >= TcpConnection::MinRecvBufSize, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
-    static_assert(Params::ExpectedResponseLength <= TxBufferSize, "");
     static_assert(Params::MaxRequestHeadLength >= 500, "");
     static_assert(Params::MaxChunkHeaderLength >= 32, "");
     static_assert(Params::MaxTrailerLength >= 128, "");
     static_assert(Params::TxChunkHeaderDigits >= 3, "");
     static_assert(Params::TxChunkHeaderDigits <= 8, "");
     
+    static size_t const TxBufferSize = Params::Net::SendBufferSize;
+    static size_t const RxBufferSize = Params::Net::RecvBufferSize;
+    static size_t const GuaranteedTxBufferSize = TxBufferSize - TcpConnection::MaxSndBufOverhead;
+    
+    // Check that the send buffer is large enough for a response. This is needed
+    // for waiting in the WAIT_SEND_BUF_FOR_REQUEST state. Since there was a poke
+    // after sending any previous response, it's enough to check TxBufferSize
+    // as opposed to GuaranteedTxBufferSize.
+    static_assert(TxBufferSize >= Params::ExpectedResponseLength, "");
+    
     // Check sizes related to sending by chunked-encoding.
     // - The send buffer needs to be large enough that we can build a chunk with at least 1 byte of payload.
     // - The number of digits for the chunk length needs to be enough for the largest possible chunk.
+    // - We can safely wait for buffer space for the terminating chunk header witkout a poke.
     static size_t const TxChunkHeaderDigits = Params::TxChunkHeaderDigits;
     static size_t const TxChunkHeaderSize = TxChunkHeaderDigits + 2;
     static size_t const TxChunkFooterSize = 2;
@@ -102,6 +106,8 @@ private:
     static_assert(TxBufferSize > TxChunkOverhead, "");
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
     static_assert(TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
+    static size_t const TxLastChunkSize = 5;
+    static_assert(GuaranteedTxBufferSize >= TxLastChunkSize, "");
     
     static TimeType const QueueTimeoutTicks      = Params::Net::QueueTimeout::value()      * Context::Clock::time_freq;
     static TimeType const InactivityTimeoutTicks = Params::Net::InactivityTimeout::value() * Context::Clock::time_freq;
@@ -111,16 +117,27 @@ public:
     
     static size_t const MaxTxChunkOverhead = TxChunkOverhead;
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
-    static size_t const MaxGuaranteedBufferAvailBeforeHeadSent = TxBufferSizeForChunkData - MinValue(TxBufferSizeForChunkData, Params::ExpectedResponseLength);
+    static size_t const GuaranteedTxChunkSizeBeforeHead = TxBufferSizeForChunkData - MinValue(TxBufferSizeForChunkData, Params::ExpectedResponseLength);
+    static size_t const GuaranteedTxChunkSizeWithoutPoke = GuaranteedTxBufferSize - MinValue(GuaranteedTxBufferSize, TxChunkOverhead);
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Net::Port, Params::Net::MaxPcbs, TheTcpListenerQueueParams{Params::Net::QueueSize, QueueTimeoutTicks, o->queue})) {
+        
+        auto listen_params = TcpListenParams{};
+        listen_params.port = Params::Net::Port;
+        listen_params.max_pcbs = Params::Net::MaxPcbs;
+        listen_params.min_rcv_buf_size = RxBufferSize;
+        listen_params.queue_size = Params::Net::QueueSize;
+        listen_params.queue_timeout = QueueTimeoutTicks;
+        listen_params.queue_entries = o->queue;
+        
+        if (!o->listener.startListening(c, listen_params)) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
+        
         for (Client &client : o->clients) {
             client.init(c);
         }
@@ -133,6 +150,7 @@ public:
         for (Client &client : o->clients) {
             client.deinit(c);
         }
+        
         o->listener.deinit(c);
     }
     
@@ -148,16 +166,7 @@ private:
         }
     }
     
-    static size_t buf_add (size_t start, size_t count)
-    {
-        size_t x = start + count;
-        if (x >= RxBufferSize) {
-            x -= RxBufferSize;
-        }
-        return x;
-    }
-    
-    class Client : private TheNetwork::TcpConnectionCallback {
+    class Client : private Network::TcpConnectionCallback {
         friend HttpServer;
         
     private:
@@ -178,23 +187,6 @@ private:
             INVALID, HEAD_NOT_SENT, SEND_HEAD,
             SEND_BODY, SEND_LAST_CHUNK, COMPLETED
         };
-        
-        void accept_rx_data (Context c, size_t amount)
-        {
-            AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
-            AMBRO_ASSERT(amount <= m_rx_buf_length)
-            
-            m_rx_buf_start = buf_add(m_rx_buf_start, amount);
-            m_rx_buf_length -= amount;
-            m_connection.acceptReceivedData(c, amount);
-        }
-        
-        void send_string (Context c, char const *str)
-        {
-            AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
-            
-            m_connection.copySendData(c, MemRef(str));
-        }
         
         void init (Context c)
         {
@@ -224,7 +216,7 @@ private:
             m_send_event.deinit(c);
         }
         
-        void accept_connection (Context c, TheTcpListener *listener)
+        void accept_connection (Context c, TcpListener *listener)
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
@@ -232,13 +224,14 @@ private:
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
 #endif
             
-            // Accept the connection.
-            m_connection.acceptConnection(c, listener);
+            auto buffer_info = TcpConnectionBufferInfo{};
+            buffer_info.send_buf = m_tx_buf;
+            buffer_info.send_buf_size = TxBufferSize;
+            buffer_info.recv_buf = m_rx_buf;
+            buffer_info.recv_buf_size = RxBufferSize;
             
-            // Initialzie the RX buffer.
-            m_rx_buf_start = 0;
-            m_rx_buf_length = 0;
-            m_rx_buf_eof = false;
+            // Accept the connection.
+            m_connection.acceptConnection(c, listener, buffer_info);
             
             // Go prepare_for_request() very soon through this state for simplicity.
             // Really there will be no waiting.
@@ -321,17 +314,17 @@ private:
         
         bool have_request (Context c)
         {
-            return (m_state == OneOf(State::HEAD_RECEIVED, State::USER_GONE));
+            return m_state == OneOf(State::HEAD_RECEIVED, State::USER_GONE);
         }
         
-        void check_for_next_request (Context c)
+        void check_for_completed_request (Context c)
         {
             if (m_state == State::USER_GONE &&
                 m_recv_state == RecvState::COMPLETED &&
                 m_send_state == SendState::COMPLETED)
             {
                 // The request is processed.
-                // If closing is desired, we want to wait until the send buffer is emptied,
+                // If closing is desired, we want to wait until everything is sent,
                 // otherwise just until we have enough space in the send buffer for the next request.
                 AMBRO_ASSERT(!m_user)
                 AMBRO_ASSERT(!m_send_timeout_event.isSet(c))
@@ -343,44 +336,25 @@ private:
             }
         }
         
-        void connectionErrorHandler (Context c, bool remote_closed) override
+        void connectionAborted (Context c) override
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
-            AMBRO_ASSERT(!remote_closed || !m_rx_buf_eof)
-            
-            // If this is an EOF from the client, just note it and handle it later.
-            if (remote_closed) {
-                m_rx_buf_eof = true;
-                m_recv_event.prependNow(c);
-                return;
-            }
             
 #if APRINTER_DEBUG_HTTP_SERVER
-            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientError\n"));
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientAborted\n"));
 #endif
             disconnect(c);
         }
         
-        void connectionRecvHandler (Context c, size_t bytes_read) override
+        void dataReceived (Context c, size_t amount) override
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
-            AMBRO_ASSERT(!m_rx_buf_eof)
-            AMBRO_ASSERT(bytes_read <= RxBufferSize - m_rx_buf_length)
-            
-            // Write the received data to the RX buffer.
-            size_t write_offset = buf_add(m_rx_buf_start, m_rx_buf_length);
-            size_t first_chunk_len = MinValue(bytes_read, (size_t)(RxBufferSize - write_offset));
-            m_connection.copyReceivedData(c, m_rx_buf + write_offset, first_chunk_len);
-            if (first_chunk_len < bytes_read) {
-                m_connection.copyReceivedData(c, m_rx_buf, bytes_read - first_chunk_len);
-            }
-            m_rx_buf_length += bytes_read;
             
             // Check for things to be done now that we have new data.
             m_recv_event.prependNow(c);
         }
         
-        void connectionSendHandler (Context c) override
+        void dataSent (Context c, size_t amount) override
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
@@ -414,7 +388,7 @@ private:
                         
                         case SendState::SEND_LAST_CHUNK: {
                             // Not enough space in the send buffer yet?
-                            if (m_connection.getSendBufferSpace(c) < 5) {
+                            if (m_connection.getSendBufferSpace(c) < TxLastChunkSize) {
                                 m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                                 return;
                             }
@@ -422,19 +396,11 @@ private:
                             // Send the terminating chunk with no payload.
                             send_string(c, "0\r\n\r\n");
                             
-                            // Close sending on the connection if needed, or just push.
-                            if (m_close_connection) {
-                                m_connection.closeSending(c);
-                            } else {
-                                m_connection.pokeSending(c);
-                            }
-                            
-                            // Sending the response is now completed.
-                            m_send_timeout_event.unset(c);
-                            m_send_state = SendState::COMPLETED;
+                            // Poke/cose connection, transition to SendState::COMPLETED.
+                            sending_completed(c);
                             
                             // Maybe we can move on to the next request.
-                            check_for_next_request(c);
+                            check_for_completed_request(c);
                         } break;
                         
                         default: break;
@@ -442,9 +408,8 @@ private:
                 } break;
                 
                 case State::DISCONNECT_AFTER_SENDING: {
-                    // Disconnect the client once everything has been sent.
-                    if (!m_connection.hasUnsentDataOrEnd(c)) {
-                        // TODO
+                    // Disconnect the client once the FIN has been sent.
+                    if (m_connection.wasEndSent(c)) {
                         disconnect(c);
                     } else {
                         m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
@@ -482,7 +447,7 @@ private:
                         case RecvState::RECV_CHUNK_DATA: {
                             // Detect premature EOF from the client.
                             // We don't bother passing any remaining data to the user, this is easier.
-                            if (m_rx_buf_eof && m_rx_buf_length < m_rem_req_body_length) {
+                            if (m_connection.wasEndReceived(c) && m_connection.getRecvBufferUsed(c) < m_rem_req_body_length) {
 #if APRINTER_DEBUG_HTTP_SERVER
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
 #endif
@@ -514,7 +479,7 @@ private:
                             m_recv_state = RecvState::COMPLETED;
                             
                             // Maybe we can move on to the next request.
-                            check_for_next_request(c);
+                            check_for_completed_request(c);
                         } break;
                         
                         default: break;
@@ -573,17 +538,19 @@ private:
         {
             // Examine the received data, looking for a newline and copying
             // characters into line_buf.
+            
             size_t pos = 0;
             bool end_of_line = false;
+            char *data = m_connection.getRecvBufferPtr(c).ptr1;
+            size_t data_length = m_connection.getRecvBufferUsed(c);
             
-            char *data = m_rx_buf + m_rx_buf_start;
-            while (pos < m_rx_buf_length) {
-                char ch = *data++;
-                pos++;
-                
+            while (pos < data_length) {
                 if (AMBRO_UNLIKELY(data == m_rx_buf + RxBufferSize)) {
                     data = m_rx_buf;
                 }
+                
+                char ch = *data++;
+                pos++;
                 
                 if (AMBRO_UNLIKELY(m_line_length >= line_buf_size)) {
                     m_line_overflow = true;
@@ -598,7 +565,7 @@ private:
             }
             
             // Adjust the RX buffer, accepting all the data we have looked at.
-            accept_rx_data(c, pos);
+            m_connection.consumeRecvData(c, pos);
             
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
@@ -609,7 +576,7 @@ private:
             // No newline yet?
             if (!end_of_line) {
                 // If no EOF either, wait for more data.
-                if (!m_rx_buf_eof) {
+                if (!m_connection.wasEndReceived(c)) {
                     return line_not_received_yet(c);
                 }
                 
@@ -958,7 +925,7 @@ private:
             AMBRO_ASSERT(receiving_request_body(c))
             
             if (m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA)) {
-                return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
+                return MinValueU(m_connection.getRecvBufferUsed(c), m_rem_req_body_length);
             } else {
                 return 0;
             }
@@ -968,12 +935,12 @@ private:
         {
             AMBRO_ASSERT(m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA))
             AMBRO_ASSERT(amount > 0)
-            AMBRO_ASSERT(amount <= m_rx_buf_length)
+            AMBRO_ASSERT(amount <= m_connection.getRecvBufferUsed(c))
             AMBRO_ASSERT(amount <= m_rem_req_body_length)
             AMBRO_ASSERT(!m_req_body_recevied)
             
             // Adjust RX buffer and remaining-data length.
-            accept_rx_data(c, amount);
+            m_connection.consumeRecvData(c, amount);
             m_rem_req_body_length -= amount;
             
             // End of known-length body or chunk?
@@ -1071,6 +1038,18 @@ private:
             }
         }
         
+        void send_string (Context c, char const *str)
+        {
+            m_connection.copySendData(c, MemRef(str));
+        }
+        
+        template <size_t Size>
+        void send_string (Context c, char const str[Size])
+        {
+            static_assert(Size > 0, "");
+            m_connection.copySendData(c, MemRef(str, Size-1));
+        }
+        
         void abandon_response_body (Context c)
         {
             AMBRO_ASSERT(m_send_state != SendState::INVALID)
@@ -1080,14 +1059,8 @@ private:
                 // Send the response now, with the status as the body.
                 send_response(c, m_resp_status, true, nullptr, nullptr, m_close_connection);
                 
-                // Close sending on the connection if needed.
-                if (m_close_connection) {
-                    m_connection.closeSending(c);
-                }
-                
-                // Make the state transition.
-                m_send_timeout_event.unset(c);
-                m_send_state = SendState::COMPLETED;
+                // Poke/cose connection, transition to SendState::COMPLETED.
+                sending_completed(c);
             }
             else if (m_send_state == SendState::SEND_BODY) {
                 // The response head has been sent and possibly some body,
@@ -1095,6 +1068,22 @@ private:
                 m_send_state = SendState::SEND_LAST_CHUNK;
                 m_send_event.prependNow(c);
             }
+        }
+        
+        void sending_completed (Context c)
+        {
+            AMBRO_ASSERT(m_send_state != SendState::COMPLETED)
+            
+            // Close or poke sending.
+            if (m_close_connection) {
+                m_connection.closeSending(c);
+            } else {
+                m_connection.pokeSending(c);
+            }
+            
+            // Make the state transition.
+            m_send_timeout_event.unset(c);
+            m_send_state = SendState::COMPLETED;
         }
         
     public:
@@ -1198,7 +1187,7 @@ private:
             
             // Check if the next request can begin already; we may have to complete
             // receiving the request body and sending the response.
-            check_for_next_request(c);
+            check_for_completed_request(c);
         }
         
         void assumeTimeoutAtComplete (Context c)
@@ -1231,7 +1220,7 @@ private:
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(user_receiving_request_body(c))
             
-            WrapBuffer data = WrapBuffer(RxBufferSize - m_rx_buf_start, m_rx_buf + m_rx_buf_start, m_rx_buf);
+            WrapBuffer data = m_connection.getRecvBufferPtr(c);
             size_t data_len = get_request_body_avail(c);
             return RequestBodyBufferState{data, data_len, m_req_body_recevied};
         }
@@ -1423,12 +1412,10 @@ private:
         typename Context::EventLoop::QueuedEvent m_recv_event;
         typename Context::EventLoop::TimedEvent m_send_timeout_event;
         typename Context::EventLoop::TimedEvent m_recv_timeout_event;
-        TheTcpConnection m_connection;
+        TcpConnection m_connection;
         HttpPathParser<Params::MaxQueryParams> m_path_parser;
         RequestUserCallback *m_user;
         UserClientState m_user_client_state;
-        size_t m_rx_buf_start;
-        size_t m_rx_buf_length;
         size_t m_line_length;
         size_t m_rem_allowed_length;
         size_t m_last_chunk_length;
@@ -1451,8 +1438,8 @@ private:
         bool m_close_connection : 1;
         bool m_req_body_recevied : 1;
         bool m_user_accepting_request_body : 1;
-        bool m_rx_buf_eof : 1;
         bool m_assuming_timeout : 1;
+        char m_tx_buf[TxBufferSize];
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];
@@ -1461,8 +1448,8 @@ private:
     
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
-        TheTcpListener listener;
-        TheTcpListenerQueueEntry queue[Params::Net::QueueSize];
+        TcpListener listener;
+        TcpListenerQueueEntry queue[Params::Net::QueueSize];
         Client clients[Params::Net::MaxClients];
     };
 };
@@ -1472,6 +1459,8 @@ APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
     APRINTER_AS_VALUE(int, MaxPcbs),
+    APRINTER_AS_VALUE(size_t, SendBufferSize),
+    APRINTER_AS_VALUE(size_t, RecvBufferSize),
     APRINTER_AS_VALUE(bool, AllowPersistent),
     APRINTER_AS_TYPE(QueueTimeout),
     APRINTER_AS_TYPE(InactivityTimeout)

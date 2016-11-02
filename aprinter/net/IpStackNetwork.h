@@ -700,6 +700,13 @@ public:
             return m_ip_connection.wasSendingClosed();
         }
         
+        bool wasEndSent (Context c)
+        {
+            AMBRO_ASSERT(!m_ip_connection.isInit())
+            
+            return m_ip_connection.wasEndSent();
+        }
+        
     private:
         void setup_connection ()
         {

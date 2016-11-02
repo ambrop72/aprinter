@@ -1722,6 +1722,14 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (webif_max_clients+webif_queue_size <= webif_max_pcbs):
                                 webif_config.key_path('MaxPcbs').error('Bad value.')
                             
+                            webif_send_buf_size = webif_config.get_int('SendBufferSize')
+                            if webif_send_buf_size < network.min_send_buf:
+                                webif_config.key_path('SendBufferSize').error('Bad value.')
+                            
+                            webif_recv_buf_size = webif_config.get_int('RecvBufferSize')
+                            if webif_recv_buf_size < network.min_recv_buf:
+                                webif_config.key_path('RecvBufferSize').error('Bad value.')
+                            
                             allow_persistent = webif_config.get_bool('AllowPersistent')
                             
                             gen.add_float_constant('WebInterfaceQueueTimeout', webif_config.get_float('QueueTimeout'))
@@ -1754,6 +1762,8 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_max_clients,
                                     webif_queue_size,
                                     webif_max_pcbs,
+                                    webif_send_buf_size,
+                                    webif_recv_buf_size,
                                     allow_persistent,
                                     'WebInterfaceQueueTimeout',
                                     'WebInterfaceInactivityTimeout',

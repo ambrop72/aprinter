@@ -144,10 +144,12 @@ private:
     
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
-    static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
     static_assert(TheHttpServer::MaxTxChunkOverhead <= 255, "");
-    static_assert(TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent >= JsonBufferSize, "");
-    static_assert(TheHttpServer::MaxTxChunkSize >= GetSdChunkSize, "");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= ThePrinterMain::CommandSendBufClearance,
+                  "HTTP send buffer too small for send buffer clearance");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeBeforeHead >= JsonBufferSize, "HTTP send buffer too small for JsonBufferSize");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= JsonBufferSize, "HTTP send buffer too small for JsonBufferSize");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= GetSdChunkSize, "HTTP send buffer too small for SD card transfer");
     
     static TimeType const GcodeSendBufTimeoutTicks = Params::GcodeSendBufTimeout::value() * Context::Clock::time_freq;
     
@@ -1008,7 +1010,8 @@ private:
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            return (m_state != State::ATTACHED || (m_output_pos <= TheHttpServer::MaxTxChunkSize && length <= TheHttpServer::MaxTxChunkSize - m_output_pos));
+            return m_state != State::ATTACHED || (m_output_pos <= TheHttpServer::GuaranteedTxChunkSizeWithoutPoke
+                   && length <= TheHttpServer::GuaranteedTxChunkSizeWithoutPoke - m_output_pos);
         }
         
     private:
