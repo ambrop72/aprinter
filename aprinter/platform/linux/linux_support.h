@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLockCommon.h>
@@ -88,6 +89,18 @@ private:
     FuncType m_start_func;
     void *m_stack;
     pthread_t m_thread;
+};
+
+class LinuxBlockSignals {
+public:
+    LinuxBlockSignals ();
+    ~LinuxBlockSignals ();
+    
+    LinuxBlockSignals (LinuxBlockSignals const &) = delete;
+    LinuxBlockSignals & operator= (LinuxBlockSignals const &) = delete;
+    
+private:
+    sigset_t m_orig_signals;
 };
 
 #endif

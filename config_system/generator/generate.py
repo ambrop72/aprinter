@@ -1185,6 +1185,15 @@ def use_sdcard(gen, config, key, user):
             use_sdio(gen, sdio_sd, 'SdioService', '{}::GetSdio'.format(user)),
         ])
     
+    @sd_service_sel.option('LinuxSdCard')
+    def option(linux_sd):
+        gen.add_aprinter_include('hal/linux/LinuxSdCard.h')
+        return TemplateExpr('LinuxSdCardService', [
+            linux_sd.get_int('BlockSize'),
+            linux_sd.get_int('MaxIoBlocks'),
+            linux_sd.get_int('MaxIoDescriptors'),
+        ])
+    
     return config.do_selection(key, sd_service_sel)
 
 def use_config_manager(gen, config, key, user):

@@ -819,6 +819,11 @@ def editor():
                             ce.Compound('SdioSdCard', title='SDIO', attrs=[
                                 sdio_choice(key='SdioService', title='SDIO driver'),
                             ]),
+                            ce.Compound('LinuxSdCard', title='Linux file/device', attrs=[
+                                ce.Integer(key='BlockSize', default=512),
+                                ce.Integer(key='MaxIoBlocks', default=1024),
+                                ce.Integer(key='MaxIoDescriptors', default=32),
+                            ]),
                         ])
                     ])
                 ]),

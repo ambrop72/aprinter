@@ -247,20 +247,12 @@ void LinuxRtThread::start (FuncType start_func, int rt_class, int rt_priority, i
         AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_attr_setaffinity_np failed")
     }
     
-    // Block all signals so they will be blocked in the thread.
-    sigset_t blocked_signals;
-    sigfillset(&blocked_signals);
-    sigset_t orig_signals;
-    res = pthread_sigmask(SIG_SETMASK, &blocked_signals, &orig_signals);
-    AMBRO_ASSERT_FORCE(res == 0)
-    
-    // Create the thread.
-    res = pthread_create(&m_thread, &attr, LinuxRtThread::thread_trampoline, this);
-    AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_create failed")
-    
-    // Restore signal mask.
-    res = pthread_sigmask(SIG_SETMASK, &orig_signals, nullptr);
-    AMBRO_ASSERT_FORCE(res == 0)
+    // Create the thread, with all signals blocked.
+    {
+        LinuxBlockSignals block_signals;
+        res = pthread_create(&m_thread, &attr, LinuxRtThread::thread_trampoline, this);
+        AMBRO_ASSERT_FORCE_MSG(res == 0, "pthread_create failed")
+    }
     
     // Destroy attributes.
     res = pthread_attr_destroy(&attr);
@@ -285,6 +277,20 @@ void * LinuxRtThread::thread_trampoline (void *arg)
     LinuxRtThread *th = (LinuxRtThread *)arg;
     th->m_start_func();
     return nullptr;
+}
+
+LinuxBlockSignals::LinuxBlockSignals ()
+{
+    sigset_t blocked_signals;
+    sigfillset(&blocked_signals);
+    int res = pthread_sigmask(SIG_SETMASK, &blocked_signals, &m_orig_signals);
+    AMBRO_ASSERT_FORCE(res == 0)
+}
+
+LinuxBlockSignals::~LinuxBlockSignals ()
+{
+    int res = pthread_sigmask(SIG_SETMASK, &m_orig_signals, nullptr);
+    AMBRO_ASSERT_FORCE(res == 0)
 }
 
 static void make_cpuset (int affinity, cpu_set_t *cpuset)
