@@ -32,13 +32,13 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
-#include <aprinter/ipstack/Struct.h>
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/IpAddr.h>
-#include <aprinter/ipstack/EthIfaceDriver.h>
-#include <aprinter/ipstack/IpIfaceDriver.h>
+#include <aprinter/ipstack/misc/Struct.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/proto/IpAddr.h>
 #include <aprinter/ipstack/proto/EthernetProto.h>
 #include <aprinter/ipstack/proto/ArpProto.h>
+#include <aprinter/ipstack/ip/IpIfaceDriver.h>
+#include <aprinter/ipstack/eth/EthIfaceDriver.h>
 
 #include <aprinter/BeginNamespace.h>
 

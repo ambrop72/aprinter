@@ -28,9 +28,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/IpAddr.h>
-#include <aprinter/ipstack/Err.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/misc/Err.h>
+#include <aprinter/ipstack/proto/IpAddr.h>
 
 #include <aprinter/BeginNamespace.h>
 

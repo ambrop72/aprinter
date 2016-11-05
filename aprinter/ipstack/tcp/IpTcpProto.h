@@ -38,12 +38,12 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/IpAddr.h>
-#include <aprinter/ipstack/IpStack.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/proto/IpAddr.h>
 #include <aprinter/ipstack/proto/Ip4Proto.h>
 #include <aprinter/ipstack/proto/Tcp4Proto.h>
 #include <aprinter/ipstack/proto/TcpUtils.h>
+#include <aprinter/ipstack/ip/IpStack.h>
 
 #include "IpTcpProto_api.h"
 #include "IpTcpProto_input.h"

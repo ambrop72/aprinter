@@ -27,8 +27,8 @@
 
 #include <stddef.h>
 
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/Err.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/misc/Err.h>
 #include <aprinter/ipstack/proto/EthernetProto.h>
 
 #include <aprinter/BeginNamespace.h>

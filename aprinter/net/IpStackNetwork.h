@@ -39,12 +39,12 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/common/EthernetCommon.h>
-#include <aprinter/ipstack/Struct.h>
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/IpStack.h>
-#include <aprinter/ipstack/EthIpIface.h>
-#include <aprinter/ipstack/IpTcpProto.h>
-#include <aprinter/ipstack/IpAddr.h>
+#include <aprinter/ipstack/misc/Struct.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/proto/IpAddr.h>
+#include <aprinter/ipstack/ip/IpStack.h>
+#include <aprinter/ipstack/tcp/IpTcpProto.h>
+#include <aprinter/ipstack/eth/EthIpIface.h>
 
 #include <aprinter/BeginNamespace.h>
 

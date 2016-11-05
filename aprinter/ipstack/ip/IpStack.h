@@ -31,13 +31,13 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/ipstack/Err.h>
-#include <aprinter/ipstack/Buf.h>
-#include <aprinter/ipstack/IpAddr.h>
-#include <aprinter/ipstack/Chksum.h>
-#include <aprinter/ipstack/IpIfaceDriver.h>
+#include <aprinter/ipstack/misc/Err.h>
+#include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/misc/Chksum.h>
+#include <aprinter/ipstack/proto/IpAddr.h>
 #include <aprinter/ipstack/proto/Ip4Proto.h>
 #include <aprinter/ipstack/proto/Icmp4Proto.h>
+#include <aprinter/ipstack/ip/IpIfaceDriver.h>
 
 #include <aprinter/BeginNamespace.h>
 

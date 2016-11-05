@@ -31,7 +31,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
-#include <aprinter/ipstack/Buf.h>
+#include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/proto/Tcp4Proto.h>
 
 #include <aprinter/BeginNamespace.h>
