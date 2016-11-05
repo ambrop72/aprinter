@@ -49,6 +49,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
+#if APRINTER_DEBUG_HTTP_SERVER
+#define HTTP_SERVER_DEBUG(msg) TheMain::print_pgm_string(c, AMBRO_PSTR("//" msg "\n"))
+#else
+#define HTTP_SERVER_DEBUG(msg)
+#endif
+
 template <typename Arg>
 class HttpServer {
     APRINTER_USE_TYPES1(Arg, (Context, ParentObject, TheMain, RequestHandler,
@@ -220,9 +226,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-#if APRINTER_DEBUG_HTTP_SERVER
-            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
-#endif
+            HTTP_SERVER_DEBUG("HttpClientConnected");
             
             auto buffer_info = TcpConnectionBufferInfo{};
             buffer_info.send_buf = m_tx_buf;
@@ -340,9 +344,7 @@ private:
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
-#if APRINTER_DEBUG_HTTP_SERVER
-            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientAborted\n"));
-#endif
+            HTTP_SERVER_DEBUG("HttpClientAborted");
             disconnect(c);
         }
         
@@ -410,6 +412,7 @@ private:
                 case State::DISCONNECT_AFTER_SENDING: {
                     // Disconnect the client once the FIN has been sent.
                     if (m_connection.wasEndSent(c)) {
+                        HTTP_SERVER_DEBUG("HttpClientFinSent");
                         disconnect(c);
                     } else {
                         m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
@@ -448,9 +451,7 @@ private:
                             // Detect premature EOF from the client.
                             // We don't bother passing any remaining data to the user, this is easier.
                             if (m_connection.wasEndReceived(c) && m_connection.getRecvBufferUsed(c) < m_rem_req_body_length) {
-#if APRINTER_DEBUG_HTTP_SERVER
-                                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
-#endif
+                                HTTP_SERVER_DEBUG("HttpClientEofInData");
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
                             
@@ -492,18 +493,16 @@ private:
         
         void send_timeout_event_handler (Context c)
         {
-#if APRINTER_DEBUG_HTTP_SERVER
-            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientSendTimeout\n"));
-#endif
-            
             switch (m_state) {
                 case State::WAIT_SEND_BUF_FOR_REQUEST:
                 case State::DISCONNECT_AFTER_SENDING: {
+                    HTTP_SERVER_DEBUG("HttpClientSendTimeoutDisconnect");
                     disconnect(c);
                 } break;
                 
                 case State::HEAD_RECEIVED:
                 case State::USER_GONE: {
+                    HTTP_SERVER_DEBUG("HttpClientSendTimeoutClose");
                     close_gracefully(c, HttpStatusCodes::RequestTimeout());
                 } break;
                 
@@ -513,9 +512,7 @@ private:
         
         void recv_timeout_event_handler (Context c)
         {
-#if APRINTER_DEBUG_HTTP_SERVER
-            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRecvTimeout\n"));
-#endif
+            HTTP_SERVER_DEBUG("HttpClientRecvTimeout");
             
             switch (m_state) {
                 case State::RECV_REQUEST_LINE:
@@ -621,9 +618,7 @@ private:
         void line_received (Context c, size_t length, bool overflow, bool eof)
         {
             if (eof) {
-#if APRINTER_DEBUG_HTTP_SERVER
-                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
-#endif
+                HTTP_SERVER_DEBUG("HttpClientEofInLine");
                 // Respond with BadRequest, except when EOF was seen where a request would start.
                 char const *err_resp = HttpStatusCodes::BadRequest();
                 if (m_state == State::RECV_REQUEST_LINE && length == 0) {
@@ -1488,6 +1483,8 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
         APRINTER_DEF_INSTANCE(Server, HttpServer)
     ))
 ))
+
+#undef HTTP_SERVER_DEBUG
 
 #include <aprinter/EndNamespace.h>
 
