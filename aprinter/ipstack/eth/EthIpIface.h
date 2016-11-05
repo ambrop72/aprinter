@@ -29,9 +29,12 @@
 #include <stdint.h>
 
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/LoopUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/ipstack/misc/Struct.h>
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
@@ -46,15 +49,11 @@ template <typename Arg>
 class EthIpIface : public IpIfaceDriver,
     private EthIfaceDriverCallback
 {
-    static int    const NumArpEntries   = Arg::Params::NumArpEntries;
-    static int    const ArpProtectCount = Arg::Params::ArpProtectCount;
-    static size_t const HeaderBeforeEth = Arg::Params::HeaderBeforeEth;
+    APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
+    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator))
     
-    using Context      = typename Arg::Context;
-    using BufAllocator = typename Arg::BufAllocator;
-    
-    using Clock = typename Context::Clock;
-    using TimeType = typename Clock::TimeType;
+    APRINTER_USE_TYPE1(Context, Clock)
+    APRINTER_USE_TYPE1(Clock, TimeType)
     
     static size_t const EthArpPktSize = EthHeader::Size + ArpIp4Header::Size;
     
@@ -63,6 +62,8 @@ class EthIpIface : public IpIfaceDriver,
     static_assert(ArpProtectCount <= NumArpEntries, "");
     
     static int const ArpNonProtectCount = NumArpEntries - ArpProtectCount;
+    
+    using ArpEntryIndexType = ChooseIntForMax<NumArpEntries, true>;
     
     static TimeType const ArpTimerTicks = 5.0 * Clock::time_freq;
     
@@ -81,8 +82,12 @@ public:
         m_driver->setCallback(this);
         m_mac_addr = m_driver->getMacAddr();
         
-        for (auto &e : m_arp_entries) {
-            e.state = ArpEntryState::FREE;
+        m_first_arp_entry = 0;
+        
+        for (int i : LoopRangeAuto(NumArpEntries)) {
+            m_arp_entries[i].next = (i < NumArpEntries-1) ? i+1 : -1;
+            m_arp_entries[i].state = ArpEntryState::FREE;
+            m_arp_entries[i].weak = true;
         }
         
         m_arp_timer.appendAfter(Context(), ArpTimerTicks);
@@ -184,12 +189,12 @@ private:
     struct ArpEntryState { enum : uint8_t {FREE, QUERY, VALID, REFRESHING}; };
     
     struct ArpEntry {
+        ArpEntryIndexType next;
         uint8_t state : 2;
         bool weak : 1;
         uint8_t age : 5;
         MacAddr mac_addr;
         Ip4Addr ip_addr;
-        TimeType last_use_time;
     };
     
     static uint8_t const MaxEntryAge = 31;
@@ -215,15 +220,10 @@ private:
             return IpErr::SUCCESS;
         }
         
-        ArpEntry *entry = find_arp_entry(ip_addr);
-        
-        if (entry == nullptr) {
-            entry = alloc_arp_entry(ip_addr, false);
+        ArpEntry *entry = get_arp_entry(ip_addr, false);
+        if (entry->state == ArpEntryState::FREE) {
             entry->state = ArpEntryState::QUERY;
             entry->age = 0;
-        } else {
-            entry->weak = false;
-            update_entry_last_use(entry);
         }
         
         if (entry->state == ArpEntryState::QUERY) {
@@ -249,85 +249,87 @@ private:
             (ip_addr & ifaddr->netmask) == ifaddr->netaddr &&
             ip_addr != ifaddr->bcastaddr)
         {
-            ArpEntry *entry = find_arp_entry(ip_addr);
-            if (entry == nullptr) {
-                entry = alloc_arp_entry(ip_addr, true);
-            } else {
-                if (entry->weak) {
-                    update_entry_last_use(entry);
-                }
-            }
+            ArpEntry *entry = get_arp_entry(ip_addr, true);
             entry->state = ArpEntryState::VALID;
             entry->age = 0;
             entry->mac_addr = mac_addr;
         }
     }
     
-    ArpEntry * find_arp_entry (Ip4Addr ip_addr)
+    ArpEntry * get_arp_entry (Ip4Addr ip_addr, bool weak)
     {
-        for (auto &e : m_arp_entries) {
-            if (e.state != ArpEntryState::FREE && e.ip_addr == ip_addr) {
-                return &e;
-            }
-        }
-        return nullptr;
-    }
-    
-    ArpEntry * alloc_arp_entry (Ip4Addr ip_addr, bool weak)
-    {
-        TimeType now = Clock::getTime(Context());
+        ArpEntry *e;
         
-        ArpEntry *entry = nullptr;
-        ArpEntry *weak_entry = nullptr;
-        ArpEntry *hard_entry = nullptr;
+        int index = m_first_arp_entry;
+        int prev_index = -1;
+        
         int num_hard = 0;
+        int last_weak_index = -1;
+        int last_weak_prev_index;
+        int last_hard_index = -1;
+        int last_hard_prev_index;
         
-        for (auto &e : m_arp_entries) {
-            if (e.state == ArpEntryState::FREE) {
-                entry = &e;
+        while (index >= 0) {
+            AMBRO_ASSERT(index < NumArpEntries)
+            e = &m_arp_entries[index];
+            
+            if (e->state != ArpEntryState::FREE && e->ip_addr == ip_addr) {
                 break;
             }
             
-            if (e.weak) {
-                if (weak_entry == nullptr || entry_is_older(&e, weak_entry, now)) {
-                    weak_entry = &e;
-                }
+            if (e->weak) {
+                last_weak_index = index;
+                last_weak_prev_index = prev_index;
             } else {
-                if (hard_entry == nullptr || entry_is_older(&e, hard_entry, now)) {
-                    hard_entry = &e;
-                }
                 num_hard++;
+                last_hard_index = index;
+                last_hard_prev_index = prev_index;
             }
+            
+            prev_index = index;
+            index = e->next;
         }
         
-        if (entry == nullptr) {
-            if (weak) {
-                if (num_hard > ArpProtectCount || weak_entry == nullptr) {
-                    entry = hard_entry;
-                } else {
-                    entry = weak_entry;
-                }
+        if (index >= 0) {
+            if (!weak) {
+                e->weak = false;
+            }
+        } else {
+            bool use_weak;
+            if (last_weak_index >= 0 && m_arp_entries[last_weak_index].state == ArpEntryState::FREE) {
+                use_weak = true;
             } else {
-                int num_weak = NumArpEntries - num_hard;
-                if (num_weak > ArpNonProtectCount || hard_entry == nullptr) {
-                    entry = weak_entry;
+                if (weak) {
+                    use_weak = !(num_hard > ArpProtectCount || last_weak_index < 0);
                 } else {
-                    entry = hard_entry;
+                    int num_weak = NumArpEntries - num_hard;
+                    use_weak = (num_weak > ArpNonProtectCount || last_hard_index < 0);
                 }
             }
-            AMBRO_ASSERT(entry != nullptr)
+            
+            if (use_weak) {
+                index = last_weak_index;
+                prev_index = last_weak_prev_index;
+            } else {
+                index = last_hard_index;
+                prev_index = last_hard_prev_index;
+            }
+            
+            AMBRO_ASSERT(index >= 0)
+            e = &m_arp_entries[index];
+            
+            e->state = ArpEntryState::FREE;
+            e->ip_addr = ip_addr;
+            e->weak = weak;
         }
         
-        entry->ip_addr = ip_addr;
-        entry->weak = weak;
-        entry->last_use_time = now;
+        if (prev_index >= 0) {
+            m_arp_entries[prev_index].next = e->next;
+            e->next = m_first_arp_entry;
+            m_first_arp_entry = index;
+        }
         
-        return entry;
-    }
-    
-    void update_entry_last_use (ArpEntry *entry)
-    {
-        entry->last_use_time = Clock::getTime(Context());
+        return e;
     }
     
     void send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
@@ -391,16 +393,12 @@ private:
         }
     }
     
-    static bool entry_is_older (ArpEntry *e1, ArpEntry *e2, TimeType now)
-    {
-        return (TimeType)(now - e1->last_use_time) > (TimeType)(now - e2->last_use_time);
-    }
-    
 private:
     typename Context::EventLoop::TimedEvent m_arp_timer;
     EthIfaceDriver *m_driver;
     IpIfaceDriverCallback *m_callback;
     MacAddr const *m_mac_addr;
+    ArpEntryIndexType m_first_arp_entry;
     ArpEntry m_arp_entries[NumArpEntries];
 };
 
