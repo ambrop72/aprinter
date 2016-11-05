@@ -1039,7 +1039,7 @@ private:
         }
         
         template <size_t Size>
-        void send_string (Context c, char const str[Size])
+        void send_string (Context c, char const (&str)[Size])
         {
             static_assert(Size > 0, "");
             m_connection.copySendData(c, MemRef(str, Size-1));
