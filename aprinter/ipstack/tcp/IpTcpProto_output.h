@@ -265,8 +265,10 @@ public:
             return false;
         }
         
-        // Calculate how much the window permits us to send.
-        SeqType rem_wnd = pcb->snd_wnd - MinValueU(pcb->snd_wnd, pcb_snd_offset(pcb));
+        // Calculate how much more we are allowed to send, according
+        // to the receiver window and the congestion window.
+        SeqType full_wnd = MinValue(pcb->snd_wnd, pcb_effective_cwnd(pcb));
+        SeqType rem_wnd = full_wnd - MinValueU(full_wnd, pcb_snd_offset(pcb));
         
         // Will need to know if we sent anything.
         bool sent = false;
@@ -347,32 +349,89 @@ public:
         // Restart this timer with the new timeout.
         TimeType rtx_time = (TimeType)pcb->rto << TcpProto::RttShift;
         pcb->rtx_timer.appendAfter(Context(), rtx_time);
-    }
-    
-    static void pcb_rtt_test_seq_acked (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::RTT_PENDING))
         
-        // Clear the flag to indicate end of RTT measurement.
-        pcb->clearFlag(PcbFlags::RTT_PENDING);
-        
-        // Calculate how much time has passed, also in RTT units.
-        TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
-        RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
-        
-        // Update RTTVAR and SRTT.
-        if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
-            pcb->setFlag(PcbFlags::RTT_VALID);
-            pcb->rttvar = this_rtt/2;
-            pcb->srtt = this_rtt;
-        } else {
-            RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
-            pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
-            pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
+        // Check for first retransmission.
+        if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+            // Set flag to indicate there has been a retransmission.
+            // This will be cleared upon new ACK.
+            pcb->setFlag(PcbFlags::RTX_ACTIVE);
+            
+            // Update ssthresh (RFC 5681).
+            SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
+            SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
+            pcb->ssthresh = MaxValue(half_flight_size, two_smss);
         }
         
-        // Update RTO.
-        pcb_update_rto(pcb);
+        // Set cwnd to one segment (RFC 5681).
+        // Also reset cwnd_acked to avoid old accumulated value
+        // from causing an undesired cwnd increase later.
+        pcb->cwnd = pcb->snd_mss;
+        pcb->cwnd_acked = 0;
+    }
+    
+    // This is called from Input when something new is acked, before
+    // related state changes are made (e.g. snd_una, snd_wnd, snd_buf*).
+    static void pcb_output_handle_acked (TcpPcb *pcb, SeqType ack_num, SeqType acked)
+    {
+        // Stop the rtx_timer. Consider that the state changes done by Input
+        // just after this might invalidate the asserts in pcb_rtx_timer_handler.
+        pcb->rtx_timer.unset(Context());
+        
+        // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
+        pcb->clearFlag(PcbFlags::RTX_ACTIVE);
+        
+        // Handle end of round-trip-time measurement.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
+            // Clear the flag to indicate end of RTT measurement.
+            pcb->clearFlag(PcbFlags::RTT_PENDING);
+            
+            // Calculate how much time has passed, also in RTT units.
+            TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
+            RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
+            
+            // Update RTTVAR and SRTT.
+            if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
+                pcb->setFlag(PcbFlags::RTT_VALID);
+                pcb->rttvar = this_rtt/2;
+                pcb->srtt = this_rtt;
+            } else {
+                RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
+                pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
+                pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
+            }
+            
+            // Update RTO.
+            pcb_update_rto(pcb);
+            
+            // Allow more CWND increase in congestion avoidance.
+            pcb->clearFlag(PcbFlags::CWND_INCRD);
+        }
+        
+        // Perform congestion-control processing.
+        if (pcb->cwnd <= pcb->ssthresh) {
+            // Slow start.
+            pcb_increase_cwnd(pcb, acked);
+        } else {
+            // Congestion avoidance.
+            if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
+                // Increment cwnd_acked.
+                pcb->cwnd_acked = (acked > UINT32_MAX - pcb->cwnd_acked) ? UINT32_MAX : (pcb->cwnd_acked + acked);
+                
+                // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
+                // and inhibit such increments until the next RTT measurement completes.
+                if (pcb->cwnd_acked >= pcb->cwnd) {
+                    pcb_increase_cwnd(pcb, pcb->cwnd_acked);
+                    pcb->cwnd_acked = 0;
+                    pcb->setFlag(PcbFlags::CWND_INCRD);
+                }
+            }
+        }
+    }
+    
+    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType acked)
+    {
+        SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
+        pcb->cwnd = (cwnd_inc > UINT32_MAX - pcb->cwnd) ? UINT32_MAX : (pcb->cwnd + cwnd_inc);
     }
     
     // Update the RTO from RTTVAR and SRTT.
@@ -383,6 +442,29 @@ public:
         RttType var_part = MaxValue((RttType)1, k_rttvar);
         RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
         pcb->rto = MaxValue(TcpProto::MinRtxTime, MinValue(TcpProto::MaxRtxTime, base_rto));
+    }
+    
+    // Calculate the initial cwnd based on snd_mss.
+    static SeqType pcb_calc_initial_cwnd (TcpPcb *pcb)
+    {
+        SeqType smss = pcb->snd_mss;
+        if (smss > 2190) {
+            return (smss > UINT32_MAX / 2) ? UINT32_MAX : (2 * smss);
+        }
+        else if (smss > 1095) {
+            return 3 * smss;
+        }
+        else {
+            return 4 * smss;
+        }
+    }
+    
+    // Calculate the effective congestion window.
+    static SeqType pcb_effective_cwnd (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->cwnd > 0)
+        
+        return pcb->cwnd;
     }
     
     // Send an RST as a reply to a received segment.

@@ -474,6 +474,11 @@ private:
         pcb->snd_wl1 = tcp_meta.seq_num;
         pcb->snd_wl2 = tcp_meta.ack_num;
         
+        // Initialize congestion control variables.
+        pcb->cwnd = Output::pcb_calc_initial_cwnd(pcb);
+        pcb->ssthresh = TcpProto::MaxRcvWnd;
+        pcb->cwnd_acked = 0;
+        
         // We have a TcpListener (if it went away the PCB would have been aborted).
         // We also have no TcpConnection.
         TcpListener *lis = pcb->lis;
@@ -522,23 +527,15 @@ private:
             SeqType acked = seq_diff(tcp_meta.ack_num, pcb->snd_una);
             AMBRO_ASSERT(acked > 0)
             
-            // Handle end of round-trip-time measurement.
-            if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
-                seq_lt(pcb->rtt_test_seq, tcp_meta.ack_num, pcb->snd_una))
-            {
-                Output::pcb_rtt_test_seq_acked(pcb);
-            }
+            // Inform Output that something was acked. This includes stopping
+            // the rtx_timer, RTT measurement, congestion control processing.
+            Output::pcb_output_handle_acked(pcb, tcp_meta.ack_num, acked);
             
             // Update snd_una due to sequences having been ACKed.
             pcb->snd_una = tcp_meta.ack_num;
             
             // The snd_wnd needs adjustment because it is relative to snd_una.
             pcb->snd_wnd -= MinValue(pcb->snd_wnd, acked);
-            
-            // Stop the rtx_timer. Consider that by adjusting the
-            // window here and in handling the ACK below, we might be
-            // invalidating the asserts in pcb_rtx_timer_handler.
-            pcb->rtx_timer.unset(Context());
             
             // Schedule pcb_output, so that the rtx_timer will be restarted
             // if needed (for retransmission or zero-window probe).
@@ -839,6 +836,10 @@ private:
                 pos++;
             }
             
+            // Need to send an ACK if the segment fills in all or part of
+            // a gap in the sequence space (RFC 5681).
+            bool need_ack = false;
+            
             // If there are no more segments or the segment [pos] is strictly
             // after the new segment, we insert a new segment here. Otherwise
             // the new segment intersects or touches [pos] and we merge the
@@ -854,6 +855,7 @@ private:
                 // Try to insert a segment to this spot.
                 if (pcb->num_ooseq < TcpProto::NumOosSegs) {
                     if (pos < pcb->num_ooseq) {
+                        need_ack = true;
                         ::memmove(&pcb->ooseq[pos+1], &pcb->ooseq[pos], (pcb->num_ooseq - pos) * sizeof(OosSeg));
                     }
                     pcb->ooseq[pos] = OosSeg{seg_start, seg_end};
@@ -862,11 +864,13 @@ private:
             } else {
                 // Extend the existing segment to the left if needed.
                 if (seq_lt(seg_start, pcb->ooseq[pos].start, pcb->rcv_nxt)) {
+                    need_ack = true;
                     pcb->ooseq[pos].start = seg_start;
                 }
                 
                 // Extend the existing segment to the right if needed.
                 if (!seq_lte(seg_end, pcb->ooseq[pos].end, pcb->rcv_nxt)) {
+                    need_ack = true;
                     pcb->ooseq[pos].end = seg_end;
                     
                     // Merge the extended segment [pos] with any subsequent segments
@@ -892,6 +896,11 @@ private:
                         pcb->num_ooseq -= num_merged;
                     }
                 }
+            }
+            
+            // If the ACK is needed, set the ACK-pending flag.
+            if (need_ack) {
+                pcb->setFlag(PcbFlags::ACK_PENDING);
             }
         }
         

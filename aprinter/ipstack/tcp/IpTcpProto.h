@@ -92,7 +92,8 @@ private:
     struct TcpPcb;
     
     // PCB flags, see flags in TcpPcb.
-    struct PcbFlags { enum : uint8_t {
+    using FlagsType = uint16_t;
+    struct PcbFlags { enum : FlagsType {
         ACK_PENDING = 1 << 0, // ACK is needed; used in input processing
         OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
         FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
@@ -101,6 +102,8 @@ private:
         RTT_PENDING = 1 << 5, // Round-trip-time is being measured
         RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
         OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
+        CWND_INCRD  = 1 << 8, // cwnd has been increaded by snd_mss this round-trip
+        RTX_ACTIVE  = 1 << 9, // A segment has been retransmitted and not yet acked
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -161,6 +164,11 @@ private:
         IpBufRef snd_buf_cur;
         size_t snd_psh_index;
         
+        // Congestion control variables.
+        SeqType cwnd;
+        SeqType ssthresh;
+        SeqType cwnd_acked;
+        
         // Receiver variables.
         SeqType rcv_nxt;
         SeqType rcv_wnd;
@@ -186,15 +194,15 @@ private:
         TcpState state;
         
         // Flags (see comments in PcbFlags).
-        uint8_t flags;
+        FlagsType flags;
         
         // Number of valid elements in ooseq_segs;
         uint8_t num_ooseq;
         
         // Convenience functions for flags.
-        inline bool hasFlag (uint8_t flag) { return (flags & flag) != 0; }
-        inline void setFlag (uint8_t flag) { flags |= flag; }
-        inline void clearFlag (uint8_t flag) { flags &= ~flag; }
+        inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
+        inline void setFlag (FlagsType flag) { flags |= flag; }
+        inline void clearFlag (FlagsType flag) { flags &= ~flag; }
         
         // Convenience functions for buffer length.
         inline size_t sndBufLen () { return (con != nullptr) ? con->m_snd_buf.tot_len : 0; }
