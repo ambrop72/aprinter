@@ -199,6 +199,9 @@ private:
         // Number of valid elements in ooseq_segs;
         uint8_t num_ooseq;
         
+        // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
+        uint8_t num_dupack;
+        
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
         inline void setFlag (FlagsType flag) { flags |= flag; }
@@ -243,6 +246,12 @@ private:
     
     // Maximum retransmission time (need care not to overflow RttType).
     static RttType const MaxRtxTime = MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
+    
+    // Number of duplicate ACKs to trigger fast retransmit/recovery.
+    static uint8_t const FastRtxDupAcks = 3;
+    
+    // Maximum number of additional duplicate ACKs that will result in CWND increase.
+    static uint8_t const MaxAdditionaDupAcks = 32;
     
 public:
     /**

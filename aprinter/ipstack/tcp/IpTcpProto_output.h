@@ -172,11 +172,18 @@ public:
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Need the timer either if we have any sent but unacknowledged
-        // data/FIN or if the send window is empty while delaying transmission
-        // is not acceptable.
-        return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
-               pcb->hasFlag(PcbFlags::FIN_SENT) ||
+        // data/FIN (for retransmissing) or if the send window is empty
+        // while delaying transmission is not acceptable (for window probe).
+        return pcb_has_snd_unacked(pcb) ||
                (pcb->snd_wnd == 0 && !pcb_may_delay_snd(pcb));
+    }
+    
+    static bool pcb_has_snd_unacked (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
+               pcb->hasFlag(PcbFlags::FIN_SENT);
     }
     
     // Determine if sending can be delayed in expectation of a larger segment.
@@ -252,10 +259,10 @@ public:
     }
     
     /**
-     * Drives transmission of data including FIN.
+     * Transmits data previously unsent data as permissible.
      * Returns whether a (presumably) valid ACK has been sent.
      */
-    static bool pcb_output (TcpPcb *pcb)
+    static bool pcb_output_unsent (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
@@ -317,19 +324,14 @@ public:
         return sent;
     }
     
-    static void pcb_output_timer_handler (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        
-        // Drive the transmission.
-        pcb_output(pcb);
-    }
-    
-    static void pcb_rtx_timer_handler (TcpPcb *pcb)
+    /**
+     * Transmits one segment starting at the front of the send buffer.
+     * Used for retransmission and window probing.
+     */
+    static void pcb_output_front (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
         
         // Compute a maximum number of sequence counts to send.
         // We must not send more than one segment, but we must be
@@ -341,6 +343,24 @@ public:
         bool fin = !snd_open_in_state(pcb->state);
         SeqType seg_seqlen = pcb_output_segment(pcb, data, fin, rem_wnd);
         AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
+    }
+    
+    static void pcb_output_timer_handler (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        // Send any unsent data as permissible.
+        pcb_output_unsent(pcb);
+    }
+    
+    static void pcb_rtx_timer_handler (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
+        
+        // Do the retransmission.
+        pcb_output_front(pcb);
         
         // Double the retransmission timeout.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
@@ -357,9 +377,7 @@ public:
             pcb->setFlag(PcbFlags::RTX_ACTIVE);
             
             // Update ssthresh (RFC 5681).
-            SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
-            SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
-            pcb->ssthresh = MaxValue(half_flight_size, two_smss);
+            pcb_update_ssthresh_for_rtx(pcb);
         }
         
         // Set cwnd to one segment (RFC 5681).
@@ -379,6 +397,14 @@ public:
         
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
+        
+        // If we were in fast recovery, deflate the CWND.
+        if (pcb->num_dupack >= TcpProto::FastRtxDupAcks) {
+            pcb->cwnd = pcb->ssthresh;
+        }
+        
+        // Reset duplicate ACK counter (also terminates fast recovery).
+        pcb->num_dupack = 0;
         
         // Handle end of round-trip-time measurement.
         if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
@@ -410,7 +436,7 @@ public:
         // Perform congestion-control processing.
         if (pcb->cwnd <= pcb->ssthresh) {
             // Slow start.
-            pcb_increase_cwnd(pcb, acked);
+            pcb_increase_cwnd_acked(pcb, acked);
         } else {
             // Congestion avoidance.
             if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
@@ -420,7 +446,7 @@ public:
                 // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                 // and inhibit such increments until the next RTT measurement completes.
                 if (pcb->cwnd_acked >= pcb->cwnd) {
-                    pcb_increase_cwnd(pcb, pcb->cwnd_acked);
+                    pcb_increase_cwnd_acked(pcb, pcb->cwnd_acked);
                     pcb->cwnd_acked = 0;
                     pcb->setFlag(PcbFlags::CWND_INCRD);
                 }
@@ -428,10 +454,58 @@ public:
         }
     }
     
-    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType acked)
+    // Called from Input when the number of duplicate ACKs has
+    // reached FastRtxDupAcks.
+    static void pcb_fast_rtx_dup_acks_received (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb->num_dupack == TcpProto::FastRtxDupAcks)
+        
+        // Do the retransmission.
+        pcb_output_front(pcb);
+        
+        // Update ssthresh.
+        pcb_update_ssthresh_for_rtx(pcb);
+        
+        // Update cwnd.
+        SeqType three_mss = 3 * (SeqType)pcb->snd_mss;
+        pcb->cwnd = (three_mss > UINT32_MAX - pcb->ssthresh) ? UINT32_MAX : (pcb->ssthresh + three_mss);
+        
+        // Schedule output due to possible CWND increase.
+        pcb->setFlag(PcbFlags::OUT_PENDING);
+    }
+    
+    static void pcb_extra_dup_ack_received (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb->num_dupack > TcpProto::FastRtxDupAcks)
+        
+        // Increment CWND by snd_mss.
+        pcb_increase_cwnd(pcb, pcb->snd_mss);
+        
+        // Schedule output due to possible CWND increase.
+        pcb->setFlag(PcbFlags::OUT_PENDING);
+    }
+    
+    static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
     {
         SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
+        pcb_increase_cwnd_acked(pcb, cwnd_inc);
+    }
+    
+    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
+    {
         pcb->cwnd = (cwnd_inc > UINT32_MAX - pcb->cwnd) ? UINT32_MAX : (pcb->cwnd + cwnd_inc);
+    }
+    
+    // Sets sshthresh according to RFC 5681 equation (4).
+    static void pcb_update_ssthresh_for_rtx (TcpPcb *pcb)
+    {
+        SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
+        SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
+        pcb->ssthresh = MaxValue(half_flight_size, two_smss);
     }
     
     // Update the RTO from RTTVAR and SRTT.

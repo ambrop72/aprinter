@@ -226,6 +226,7 @@ private:
             pcb->snd_mss = snd_mss;
             pcb->rto = TcpProto::InitialRtxTime;
             pcb->num_ooseq = 0;
+            pcb->num_dupack = 0;
             
             // These will be initialized at transition to ESTABLISHED:
             // snd_wnd, snd_wl1, snd_wl2
@@ -290,7 +291,7 @@ private:
             }
         } else {
             // Process acknowledgements and window updates.
-            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, new_ack)) {
+            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, new_ack, tcp_data.tot_len)) {
                 return;
             }
         }
@@ -311,7 +312,7 @@ private:
         if (pcb->hasFlag(PcbFlags::OUT_PENDING)) {
             pcb->clearFlag(PcbFlags::OUT_PENDING);
             if (can_output_in_state(pcb->state)) {
-                bool sent_ack = Output::pcb_output(pcb);
+                bool sent_ack = Output::pcb_output_unsent(pcb);
                 if (sent_ack) {
                     pcb->clearFlag(PcbFlags::ACK_PENDING);
                 }
@@ -515,8 +516,10 @@ private:
         return true;
     }
     
-    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
+    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack, size_t data_len)
     {
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        
         // Handle new acknowledgments.
         if (new_ack) {
             // We can only get here if there was anything pending acknowledgement.
@@ -528,7 +531,8 @@ private:
             AMBRO_ASSERT(acked > 0)
             
             // Inform Output that something was acked. This includes stopping
-            // the rtx_timer, RTT measurement, congestion control processing.
+            // the rtx_timer, RTT measurement, congestion control processing,
+            // completing fast recovery.
             Output::pcb_output_handle_acked(pcb, tcp_meta.ack_num, acked);
             
             // Update snd_una due to sequences having been ACKed.
@@ -608,6 +612,28 @@ private:
                     // Close the PCB.
                     TcpProto::pcb_abort(pcb, false);
                     return false;
+                }
+            }
+        }
+        // Handle duplicate ACKs (RFC 5681).
+        else {
+            // NOTE: Short-circuiting ensures pcb_has_snd_unacked is called
+            // only if its precondition asserts are satisfied (implied by
+            // rtx_timer running).
+            if (pcb->rtx_timer.isSet(Context()) && Output::pcb_has_snd_unacked(pcb) &&
+                data_len == 0 &&
+                (tcp_meta.flags & Tcp4FlagFin) == 0 &&
+                tcp_meta.ack_num == pcb->snd_una &&
+                tcp_meta.window_size == pcb->snd_wnd)
+            {
+                if (pcb->num_dupack < TcpProto::FastRtxDupAcks + TcpProto::MaxAdditionaDupAcks) {
+                    pcb->num_dupack++;
+                    if (pcb->num_dupack == TcpProto::FastRtxDupAcks) {
+                        Output::pcb_fast_rtx_dup_acks_received(pcb);
+                    }
+                    else if (pcb->num_dupack > TcpProto::FastRtxDupAcks) {
+                        Output::pcb_extra_dup_ack_received(pcb);
+                    }
                 }
             }
         }
