@@ -385,6 +385,9 @@ public:
         // from causing an undesired cwnd increase later.
         pcb->cwnd = pcb->snd_mss;
         pcb->cwnd_acked = 0;
+        
+        // Exit any fast recovery.
+        pcb->num_dupack = 0;
     }
     
     // This is called from Input when something new is acked, before
@@ -403,7 +406,7 @@ public:
             pcb->cwnd = pcb->ssthresh;
         }
         
-        // Reset duplicate ACK counter (also terminates fast recovery).
+        // Reset duplicate ACK counter (also exit fast recovery).
         pcb->num_dupack = 0;
         
         // Handle end of round-trip-time measurement.
