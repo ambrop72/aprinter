@@ -408,12 +408,60 @@ public:
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
         
-        // Processing for fast retransmit/recovery.
+        // Handle end of round-trip-time measurement.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
+            // Clear the flag to indicate end of RTT measurement.
+            pcb->clearFlag(PcbFlags::RTT_PENDING);
+            
+            // Calculate how much time has passed, also in RTT units.
+            TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
+            RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
+            
+            // Update RTTVAR and SRTT.
+            if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
+                pcb->setFlag(PcbFlags::RTT_VALID);
+                pcb->rttvar = this_rtt/2;
+                pcb->srtt = this_rtt;
+            } else {
+                RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
+                pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
+                pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
+            }
+            
+            // Update RTO.
+            pcb_update_rto(pcb);
+            
+            // Allow more CWND increase in congestion avoidance.
+            pcb->clearFlag(PcbFlags::CWND_INCRD);
+        }
+        
+        // Not in fast recovery?
         if (AMBRO_LIKELY(pcb->num_dupack < TcpProto::FastRtxDupAcks)) {
-            // Not in fast recovery, reset the duplicate ACK counter.
+            // Reset the duplicate ACK counter.
             pcb->num_dupack = 0;
-        } else {
-            // We are in fast recovery.
+            
+            // Perform congestion-control processing.
+            if (pcb->cwnd <= pcb->ssthresh) {
+                // Slow start.
+                pcb_increase_cwnd_acked(pcb, acked);
+            } else {
+                // Congestion avoidance.
+                if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
+                    // Increment cwnd_acked.
+                    pcb->cwnd_acked = (acked > UINT32_MAX - pcb->cwnd_acked) ? UINT32_MAX : (pcb->cwnd_acked + acked);
+                    
+                    // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
+                    // and inhibit such increments until the next RTT measurement completes.
+                    if (pcb->cwnd_acked >= pcb->cwnd) {
+                        pcb_increase_cwnd_acked(pcb, pcb->cwnd_acked);
+                        pcb->cwnd_acked = 0;
+                        pcb->setFlag(PcbFlags::CWND_INCRD);
+                    }
+                }
+            }
+        }
+        // In fast recovery
+        else {
             // If all data up to recover is being ACKed, exit fast recovery.
             if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, pcb->recover, pcb->snd_una)) {
                 // Deflate the CWND.
@@ -448,53 +496,6 @@ public:
             !seq_lte(ack_num, pcb->recover, pcb->snd_una))
         {
             pcb->clearFlag(PcbFlags::RECOVER);
-        }
-        
-        // Handle end of round-trip-time measurement.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
-            // Clear the flag to indicate end of RTT measurement.
-            pcb->clearFlag(PcbFlags::RTT_PENDING);
-            
-            // Calculate how much time has passed, also in RTT units.
-            TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
-            RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
-            
-            // Update RTTVAR and SRTT.
-            if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
-                pcb->setFlag(PcbFlags::RTT_VALID);
-                pcb->rttvar = this_rtt/2;
-                pcb->srtt = this_rtt;
-            } else {
-                RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
-                pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
-                pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
-            }
-            
-            // Update RTO.
-            pcb_update_rto(pcb);
-            
-            // Allow more CWND increase in congestion avoidance.
-            pcb->clearFlag(PcbFlags::CWND_INCRD);
-        }
-        
-        // Perform congestion-control processing.
-        if (pcb->cwnd <= pcb->ssthresh) {
-            // Slow start.
-            pcb_increase_cwnd_acked(pcb, acked);
-        } else {
-            // Congestion avoidance.
-            if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
-                // Increment cwnd_acked.
-                pcb->cwnd_acked = (acked > UINT32_MAX - pcb->cwnd_acked) ? UINT32_MAX : (pcb->cwnd_acked + acked);
-                
-                // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
-                // and inhibit such increments until the next RTT measurement completes.
-                if (pcb->cwnd_acked >= pcb->cwnd) {
-                    pcb_increase_cwnd_acked(pcb, pcb->cwnd_acked);
-                    pcb->cwnd_acked = 0;
-                    pcb->setFlag(PcbFlags::CWND_INCRD);
-                }
-            }
         }
     }
     
