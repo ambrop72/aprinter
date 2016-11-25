@@ -104,6 +104,7 @@ private:
         OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
         CWND_INCRD  = 1 << 8, // cwnd has been increaded by snd_mss this round-trip
         RTX_ACTIVE  = 1 << 9, // A segment has been retransmitted and not yet acked
+        RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -168,6 +169,7 @@ private:
         SeqType cwnd;
         SeqType ssthresh;
         SeqType cwnd_acked;
+        SeqType recover;
         
         // Receiver variables.
         SeqType rcv_nxt;

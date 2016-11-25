@@ -386,6 +386,10 @@ public:
         pcb->cwnd = pcb->snd_mss;
         pcb->cwnd_acked = 0;
         
+        // Set recover.
+        pcb->setFlag(PcbFlags::RECOVER);
+        pcb->recover = pcb->snd_nxt;
+        
         // Exit any fast recovery.
         pcb->num_dupack = 0;
     }
@@ -394,6 +398,9 @@ public:
     // related state changes are made (e.g. snd_una, snd_wnd, snd_buf*).
     static void pcb_output_handle_acked (TcpPcb *pcb, SeqType ack_num, SeqType acked)
     {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        
         // Stop the rtx_timer. Consider that the state changes done by Input
         // just after this might invalidate the asserts in pcb_rtx_timer_handler.
         pcb->rtx_timer.unset(Context());
@@ -401,13 +408,47 @@ public:
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
         
-        // If we were in fast recovery, deflate the CWND.
-        if (pcb->num_dupack >= TcpProto::FastRtxDupAcks) {
-            pcb->cwnd = pcb->ssthresh;
+        // Processing for fast retransmit/recovery.
+        if (AMBRO_LIKELY(pcb->num_dupack < TcpProto::FastRtxDupAcks)) {
+            // Not in fast recovery, reset the duplicate ACK counter.
+            pcb->num_dupack = 0;
+        } else {
+            // We are in fast recovery.
+            // If all data up to recover is being ACKed, exit fast recovery.
+            if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, pcb->recover, pcb->snd_una)) {
+                // Deflate the CWND.
+                SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
+                pcb->cwnd = MinValue(pcb->ssthresh,
+                    seq_add(MaxValue(flight_size, (SeqType)pcb->snd_mss), pcb->snd_mss));
+                
+                // Reset num_dupack to indicate end of fast recovery.
+                pcb->num_dupack = 0;
+            } else {
+                // Retransmit the first unacknowledged segment.
+                pcb_output_front(pcb);
+                
+                // Deflate CWND by the amount of data ACKed.
+                // Be careful to not bring CWND below snd_mss.
+                if (pcb->cwnd > pcb->snd_mss) {
+                    pcb->cwnd -= MinValue(seq_diff(pcb->cwnd, pcb->snd_mss), acked);
+                }
+                
+                // If this ACK acknowledges at least snd_mss of data,
+                // add back snd_mss bytes to CWND.
+                if (acked >= pcb->snd_mss) {
+                    pcb_increase_cwnd(pcb, pcb->snd_mss);
+                }
+            }
         }
         
-        // Reset duplicate ACK counter (also exit fast recovery).
-        pcb->num_dupack = 0;
+        // If the snd_una increment that will be done for this ACK will
+        // leave recover behind snd_una, clear the recover flag to indicate
+        // that recover is no longer valid and assumed <snd_una.
+        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::RECOVER)) &&
+            !seq_lte(ack_num, pcb->recover, pcb->snd_una))
+        {
+            pcb->clearFlag(PcbFlags::RECOVER);
+        }
         
         // Handle end of round-trip-time measurement.
         if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
@@ -465,8 +506,20 @@ public:
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         AMBRO_ASSERT(pcb->num_dupack == TcpProto::FastRtxDupAcks)
         
+        // If we have recover (>=snd_nxt), don't enter fast recovery.
+        // Decrement num_dupack by one so that the next duplicate ACK
+        // is still a candidate.
+        if (pcb->hasFlag(PcbFlags::RECOVER)) {
+            pcb->num_dupack--;
+            return;
+        }
+        
         // Do the retransmission.
         pcb_output_front(pcb);
+        
+        // Set recover.
+        pcb->setFlag(PcbFlags::RECOVER);
+        pcb->recover = pcb->snd_nxt;
         
         // Update ssthresh.
         pcb_update_ssthresh_for_rtx(pcb);

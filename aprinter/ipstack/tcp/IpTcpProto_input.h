@@ -524,6 +524,7 @@ private:
         if (new_ack) {
             // We can only get here if there was anything pending acknowledgement.
             AMBRO_ASSERT(can_output_in_state(pcb->state))
+            AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             
             // Calculate the amount of acknowledged sequence counts.
             // This can be data or FIN (but not SYN, as SYN_RCVD state is handled above).
