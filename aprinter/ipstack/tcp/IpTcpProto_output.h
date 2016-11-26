@@ -585,7 +585,7 @@ public:
     static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
     {
         SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
-        pcb_increase_cwnd_acked(pcb, cwnd_inc);
+        pcb_increase_cwnd(pcb, cwnd_inc);
     }
     
     static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
