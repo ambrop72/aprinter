@@ -178,6 +178,7 @@ public:
                (pcb->snd_wnd == 0 && !pcb_may_delay_snd(pcb));
     }
     
+    // Determine if there is any data or FIN that has been sent but not ACKed.
     static bool pcb_has_snd_unacked (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -259,16 +260,22 @@ public:
     }
     
     /**
-     * Transmits data previously unsent data as permissible.
-     * Returns whether a (presumably) valid ACK has been sent.
+     * Transmits previously unsent data as permissible and controls the
+     * rtx_timer. Returns whether a presumably valid ACK has been sent.
      */
     static bool pcb_output_unsent (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        // If there is nothing outstanding, stop the retransmission timer and return.
+        // Is there nothing outstanding to be sent or ACKed?
         if (!pcb_has_snd_outstanding(pcb)) {
-            pcb->rtx_timer.unset(Context());
+            // Start timer for idle timeout unless already running for idle timeout.
+            // NOTE: We might set the idle timer even if it has already expired and
+            // nothing has been sent since, but this is not really a problem.
+            if (!pcb->rtx_timer.isSet(Context()) || !pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+                pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+                pcb->setFlag(PcbFlags::IDLE_TIMER);
+            }
             return false;
         }
         
@@ -311,10 +318,11 @@ public:
         }
         
         if (pcb_need_rtx_timer(pcb)) {
-            // Start timer for retransmission or window probe, if not already.
-            if (!pcb->rtx_timer.isSet(Context())) {
-                TimeType rtx_time = (TimeType)pcb->rto << TcpProto::RttShift;
-                pcb->rtx_timer.appendAfter(Context(), rtx_time);
+            // Start timer for retransmission or window probe, if not already
+            // or if it was running for idle timeout.
+            if (!pcb->rtx_timer.isSet(Context()) || pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+                pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+                pcb->clearFlag(PcbFlags::IDLE_TIMER);
             }
         } else {
             // Stop the timer.
@@ -355,9 +363,28 @@ public:
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
     {
+        // For any state change that invalidates can_output_in_state the timer is
+        // also stopped (pcb_abort, pcb_go_to_time_wait).
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
+        // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
+        // could only be invalidated by sending some new data:
+        // 1) pcb_output_unsent will in any case set/unset the timer how it needs to be.
+        // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
+        // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
+        //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER) || !pcb_has_snd_unacked(pcb))
+        // If the timer was set for retransmission or window probe, the precondition
+        // pcb_need_rtx_timer must still hold. Anything that would have invalidated
+        // that would have stopped the timer.
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::IDLE_TIMER) || pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::IDLE_TIMER) || pcb_need_rtx_timer(pcb))
+        
+        // Is this an idle timeout (rather than for retransmission or window probe)?
+        if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+            // Reduce the CWND (RFC 5681 section 4.1).
+            pcb->cwnd = MinValue(pcb->cwnd, pcb_calc_initial_cwnd(pcb));
+            return;
+        }
         
         // Do the retransmission.
         pcb_output_front(pcb);
@@ -367,8 +394,7 @@ public:
         pcb->rto = MinValue(TcpProto::MaxRtxTime, doubled_rto);
         
         // Restart this timer with the new timeout.
-        TimeType rtx_time = (TimeType)pcb->rto << TcpProto::RttShift;
-        pcb->rtx_timer.appendAfter(Context(), rtx_time);
+        pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
         
         // Check for first retransmission.
         if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
@@ -394,8 +420,9 @@ public:
         pcb->num_dupack = 0;
     }
     
-    // This is called from Input when something new is acked, before
-    // related state changes are made (e.g. snd_una, snd_wnd, snd_buf*).
+    // This is called from Input when something new is acked, before the
+    // related state changes are made (snd_una, snd_wnd, snd_buf*, state
+    // transition due to FIN acked).
     static void pcb_output_handle_acked (TcpPcb *pcb, SeqType ack_num, SeqType acked)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -462,6 +489,12 @@ public:
         }
         // In fast recovery
         else {
+            // We had sent but unkacked data when fast recovery was started
+            // and this must still be true. Because when all unkacked data is
+            // ACKed we would exit fast recovery, just below (the condition
+            // below is implied then because recover<=snd_nxt).
+            AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
+            
             // If all data up to recover is being ACKed, exit fast recovery.
             if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, pcb->recover, pcb->snd_una)) {
                 // Deflate the CWND.
@@ -500,16 +533,17 @@ public:
     }
     
     // Called from Input when the number of duplicate ACKs has
-    // reached FastRtxDupAcks.
+    // reached FastRtxDupAcks, the fast recovery threshold.
     static void pcb_fast_rtx_dup_acks_received (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
         AMBRO_ASSERT(pcb->num_dupack == TcpProto::FastRtxDupAcks)
         
-        // If we have recover (>=snd_nxt), don't enter fast recovery.
-        // Decrement num_dupack by one so that the next duplicate ACK
-        // is still a candidate.
+        // If we have recover (>=snd_nxt), we must not enter fast recovery.
+        // In that case we must decrement num_dupack by one, to indicate that
+        // we are not in fast recovery and the next duplicate ACK is still
+        // a candidate.
         if (pcb->hasFlag(PcbFlags::RECOVER)) {
             pcb->num_dupack--;
             return;
@@ -533,10 +567,12 @@ public:
         pcb->setFlag(PcbFlags::OUT_PENDING);
     }
     
+    // Called from Input when an additional duplicate ACK has been
+    // received while already in fast recovery.
     static void pcb_extra_dup_ack_received (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
         AMBRO_ASSERT(pcb->num_dupack > TcpProto::FastRtxDupAcks)
         
         // Increment CWND by snd_mss.
@@ -573,6 +609,11 @@ public:
         RttType var_part = MaxValue((RttType)1, k_rttvar);
         RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
         pcb->rto = MaxValue(TcpProto::MinRtxTime, MinValue(TcpProto::MaxRtxTime, base_rto));
+    }
+    
+    static TimeType pcb_rto_time (TcpPcb *pcb)
+    {
+        return (TimeType)pcb->rto << TcpProto::RttShift;
     }
     
     // Calculate the initial cwnd based on snd_mss.

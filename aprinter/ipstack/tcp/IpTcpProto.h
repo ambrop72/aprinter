@@ -105,6 +105,7 @@ private:
         CWND_INCRD  = 1 << 8, // cwnd has been increaded by snd_mss this round-trip
         RTX_ACTIVE  = 1 << 9, // A segment has been retransmitted and not yet acked
         RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
+        IDLE_TIMER  = 1 << 11, // If rtx_timer is running it is for idle timeout
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -142,7 +143,7 @@ private:
         // Timers.
         TimedEvent abrt_timer;   // timer for aborting PCB (TIME_WAIT, abandonment)
         TimedEvent output_timer; // timer for pcb_output after send buffer extension
-        TimedEvent rtx_timer;    // timer for retransmissions and zero-window probes
+        TimedEvent rtx_timer;    // timer for retransmission, window probe and cwnd idle reset
         
         // Basic stuff.
         IpTcpProto *tcp;    // pointer back to IpTcpProto

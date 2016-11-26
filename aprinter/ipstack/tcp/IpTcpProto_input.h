@@ -618,12 +618,10 @@ private:
         }
         // Handle duplicate ACKs (RFC 5681).
         else {
-            // NOTE: Short-circuiting ensures pcb_has_snd_unacked is called
-            // only if its precondition asserts are satisfied (implied by
-            // rtx_timer running).
-            if (pcb->rtx_timer.isSet(Context()) && Output::pcb_has_snd_unacked(pcb) &&
-                data_len == 0 &&
-                (tcp_meta.flags & Tcp4FlagFin) == 0 &&
+            // NOTE: pcb_has_snd_unacked has a precondition assert can_output_in_state,
+            // so short-circuiting here is important.
+            if (can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
+                data_len == 0 && (tcp_meta.flags & Tcp4FlagFin) == 0 &&
                 tcp_meta.ack_num == pcb->snd_una &&
                 tcp_meta.window_size == pcb->snd_wnd)
             {
@@ -665,9 +663,12 @@ private:
                 }
                 
                 // Check if we need to end widow probing.
-                // This is done by checking if the assert pcb_need_rtx_timer
-                // has been invalidated while the rtx_timer was running.
-                if (pcb->rtx_timer.isSet(Context()) && !Output::pcb_need_rtx_timer(pcb)) {
+                // This is done by checking if the assert pcb_need_rtx_timer has been
+                // invalidated while the rtx_timer was running not for idle timeout.
+                if (pcb->rtx_timer.isSet(Context()) &&
+                    !pcb->hasFlag(PcbFlags::IDLE_TIMER) &&
+                    !Output::pcb_need_rtx_timer(pcb))
+                {
                     // Stop the timer to stop window probes and avoid hitting the assert.
                     pcb->rtx_timer.unset(Context());
                     
