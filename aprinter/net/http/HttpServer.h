@@ -396,7 +396,7 @@ private:
                             }
                             
                             // Send the terminating chunk with no payload.
-                            send_string(c, "0\r\n\r\n");
+                            send_string_lit(c, "0\r\n\r\n");
                             
                             // Poke/cose connection, transition to SendState::COMPLETED.
                             sending_completed(c);
@@ -896,7 +896,7 @@ private:
             
             // Send 100-continue if needed.
             if (m_expect_100_continue && m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
-                send_string(c, "HTTP/1.1 100 Continue\r\n\r\n");
+                send_string_lit(c, "HTTP/1.1 100 Continue\r\n\r\n");
                 m_connection.pokeSending(c);
             }
             
@@ -1004,32 +1004,32 @@ private:
             }
             
             // Send the response head.
-            send_string(c, "HTTP/1.1 ");
+            send_string_lit(c, "HTTP/1.1 ");
             send_string(c, resp_status);
             if (connection_close) {
-                send_string(c, "\r\nConnection: close");
+                send_string_lit(c, "\r\nConnection: close");
             }
-            send_string(c, "\r\nServer: Aprinter\r\nContent-Type: ");
+            send_string_lit(c, "\r\nServer: Aprinter\r\nContent-Type: ");
             send_string(c, content_type);
-            send_string(c, "\r\n");
+            send_string_lit(c, "\r\n");
             if (send_status_as_body) {
-                send_string(c, "Content-Length: ");
+                send_string_lit(c, "Content-Length: ");
                 char length_buf[12];
                 sprintf(length_buf, "%d", (int)(strlen(resp_status) + 1));
                 send_string(c, length_buf);
             } else {
-                send_string(c, "Transfer-Encoding: chunked");
+                send_string_lit(c, "Transfer-Encoding: chunked");
             }
-            send_string(c, "\r\n");
+            send_string_lit(c, "\r\n");
             if (extra_headers) {
                 send_string(c, extra_headers);
             }
-            send_string(c, "\r\n");
+            send_string_lit(c, "\r\n");
             
             // If desired send the status as the response body.
             if (send_status_as_body) {
                 send_string(c, resp_status);
-                send_string(c, "\n");
+                send_string_lit(c, "\n");
             }
         }
         
@@ -1039,7 +1039,7 @@ private:
         }
         
         template <size_t Size>
-        void send_string (Context c, char const (&str)[Size])
+        void send_string_lit (Context c, char const (&str)[Size])
         {
             static_assert(Size > 0, "");
             m_connection.copySendData(c, MemRef(str, Size-1));
