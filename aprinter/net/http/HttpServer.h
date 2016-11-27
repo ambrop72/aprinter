@@ -88,8 +88,6 @@ private:
     static_assert(Params::MaxRequestHeadLength >= 500, "");
     static_assert(Params::MaxChunkHeaderLength >= 32, "");
     static_assert(Params::MaxTrailerLength >= 128, "");
-    static_assert(Params::TxChunkHeaderDigits >= 3, "");
-    static_assert(Params::TxChunkHeaderDigits <= 8, "");
     
     static size_t const TxBufferSize = Params::Net::SendBufferSize;
     static size_t const RxBufferSize = Params::Net::RecvBufferSize;
@@ -101,17 +99,19 @@ private:
     // as opposed to GuaranteedTxBufferSize.
     static_assert(TxBufferSize >= Params::ExpectedResponseLength, "");
     
+    // Calculate how many hexadecimal digits we need for chunk sizes.
+    // We will use this fixed number of digits for all chunks.
+    static size_t const TxChunkHeaderDigits = HexDigitsInInt<TxBufferSize>::Value;
+    
     // Check sizes related to sending by chunked-encoding.
     // - The send buffer needs to be large enough that we can build a chunk with at least 1 byte of payload.
     // - The number of digits for the chunk length needs to be enough for the largest possible chunk.
     // - We can safely wait for buffer space for the terminating chunk header witkout a poke.
-    static size_t const TxChunkHeaderDigits = Params::TxChunkHeaderDigits;
     static size_t const TxChunkHeaderSize = TxChunkHeaderDigits + 2;
     static size_t const TxChunkFooterSize = 2;
     static size_t const TxChunkOverhead = TxChunkHeaderSize + TxChunkFooterSize;
     static_assert(TxBufferSize > TxChunkOverhead, "");
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
-    static_assert(TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     static size_t const TxLastChunkSize = 5;
     static_assert(GuaranteedTxBufferSize >= TxLastChunkSize, "");
     
@@ -1469,7 +1469,6 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
     APRINTER_AS_VALUE(size_t, MaxRequestHeadLength),
     APRINTER_AS_VALUE(size_t, MaxChunkHeaderLength),
     APRINTER_AS_VALUE(size_t, MaxTrailerLength),
-    APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits),
     APRINTER_AS_VALUE(int, MaxQueryParams)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Server, (
