@@ -61,8 +61,7 @@ static int const TcpOffsetShift = 12;
 static uint8_t const TcpOptionEnd = 0;
 static uint8_t const TcpOptionNop = 1;
 static uint8_t const TcpOptionMSS = 2;
-
-static uint8_t const TcpOptionLenMSS = 4;
+static uint8_t const TcpOptionWndScale = 3;
 
 #include <aprinter/EndNamespace.h>
 

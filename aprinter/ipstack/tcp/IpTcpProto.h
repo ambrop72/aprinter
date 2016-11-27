@@ -106,6 +106,7 @@ private:
         RTX_ACTIVE  = 1 << 9, // A segment has been retransmitted and not yet acked
         RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
         IDLE_TIMER  = 1 << 11, // If rtx_timer is running it is for idle timeout
+        WND_SCALE   = 1 << 12, // Window scaling is used
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -205,6 +206,10 @@ private:
         // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
         uint8_t num_dupack;
         
+        // Window shift values.
+        uint8_t snd_wnd_shift;
+        uint8_t rcv_wnd_shift;
+        
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
         inline void setFlag (FlagsType flag) { flags |= flag; }
@@ -255,6 +260,9 @@ private:
     
     // Maximum number of additional duplicate ACKs that will result in CWND increase.
     static uint8_t const MaxAdditionaDupAcks = 32;
+    
+    // Window scale shift count to send and use in outgoing ACKs.
+    static uint8_t const RcvWndShift = 6;
     
 public:
     /**

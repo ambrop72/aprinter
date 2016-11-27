@@ -73,15 +73,17 @@ namespace TcpUtils
         TcpOptions const *opts; // may be null for TX
     };
     
-    // TCP options flags used in TcpOptions options_present.
+    // TCP options flags used in TcpOptions options field.
     struct OptionFlags { enum : uint8_t {
-        MSS = 1 << 0,
+        MSS       = 1 << 0,
+        WND_SCALE = 1 << 1,
     }; };
     
     // Container for TCP options that we care about.
     struct TcpOptions {
         uint8_t options;
         uint16_t mss;
+        uint8_t wnd_scale;
     };
     
     static inline SeqType seq_add (SeqType op1, SeqType op2)
@@ -184,6 +186,16 @@ namespace TcpUtils
                     out_opts->mss = ReadBinaryInt<uint16_t, BinaryBigEndian>(opt_data);
                 } break;
                 
+                // Window Scale
+                case TcpOptionWndScale: {
+                    if (opt_data_len != 1) {
+                        goto skip_option;
+                    }
+                    uint8_t value = buf.takeByte();
+                    out_opts->options |= OptionFlags::WND_SCALE;
+                    out_opts->wnd_scale = value;
+                } break;
+                
                 // Unknown option (also used to handle bad options).
                 skip_option:
                 default: {
@@ -201,13 +213,19 @@ namespace TcpUtils
         *out_data = buf;
     }
     
-    static size_t const MaxOptionsWriteLen = TcpOptionLenMSS;
+    static size_t const OptWriteLenMSS = 4;
+    static size_t const OptWriteLenWndScale = 4;
+    
+    static size_t const MaxOptionsWriteLen = OptWriteLenMSS + OptWriteLenWndScale;
     
     static inline uint8_t calc_options_len (TcpOptions const &tcp_opts)
     {
         uint8_t opts_len = 0;
         if ((tcp_opts.options & OptionFlags::MSS) != 0) {
-            opts_len += TcpOptionLenMSS;
+            opts_len += OptWriteLenMSS;
+        }
+        if ((tcp_opts.options & OptionFlags::WND_SCALE) != 0) {
+            opts_len += OptWriteLenWndScale;
         }
         AMBRO_ASSERT(opts_len <= MaxOptionsWriteLen)
         AMBRO_ASSERT(opts_len % 4 == 0) // caller needs padding to 4-byte alignment
@@ -218,9 +236,16 @@ namespace TcpUtils
     {
         if ((tcp_opts.options & OptionFlags::MSS) != 0) {
             WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionMSS,       out + 0);
-            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionLenMSS,    out + 1);
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(4,                  out + 1);
             WriteBinaryInt<uint16_t, BinaryBigEndian>(tcp_opts.mss,       out + 2);
-            out += TcpOptionLenMSS;
+            out += OptWriteLenMSS;
+        }
+        if ((tcp_opts.options & OptionFlags::WND_SCALE) != 0) {
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionNop     ,  out + 0);
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(TcpOptionWndScale,  out + 1);
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(3,                  out + 2);
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(tcp_opts.wnd_scale, out + 3);
+            out += OptWriteLenWndScale;
         }
     }
     

@@ -67,16 +67,31 @@ public:
         return pcb->sndBufLen() - pcb->snd_buf_cur.tot_len;
     }
     
-    // Send SYN+ACK packet in SYN_RCVD state, with MSS option.
+    // Send SYN+ACK packet in SYN_RCVD state.
     static void pcb_send_syn_ack (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD)
         
+        // Include the MSS option.
         TcpOptions tcp_opts;
         tcp_opts.options = OptionFlags::MSS;
         tcp_opts.mss = pcb->rcv_mss;
+        
+        // If window scaling is used, send the window scale option.
+        if (pcb->hasFlag(PcbFlags::WND_SCALE)) {
+            tcp_opts.options |= OptionFlags::WND_SCALE;
+            tcp_opts.wnd_scale = pcb->rcv_wnd_shift;
+        }
+        
+        // The SYN-ACK must always have non-scaled window size.
+        // This is stupid so we don't mind a hacky approach.
+        auto saved_rcv_wnd_shift = pcb->rcv_wnd_shift;
+        pcb->rcv_wnd_shift = 0;
+        uint16_t window_size = Input::pcb_ann_wnd(pcb);
+        pcb->rcv_wnd_shift = saved_rcv_wnd_shift;
+        
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
-                               Input::pcb_ann_wnd(pcb), Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
+                               window_size, Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
         send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
     }
     

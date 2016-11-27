@@ -45,7 +45,8 @@
 template <typename TcpProto>
 class IpTcpProto_input
 {
-    APRINTER_USE_TYPES2(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions))
+    APRINTER_USE_TYPES2(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
+                                   OptionFlags))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpPcb, PcbFlags,
@@ -126,20 +127,33 @@ public:
         }
     }
     
-    // Get a window size value to be put into a segment being sent.
+    // Get a window size value be put into the segment being sent.
+    // This updates pcb->rcv_ann tracking the announced window.
     static uint16_t pcb_ann_wnd (TcpPcb *pcb)
     {
-        uint16_t wnd_to_ann = MinValue(pcb->rcv_wnd, (SeqType)UINT16_MAX);
-        pcb->rcv_ann = seq_add(pcb->rcv_nxt, wnd_to_ann);
-        return wnd_to_ann;
+        uint16_t hdr_wnd;
+        pcb_calc_window_update(pcb, pcb->rcv_ann, hdr_wnd);
+        return hdr_wnd;
     }
     
     // Determine how much new window would be anounced if we sent a window update.
     static SeqType pcb_get_wnd_ann_incr (TcpPcb *pcb)
     {
-        uint16_t wnd_to_ann = MinValue(pcb->rcv_wnd, (SeqType)UINT16_MAX);
-        SeqType new_rcv_ann = seq_add(pcb->rcv_nxt, wnd_to_ann);
-        return seq_diff(new_rcv_ann, pcb->rcv_ann);
+        SeqType rcv_ann;
+        uint16_t hdr_wnd;
+        pcb_calc_window_update(pcb, rcv_ann, hdr_wnd);
+        return seq_diff(rcv_ann, pcb->rcv_ann);
+    }
+    
+    // Window update calculation, returns:
+    // - rcv_ann: sequence number for newly announced window,
+    // - hdr_wnd: window size value to put into the segment.
+    static void pcb_calc_window_update (TcpPcb *pcb, SeqType &rcv_ann, uint16_t &hdr_wnd)
+    {
+        SeqType max_ann_wnd = (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
+        SeqType wnd_to_ann = MinValue(pcb->rcv_wnd, max_ann_wnd);
+        hdr_wnd = wnd_to_ann >> pcb->rcv_wnd_shift;
+        rcv_ann = seq_add(pcb->rcv_nxt, (SeqType)hdr_wnd << pcb->rcv_wnd_shift);
     }
     
     static void pcb_rcv_buf_extended (TcpPcb *pcb)
@@ -206,7 +220,7 @@ private:
             // Generate an initial sequence number.
             SeqType iss = TcpProto::make_iss();
             
-            // Initialize the PCB.
+            // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
             pcb->lis = lis;
@@ -227,6 +241,15 @@ private:
             pcb->rto = TcpProto::InitialRtxTime;
             pcb->num_ooseq = 0;
             pcb->num_dupack = 0;
+            pcb->snd_wnd_shift = 0;
+            pcb->rcv_wnd_shift = 0;
+            
+            // Handle window scaling option.
+            if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
+                pcb->setFlag(PcbFlags::WND_SCALE);
+                pcb->snd_wnd_shift = MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+                pcb->rcv_wnd_shift = TcpProto::RcvWndShift;
+            }
             
             // These will be initialized at transition to ESTABLISHED:
             // snd_wnd, snd_wl1, snd_wl2
@@ -471,7 +494,7 @@ private:
         pcb->snd_una = tcp_meta.ack_num;
         
         // Remember the initial send window.
-        pcb->snd_wnd = tcp_meta.window_size;
+        pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         pcb->snd_wl1 = tcp_meta.seq_num;
         pcb->snd_wl2 = tcp_meta.ack_num;
         
@@ -623,7 +646,7 @@ private:
             if (can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
                 data_len == 0 && (tcp_meta.flags & Tcp4FlagFin) == 0 &&
                 tcp_meta.ack_num == pcb->snd_una &&
-                tcp_meta.window_size == pcb->snd_wnd)
+                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->snd_wnd)
             {
                 if (pcb->num_dupack < TcpProto::FastRtxDupAcks + TcpProto::MaxAdditionaDupAcks) {
                     pcb->num_dupack++;
@@ -652,7 +675,7 @@ private:
             {
                 // Update the window.
                 SeqType old_snd_wnd = pcb->snd_wnd;
-                pcb->snd_wnd = tcp_meta.window_size;
+                pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
                 pcb->snd_wl1 = tcp_meta.seq_num;
                 pcb->snd_wl2 = tcp_meta.ack_num;
                 
@@ -957,6 +980,11 @@ private:
         
         // Get out-of-sequence FIN (no need to consume it).
         fin = pcb->hasFlag(PcbFlags::OOSEQ_FIN) && pcb->ooseq_fin == seq_add(pcb->rcv_nxt, datalen);
+    }
+    
+    inline static SeqType pcb_decode_wnd_size (TcpPcb *pcb, uint16_t rx_wnd_size)
+    {
+        return (SeqType)rx_wnd_size << pcb->snd_wnd_shift;
     }
 };
 
