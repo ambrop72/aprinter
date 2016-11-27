@@ -601,14 +601,18 @@ public:
         pcb->ssthresh = MaxValue(half_flight_size, two_smss);
     }
     
-    // Update the RTO from RTTVAR and SRTT.
+    // Update the RTO from RTTVAR and SRTT, or to InitialRtxTime if no RTT_VALID.
     static void pcb_update_rto (TcpPcb *pcb)
     {
-        int const k = 4;
-        RttType k_rttvar = (pcb->rttvar > RttTypeMax / k) ? RttTypeMax : (k * pcb->rttvar);
-        RttType var_part = MaxValue((RttType)1, k_rttvar);
-        RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
-        pcb->rto = MaxValue(TcpProto::MinRtxTime, MinValue(TcpProto::MaxRtxTime, base_rto));
+        if (AMBRO_LIKELY(pcb->hasFlag(PcbFlags::RTT_VALID))) {
+            int const k = 4;
+            RttType k_rttvar = (pcb->rttvar > RttTypeMax / k) ? RttTypeMax : (k * pcb->rttvar);
+            RttType var_part = MaxValue((RttType)1, k_rttvar);
+            RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
+            pcb->rto = MaxValue(TcpProto::MinRtxTime, MinValue(TcpProto::MaxRtxTime, base_rto));
+        } else {
+            pcb->rto = TcpProto::InitialRtxTime;
+        }
     }
     
     static TimeType pcb_rto_time (TcpPcb *pcb)
