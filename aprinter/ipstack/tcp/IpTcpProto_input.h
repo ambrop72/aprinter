@@ -139,9 +139,18 @@ public:
     // Determine how much new window would be anounced if we sent a window update.
     static SeqType pcb_get_wnd_ann_incr (TcpPcb *pcb)
     {
+        // Calculate what can be announced.
         SeqType rcv_ann;
         uint16_t hdr_wnd;
         pcb_calc_window_update(pcb, rcv_ann, hdr_wnd);
+        
+        // It is possible that we would announce less than already announced,
+        // due to window scaling. If so inhibit window update by returning zero.
+        if (seq_lt(rcv_ann, pcb->rcv_ann, pcb->rcv_nxt)) {
+            return 0;
+        }
+        
+        // Return the difference from the already announced window.
         return seq_diff(rcv_ann, pcb->rcv_ann);
     }
     
