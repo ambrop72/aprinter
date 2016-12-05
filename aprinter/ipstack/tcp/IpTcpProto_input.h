@@ -344,7 +344,7 @@ private:
         if (pcb->hasFlag(PcbFlags::OUT_PENDING)) {
             pcb->clearFlag(PcbFlags::OUT_PENDING);
             if (can_output_in_state(pcb->state)) {
-                bool sent_ack = Output::pcb_output_unsent(pcb);
+                bool sent_ack = Output::pcb_output_queued(pcb);
                 if (sent_ack) {
                     pcb->clearFlag(PcbFlags::ACK_PENDING);
                 }

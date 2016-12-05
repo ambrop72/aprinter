@@ -180,26 +180,25 @@ public:
         return pcb->sndBufLen() > 0 || !snd_open_in_state(pcb->state);
     }
     
-    // Determine of the rtx_timer needs to be running.
+    // Determine if the rtx_timer needs to be running for retransmission
+    // or window probe.
     static bool pcb_need_rtx_timer (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
-        // Need the timer either if we have any sent but unacknowledged
-        // data/FIN (for retransmissing) or if the send window is empty
-        // while delaying transmission is not acceptable (for window probe).
-        return pcb_has_snd_unacked(pcb) ||
-               (pcb->snd_wnd == 0 && !pcb_may_delay_snd(pcb));
+        return (pcb->snd_wnd == 0) ? !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
     }
     
-    // Determine if there is any data or FIN that has been sent but not ACKed.
+    // Determine if there is any data or FIN which is no longer queued for
+    // sending but has not been ACKed. This is NOT necessarily the same as
+    // snd_una!=snd_nxt due to requeuing in pcb_rtx_timer_handler.
     static bool pcb_has_snd_unacked (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
         return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
-               pcb->hasFlag(PcbFlags::FIN_SENT);
+               (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
     }
     
     // Determine if sending can be delayed in expectation of a larger segment.
@@ -276,9 +275,9 @@ public:
     
     /**
      * Transmits previously unsent data as permissible and controls the
-     * rtx_timer. Returns whether a presumably valid ACK has been sent.
+     * rtx_timer. Returns whether something has been sent.
      */
-    static bool pcb_output_unsent (TcpPcb *pcb)
+    static bool pcb_output_queued (TcpPcb *pcb, bool no_delay = false)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
@@ -307,7 +306,8 @@ public:
         {
             // If we have less than MSS of data left to send which is
             // not being pushed (due to sendPush or close), delay sending.
-            if (pcb_may_delay_snd(pcb)) {
+            // But force sending if called with no_delay==true.
+            if (!no_delay && pcb_may_delay_snd(pcb)) {
                 break;
             }
             
@@ -373,7 +373,7 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
         // Send any unsent data as permissible.
-        pcb_output_unsent(pcb);
+        pcb_output_queued(pcb);
     }
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
@@ -383,7 +383,7 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
         // could only be invalidated by sending some new data:
-        // 1) pcb_output_unsent will in any case set/unset the timer how it needs to be.
+        // 1) pcb_output_queued will in any case set/unset the timer how it needs to be.
         // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
         // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
         //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
@@ -401,38 +401,50 @@ public:
             return;
         }
         
-        // Do the retransmission.
-        pcb_output_front(pcb);
-        
-        // Double the retransmission timeout.
+        // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
         pcb->rto = MinValue(TcpProto::MaxRtxTime, doubled_rto);
-        
-        // Restart this timer with the new timeout.
         pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
         
-        // Check for first retransmission.
-        if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-            // Set flag to indicate there has been a retransmission.
-            // This will be cleared upon new ACK.
-            pcb->setFlag(PcbFlags::RTX_ACTIVE);
+        if (pcb->snd_wnd == 0) {
+            // Send a window probe.
+            pcb_output_front(pcb);
+        } else {
+            // Check for first retransmission.
+            if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                // Set flag to indicate there has been a retransmission.
+                // This will be cleared upon new ACK.
+                pcb->setFlag(PcbFlags::RTX_ACTIVE);
+                
+                // Update ssthresh (RFC 5681).
+                pcb_update_ssthresh_for_rtx(pcb);
+            }
             
-            // Update ssthresh (RFC 5681).
-            pcb_update_ssthresh_for_rtx(pcb);
+            // Set cwnd to one segment (RFC 5681).
+            // Also reset cwnd_acked to avoid old accumulated value
+            // from causing an undesired cwnd increase later.
+            pcb->cwnd = pcb->snd_mss;
+            pcb->cwnd_acked = 0;
+            
+            // Set recover.
+            pcb->setFlag(PcbFlags::RECOVER);
+            pcb->recover = pcb->snd_nxt;
+            
+            // Exit any fast recovery.
+            pcb->num_dupack = 0;
+            
+            // Requeue all data and FIN.
+            pcb->snd_buf_cur = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
+            if (!snd_open_in_state(pcb->state)) {
+                pcb->setFlag(PcbFlags::FIN_PENDING);
+            }
+            
+            // Retransmit using pcb_output_queued.
+            // This will necessarily send something because there is data
+            // outstanding and all qeued and we call with no_delay==true.
+            bool sent = pcb_output_queued(pcb, true);
+            AMBRO_ASSERT(sent)
         }
-        
-        // Set cwnd to one segment (RFC 5681).
-        // Also reset cwnd_acked to avoid old accumulated value
-        // from causing an undesired cwnd increase later.
-        pcb->cwnd = pcb->snd_mss;
-        pcb->cwnd_acked = 0;
-        
-        // Set recover.
-        pcb->setFlag(PcbFlags::RECOVER);
-        pcb->recover = pcb->snd_nxt;
-        
-        // Exit any fast recovery.
-        pcb->num_dupack = 0;
     }
     
     // This is called from Input when something new is acked, before the
