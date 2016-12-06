@@ -397,7 +397,10 @@ public:
         // Is this an idle timeout (rather than for retransmission or window probe)?
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
             // Reduce the CWND (RFC 5681 section 4.1).
+            // Also reset cwnd_acked to avoid old accumulated value
+            // from causing an undesired cwnd increase later.
             pcb->cwnd = MinValue(pcb->cwnd, pcb_calc_initial_cwnd(pcb));
+            pcb->cwnd_acked = 0;
             return;
         }
         
