@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
@@ -144,6 +145,11 @@ public:
         Ip4Addr route_addr;
         if (!routeIp4(meta.remote_addr, meta.iface, &route_iface, &route_addr)) {
             return IpErr::NO_IP_ROUTE;
+        }
+        
+        // Sanity check length.
+        if (AMBRO_UNLIKELY(dgram.tot_len > UINT16_MAX)) {
+            return IpErr::PKT_TOO_LARGE;
         }
         
         // Check if fragmentation is needed and calculate the length of
@@ -330,7 +336,7 @@ public:
             m_have_gateway = false;
             
             // Get the MTU.
-            m_ip_mtu = m_driver->getIpMtu();
+            m_ip_mtu = MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
             AMBRO_ASSERT(m_ip_mtu >= MinIpIfaceMtu)
             
             // Connect driver callbacks.
