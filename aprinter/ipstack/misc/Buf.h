@@ -126,6 +126,17 @@ struct IpBufRef {
         };
     }
     
+    inline IpBufRef subHeaderToContinuedBy (size_t header_len, IpBufNode const *cont, size_t total_len, IpBufNode *out_node) const
+    {
+        AMBRO_ASSERT(node != nullptr)
+        AMBRO_ASSERT(offset <= node->len)
+        AMBRO_ASSERT(header_len <= node->len - offset)
+        AMBRO_ASSERT(total_len >= header_len)
+        
+        *out_node = IpBufNode{node->ptr, (size_t)(offset + header_len), cont};
+        return IpBufRef{out_node, offset, total_len};
+    }
+    
     inline void skipBytes (size_t amount)
     {
         processBytes(amount, [](char *, size_t) {});

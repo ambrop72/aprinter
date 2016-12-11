@@ -92,6 +92,9 @@ class IpStack {
 public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
     
+    // Minimum MTU is smallest IP header plus 8 bytes (for fragmentation to work).
+    static size_t const MinIpIfaceMtu = Ip4Header::Size + 8;
+    
     class Iface;
     
 public:
@@ -203,8 +206,8 @@ public:
             
             // Construct a packet with header and partial data.
             IpBufNode data_node = dgram.toNode();
-            IpBufNode header_node = {pkt.node->ptr, (size_t)(pkt.offset + Ip4Header::Size), &data_node};
-            IpBufRef frag_pkt = {&header_node, pkt.offset, pkt_send_len};
+            IpBufNode header_node;
+            IpBufRef frag_pkt = pkt.subHeaderToContinuedBy(Ip4Header::Size, &data_node, pkt_send_len, &header_node);
             
             // Send the packet to the driver.
             err = route_iface->m_driver->sendIp4Packet(frag_pkt, route_addr);
@@ -328,7 +331,7 @@ public:
             
             // Get the MTU.
             m_ip_mtu = m_driver->getIpMtu();
-            AMBRO_ASSERT(m_ip_mtu > Ip4Header::Size)
+            AMBRO_ASSERT(m_ip_mtu >= MinIpIfaceMtu)
             
             // Connect driver callbacks.
             m_driver->setCallback(this);
@@ -417,84 +420,7 @@ public:
         
         void recvIp4Packet (IpBufRef pkt) override
         {
-            // Check base IP header length.
-            if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
-                return;
-            }
-            
-            // Read IP header fields.
-            auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
-            uint8_t version_ihl    = ip4_header.get(Ip4Header::VersionIhl());
-            uint16_t total_len     = ip4_header.get(Ip4Header::TotalLen());
-            uint16_t flags_offset  = ip4_header.get(Ip4Header::FlagsOffset());
-            uint8_t ttl            = ip4_header.get(Ip4Header::TimeToLive());
-            uint8_t proto          = ip4_header.get(Ip4Header::Protocol());
-            Ip4Addr src_addr       = ip4_header.get(Ip4Header::SrcAddr());
-            Ip4Addr dst_addr       = ip4_header.get(Ip4Header::DstAddr());
-            
-            // Check IP version.
-            if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
-                return;
-            }
-            
-            // Check header length.
-            // We require the entire header to fit into the first buffer.
-            uint8_t header_len = (version_ihl & Ip4IhlMask) * 4;
-            if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !pkt.hasHeader(header_len))) {
-                return;
-            }
-            
-            // Check total length.
-            if (AMBRO_UNLIKELY(total_len < header_len || total_len > pkt.tot_len)) {
-                return;
-            }
-            
-            // Sanity check source address - reject broadcast addresses.
-            if (AMBRO_UNLIKELY(src_addr == Ip4Addr::AllOnesAddr() || ip4AddrIsLocalBcast(src_addr))) {
-                return;
-            }
-            
-            // Check destination address.
-            // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
-            if (AMBRO_UNLIKELY(
-                 !ip4AddrIsLocalAddr(dst_addr) && !ip4AddrIsLocalBcast(dst_addr) &&
-                 dst_addr != Ip4Addr::AllOnesAddr()))
-            {
-                return;
-            }
-            
-            // Verify IP header checksum.
-            uint16_t calc_chksum = IpChksum(ip4_header.data, header_len);
-            if (AMBRO_UNLIKELY(calc_chksum != 0)) {
-                return;
-            }
-            
-            // Create a reference to the payload.
-            IpBufRef dgram = pkt.hideHeader(header_len).subTo(total_len - header_len);
-            
-            // Check for fragmentation.
-            bool more_fragments = (flags_offset & Ip4FlagMF) != 0;
-            uint16_t fragment_offset_8b = flags_offset & Ip4OffsetMask;
-            if (AMBRO_UNLIKELY(more_fragments || fragment_offset_8b != 0)) {
-                // Get the fragment offset in bytes.
-                uint16_t fragment_offset = fragment_offset_8b * 8;
-                
-                // Perform reassembly.
-                if (!m_stack->reassembleIp4(
-                    ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr, proto, ttl,
-                    more_fragments, fragment_offset, ip4_header.data, header_len, dgram))
-                {
-                    return;
-                }
-                // Continue processing the reassembled datagram.
-                // Note, dgram was modified pointing to the reassembled data.
-            }
-            
-            // Create the datagram meta-info struct.
-            Ip4DgramMeta meta = {dst_addr, src_addr, ttl, proto, this};
-            
-            // Do protocol-specific processing.
-            m_stack->recvIp4Dgram(meta, dgram);
+            m_stack->processRecvedIp4Packet(this, pkt);
         }
         
     private:
@@ -523,6 +449,92 @@ private:
         // for the last hole descriptor, they cannot contain data.
         char data[ReassBufferSize];
     };
+    
+    void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
+    {
+        // Check base IP header length.
+        if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
+            return;
+        }
+        
+        // Read IP header fields.
+        auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
+        uint8_t version_ihl    = ip4_header.get(Ip4Header::VersionIhl());
+        uint16_t total_len     = ip4_header.get(Ip4Header::TotalLen());
+        uint16_t flags_offset  = ip4_header.get(Ip4Header::FlagsOffset());
+        uint8_t ttl            = ip4_header.get(Ip4Header::TimeToLive());
+        uint8_t proto          = ip4_header.get(Ip4Header::Protocol());
+        Ip4Addr src_addr       = ip4_header.get(Ip4Header::SrcAddr());
+        Ip4Addr dst_addr       = ip4_header.get(Ip4Header::DstAddr());
+        
+        // Check IP version.
+        if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
+            return;
+        }
+        
+        // Check header length.
+        // We require the entire header to fit into the first buffer.
+        uint8_t header_len = (version_ihl & Ip4IhlMask) * 4;
+        if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !pkt.hasHeader(header_len))) {
+            return;
+        }
+        
+        // Check total length.
+        if (AMBRO_UNLIKELY(total_len < header_len || total_len > pkt.tot_len)) {
+            return;
+        }
+        
+        // Sanity check source address - reject broadcast addresses.
+        if (AMBRO_UNLIKELY(
+            src_addr == Ip4Addr::AllOnesAddr() ||
+            iface->ip4AddrIsLocalBcast(src_addr)))
+        {
+            return;
+        }
+        
+        // Check destination address.
+        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
+        if (AMBRO_UNLIKELY(
+            !iface->ip4AddrIsLocalAddr(dst_addr) &&
+            !iface->ip4AddrIsLocalBcast(dst_addr) &&
+            dst_addr != Ip4Addr::AllOnesAddr()))
+        {
+            return;
+        }
+        
+        // Verify IP header checksum.
+        uint16_t calc_chksum = IpChksum(ip4_header.data, header_len);
+        if (AMBRO_UNLIKELY(calc_chksum != 0)) {
+            return;
+        }
+        
+        // Create a reference to the payload.
+        IpBufRef dgram = pkt.hideHeader(header_len).subTo(total_len - header_len);
+        
+        // Check for fragmentation.
+        bool more_fragments = (flags_offset & Ip4FlagMF) != 0;
+        uint16_t fragment_offset_8b = flags_offset & Ip4OffsetMask;
+        if (AMBRO_UNLIKELY(more_fragments || fragment_offset_8b != 0)) {
+            // Get the fragment offset in bytes.
+            uint16_t fragment_offset = fragment_offset_8b * 8;
+            
+            // Perform reassembly.
+            if (!reassembleIp4(
+                ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr, proto, ttl,
+                more_fragments, fragment_offset, ip4_header.data, header_len, dgram))
+            {
+                return;
+            }
+            // Continue processing the reassembled datagram.
+            // Note, dgram was modified pointing to the reassembled data.
+        }
+        
+        // Create the datagram meta-info struct.
+        Ip4DgramMeta meta = {dst_addr, src_addr, ttl, proto, iface};
+        
+        // Do protocol-specific processing.
+        recvIp4Dgram(meta, dgram);
+    }
     
     void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
     {
