@@ -1325,6 +1325,14 @@ def setup_network(gen, config, key):
         if not 2 <= arp_protect_count <= num_arp_entries:
             network_config.key_path('ArpProtectCount').error('Value out of range.')
         
+        max_reass_packets = network_config.get_int('MaxReassPackets')
+        if not 1 <= max_reass_packets <= 128:
+            network_config.key_path('MaxReassPackets').error('Value out of range.')
+        
+        max_reass_size = network_config.get_int('MaxReassSize')
+        if not 1480 <= max_reass_size <= 30000:
+            network_config.key_path('MaxReassSize').error('Value out of range.')
+        
         num_tcp_pcbs = network_config.get_int('NumTcpPcbs')
         if not 2 <= num_tcp_pcbs <= 128:
             network_config.key_path('NumTcpPcbs').error('Value out of range.')
@@ -1342,6 +1350,8 @@ def setup_network(gen, config, key):
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
             num_arp_entries,
             arp_protect_count,
+            max_reass_packets,
+            max_reass_size,
             num_tcp_pcbs,
             num_oos_segs,
             tcp_wnd_upd_thr_div,

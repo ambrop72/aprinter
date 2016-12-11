@@ -841,6 +841,8 @@ def editor():
                         ]),
                         ce.Integer(key='NumArpEntries', title='Number of ARP entries', default=16),
                         ce.Integer(key='ArpProtectCount', title='Number of protected ARP entries', default=8),
+                        ce.Integer(key='MaxReassPackets', title='Max packets in reassembly', default=1),
+                        ce.Integer(key='MaxReassSize', title='Max reassembled data size', default=1480),
                         ce.Integer(key='NumTcpPcbs', title='Number of TCP PCBs', default=16),
                         ce.Integer(key='NumOosSegs', title='Number of out-of-sequence segment slots', default=4),
                         ce.Integer(key='TcpWndUpdThrDiv', title='TCP window update threshold divisor (threshold = RX buffer / N)', default=4),

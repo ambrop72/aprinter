@@ -596,6 +596,40 @@ struct StructTypeHandler<Type, EnableIf<__is_base_of(StructIntArray<typename Typ
     >;
 };
 
+/**
+ * Structure field type handler for any simple C++ type.
+ * It implements get() and set() using memcpy. This means for
+ * example that integers will be encoded in native byte and
+ * that pointers can be used.
+ * To declare a raw field in a struct use StructRawField<Type>.
+ */
+template <typename Type>
+class StructRawTypeHandler {
+public:
+    static size_t const FieldSize = sizeof(Type);
+    
+    using ValType = Type;
+    
+    inline static ValType get (char const *data)
+    {
+        Type value;
+        ::memcpy(&value, data, sizeof(value));
+        return value;
+    }
+    
+    inline static void set (char *data, ValType value)
+    {
+        ::memcpy(data, &value, sizeof(value));
+    }
+};
+
+template <typename Type> struct StructRawField {};
+
+template <typename Type>
+struct StructTypeHandler<StructRawField<Type>, void> {
+    using Handler = StructRawTypeHandler<Type>;
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif

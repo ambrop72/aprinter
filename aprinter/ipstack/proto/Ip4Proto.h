@@ -53,6 +53,8 @@ static uint16_t const Ip4FlagMF = (uint16_t)1 << 13;
 
 static uint16_t const Ip4OffsetMask = UINT16_C(0x1fff);
 
+static size_t const Ip4MaxHeaderSize = 60;
+
 static uint8_t const Ip4ProtocolIcmp = 1;
 static uint8_t const Ip4ProtocolTcp  = 6;
 static uint8_t const Ip4ProtocolUdp  = 17;
