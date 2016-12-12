@@ -92,14 +92,17 @@ public:
         
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
-        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
         
-        // If this is the initial SYN-ACK, start a RTT measurement.
-        // Otherwise (it's a retransmission), stop any RTT measurement.
-        if (initial) {
-            pcb_start_rtt_measurement(pcb);
-        } else {
-            pcb->clearFlag(PcbFlags::RTT_PENDING);
+        // This RTT logic is relevant only when a segment was sent.
+        if (err == IpErr::SUCCESS) {
+            // If this is the initial SYN-ACK, start a RTT measurement.
+            // Otherwise (it's a retransmission), stop any RTT measurement.
+            if (initial) {
+                pcb_start_rtt_measurement(pcb);
+            } else {
+                pcb->clearFlag(PcbFlags::RTT_PENDING);
+            }
         }
     }
     
@@ -246,34 +249,38 @@ public:
         SeqType seq_num = seq_add(pcb->snd_una, offset);
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), seg_flags};
-        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, data.subTo(seg_data_len));
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
+                             data.subTo(seg_data_len));
         
-        // Calculate the end sequence number of the sent segment.
-        SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
-        
-        // Stop a round-trip-time measurement if we have retransmitted
-        // a segment containing the associated sequence number.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
-            seq_lte(seq_num, pcb->rtt_test_seq, pcb->snd_una) &&
-            seq_lt(pcb->rtt_test_seq, seg_endseq, pcb->snd_una))
-        {
-            pcb->clearFlag(PcbFlags::RTT_PENDING);
-        }
-        
-        // Did we send anything new?
-        if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
-            // Start a round-trip-time measurement if not already started.
-            if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-                pcb_start_rtt_measurement(pcb);
+        // These things are needed only when a segment was sent.
+        if (err == IpErr::SUCCESS) {
+            // Calculate the end sequence number of the sent segment.
+            SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
+            
+            // Stop a round-trip-time measurement if we have retransmitted
+            // a segment containing the associated sequence number.
+            if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
+                seq_lte(seq_num, pcb->rtt_test_seq, pcb->snd_una) &&
+                seq_lt(pcb->rtt_test_seq, seg_endseq, pcb->snd_una))
+            {
+                pcb->clearFlag(PcbFlags::RTT_PENDING);
             }
             
-            // Bump snd_nxt.
-            pcb->snd_nxt = seg_endseq;
-        }
-        
-        // If we sent FIN set the FIN_SENT flag.
-        if ((seg_flags & Tcp4FlagFin) != 0) {
-            pcb->setFlag(PcbFlags::FIN_SENT);
+            // Did we send anything new?
+            if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
+                // Start a round-trip-time measurement if not already started.
+                if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+                    pcb_start_rtt_measurement(pcb);
+                }
+                
+                // Bump snd_nxt.
+                pcb->snd_nxt = seg_endseq;
+            }
+            
+            // If we sent FIN set the FIN_SENT flag.
+            if ((seg_flags & Tcp4FlagFin) != 0) {
+                pcb->setFlag(PcbFlags::FIN_SENT);
+            }
         }
         
         return seg_seqlen;
@@ -736,7 +743,7 @@ public:
         send_tcp(tcp, local_addr, remote_addr, tcp_meta);
     }
     
-    static void send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
+    static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
                           TcpSegMeta const &tcp_meta, IpBufRef data=IpBufRef{})
     {
         // Compute length of TCP options.
@@ -785,7 +792,7 @@ public:
         
         // Send the datagram.
         Ip4DgramMeta meta = {local_addr, remote_addr, TcpProto::TcpTTL, Ip4ProtocolTcp};
-        tcp->m_stack->sendIp4Dgram(meta, dgram);
+        return tcp->m_stack->sendIp4Dgram(meta, dgram);
     }
 };
 
