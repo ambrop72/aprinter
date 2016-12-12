@@ -68,7 +68,7 @@ public:
     }
     
     // Send SYN+ACK packet in SYN_RCVD state.
-    static void pcb_send_syn_ack (TcpPcb *pcb)
+    static void pcb_send_syn_ack (TcpPcb *pcb, bool initial)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD)
         
@@ -93,6 +93,14 @@ public:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
         send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        
+        // If this is the initial SYN-ACK, start a RTT measurement.
+        // Otherwise (it's a retransmission), stop any RTT measurement.
+        if (initial) {
+            pcb_start_rtt_measurement(pcb);
+        } else {
+            pcb->clearFlag(PcbFlags::RTT_PENDING);
+        }
     }
     
     // Send an empty ACK (which may be a window update).
@@ -256,9 +264,7 @@ public:
         if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
             // Start a round-trip-time measurement if not already started.
             if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-                pcb->setFlag(PcbFlags::RTT_PENDING);
-                pcb->rtt_test_seq = pcb->snd_nxt;
-                pcb->rtt_test_time = Clock::getTime(Context());
+                pcb_start_rtt_measurement(pcb);
             }
             
             // Bump snd_nxt.
@@ -407,7 +413,7 @@ public:
         
         // If this for a SYN retransmission, retransmit the SYN and return.
         if (pcb->state == TcpState::SYN_RCVD) {
-            pcb_send_syn_ack(pcb);
+            pcb_send_syn_ack(pcb, false);
             return;
         }
         
@@ -475,26 +481,8 @@ public:
         
         // Handle end of round-trip-time measurement.
         if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
-            // Clear the flag to indicate end of RTT measurement.
-            pcb->clearFlag(PcbFlags::RTT_PENDING);
-            
-            // Calculate how much time has passed, also in RTT units.
-            TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
-            RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
-            
-            // Update RTTVAR and SRTT.
-            if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
-                pcb->setFlag(PcbFlags::RTT_VALID);
-                pcb->rttvar = this_rtt/2;
-                pcb->srtt = this_rtt;
-            } else {
-                RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
-                pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
-                pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
-            }
-            
-            // Update RTO.
-            pcb_update_rto(pcb);
+            // Update the RTT variables and RTO.
+            pcb_end_rtt_measurement(pcb);
             
             // Allow more CWND increase in congestion avoidance.
             pcb->clearFlag(PcbFlags::CWND_INCRD);
@@ -679,6 +667,40 @@ public:
         AMBRO_ASSERT(pcb->cwnd > 0)
         
         return pcb->cwnd;
+    }
+    
+    static void pcb_start_rtt_measurement (TcpPcb *pcb)
+    {
+        // Set the flag, remember the sequence number and the time.
+        pcb->setFlag(PcbFlags::RTT_PENDING);
+        pcb->rtt_test_seq = pcb->snd_nxt;
+        pcb->rtt_test_time = Clock::getTime(Context());
+    }
+    
+    static void pcb_end_rtt_measurement (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::RTT_PENDING))
+        
+        // Clear the flag to indicate end of RTT measurement.
+        pcb->clearFlag(PcbFlags::RTT_PENDING);
+        
+        // Calculate how much time has passed, also in RTT units.
+        TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
+        RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
+        
+        // Update RTTVAR and SRTT.
+        if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
+            pcb->setFlag(PcbFlags::RTT_VALID);
+            pcb->rttvar = this_rtt/2;
+            pcb->srtt = this_rtt;
+        } else {
+            RttType rtt_diff = AbsoluteDiff(pcb->srtt, this_rtt);
+            pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
+            pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
+        }
+        
+        // Update RTO.
+        pcb_update_rto(pcb);
     }
     
     // Send an RST as a reply to a received segment.

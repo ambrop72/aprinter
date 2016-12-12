@@ -273,8 +273,11 @@ private:
             // Start the retransmission timer.
             pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
             
-            // Reply with a SYN+ACK.
-            Output::pcb_send_syn_ack(pcb);
+            // Reply with a SYN-ACK.
+            // Only here we call this with initial==true. This will start a RTT
+            // measurement. Any retransmission of the SYN-ACK will be done with
+            // initial==false, in order to invalidate the RTT measurement.
+            Output::pcb_send_syn_ack(pcb, true);
             return;
         } while (false);
         
@@ -389,7 +392,7 @@ private:
                 {
                     // This seems to be a retransmission of the SYN, retransmit our
                     // SYN+ACK and bump the abort timeout.
-                    Output::pcb_send_syn_ack(pcb);
+                    Output::pcb_send_syn_ack(pcb, false);
                     pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
                 } else {
                     Output::pcb_send_empty_ack(pcb);
@@ -512,6 +515,15 @@ private:
         pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         pcb->snd_wl1 = tcp_meta.seq_num;
         pcb->snd_wl2 = tcp_meta.ack_num;
+        
+        // If this is the end of RTT measurement (there was no SYN-ACK retransmission),
+        // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
+        // to the initial value since it might have been increased in retransmissions.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+            Output::pcb_end_rtt_measurement(pcb);
+        } else {
+            pcb->rto = TcpProto::InitialRtxTime;
+        }
         
         // Initialize congestion control variables.
         pcb->cwnd = Output::pcb_calc_initial_cwnd(pcb);
