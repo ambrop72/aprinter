@@ -270,6 +270,9 @@ private:
             // Start the SYN_RCVD abort timeout.
             pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
             
+            // Start the retransmission timer.
+            pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
+            
             // Reply with a SYN+ACK.
             Output::pcb_send_syn_ack(pcb);
             return;
@@ -495,6 +498,9 @@ private:
         
         // Stop the SYN_RCVD abort timer.
         pcb->abrt_timer.unset(Context());
+        
+        // Stop the retransmission timer.
+        pcb->rtx_timer.unset(Context());
         
         // Go to ESTABLISHED state.
         pcb->state = TcpState::ESTABLISHED;

@@ -380,22 +380,18 @@ public:
     {
         // For any state change that invalidates can_output_in_state the timer is
         // also stopped (pcb_abort, pcb_go_to_time_wait).
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
-        // could only be invalidated by sending some new data:
-        // 1) pcb_output_queued will in any case set/unset the timer how it needs to be.
-        // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
-        // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
-        //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
-        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER) || !pcb_has_snd_unacked(pcb))
-        // If the timer was set for retransmission or window probe, the precondition
-        // pcb_need_rtx_timer must still hold. Anything that would have invalidated
-        // that would have stopped the timer.
-        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::IDLE_TIMER) || pcb_has_snd_outstanding(pcb))
-        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::IDLE_TIMER) || pcb_need_rtx_timer(pcb))
+        AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD || can_output_in_state(pcb->state))
         
-        // Is this an idle timeout (rather than for retransmission or window probe)?
+        // Is this an idle timeout?
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+            // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
+            // could only be invalidated by sending some new data:
+            // 1) pcb_output_queued will in any case set/unset the timer how it needs to be.
+            // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
+            // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
+            //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
+            AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
+            
             // Reduce the CWND (RFC 5681 section 4.1).
             // Also reset cwnd_acked to avoid old accumulated value
             // from causing an undesired cwnd increase later.
@@ -408,6 +404,18 @@ public:
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
         pcb->rto = MinValue(TcpProto::MaxRtxTime, doubled_rto);
         pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+        
+        // If this for a SYN retransmission, retransmit the SYN and return.
+        if (pcb->state == TcpState::SYN_RCVD) {
+            pcb_send_syn_ack(pcb);
+            return;
+        }
+        
+        // If the timer was set for retransmission or window probe, the precondition
+        // pcb_need_rtx_timer must still hold. Anything that would have invalidated
+        // that would have stopped the timer.
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
         
         if (pcb->snd_wnd == 0) {
             // Send a window probe.
