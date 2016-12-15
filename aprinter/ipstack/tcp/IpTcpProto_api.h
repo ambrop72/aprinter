@@ -365,6 +365,8 @@ public:
             
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_flags = Flags::STARTED;
+            
+            return IpErr::SUCCESS;
         }
         
         /**
