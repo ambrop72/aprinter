@@ -67,36 +67,40 @@ public:
         return pcb->sndBufLen() - pcb->snd_buf_cur.tot_len;
     }
     
-    // Send SYN+ACK packet in SYN_RCVD state.
-    static void pcb_send_syn_ack (TcpPcb *pcb, bool initial)
+    // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
+    static void pcb_send_syn (TcpPcb *pcb, bool initial)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD)
+        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
         // Include the MSS option.
         TcpOptions tcp_opts;
         tcp_opts.options = OptionFlags::MSS;
         tcp_opts.mss = pcb->rcv_mss;
         
-        // If window scaling is used, send the window scale option.
+        // Send the window scale option if needed.
         if (pcb->hasFlag(PcbFlags::WND_SCALE)) {
             tcp_opts.options |= OptionFlags::WND_SCALE;
             tcp_opts.wnd_scale = pcb->rcv_wnd_shift;
         }
         
-        // The SYN-ACK must always have non-scaled window size.
-        // This is stupid so we don't mind a hacky approach.
+        // The SYN and SYN-ACK must always have non-scaled window size.
         auto saved_rcv_wnd_shift = pcb->rcv_wnd_shift;
         pcb->rcv_wnd_shift = 0;
         uint16_t window_size = Input::pcb_ann_wnd(pcb);
         pcb->rcv_wnd_shift = saved_rcv_wnd_shift;
         
+        // Send SYN or SYN-ACK flags depending on the state.
+        FlagsType flags = Tcp4FlagSyn |
+            ((pcb->state == TcpState::SYN_RCVD) ? Tcp4FlagAck : 0);
+        
+        // Send the segment.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
-                               window_size, Tcp4FlagSyn|Tcp4FlagAck, &tcp_opts};
+                               window_size, flags, &tcp_opts};
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
         
         // This RTT logic is relevant only when a segment was sent.
         if (err == IpErr::SUCCESS) {
-            // If this is the initial SYN-ACK, start a RTT measurement.
+            // If this is the initial SYN or SYN-ACK, start a RTT measurement.
             // Otherwise (it's a retransmission), stop any RTT measurement.
             if (initial) {
                 pcb_start_rtt_measurement(pcb);
@@ -117,9 +121,11 @@ public:
     // Send an RST for this PCB.
     static void pcb_send_rst (TcpPcb *pcb)
     {
+        bool ack = pcb->state != TcpState::SYN_SENT;
+        
         send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                  pcb->local_port, pcb->remote_port,
-                 pcb->snd_nxt, true, pcb->rcv_nxt);
+                 pcb->snd_nxt, ack, pcb->rcv_nxt);
     }
     
     static void pcb_need_ack (TcpPcb *pcb)
@@ -138,11 +144,13 @@ public:
     
     static void pcb_snd_buf_extended (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(snd_open_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || snd_open_in_state(pcb->state))
         
-        // Start the output timer if not running.
-        if (!pcb->output_timer.isSet(Context())) {
-            pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+        if (pcb->state != TcpState::SYN_SENT) {
+            // Start the output timer if not running.
+            if (!pcb->output_timer.isSet(Context())) {
+                pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+            }
         }
     }
     
@@ -168,17 +176,19 @@ public:
     
     static void pcb_push_output (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || can_output_in_state(pcb->state))
         
         // Set the push index to the end of the send buffer.
         pcb->snd_psh_index = pcb->sndBufLen();
         
-        // Schedule a call to pcb_output soon.
-        if (pcb == pcb->tcp->m_current_pcb) {
-            pcb->setFlag(PcbFlags::OUT_PENDING);
-        } else {
-            if (!pcb->output_timer.isSet(Context())) {
-                pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+        if (pcb->state != TcpState::SYN_SENT) {
+            // Schedule a call to pcb_output soon.
+            if (pcb == pcb->tcp->m_current_pcb) {
+                pcb->setFlag(PcbFlags::OUT_PENDING);
+            } else {
+                if (!pcb->output_timer.isSet(Context())) {
+                    pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+                }
             }
         }
     }
@@ -393,7 +403,8 @@ public:
     {
         // For any state change that invalidates can_output_in_state the timer is
         // also stopped (pcb_abort, pcb_go_to_time_wait).
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD || can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD) ||
+                     can_output_in_state(pcb->state))
         
         // Is this an idle timeout?
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
@@ -418,9 +429,9 @@ public:
         pcb->rto = MinValue(TcpProto::MaxRtxTime, doubled_rto);
         pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
         
-        // If this for a SYN retransmission, retransmit the SYN and return.
-        if (pcb->state == TcpState::SYN_RCVD) {
-            pcb_send_syn_ack(pcb, false);
+        // If this for a SYN or SYN-ACK retransmission, retransmit and return.
+        if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
+            pcb_send_syn(pcb, false);
             return;
         }
         

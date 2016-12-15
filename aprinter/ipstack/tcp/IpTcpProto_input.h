@@ -49,8 +49,8 @@ class IpTcpProto_input
                                    OptionFlags))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpPcb, PcbFlags,
-                                   Output, OosSeg))
+    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
+                                   TcpPcb, PcbFlags, Output, OosSeg))
     
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
@@ -105,10 +105,13 @@ public:
         tcp_meta.opts = &tcp_opts;
         
         // Try to handle using a PCB.
-        for (TcpPcb &pcb : tcp->m_pcbs) {
-            if (pcb_try_input(tcp, &pcb, ip_meta, tcp_meta, tcp_data)) {
-                return;
-            }
+        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.local_addr, tcp_meta.local_port, ip_meta.remote_addr, tcp_meta.remote_port);
+        if (pcb != nullptr) {
+            AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
+            tcp->m_current_pcb = pcb;
+            pcb_input(pcb, tcp_meta, tcp_data);
+            tcp->m_current_pcb = nullptr;
+            return;
         }
         
         // Try to handle using a listener.
@@ -243,6 +246,7 @@ private:
             pcb->rcv_ann_thres = TcpProto::DefaultWndAnnThreshold;
             pcb->rcv_mss = iface_mss;
             pcb->snd_una = iss;
+            // TODO: Don't bump snd_nxt here.
             pcb->snd_nxt = seq_add(iss, 1);
             pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
@@ -277,7 +281,7 @@ private:
             // Only here we call this with initial==true. This will start a RTT
             // measurement. Any retransmission of the SYN-ACK will be done with
             // initial==false, in order to invalidate the RTT measurement.
-            Output::pcb_send_syn_ack(pcb, true);
+            Output::pcb_send_syn(pcb, true);
             return;
         } while (false);
         
@@ -286,27 +290,9 @@ private:
         Output::send_rst_reply(lis->m_tcp, ip_meta, tcp_meta, tcp_data_len);
     }
     
-    inline static bool pcb_try_input (TcpProto *tcp, TcpPcb *pcb, Ip4DgramMeta const &ip_meta,
-                                      TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
+    static void pcb_input (TcpPcb *pcb, TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
     {
-        if (pcb->state != TcpState::CLOSED &&
-            pcb->local_addr  == ip_meta.local_addr &&
-            pcb->remote_addr == ip_meta.remote_addr &&
-            pcb->local_port  == tcp_meta.local_port &&
-            pcb->remote_port == tcp_meta.remote_port)
-        {
-            AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
-            tcp->m_current_pcb = pcb;
-            pcb_input_core(pcb, tcp_meta, tcp_data);
-            tcp->m_current_pcb = nullptr;
-            return true;
-        }
-        return false;
-    }
-    
-    static void pcb_input_core (TcpPcb *pcb, TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
-    {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT))
+        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
         
         // Do basic processing, e.g.:
@@ -321,10 +307,10 @@ private:
             return;
         }
         
-        if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
-            // Do SYN-RCVD specific processing.
+        if (AMBRO_UNLIKELY(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))) {
+            // Do SYN_SENT or SYN_RCVD specific processing.
             // Normally we transition to ESTABLISHED state here.
-            if (!pcb_input_syn_rcvd_processing(pcb, tcp_meta, new_ack)) {
+            if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, new_ack)) {
                 return;
             }
         } else {
@@ -371,95 +357,125 @@ private:
                                             bool &seg_fin, bool &new_ack)
     {
         // Get right edge of receive window.
+        // NOTE: Any use of this in SYN_SENT must consider this is
+        // based on the still zero rcv_nxt.
         SeqType nxt_wnd = seq_add(pcb->rcv_nxt, pcb->rcv_wnd);
         
         // Handle uncommon flags.
-        if (AMBRO_UNLIKELY((tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck)) != Tcp4FlagAck)) {
-            if ((tcp_meta.flags & Tcp4FlagRst) != 0) {
+        FlagsType flags_rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
+        if (AMBRO_UNLIKELY(flags_rst_syn_ack != Tcp4FlagAck)) {
+            bool syn_sent = pcb->state == TcpState::SYN_SENT;
+            bool stop_processing = true;
+            
+            if ((flags_rst_syn_ack & Tcp4FlagRst) != 0) {
                 // RST, handle as per RFC 5961.
-                if (tcp_meta.seq_num == pcb->rcv_nxt) {
+                if (syn_sent ? (tcp_meta.ack_num == seq_add(pcb->snd_una, 1)) :
+                               (tcp_meta.seq_num == pcb->rcv_nxt))
+                {
                     TcpProto::pcb_abort(pcb, false);
                 }
-                else if (seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt)) {
+                else if (!syn_sent && seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt)) {
                     // We're slightly violating RFC 5961 by allowing seq_num at nxt_wnd.
                     Output::pcb_send_empty_ack(pcb);
                 }
             }
-            else if ((tcp_meta.flags & Tcp4FlagSyn) != 0) {
-                // SYN, handle as per RFC 5961.
-                if (pcb->state == TcpState::SYN_RCVD &&
-                    tcp_meta.seq_num == seq_add(pcb->rcv_nxt, -1))
+            else if ((flags_rst_syn_ack & Tcp4FlagSyn) != 0) {
+                // Allow expected SYN-ACK response in SYN_SENT.
+                if (syn_sent && flags_rst_syn_ack == (Tcp4FlagSyn|Tcp4FlagAck)) {
+                    stop_processing = false;
+                }
+                // Handle SYN as per RFC 5961.
+                else if (pcb->state == TcpState::SYN_RCVD &&
+                         tcp_meta.seq_num == seq_add(pcb->rcv_nxt, -1))
                 {
                     // This seems to be a retransmission of the SYN, retransmit our
                     // SYN+ACK and bump the abort timeout.
-                    Output::pcb_send_syn_ack(pcb, false);
+                    Output::pcb_send_syn(pcb, false);
                     pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
-                } else {
+                }
+                else {
                     Output::pcb_send_empty_ack(pcb);
                 }
             }
-            // Segment without none of RST, SYN and ACK should never be sent.
-            // Just drop it here. Note that RFC 793 would have us check the
-            // sequence number and possibly send an empty ACK if the segment
-            // is outside the window, but we don't do that for perfomance.
-            return false;
+            else {
+                // Segment without none of RST, SYN and ACK should never be sent.
+                // Just drop it here. Note that RFC 793 would have us check the
+                // sequence number and possibly send an empty ACK if the segment
+                // is outside the window, but we don't do that for perfomance.
+            }
+            
+            if (stop_processing) {
+                return false;
+            }
         }
         
-        // Sequence length of segment (data+flags).
-        size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
-        
-        // Determine acceptability of segment.
-        bool acceptable;
-        bool left_edge_in_window;
-        bool right_edge_in_window;
-        if (seqlen == 0) {
-            // Empty segment is acceptable if the sequence number is within or at
-            // the right edge of the receive window. Allowing the latter with
-            // nonzero receive window violates RFC 793, but seems to make sense.
-            acceptable = seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
+        if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_SENT)) {
+            // In SYN_SENT we are only accepting a SYN and not any data or FIN.
+            // It is important that we strip these away here because pcb_input
+            // will call pcb_input_rcv_processing later which assumes that any
+            // data/FIN not striped fits in the window and can be processed.
+            // The eff_seq also needs to be incremented to 1 due to the SYN.
+            // We can get here without receiving a SYN but this does not matter.
+            eff_seq = seq_add(tcp_meta.seq_num, 1);
+            tcp_data.tot_len = 0;
+            seg_fin = false;
         } else {
-            // Nonzero-length segment is acceptable if its left or right edge
-            // is within the receive window. Except for SYN_RCVD, we are not expecting
-            // any data to the left.
-            SeqType last_seq = seq_add(tcp_meta.seq_num, seq_add(seqlen, -1));
-            left_edge_in_window = seq_lt(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
-            right_edge_in_window = seq_lt(last_seq, nxt_wnd, pcb->rcv_nxt);
-            if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
-                acceptable = left_edge_in_window;
+            // Sequence length of segment (data+flags).
+            size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
+            
+            // Determine acceptability of segment.
+            bool acceptable;
+            bool left_edge_in_window;
+            bool right_edge_in_window;
+            if (seqlen == 0) {
+                // Empty segment is acceptable if the sequence number is within or at
+                // the right edge of the receive window. Allowing the latter with
+                // nonzero receive window violates RFC 793, but seems to make sense.
+                acceptable = seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
             } else {
-                acceptable = left_edge_in_window || right_edge_in_window;
+                // Nonzero-length segment is acceptable if its left or right edge
+                // is within the receive window. Except for SYN_RCVD, we are not expecting
+                // any data to the left.
+                SeqType last_seq = seq_add(tcp_meta.seq_num, seq_add(seqlen, -1));
+                left_edge_in_window = seq_lt(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
+                right_edge_in_window = seq_lt(last_seq, nxt_wnd, pcb->rcv_nxt);
+                if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
+                    acceptable = left_edge_in_window;
+                } else {
+                    acceptable = left_edge_in_window || right_edge_in_window;
+                }
             }
-        }
-        
-        // If not acceptable, send any appropriate response and drop.
-        if (AMBRO_UNLIKELY(!acceptable)) {
-            Output::pcb_send_empty_ack(pcb);
-            return false;
-        }
-        
-        // Trim the segment on the left or right so that it fits into the receive window.
-        eff_seq = tcp_meta.seq_num;
-        seg_fin = (tcp_meta.flags & Tcp4FlagFin) != 0;
-        if (AMBRO_LIKELY(seqlen > 0)) {
-            SeqType left_keep;
-            if (AMBRO_UNLIKELY(!left_edge_in_window)) {
-                // The segment contains some already received data (seq_num < rcv_nxt).
-                SeqType left_trim = seq_diff(pcb->rcv_nxt, tcp_meta.seq_num);
-                AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
-                AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
-                eff_seq = pcb->rcv_nxt;
-                seqlen -= left_trim;
-                // No change to seg_fin: for SYN we'd have bailed out earlier,
-                // and FIN could not be trimmed because left_trim < seqlen.
-                tcp_data.skipBytes(left_trim);
+            
+            // If not acceptable, send any appropriate response and drop.
+            if (AMBRO_UNLIKELY(!acceptable)) {
+                Output::pcb_send_empty_ack(pcb);
+                return false;
             }
-            else if (AMBRO_UNLIKELY(seqlen > (left_keep = seq_diff(nxt_wnd, tcp_meta.seq_num)))) {
-                // The segment contains some extra data beyond the receive window.
-                AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
-                AMBRO_ASSERT(left_keep < seqlen) // because of condition
-                seqlen = left_keep;
-                seg_fin = false; // a FIN would be outside the window
-                tcp_data.tot_len = left_keep;
+            
+            // Trim the segment on the left or right so that it fits into the receive window.
+            eff_seq = tcp_meta.seq_num;
+            seg_fin = (tcp_meta.flags & Tcp4FlagFin) != 0;
+            if (AMBRO_LIKELY(seqlen > 0)) {
+                SeqType left_keep;
+                if (AMBRO_UNLIKELY(!left_edge_in_window)) {
+                    // The segment contains some already received data (seq_num < rcv_nxt).
+                    SeqType left_trim = seq_diff(pcb->rcv_nxt, tcp_meta.seq_num);
+                    AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
+                    AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
+                    eff_seq = pcb->rcv_nxt;
+                    seqlen -= left_trim;
+                    // No change to seg_fin: for SYN we'd have bailed out earlier,
+                    // and FIN could not be trimmed because left_trim < seqlen.
+                    tcp_data.skipBytes(left_trim);
+                }
+                else if (AMBRO_UNLIKELY(seqlen > (left_keep = seq_diff(nxt_wnd, tcp_meta.seq_num)))) {
+                    // The segment contains some extra data beyond the receive window.
+                    AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
+                    AMBRO_ASSERT(left_keep < seqlen) // because of condition
+                    seqlen = left_keep;
+                    seg_fin = false; // a FIN would be outside the window
+                    tcp_data.tot_len = left_keep;
+                }
             }
         }
         
@@ -483,18 +499,24 @@ private:
         return true;
     }
     
-    static bool pcb_input_syn_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
+    static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
     {
-        // If our SYN is not acknowledged, send RST and drop.
-        // RFC 793 seems to allow ack_num==snd_una which doesn't make sense.
-        if (!new_ack) {
+        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        
+        bool syn_sent = pcb->state == TcpState::SYN_SENT;
+        
+        // If our SYN is not acknowledged or a SYN is not received in SYN_SENT,
+        // send RST and drop.
+        // In SYN_RCVD, RFC 793 seems to allow ack_num==snd_una which doesn't
+        // make sense.
+        if (!new_ack || (syn_sent && (tcp_meta.flags & Tcp4FlagSyn) == 0)) {
             Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                                pcb->local_port, pcb->remote_port,
-                                tcp_meta.ack_num, false, 0);
+                             pcb->local_port, pcb->remote_port,
+                             tcp_meta.ack_num, false, 0);
             return false;
         }
         
-        // In SYN_RCVD the remote acks only our SYN no more.
+        // In SYN_SENT and SYN_RCVD the remote acks only our SYN no more.
         // Otherwise we would have bailed out already (valid_ack, new_ack).
         AMBRO_ASSERT(tcp_meta.ack_num == seq_add(pcb->snd_una, 1))
         AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
@@ -516,7 +538,19 @@ private:
         pcb->snd_wl1 = tcp_meta.seq_num;
         pcb->snd_wl2 = tcp_meta.ack_num;
         
-        // If this is the end of RTT measurement (there was no SYN-ACK retransmission),
+        if (syn_sent) {
+            // Update rcv_nxt and rcv_ann now that we have received
+            // the initial sequence number.
+            AMBRO_ASSERT(pcb->rcv_nxt == 0)
+            pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
+            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann);
+            
+            // Decrement rcv_wnd by the SYN which has been received.
+            AMBRO_ASSERT(pcb->rcv_wnd > 0)
+            pcb->rcv_wnd--;
+        }
+        
+        // If this is the end of RTT measurement (there was no retransmission),
         // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
         // to the initial value since it might have been increased in retransmissions.
         if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
@@ -530,37 +564,70 @@ private:
         pcb->ssthresh = TcpProto::MaxRcvWnd;
         pcb->cwnd_acked = 0;
         
-        // We have a TcpListener (if it went away the PCB would have been aborted).
-        // We also have no TcpConnection.
-        TcpListener *lis = pcb->lis;
-        AMBRO_ASSERT(lis != nullptr)
-        AMBRO_ASSERT(lis->m_listening)
-        AMBRO_ASSERT(lis->m_accept_pcb == nullptr)
-        AMBRO_ASSERT(pcb->con == nullptr)
+        if (syn_sent) {
+            // We have a TcpConnection (if it went away the PCB would have been aborted).
+            TcpConnection *con = pcb->con;
+            AMBRO_ASSERT(con != nullptr)
+            AMBRO_ASSERT(con->m_pcb == pcb)
+            
+            // Make sure the ACK to the SYN-ACK is sent.
+            pcb->setFlag(PcbFlags::ACK_PENDING);
+            
+            // Make sure sending of any queued data starts.
+            if (pcb->sndBufLen() > 0) {
+                pcb->setFlag(PcbFlags::OUT_PENDING);
+            }
+            
+            // If the application called closeSending already,
+            // call pcb_end_sending now that this can be done.
+            if ((con->m_flags & TcpConnection::Flags::SND_CLOSED) != 0) {
+                Output::pcb_end_sending(pcb);
+            }
+            
+            // Report connected event to the user.
+            TcpProto *tcp = pcb->tcp;
+            con->connection_established();
+            
+            // Handle abort of PCB.
+            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
+                return false;
+            }
+            
+            // Possible transitions in callback (except to CLOSED):
+            // - ESTABLISHED->FIN_WAIT_1
+        } else {
+            // We have a TcpListener (if it went away the PCB would have been aborted).
+            // We also have no TcpConnection.
+            TcpListener *lis = pcb->lis;
+            AMBRO_ASSERT(lis != nullptr)
+            AMBRO_ASSERT(lis->m_listening)
+            AMBRO_ASSERT(lis->m_accept_pcb == nullptr)
+            AMBRO_ASSERT(pcb->con == nullptr)
+            
+            // Inform the user that the connection has been established
+            // and allow association with a TcpConnection to be done.
+            TcpProto *tcp = pcb->tcp;
+            lis->m_accept_pcb = pcb;
+            lis->m_callback->connectionEstablished(lis);
+            
+            // Not referencing the listener after this, it might have been deinited from
+            // the callback. In any case we will not leave lis->m_accept_pcb pointing
+            // to this PCB, that is assured by acceptConnection or pcb_abort below.
+            
+            // Handle abort of PCB.
+            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
+                return false;
+            }
         
-        // Inform the user that the connection has been established
-        // and allow association with a TcpConnection to be done.
-        TcpProto *tcp = pcb->tcp;
-        lis->m_accept_pcb = pcb;
-        lis->m_callback->connectionEstablished(lis);
-        
-        // Not referencing the listener after this, it might have been deinited from
-        // the callback. In any case we will not leave lis->m_accept_pcb pointing
-        // to this PCB, that is assured by acceptConnection or pcb_abort below.
-        
-        // Handle abort of PCB.
-        if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
-            return false;
-        }
-        
-        // Possible transitions in callback (except to CLOSED):
-        // - ESTABLISHED->FIN_WAIT_1
-        
-        // If the connection has not been accepted or has been accepted but
-        // already abandoned, abort with RST.
-        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
-            TcpProto::pcb_abort(pcb, true);
-            return false;
+            // Possible transitions in callback (except to CLOSED):
+            // - ESTABLISHED->FIN_WAIT_1
+            
+            // If the connection has not been accepted or has been accepted but
+            // already abandoned, abort with RST.
+            if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+                TcpProto::pcb_abort(pcb, true);
+                return false;
+            }
         }
         
         return true;

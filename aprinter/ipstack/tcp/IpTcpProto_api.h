@@ -220,6 +220,12 @@ public:
         virtual void connectionAborted () = 0;
         
         /**
+         * Called for actively opened connections when the connection
+         * is established.
+         */
+        virtual void connectionEstablished () {}
+        
+        /**
          * Called when some data or FIN has been received.
          * 
          * Each callback corresponds to shifting of the receive
@@ -241,7 +247,8 @@ public:
      * Represents a TCP connection.
      * Conceptually, the connection object has three main states:
      * - INIT: No connection has been made yet.
-     * - CONNECTED: There is an active connection.
+     * - CONNECTED: There is an active connection, or a connection attempt
+     *              is in progress.
      * - CLOSED: There was a connection but is no more.
      */
     class TcpConnection {
@@ -306,7 +313,7 @@ public:
         }
         
         /**
-         * Accepts a connection.
+         * Accepts a connection available on a listener.
          * This brings the object from the INIT to CONNECTED state.
          * May only be called in INIT state.
          */
@@ -327,6 +334,37 @@ public:
             
             // Clear the m_accept_pcb link from the listener.
             lis->m_accept_pcb = nullptr;
+        }
+        
+        /**
+         * Starts a connection attempt to the given address.
+         * When connection is fully established, the connectionEstablished
+         * callback will be called. But otherwise a connection that is
+         * conneecting does not behave differently from a fully connected
+         * connection and for that reason the connectionEstablished callback
+         * need not be implemented.
+         * On success, this brings the object from the INIT to CONNECTED state.
+         * On failure, the object remains in INIT state.
+         * May only be called in INIT state.
+         */
+        IpErr startConnection (TcpProto *tcp, Ip4Addr addr, PortType port, size_t rcv_wnd)
+        {
+            assert_init();
+            
+            // Create the PCB for the connection.
+            TcpPcb *pcb = nullptr;
+            IpErr err = TcpProto::create_connection(this, addr, port, rcv_wnd, &pcb);
+            if (err != IpErr::SUCCESS) {
+                return err;
+            }
+            
+            // Remember the PCB (the link to us already exists).
+            AMBRO_ASSERT(pcb != nullptr)
+            AMBRO_ASSERT(pcb->con == this)
+            m_pcb = pcb;
+            
+            // Set STARTED flag to indicate we're no longer in INIT state.
+            m_flags = Flags::STARTED;
         }
         
         /**
@@ -399,8 +437,16 @@ public:
         {
             assert_connected();
             
-            AMBRO_ASSERT(m_pcb->rcv_wnd <= SIZE_MAX)
-            return m_pcb->rcv_wnd;
+            // In SYN_SENT we use one less because one was added
+            // by create_connection for receiving the SYN.
+            SeqType rcv_wnd = m_pcb->rcv_wnd;
+            if (m_pcb->state == TcpState::SYN_SENT) {
+                AMBRO_ASSERT(rcv_wnd > 0)
+                rcv_wnd--;
+            }
+            
+            AMBRO_ASSERT(rcv_wnd <= SIZE_MAX)
+            return rcv_wnd;
         }
         
         /**
@@ -469,6 +515,12 @@ public:
         /**
          * Returns the amount of send buffer that could remain unsent
          * indefinitely in the absence of sendPush or endSending.
+         * Note: currently this does not change for for accepted
+         * connections and only possibly decreases for initiated
+         * connections, which is fine from a user perspective. However
+         * when we implement Path-MTU, the issue of the MSS possibly
+         * increasing should be addressed - we shouldn't silently
+         * increase this value after returning a promise to the user.
          * May only be called in CONNECTED state.
          */
         inline size_t getSndBufOverhead ()
@@ -555,8 +607,11 @@ public:
             
             if (m_pcb != nullptr) {
                 // Inform the output code, e.g. to adjust the PCB state
-                // and send a FIN.
-                Output::pcb_end_sending(m_pcb);
+                // and send a FIN. Except in SYN_SENT, in that case the
+                // input code will take care of it when the SYN is received.
+                if (m_pcb->state != TcpState::SYN_SENT) {
+                    Output::pcb_end_sending(m_pcb);
+                }
             }
         }
         
@@ -607,8 +662,10 @@ public:
         {
             AMBRO_ASSERT((m_flags & Flags::STARTED) != 0)
             AMBRO_ASSERT(m_pcb == nullptr || m_pcb->con == this)
-            AMBRO_ASSERT(m_pcb == nullptr || state_is_active(m_pcb->state))
-            AMBRO_ASSERT(m_pcb == nullptr || snd_open_in_state(m_pcb->state) == ((m_flags & Flags::SND_CLOSED) == 0))
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
+                state_is_active(m_pcb->state))
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
+                snd_open_in_state(m_pcb->state) == ((m_flags & Flags::SND_CLOSED) == 0))
         }
         
         void assert_connected ()
@@ -637,6 +694,14 @@ public:
             
             // Call the application callback.
             m_callback->connectionAborted();
+        }
+        
+        void connection_established ()
+        {
+            assert_connected();
+            
+            // Call the application callback.
+            m_callback->connectionEstablished();
         }
         
         void data_sent (size_t amount)

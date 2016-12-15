@@ -94,7 +94,9 @@ private:
     using TheIpTcpProtoService = IpTcpProtoService<
         IpTTL,
         NumTcpPcbs,
-        NumOosSegs
+        NumOosSegs,
+        49152, // EphemeralPortFirst
+        65535 // EphemeralPortLast
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
     

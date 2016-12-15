@@ -37,6 +37,7 @@
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
@@ -58,7 +59,8 @@ template <typename Arg>
 class IpTcpProto :
     private Arg::TheIpStack::ProtoListenerCallback
 {
-    APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs))
+    APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
+                                    EphemeralPortFirst, EphemeralPortLast))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, TheIpStack))
     
     APRINTER_USE_TYPE1(Context, Clock)
@@ -69,6 +71,8 @@ class IpTcpProto :
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0, "");
+    static_assert(EphemeralPortFirst > 0, "");
+    static_assert(EphemeralPortFirst <= EphemeralPortLast, "");
     
     template <typename> friend class IpTcpProto_api;
     template <typename> friend class IpTcpProto_input;
@@ -87,7 +91,7 @@ private:
     APRINTER_USE_TYPES2(TcpUtils, (TcpState))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
-                                 seq_diff))
+                                 seq_diff, seq_add))
     
     struct TcpPcb;
     
@@ -123,6 +127,9 @@ private:
     
     // For intermediate RTT results we need a larger type.
     using RttNextType = uint32_t;
+    
+    // Number of ephemeral ports.
+    static PortType const NumEphemeralPorts = EphemeralPortLast - EphemeralPortFirst + 1;
     
     // Represents a segment of contiguous out-of-sequence data.
     struct OosSeg {
@@ -237,6 +244,9 @@ private:
     // SYN_RCVD state timeout.
     static TimeType const SynRcvdTimeoutTicks     = 20.0  * Clock::time_freq;
     
+    // SYN_SENT state timeout.
+    static TimeType const SynSentTimeoutTicks     = 30.0  * Clock::time_freq;
+    
     // TIME_WAIT state timeout.
     static TimeType const TimeWaitTimeTicks       = 120.0 * Clock::time_freq;
     
@@ -278,6 +288,7 @@ public:
         m_proto_listener.init(m_stack, Ip4ProtocolTcp, this);
         m_listeners_list.init();
         m_current_pcb = nullptr;
+        m_next_ephemeral_port = EphemeralPortFirst;
         
         for (TcpPcb &pcb : m_pcbs) {
             pcb.abrt_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::abrt_timer_handler, &pcb));
@@ -371,7 +382,9 @@ private:
     
     inline static void pcb_abort (TcpPcb *pcb)
     {
-        bool send_rst = pcb->state != OneOf(TcpState::SYN_RCVD, TcpState::TIME_WAIT);
+        // TODO: Need RST for SYN_SENT? No for now.
+        bool send_rst = pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD,
+                                            TcpState::TIME_WAIT);
         pcb_abort(pcb, send_rst);
     }
     
@@ -474,10 +487,14 @@ private:
     
     static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty)
     {
-        AMBRO_ASSERT(state_is_active(pcb->state))
+        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection haa just disassociated itself
-        AMBRO_ASSERT(!snd_buf_nonempty || can_output_in_state(pcb->state))
         AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
+        
+        // In SYN_SENT, abort with RST.
+        if (pcb->state == TcpState::SYN_SENT) {
+            return pcb_abort(pcb);
+        }
         
         // If not all data has been sent we have to abort because we
         // may no longer reference the remaining data; send RST.
@@ -572,6 +589,113 @@ private:
         }
     }
     
+    IpErr create_connection (TcpConnection *con, Ip4Addr remote_addr, PortType remote_port,
+                             size_t user_rcv_wnd, TcpPcb *out_pcb)
+    {
+        AMBRO_ASSERT(con != nullptr)
+        AMBRO_ASSERT(out_pcb != nullptr)
+        
+        // Determine the local IP address.
+        Iface *iface;
+        Ip4Addr local_addr;
+        if (!m_stack->routeIp4(remote_addr, nullptr, &iface, &local_addr)) {
+            return IpErr::NO_IP_ROUTE;
+        }
+        
+        // Determine the local port.
+        PortType local_port = get_ephemeral_port(local_addr, remote_addr, remote_port);
+        if (local_port == 0) {
+            return IpErr::NO_PORT_AVAIL;
+        }
+        
+        // Calculate the initial MSS.
+        uint16_t iface_mss = get_iface_mss(iface);
+        if (iface_mss < MinAllowedMss) {
+            return IpErr::NO_HEADER_SPACE;
+        }
+        
+        // Allocate the PCB.
+        TcpPcb *pcb = allocate_pcb();
+        if (pcb == nullptr) {
+            return IpErr::NO_PCB_AVAIL;
+        }
+        
+        // Generate an initial sequence number.
+        SeqType iss = make_iss();
+        
+        // The initial receive window will be at least one
+        // because we must be prepared to accept the SYN.
+        SeqType rcv_wnd = 1 + MinValueU(seq_diff(MaxRcvWnd, 1), user_rcv_wnd);
+        
+        // Initialize most of the PCB.
+        pcb->state = TcpState::SYN_SENT;
+        pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
+        pcb->con = con;
+        pcb->local_addr = local_addr;
+        pcb->remote_addr = remote_addr;
+        pcb->local_port = local_port;
+        pcb->remote_port = remote_port;
+        pcb->rcv_nxt = 0; // it is sent in the SYN
+        pcb->rcv_wnd = rcv_wnd;
+        pcb->rcv_ann = pcb->rcv_nxt;
+        pcb->rcv_ann_thres = DefaultWndAnnThreshold;
+        pcb->rcv_mss = iface_mss;
+        pcb->snd_una = iss;
+        // TODO: Don't bump snd_nxt here.
+        pcb->snd_nxt = seq_add(iss, 1);
+        pcb->snd_buf_cur = IpBufRef{};
+        pcb->snd_psh_index = 0;
+        pcb->snd_mss = iface_mss;
+        pcb->rto = InitialRtxTime;
+        pcb->num_ooseq = 0;
+        pcb->num_dupack = 0;
+        pcb->snd_wnd_shift = 0;
+        pcb->rcv_wnd_shift = RcvWndShift;
+        
+        // Start the connection timeout.
+        pcb->abrt_timer.appendAfter(Context(), SynSentTimeoutTicks);
+        
+        // Start the retransmission timer.
+        pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
+        
+        // Send the SYN.
+        pcb_send_syn(pcb, true);
+        
+        // Return the PCB.
+        *out_pcb = pcb;
+        return IpErr::SUCCESS;
+    }
+    
+    PortType get_ephemeral_port (Ip4Addr local_addr, Ip4Addr remote_addr, PortType remote_port)
+    {
+        for (PortType i : LoopRangeAuto(NumEphemeralPorts)) {
+            PortType port = m_next_ephemeral_port;
+            m_next_ephemeral_port = (port < EphemeralPortLast) ? (port + 1) : EphemeralPortFirst;
+            
+            if (find_pcb_by_addr(local_addr, port, remote_addr, remote_port) == nullptr) {
+                return port;
+            }
+        }
+        
+        return 0;
+    }
+    
+    TcpPcb * find_pcb_by_addr (Ip4Addr local_addr, PortType local_port,
+                               Ip4Addr remote_addr, PortType remote_port)
+    {
+        for (TcpPcb &pcb : m_pcbs) {
+            if (pcb.state != TcpState::CLOSED  &&
+                pcb.local_addr  == local_addr  &&
+                pcb.remote_addr == remote_addr &&
+                pcb.local_port  == local_port  &&
+                pcb.remote_port == remote_port)
+            {
+                return &pcb;
+            }
+        }
+        return nullptr;
+    }
+    
 private:
     using ListenersList = DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
     
@@ -579,13 +703,16 @@ private:
     ProtoListener m_proto_listener;
     ListenersList m_listeners_list;
     TcpPcb *m_current_pcb;
+    PortType m_next_ephemeral_port;
     TcpPcb m_pcbs[NumTcpPcbs];
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     APRINTER_AS_VALUE(uint8_t, TcpTTL),
     APRINTER_AS_VALUE(int, NumTcpPcbs),
-    APRINTER_AS_VALUE(uint8_t, NumOosSegs)
+    APRINTER_AS_VALUE(uint8_t, NumOosSegs),
+    APRINTER_AS_VALUE(uint16_t, EphemeralPortFirst),
+    APRINTER_AS_VALUE(uint16_t, EphemeralPortLast)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),

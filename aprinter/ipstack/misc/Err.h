@@ -37,6 +37,8 @@ enum class IpErr : uint8_t {
     NO_HW_ROUTE     = 4,
     NO_IP_ROUTE     = 5,
     PKT_TOO_LARGE   = 6,
+    NO_PORT_AVAIL   = 7,
+    NO_PCB_AVAIL    = 8,
 };
 
 #include <aprinter/EndNamespace.h>
