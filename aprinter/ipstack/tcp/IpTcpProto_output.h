@@ -222,80 +222,6 @@ public:
                (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
     }
     
-    // Determine if sending can be delayed in expectation of a larger segment.
-    static bool pcb_may_delay_snd (TcpPcb *pcb)
-    {
-        return pcb->snd_buf_cur.tot_len < pcb->snd_mss &&
-               pcb->snd_psh_index <= pcb_snd_offset(pcb) &&
-               snd_open_in_state(pcb->state);
-    }
-    
-    static SeqType pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
-        AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
-        AMBRO_ASSERT(data.tot_len > 0 || fin)
-        AMBRO_ASSERT(rem_wnd > 0)
-        
-        // Determine segment data length.
-        size_t seg_data_len = MinValueU(data.tot_len, MinValueU(rem_wnd, pcb->snd_mss));
-        
-        // Determine offset from start of send buffer.
-        size_t offset = pcb->sndBufLen() - data.tot_len;
-        
-        // Determine segment flags, calculate sequence length.
-        FlagsType seg_flags = Tcp4FlagAck;
-        SeqType seg_seqlen = seg_data_len;
-        if (seg_data_len == data.tot_len && fin && rem_wnd > seg_data_len) {
-            seg_flags |= Tcp4FlagFin|Tcp4FlagPsh;
-            seg_seqlen++;
-        }
-        else if (pcb->snd_psh_index > offset && pcb->snd_psh_index <= offset + seg_data_len) {
-            seg_flags |= Tcp4FlagPsh;
-        }
-        
-        // Send the segment.
-        SeqType seq_num = seq_add(pcb->snd_una, offset);
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
-                               Input::pcb_ann_wnd(pcb), seg_flags};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
-                             data.subTo(seg_data_len));
-        
-        // These things are needed only when a segment was sent.
-        if (err == IpErr::SUCCESS) {
-            // Calculate the end sequence number of the sent segment.
-            SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
-            
-            // Stop a round-trip-time measurement if we have retransmitted
-            // a segment containing the associated sequence number.
-            if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
-                seq_lte(seq_num, pcb->rtt_test_seq, pcb->snd_una) &&
-                seq_lt(pcb->rtt_test_seq, seg_endseq, pcb->snd_una))
-            {
-                pcb->clearFlag(PcbFlags::RTT_PENDING);
-            }
-            
-            // Did we send anything new?
-            if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
-                // Start a round-trip-time measurement if not already started.
-                if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-                    pcb_start_rtt_measurement(pcb);
-                }
-                
-                // Bump snd_nxt.
-                pcb->snd_nxt = seg_endseq;
-            }
-            
-            // If we sent FIN set the FIN_SENT flag.
-            if ((seg_flags & Tcp4FlagFin) != 0) {
-                pcb->setFlag(PcbFlags::FIN_SENT);
-            }
-        }
-        
-        return seg_seqlen;
-    }
-    
     /**
      * Transmits previously unsent data as permissible and controls the
      * rtx_timer. Returns whether something has been sent.
@@ -368,27 +294,6 @@ public:
         }
         
         return sent;
-    }
-    
-    /**
-     * Transmits one segment starting at the front of the send buffer.
-     * Used for retransmission and window probing.
-     */
-    static void pcb_output_front (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        // Compute a maximum number of sequence counts to send.
-        // We must not send more than one segment, but we must be
-        // able to send at least something in case of window probes.
-        SeqType rem_wnd = MinValueU(pcb->snd_mss, MaxValue((SeqType)1, pcb->snd_wnd));
-        
-        // Send a segment from the start of the send buffer.
-        IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
-        bool fin = !snd_open_in_state(pcb->state);
-        SeqType seg_seqlen = pcb_output_segment(pcb, data, fin, rem_wnd);
-        AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
     }
     
     static void pcb_output_timer_handler (TcpPcb *pcb)
@@ -481,6 +386,7 @@ public:
             AMBRO_ASSERT(sent)
         }
     }
+    
     
     // This is called from Input when something new is acked, before the
     // related state changes are made (snd_una, snd_wnd, snd_buf*, state
@@ -626,25 +532,6 @@ public:
         pcb->setFlag(PcbFlags::OUT_PENDING);
     }
     
-    static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
-    {
-        SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
-        pcb_increase_cwnd(pcb, cwnd_inc);
-    }
-    
-    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
-    {
-        pcb->cwnd = (cwnd_inc > UINT32_MAX - pcb->cwnd) ? UINT32_MAX : (pcb->cwnd + cwnd_inc);
-    }
-    
-    // Sets sshthresh according to RFC 5681 equation (4).
-    static void pcb_update_ssthresh_for_rtx (TcpPcb *pcb)
-    {
-        SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
-        SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
-        pcb->ssthresh = MaxValue(half_flight_size, two_smss);
-    }
-    
     // Update the RTO from RTTVAR and SRTT, or to InitialRtxTime if no RTT_VALID.
     static void pcb_update_rto (TcpPcb *pcb)
     {
@@ -677,22 +564,6 @@ public:
         else {
             return 4 * smss;
         }
-    }
-    
-    // Calculate the effective congestion window.
-    static SeqType pcb_effective_cwnd (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(pcb->cwnd > 0)
-        
-        return pcb->cwnd;
-    }
-    
-    static void pcb_start_rtt_measurement (TcpPcb *pcb)
-    {
-        // Set the flag, remember the sequence number and the time.
-        pcb->setFlag(PcbFlags::RTT_PENDING);
-        pcb->rtt_test_seq = pcb->snd_nxt;
-        pcb->rtt_test_time = Clock::getTime(Context());
     }
     
     static void pcb_end_rtt_measurement (TcpPcb *pcb)
@@ -754,8 +625,139 @@ public:
         send_tcp(tcp, local_addr, remote_addr, tcp_meta);
     }
     
+private:
+    // Determine if sending can be delayed in expectation of a larger segment.
+    static bool pcb_may_delay_snd (TcpPcb *pcb)
+    {
+        return pcb->snd_buf_cur.tot_len < pcb->snd_mss &&
+               pcb->snd_psh_index <= pcb_snd_offset(pcb) &&
+               snd_open_in_state(pcb->state);
+    }
+    
+    static SeqType pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
+        AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
+        AMBRO_ASSERT(data.tot_len > 0 || fin)
+        AMBRO_ASSERT(rem_wnd > 0)
+        
+        // Determine segment data length.
+        size_t seg_data_len = MinValueU(data.tot_len, MinValueU(rem_wnd, pcb->snd_mss));
+        
+        // Determine offset from start of send buffer.
+        size_t offset = pcb->sndBufLen() - data.tot_len;
+        
+        // Determine segment flags, calculate sequence length.
+        FlagsType seg_flags = Tcp4FlagAck;
+        SeqType seg_seqlen = seg_data_len;
+        if (seg_data_len == data.tot_len && fin && rem_wnd > seg_data_len) {
+            seg_flags |= Tcp4FlagFin|Tcp4FlagPsh;
+            seg_seqlen++;
+        }
+        else if (pcb->snd_psh_index > offset && pcb->snd_psh_index <= offset + seg_data_len) {
+            seg_flags |= Tcp4FlagPsh;
+        }
+        
+        // Send the segment.
+        SeqType seq_num = seq_add(pcb->snd_una, offset);
+        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
+                               Input::pcb_ann_wnd(pcb), seg_flags};
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
+                             data.subTo(seg_data_len));
+        
+        // These things are needed only when a segment was sent.
+        if (err == IpErr::SUCCESS) {
+            // Calculate the end sequence number of the sent segment.
+            SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
+            
+            // Stop a round-trip-time measurement if we have retransmitted
+            // a segment containing the associated sequence number.
+            if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
+                seq_lte(seq_num, pcb->rtt_test_seq, pcb->snd_una) &&
+                seq_lt(pcb->rtt_test_seq, seg_endseq, pcb->snd_una))
+            {
+                pcb->clearFlag(PcbFlags::RTT_PENDING);
+            }
+            
+            // Did we send anything new?
+            if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
+                // Start a round-trip-time measurement if not already started.
+                if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+                    pcb_start_rtt_measurement(pcb);
+                }
+                
+                // Bump snd_nxt.
+                pcb->snd_nxt = seg_endseq;
+            }
+            
+            // If we sent FIN set the FIN_SENT flag.
+            if ((seg_flags & Tcp4FlagFin) != 0) {
+                pcb->setFlag(PcbFlags::FIN_SENT);
+            }
+        }
+        
+        return seg_seqlen;
+    }
+    
+    /**
+     * Transmits one segment starting at the front of the send buffer.
+     * Used for retransmission and window probing.
+     */
+    static void pcb_output_front (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        
+        // Compute a maximum number of sequence counts to send.
+        // We must not send more than one segment, but we must be
+        // able to send at least something in case of window probes.
+        SeqType rem_wnd = MinValueU(pcb->snd_mss, MaxValue((SeqType)1, pcb->snd_wnd));
+        
+        // Send a segment from the start of the send buffer.
+        IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
+        bool fin = !snd_open_in_state(pcb->state);
+        SeqType seg_seqlen = pcb_output_segment(pcb, data, fin, rem_wnd);
+        AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
+    }
+    
+    static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
+    {
+        SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
+        pcb_increase_cwnd(pcb, cwnd_inc);
+    }
+    
+    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
+    {
+        pcb->cwnd = (cwnd_inc > UINT32_MAX - pcb->cwnd) ? UINT32_MAX : (pcb->cwnd + cwnd_inc);
+    }
+    
+    // Sets sshthresh according to RFC 5681 equation (4).
+    static void pcb_update_ssthresh_for_rtx (TcpPcb *pcb)
+    {
+        SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
+        SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
+        pcb->ssthresh = MaxValue(half_flight_size, two_smss);
+    }
+    
+    // Calculate the effective congestion window.
+    static SeqType pcb_effective_cwnd (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->cwnd > 0)
+        
+        return pcb->cwnd;
+    }
+    
+    static void pcb_start_rtt_measurement (TcpPcb *pcb)
+    {
+        // Set the flag, remember the sequence number and the time.
+        pcb->setFlag(PcbFlags::RTT_PENDING);
+        pcb->rtt_test_seq = pcb->snd_nxt;
+        pcb->rtt_test_time = Clock::getTime(Context());
+    }
+    
     static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-                          TcpSegMeta const &tcp_meta, IpBufRef data=IpBufRef{})
+                           TcpSegMeta const &tcp_meta, IpBufRef data=IpBufRef{})
     {
         // Compute length of TCP options.
         uint8_t opts_len = (tcp_meta.opts != nullptr) ? TcpUtils::calc_options_len(*tcp_meta.opts) : 0;

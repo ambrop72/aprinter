@@ -139,35 +139,6 @@ public:
         return hdr_wnd;
     }
     
-    // Determine how much new window would be anounced if we sent a window update.
-    static SeqType pcb_get_wnd_ann_incr (TcpPcb *pcb)
-    {
-        // Calculate what can be announced.
-        SeqType rcv_ann;
-        uint16_t hdr_wnd;
-        pcb_calc_window_update(pcb, rcv_ann, hdr_wnd);
-        
-        // It is possible that we would announce less than already announced,
-        // due to window scaling. If so inhibit window update by returning zero.
-        if (seq_lt(rcv_ann, pcb->rcv_ann, pcb->rcv_nxt)) {
-            return 0;
-        }
-        
-        // Return the difference from the already announced window.
-        return seq_diff(rcv_ann, pcb->rcv_ann);
-    }
-    
-    // Window update calculation, returns:
-    // - rcv_ann: sequence number for newly announced window,
-    // - hdr_wnd: window size value to put into the segment.
-    static void pcb_calc_window_update (TcpPcb *pcb, SeqType &rcv_ann, uint16_t &hdr_wnd)
-    {
-        SeqType max_ann_wnd = (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
-        SeqType wnd_to_ann = MinValue(pcb->rcv_wnd, max_ann_wnd);
-        hdr_wnd = wnd_to_ann >> pcb->rcv_wnd_shift;
-        rcv_ann = seq_add(pcb->rcv_nxt, (SeqType)hdr_wnd << pcb->rcv_wnd_shift);
-    }
-    
     static void pcb_rcv_buf_extended (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
@@ -176,22 +147,6 @@ public:
         // If we haven't received a FIN yet, update the receive window.
         if (accepting_data_in_state(pcb->state)) {
             pcb_update_rcv_wnd(pcb);
-        }
-    }
-    
-    static void pcb_update_rcv_wnd (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
-        
-        // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
-        if (pcb->rcv_wnd < avail_wnd) {
-            pcb->rcv_wnd = avail_wnd;
-        }
-        
-        // Generate a window update if needed.
-        if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
-            Output::pcb_need_ack(pcb);
         }
     }
     
@@ -1095,6 +1050,51 @@ private:
     inline static SeqType pcb_decode_wnd_size (TcpPcb *pcb, uint16_t rx_wnd_size)
     {
         return (SeqType)rx_wnd_size << pcb->snd_wnd_shift;
+    }
+    
+    // Determine how much new window would be anounced if we sent a window update.
+    static SeqType pcb_get_wnd_ann_incr (TcpPcb *pcb)
+    {
+        // Calculate what can be announced.
+        SeqType rcv_ann;
+        uint16_t hdr_wnd;
+        pcb_calc_window_update(pcb, rcv_ann, hdr_wnd);
+        
+        // It is possible that we would announce less than already announced,
+        // due to window scaling. If so inhibit window update by returning zero.
+        if (seq_lt(rcv_ann, pcb->rcv_ann, pcb->rcv_nxt)) {
+            return 0;
+        }
+        
+        // Return the difference from the already announced window.
+        return seq_diff(rcv_ann, pcb->rcv_ann);
+    }
+    
+    // Window update calculation, returns:
+    // - rcv_ann: sequence number for newly announced window,
+    // - hdr_wnd: window size value to put into the segment.
+    static void pcb_calc_window_update (TcpPcb *pcb, SeqType &rcv_ann, uint16_t &hdr_wnd)
+    {
+        SeqType max_ann_wnd = (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
+        SeqType wnd_to_ann = MinValue(pcb->rcv_wnd, max_ann_wnd);
+        hdr_wnd = wnd_to_ann >> pcb->rcv_wnd_shift;
+        rcv_ann = seq_add(pcb->rcv_nxt, (SeqType)hdr_wnd << pcb->rcv_wnd_shift);
+    }
+    
+    static void pcb_update_rcv_wnd (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        
+        // Update the receive window based on the receive buffer.
+        SeqType avail_wnd = MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
+        if (pcb->rcv_wnd < avail_wnd) {
+            pcb->rcv_wnd = avail_wnd;
+        }
+        
+        // Generate a window update if needed.
+        if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
+            Output::pcb_need_ack(pcb);
+        }
     }
 };
 
