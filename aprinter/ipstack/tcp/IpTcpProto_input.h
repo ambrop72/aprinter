@@ -539,15 +539,31 @@ private:
         pcb->snd_wl2 = tcp_meta.ack_num;
         
         if (syn_sent) {
-            // Update rcv_nxt and rcv_ann now that we have received
-            // the initial sequence number.
+            // Set correct rcv_nxt now that we have received the SYN.
             AMBRO_ASSERT(pcb->rcv_nxt == 0)
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
-            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann);
             
             // Decrement rcv_wnd by the SYN which has been received.
             AMBRO_ASSERT(pcb->rcv_wnd > 0)
             pcb->rcv_wnd--;
+            
+            // Update rcv_ann according to the new rcv_nxt.
+            // Just in case, handle the possibility of rcv_ann being zero.
+            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann - MinValue(pcb->rcv_ann, (SeqType)1));
+            
+            // Handle the window scale option.
+            if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
+                // Remote sent the window scale flag, so store the window scale
+                // value that they will be using. Note that the window size in
+                // this incoming segment has already been read above using
+                // pcb_decode_wnd_size while snd_wnd_shift was still zero, which
+                // is correct because the window size in a SYN-ACK is unscaled.
+                pcb->snd_wnd_shift = MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+            } else {
+                // Remote did not send the window scale option, which means we
+                // must not use any scaling, so set rcv_wnd_shift back to zero.
+                pcb->rcv_wnd_shift = 0;
+            }
         }
         
         // If this is the end of RTT measurement (there was no retransmission),

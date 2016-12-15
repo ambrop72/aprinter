@@ -382,9 +382,11 @@ private:
     
     inline static void pcb_abort (TcpPcb *pcb)
     {
-        // TODO: Need RST for SYN_SENT? No for now.
-        bool send_rst = pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD,
-                                            TcpState::TIME_WAIT);
+        // This function aborts a PCB while sending an RST in
+        // all states except these.
+        bool send_rst = pcb->state !=
+            OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD, TcpState::TIME_WAIT);
+        
         pcb_abort(pcb, send_rst);
     }
     
@@ -491,15 +493,11 @@ private:
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection haa just disassociated itself
         AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
         
-        // In SYN_SENT, abort with RST.
-        if (pcb->state == TcpState::SYN_SENT) {
+        // Abort if in SYN_SENT state or some data is queued.
+        // The pcb_abort() will decide whether to send an RST
+        // (no RST in SYN_SENT, RST otherwise).
+        if (pcb->state == TcpState::SYN_SENT || snd_buf_nonempty) {
             return pcb_abort(pcb);
-        }
-        
-        // If not all data has been sent we have to abort because we
-        // may no longer reference the remaining data; send RST.
-        if (snd_buf_nonempty) {
-            return pcb_abort(pcb, true);
         }
         
         // Disassociate any TcpListener.
