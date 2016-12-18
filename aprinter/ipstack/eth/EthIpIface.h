@@ -65,12 +65,11 @@ class EthIpIface : public IpIfaceDriver,
     
     using ArpEntryIndexType = ChooseIntForMax<NumArpEntries, true>;
     
-    static TimeType const ArpTimerTicks = 5.0 * Clock::time_freq;
+    static TimeType const ArpTimerTicks = 1.0 * Clock::time_freq;
     
-    static uint8_t const QueryEntryTimeoutAge = 3;
-    static uint8_t const ValidEntryRefreshAge = 12;
-    static uint8_t const RefreshingEntryBroadcastAge = 3;
-    static uint8_t const RefreshingEntryTimeoutAge = 5;
+    static uint8_t const ArpQueryTimeout = 3;
+    static uint8_t const ArpValidTimeout = 60;
+    static uint8_t const ArpRefreshTimeout = 3;
     
 public:
     void init (EthIfaceDriver *driver)
@@ -192,12 +191,10 @@ private:
         ArpEntryIndexType next;
         uint8_t state : 2;
         bool weak : 1;
-        uint8_t age : 5;
+        uint8_t time_left;
         MacAddr mac_addr;
         Ip4Addr ip_addr;
     };
-    
-    static uint8_t const MaxEntryAge = 31;
     
     IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr)
     {
@@ -221,19 +218,20 @@ private:
         }
         
         ArpEntry *entry = get_arp_entry(ip_addr, false);
+        
         if (entry->state == ArpEntryState::FREE) {
             entry->state = ArpEntryState::QUERY;
-            entry->age = 0;
+            entry->time_left = ArpQueryTimeout;
+            send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
         }
         
         if (entry->state == ArpEntryState::QUERY) {
-            send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
             return IpErr::ARP_QUERY;
         }
         
-        if (entry->state == ArpEntryState::VALID && entry->age >= ValidEntryRefreshAge) {
+        if (entry->state == ArpEntryState::VALID && entry->time_left == 0) {
             entry->state = ArpEntryState::REFRESHING;
-            entry->age = 0;
+            entry->time_left = ArpRefreshTimeout;
             send_arp_packet(ArpOpTypeRequest, entry->mac_addr, entry->ip_addr);
         }
         
@@ -251,7 +249,7 @@ private:
         {
             ArpEntry *entry = get_arp_entry(ip_addr, true);
             entry->state = ArpEntryState::VALID;
-            entry->age = 0;
+            entry->time_left = ArpValidTimeout;
             entry->mac_addr = mac_addr;
         }
     }
@@ -363,32 +361,32 @@ private:
         m_arp_timer.appendAfter(Context(), ArpTimerTicks);
         
         for (auto &e : m_arp_entries) {
-            if (e.state == ArpEntryState::FREE) {
-                continue;
-            }
-            
-            if (e.age < MaxEntryAge) {
-                e.age++;
-            }
-            
-            if (e.state == ArpEntryState::QUERY) {
-                if (e.age >= QueryEntryTimeoutAge) {
-                    e.state = ArpEntryState::FREE;
-                }
-                else {
-                    send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), e.ip_addr);
-                }
-            }
-            else if (e.state == ArpEntryState::REFRESHING) {
-                if (e.age >= RefreshingEntryTimeoutAge) {
-                    e.state = ArpEntryState::FREE;
-                }
-                if (e.age >= RefreshingEntryBroadcastAge) {
-                    send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), e.ip_addr);
-                }
-                else {
-                    send_arp_packet(ArpOpTypeRequest, e.mac_addr, e.ip_addr);
-                }
+            switch (e.state) {
+                case ArpEntryState::QUERY: {
+                    e.time_left--;
+                    if (e.time_left == 0) {
+                        e.state = ArpEntryState::FREE;
+                    } else {
+                        send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), e.ip_addr);
+                    }
+                } break;
+                
+                case ArpEntryState::VALID: {
+                    if (e.time_left > 0) {
+                        e.time_left--;
+                    }
+                } break;
+                
+                case ArpEntryState::REFRESHING: {
+                    e.time_left--;
+                    if (e.time_left == 0) {
+                        e.state = ArpEntryState::QUERY;
+                        e.time_left = ArpQueryTimeout;
+                        send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), e.ip_addr);
+                    } else {
+                        send_arp_packet(ArpOpTypeRequest, e.mac_addr, e.ip_addr);
+                    }
+                } break;
             }
         }
     }
