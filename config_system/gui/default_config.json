@@ -4048,7 +4048,7 @@
           "IpAddress": "192.168.64.10",
           "IpGateway": "192.168.64.1",
           "IpNetmask": "255.255.255.0",
-          "MacAddress": "00:00:00:00:00:00",
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
           "NetEnabled": true,
           "DhcpEnabled": false,
           "NumTcpPcbs": 16,

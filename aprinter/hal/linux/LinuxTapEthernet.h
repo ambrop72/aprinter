@@ -105,12 +105,13 @@ public:
         o->init_state = InitState::INACTIVE;
     }
     
-    static void activate (Context c, MacAddr ignored_mac_addr)
+    static void activate (Context c, MacAddr mac_addr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
         
         o->init_state = InitState::INITING;
+        o->mac_addr = mac_addr;
         o->activate_event.prependNowNotAlready(c);
     }
     
@@ -207,16 +208,6 @@ private:
                 fprintf(stderr, "ERROR: MTU is extremely small.\n");
                 break;
             }
-            
-            memset(&ifr, 0, sizeof(ifr));
-            strcpy(ifr.ifr_name, devname_real);
-            
-            if (::ioctl(sock, SIOCGIFHWADDR, (void *)&ifr) < 0) {
-                fprintf(stderr, "ERROR: ioctl(SIOCGIFHWADDR) failed.\n");
-                break;
-            }
-            
-            memcpy(o->mac_addr.data, ifr.ifr_hwaddr.sa_data, 6);
             
             if ((o->read_buffer = (char *)::malloc(o->eth_mtu)) == nullptr) {
                 fprintf(stderr, "ERROR: malloc read buffer failed.\n");
