@@ -88,7 +88,11 @@ class IpStack {
     // Maximum time that a reassembly entry can be valid.
     static TimeType const ReassMaxExpirationTicks = 255.0 * (TimeType)Clock::time_freq;
     
+    // Maximum number of holes during reassembly.
+    static uint8_t const MaxReassHoles = 10;
+    
     static_assert(ReassMaxExpirationTicks <= TheClockUtils::WorkingTimeSpanTicks, "");
+    static_assert(MaxReassHoles <= 250, "");
     
 public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
@@ -692,6 +696,7 @@ private:
             // Update the holes based on this fragment.
             uint16_t prev_hole_offset = ReassNullLink;
             uint16_t hole_offset = reass->first_hole_offset;
+            uint8_t num_holes = 0;
             do {
                 AMBRO_ASSERT(prev_hole_offset == ReassNullLink ||
                              hole_offset_valid(prev_hole_offset))
@@ -717,6 +722,7 @@ private:
                 if (fragment_offset >= hole_end || fragment_end <= hole_offset) {
                     prev_hole_offset = hole_offset;
                     hole_offset = next_hole_offset;
+                    num_holes++;
                     continue;
                 }
                 
@@ -740,6 +746,8 @@ private:
                     
                     // Advance prev_hole_offset to this hole.
                     prev_hole_offset = hole_offset;
+                    
+                    num_holes++;
                 }
                 
                 // Create a new hole on the right if needed.
@@ -759,6 +767,8 @@ private:
                     
                     // Advance prev_hole_offset to this hole.
                     prev_hole_offset = fragment_end;
+                    
+                    num_holes++;
                 }
                 
                 // Setup the link to the next hole.
@@ -779,6 +789,10 @@ private:
             // If we have not yet received the final fragment or there
             // are still holes after the end, the reassembly is not complete.
             if (reass->data_length == 0 || reass->first_hole_offset < reass->data_length) {
+                // If there are too many holes, invalidate.
+                if (num_holes > MaxReassHoles) {
+                    goto invalidate_reass;
+                }
                 return false;
             }
             
