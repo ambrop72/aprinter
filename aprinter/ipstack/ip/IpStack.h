@@ -239,7 +239,7 @@ public:
             if (dst_addr == Ip4Addr::AllOnesAddr() || force_iface->ip4AddrIsLocal(dst_addr)) {
                 *route_addr = dst_addr;
             }
-            else if (force_iface->m_have_gateway) {
+            else if (force_iface->m_have_gateway && force_iface->ip4AddrIsLocal(force_iface->m_gateway)) {
                 *route_addr = force_iface->m_gateway;
             }
             else {
@@ -263,7 +263,7 @@ public:
                     local_iface = iface;
                 }
             }
-            if (iface->m_have_gateway) {
+            if (iface->m_have_gateway && iface->ip4AddrIsLocal(iface->m_gateway)) {
                 if (gw_iface == nullptr) {
                     gw_iface = iface;
                 }

@@ -35,6 +35,7 @@
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/ipstack/misc/Struct.h>
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
@@ -115,12 +116,12 @@ public: // IpIfaceDriver
     {
         MacAddr dst_mac;
         IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac);
-        if (resolve_err != IpErr::SUCCESS) {
+        if (AMBRO_UNLIKELY(resolve_err != IpErr::SUCCESS)) {
             return resolve_err;
         }
         
         IpBufRef frame;
-        if (!pkt.revealHeader(EthHeader::Size, &frame)) {
+        if (AMBRO_UNLIKELY(!pkt.revealHeader(EthHeader::Size, &frame))) {
             return IpErr::NO_HEADER_SPACE;
         }
         
@@ -198,38 +199,28 @@ private:
     
     IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr)
     {
-        if (ip_addr == Ip4Addr::AllOnesAddr()) {
-            *mac_addr = MacAddr::BroadcastAddr();
-            return IpErr::SUCCESS;
-        }
+        ArpEntry *entry;
+        GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
         
-        IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
-        if (ifaddr == nullptr) {
+        if (AMBRO_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
+            if (get_res == GetArpEntryRes::BroadcastAddr) {
+                *mac_addr = MacAddr::BroadcastAddr();
+                return IpErr::SUCCESS;
+            }
             return IpErr::NO_HW_ROUTE;
         }
         
-        if ((ip_addr & ifaddr->netmask) != ifaddr->netaddr) {
-            return IpErr::NO_HW_ROUTE;
-        }
-        
-        if (ip_addr == ifaddr->bcastaddr) {
-            *mac_addr = MacAddr::BroadcastAddr();
-            return IpErr::SUCCESS;
-        }
-        
-        ArpEntry *entry = get_arp_entry(ip_addr, false);
-        
-        if (entry->state == ArpEntryState::FREE) {
+        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::FREE)) {
             entry->state = ArpEntryState::QUERY;
             entry->time_left = ArpQueryTimeout;
             send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
         }
         
-        if (entry->state == ArpEntryState::QUERY) {
+        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::QUERY)) {
             return IpErr::ARP_QUERY;
         }
         
-        if (entry->state == ArpEntryState::VALID && entry->time_left == 0) {
+        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::VALID && entry->time_left == 0)) {
             entry->state = ArpEntryState::REFRESHING;
             entry->time_left = ArpRefreshTimeout;
             send_arp_packet(ArpOpTypeRequest, entry->mac_addr, entry->ip_addr);
@@ -241,20 +232,19 @@ private:
     
     void save_hw_addr (Ip4Addr ip_addr, MacAddr mac_addr)
     {
-        IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+        ArpEntry *entry;
+        GetArpEntryRes get_res = get_arp_entry(ip_addr, true, &entry);
         
-        if (ifaddr != nullptr &&
-            (ip_addr & ifaddr->netmask) == ifaddr->netaddr &&
-            ip_addr != ifaddr->bcastaddr)
-        {
-            ArpEntry *entry = get_arp_entry(ip_addr, true);
+        if (get_res == GetArpEntryRes::GotArpEntry) {
             entry->state = ArpEntryState::VALID;
             entry->time_left = ArpValidTimeout;
             entry->mac_addr = mac_addr;
         }
     }
     
-    ArpEntry * get_arp_entry (Ip4Addr ip_addr, bool weak)
+    enum class GetArpEntryRes { GotArpEntry, BroadcastAddr, InvalidAddr };
+    
+    GetArpEntryRes get_arp_entry (Ip4Addr ip_addr, bool weak, ArpEntry **out_entry)
     {
         ArpEntry *e;
         
@@ -288,11 +278,28 @@ private:
             index = e->next;
         }
         
-        if (index >= 0) {
+        if (AMBRO_LIKELY(index >= 0)) {
             if (!weak) {
                 e->weak = false;
             }
         } else {
+            if (ip_addr == Ip4Addr::AllOnesAddr()) {
+                return GetArpEntryRes::BroadcastAddr;
+            }
+            
+            IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+            if (ifaddr == nullptr) {
+                return GetArpEntryRes::InvalidAddr;
+            }
+            
+            if ((ip_addr & ifaddr->netmask) != ifaddr->netaddr) {
+                return GetArpEntryRes::InvalidAddr;
+            }
+            
+            if (ip_addr == ifaddr->bcastaddr) {
+                return GetArpEntryRes::BroadcastAddr;
+            }
+            
             bool use_weak;
             if (last_weak_index >= 0 && m_arp_entries[last_weak_index].state == ArpEntryState::FREE) {
                 use_weak = true;
@@ -327,7 +334,8 @@ private:
             m_first_arp_entry = index;
         }
         
-        return e;
+        *out_entry = e;
+        return GetArpEntryRes::GotArpEntry;
     }
     
     void send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
