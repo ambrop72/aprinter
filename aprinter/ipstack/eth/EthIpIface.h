@@ -368,7 +368,21 @@ private:
     {
         m_arp_timer.appendAfter(Context(), ArpTimerTicks);
         
+        IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+        
         for (auto &e : m_arp_entries) {
+            if (e.state == ArpEntryState::FREE) {
+                continue;
+            }
+            
+            if (ifaddr == nullptr ||
+                (e.ip_addr & ifaddr->netmask) != ifaddr->netaddr ||
+                e.ip_addr == ifaddr->bcastaddr)
+            {
+                e.state = ArpEntryState::FREE;
+                continue;
+            }
+            
             switch (e.state) {
                 case ArpEntryState::QUERY: {
                     e.time_left--;
@@ -395,6 +409,9 @@ private:
                         send_arp_packet(ArpOpTypeRequest, e.mac_addr, e.ip_addr);
                     }
                 } break;
+                
+                default:
+                    AMBRO_ASSERT(false);
             }
         }
     }
