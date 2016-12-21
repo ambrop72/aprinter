@@ -791,7 +791,9 @@ public:
     };
     
 private:
-    class EthDriverProxy : public EthIfaceDriver {
+    using DriverCallbackImpl = typename TheEthIpIface::CallbackImpl;
+    
+    class EthDriverProxy : public EthIfaceDriver<DriverCallbackImpl> {
         friend IpStackNetwork;
         
         void clear ()
@@ -800,7 +802,7 @@ private:
         }
         
     public:
-        void setCallback (EthIfaceDriverCallback *callback) override
+        void setCallback (EthIfaceDriverCallback<DriverCallbackImpl> *callback) override
         {
             m_callback = callback;
         }
@@ -834,7 +836,7 @@ private:
         }
         
     private:
-        EthIfaceDriverCallback *m_callback;
+        EthIfaceDriverCallback<DriverCallbackImpl> *m_callback;
     };
     
     static void ethernet_activate_handler (Context c, bool error)

@@ -48,7 +48,7 @@
 
 template <typename Arg>
 class EthIpIface : public IpIfaceDriver,
-    private EthIfaceDriverCallback
+    private EthIfaceDriverCallback<EthIpIface<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator))
@@ -73,7 +73,9 @@ class EthIpIface : public IpIfaceDriver,
     static uint8_t const ArpRefreshTimeout = 3;
     
 public:
-    void init (EthIfaceDriver *driver)
+    using CallbackImpl = EthIpIface;
+    
+    void init (EthIfaceDriver<CallbackImpl> *driver)
     {
         m_arp_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&EthIpIface::arp_timer_handler, this));
         m_driver = driver;
@@ -134,7 +136,9 @@ public: // IpIfaceDriver
     }
     
 private: // EthIfaceDriverCallback
-    void recvFrame (IpBufRef frame) override
+    friend EthIfaceDriverCallback<EthIpIface>;
+    
+    void recvFrame (IpBufRef frame)
     {
         if (!frame.hasHeader(EthHeader::Size)) {
             return;
@@ -418,7 +422,7 @@ private:
     
 private:
     typename Context::EventLoop::TimedEvent m_arp_timer;
-    EthIfaceDriver *m_driver;
+    EthIfaceDriver<CallbackImpl> *m_driver;
     IpIfaceDriverCallback *m_callback;
     MacAddr const *m_mac_addr;
     ArpEntryIndexType m_first_arp_entry;

@@ -22,33 +22,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
-#define APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
+#ifndef APRINTER_STATIC_INTERFACE_H
+#define APRINTER_STATIC_INTERFACE_H
 
-#include <stddef.h>
+#define APRINTER_STATIC_INTERFACE(IfaceName) \
+template <typename APrinter_iface_impl_type> \
+struct IfaceName
 
-#include <aprinter/base/StaticInterface.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/Err.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
-
-#include <aprinter/BeginNamespace.h>
-
-APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback);
-
-template <typename CallbackImpl>
-class EthIfaceDriver {
-public:
-    virtual void setCallback (EthIfaceDriverCallback<CallbackImpl> *callback) = 0;
-    virtual MacAddr const * getMacAddr () = 0;
-    virtual size_t getEthMtu () = 0;
-    virtual IpErr sendFrame (IpBufRef frame) = 0;
-};
-
-APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback) {
-    APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef frame))
-};
-
-#include <aprinter/EndNamespace.h>
+#define APRINTER_IFACE_FUNC(RetType, FuncName, Args) \
+template <typename... APrinter_iface_TArgs> \
+inline RetType FuncName (APrinter_iface_TArgs... args) { \
+    static constexpr RetType (APrinter_iface_impl_type::*ptr) Args = &APrinter_iface_impl_type::FuncName; \
+    return ((static_cast<APrinter_iface_impl_type *>(this))->*ptr)(args...); \
+}
 
 #endif
