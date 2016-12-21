@@ -47,11 +47,11 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Arg>
-class EthIpIface : public IpIfaceDriver,
+class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     private EthIfaceDriverCallback<EthIpIface<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
-    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator))
+    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, IpCallbackImpl))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
@@ -102,7 +102,7 @@ public:
     }
     
 public: // IpIfaceDriver
-    void setCallback (IpIfaceDriverCallback *callback) override
+    void setCallback (IpIfaceDriverCallback<IpCallbackImpl> *callback) override
     {
         m_callback = callback;
     }
@@ -423,7 +423,7 @@ private:
 private:
     typename Context::EventLoop::TimedEvent m_arp_timer;
     EthIfaceDriver<CallbackImpl> *m_driver;
-    IpIfaceDriverCallback *m_callback;
+    IpIfaceDriverCallback<IpCallbackImpl> *m_callback;
     MacAddr const *m_mac_addr;
     ArpEntryIndexType m_first_arp_entry;
     ArpEntry m_arp_entries[NumArpEntries];
@@ -436,7 +436,8 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(BufAllocator)
+        APRINTER_AS_TYPE(BufAllocator),
+        APRINTER_AS_TYPE(IpCallbackImpl)
     ), (
         using Params = EthIpIfaceService;
         APRINTER_DEF_INSTANCE(Compose, EthIpIface)

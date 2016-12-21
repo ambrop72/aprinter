@@ -91,6 +91,8 @@ private:
     >;
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator>))
     
+    using Iface = typename TheIpStack::Iface;
+    
     using TheIpTcpProtoService = IpTcpProtoService<
         IpTTL,
         NumTcpPcbs,
@@ -117,7 +119,7 @@ private:
         ArpProtectCount,
         0 // HeaderBeforeEth
     >;
-    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator>))
+    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator, typename Iface::CallbackImpl>))
     
 public:
     enum EthActivateState {NOT_ACTIVATED, ACTIVATING, ACTIVATE_FAILED, ACTIVATED};
@@ -929,7 +931,7 @@ public:
         EthActivateState activation_state;
         EthDriverProxy driver_proxy;
         TheEthIpIface eth_ip_iface;
-        typename TheIpStack::Iface ip_iface;
+        Iface ip_iface;
         NetworkParams config;
     };
 };

@@ -323,12 +323,14 @@ public:
     
 public:
     class Iface :
-        private IpIfaceDriverCallback
+        private IpIfaceDriverCallback<Iface>
     {
         friend IpStack;
         
     public:
-        void init (IpStack *stack, IpIfaceDriver *driver)
+        using CallbackImpl = Iface;
+        
+        void init (IpStack *stack, IpIfaceDriver<CallbackImpl> *driver)
         {
             AMBRO_ASSERT(stack != nullptr)
             AMBRO_ASSERT(driver != nullptr)
@@ -423,12 +425,14 @@ public:
         }
         
     private:
-        IpIfaceIp4Addrs const * getIp4Addrs () override
+        friend IpIfaceDriverCallback<Iface>;
+        
+        IpIfaceIp4Addrs const * getIp4Addrs ()
         {
             return m_have_addr ? &m_addr : nullptr;
         }
         
-        void recvIp4Packet (IpBufRef pkt) override
+        void recvIp4Packet (IpBufRef pkt)
         {
             m_stack->processRecvedIp4Packet(this, pkt);
         }
@@ -436,7 +440,7 @@ public:
     private:
         DoubleEndedListNode<Iface> m_iface_list_node;
         IpStack *m_stack;
-        IpIfaceDriver *m_driver;
+        IpIfaceDriver<CallbackImpl> *m_driver;
         size_t m_ip_mtu;
         IpIfaceIp4Addrs m_addr;
         Ip4Addr m_gateway;

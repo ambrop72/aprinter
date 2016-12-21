@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <aprinter/base/StaticInterface.h>
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/misc/Err.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
@@ -42,19 +43,19 @@ struct IpIfaceIp4Addrs {
     uint8_t prefix;
 };
 
-class IpIfaceDriverCallback;
+APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback);
 
+template <typename CallbackImpl>
 class IpIfaceDriver {
 public:
-    virtual void setCallback (IpIfaceDriverCallback *callback) = 0;
+    virtual void setCallback (IpIfaceDriverCallback<CallbackImpl> *callback) = 0;
     virtual size_t getIpMtu () = 0;
     virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr) = 0;
 };
 
-class IpIfaceDriverCallback {
-public:
-    virtual IpIfaceIp4Addrs const * getIp4Addrs () = 0;
-    virtual void recvIp4Packet (IpBufRef pkt) = 0;
+APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
+    APRINTER_IFACE_FUNC(IpIfaceIp4Addrs const *, getIp4Addrs, ())
+    APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef pkt))
 };
 
 #include <aprinter/EndNamespace.h>
