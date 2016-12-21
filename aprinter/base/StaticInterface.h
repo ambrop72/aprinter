@@ -25,15 +25,57 @@
 #ifndef APRINTER_STATIC_INTERFACE_H
 #define APRINTER_STATIC_INTERFACE_H
 
+#include <utility>
+
+/**
+ * Provides a compile-time interface mechanism which
+ * allows calling only the interface methods, which are
+ * dispatched statically not as virtual functions.
+ * 
+ * An example of an interface definition and use:
+ * 
+ * @code
+ * APRINTER_STATIC_INTERFACE(MyInterface) {
+ *     APRINTER_IFACE_FUNC(bool, Foo, (int x, int y))
+ *     APRINTER_IFACE_FUNC(void, Bar, (bool z))
+ * };
+ * 
+ * struct MyClass : public MyInterface<MyClass> {
+ *     bool Foo (int x, int y) { return false; }
+ *     void Bar (bool z) {}
+ * };
+ * 
+ * template <typename Impl>
+ * void UseInterface(MyInterface<Impl> &iface) {
+ *     bool ret = iface.Foo(1, 2);
+ *     iface.Bar(true);
+ * }
+ * 
+ * MyClass myclass;
+ * UseInterface(myclass);
+ * @endcode
+ * 
+ * The implementation is such that the interface class will
+ * contain functions which forward to the correspondign functions
+ * in the implementing class. The arguments of these wrapper
+ * functions are variadic and are forwarded using std::forward.
+ * 
+ * This macro can also be used for forward declarations,
+ * in this case it must be followed by a semicolon.
+ */
 #define APRINTER_STATIC_INTERFACE(IfaceName) \
 template <typename APrinter_iface_impl_type> \
 struct IfaceName
 
+/**
+ * Use this to define interface functions in an interface defined
+ * using APRINTER_STATIC_INTERFACE.
+ */
 #define APRINTER_IFACE_FUNC(RetType, FuncName, Args) \
 template <typename... APrinter_iface_TArgs> \
-inline RetType FuncName (APrinter_iface_TArgs... args) { \
+inline RetType FuncName (APrinter_iface_TArgs && ... args) { \
     static constexpr RetType (APrinter_iface_impl_type::*ptr) Args = &APrinter_iface_impl_type::FuncName; \
-    return ((static_cast<APrinter_iface_impl_type *>(this))->*ptr)(args...); \
+    return ((static_cast<APrinter_iface_impl_type *>(this))->*ptr)(std::forward<APrinter_iface_TArgs>(args)...); \
 }
 
 #endif
