@@ -96,7 +96,8 @@ public:
         // Send the segment.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, flags, &tcp_opts};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
+                             &pcb->send_retry_request);
         
         // This RTT logic is relevant only when a segment was sent.
         if (err == IpErr::SUCCESS) {
@@ -115,7 +116,8 @@ public:
     {
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
-        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta);
+        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
+                 &pcb->send_retry_request);
     }
     
     // Send an RST for this PCB.
@@ -387,7 +389,6 @@ public:
         }
     }
     
-    
     // This is called from Input when something new is acked, before the
     // related state changes are made (snd_una, snd_wnd, snd_buf*, state
     // transition due to FIN acked).
@@ -592,6 +593,22 @@ public:
         pcb_update_rto(pcb);
     }
     
+    // This is called from the lower layers when sending failed but
+    // is now expected to succeed. Currently the mechanism is used to
+    // retry after ARP resolution completes.
+    static void pcb_send_retry (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        
+        if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
+            // TODO: initial is not really known
+            pcb_send_syn(pcb, false);
+        }
+        else if (can_output_in_state(pcb->state)) {
+            pcb_output_queued(pcb);
+        }
+    }
+    
     // Send an RST as a reply to a received segment.
     // This conforms to RFC 793 handling of segments not belonging to a known
     // connection.
@@ -622,7 +639,7 @@ public:
     {
         FlagsType flags = Tcp4FlagRst | (ack ? Tcp4FlagAck : 0);
         TcpSegMeta tcp_meta = {local_port, remote_port, seq_num, ack_num, 0, flags};
-        send_tcp(tcp, local_addr, remote_addr, tcp_meta);
+        send_tcp(tcp, local_addr, remote_addr, tcp_meta, IpBufRef{}, nullptr);
     }
     
 private:
@@ -664,7 +681,7 @@ private:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), seg_flags};
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
-                             data.subTo(seg_data_len));
+                             data.subTo(seg_data_len), &pcb->send_retry_request);
         
         // These things are needed only when a segment was sent.
         if (err == IpErr::SUCCESS) {
@@ -757,7 +774,8 @@ private:
     }
     
     static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-                           TcpSegMeta const &tcp_meta, IpBufRef data=IpBufRef{})
+                           TcpSegMeta const &tcp_meta, IpBufRef data,
+                           IpSendRetry::Request *retryReq)
     {
         // Compute length of TCP options.
         uint8_t opts_len = (tcp_meta.opts != nullptr) ? TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
@@ -805,7 +823,7 @@ private:
         
         // Send the datagram.
         Ip4DgramMeta meta = {local_addr, remote_addr, TcpProto::TcpTTL, Ip4ProtocolTcp};
-        return tcp->m_stack->sendIp4Dgram(meta, dgram);
+        return tcp->m_stack->sendIp4Dgram(meta, dgram, retryReq);
     }
 };
 

@@ -38,6 +38,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/ipstack/misc/Struct.h>
 #include <aprinter/ipstack/misc/Buf.h>
+#include <aprinter/ipstack/misc/SendRetry.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
 #include <aprinter/ipstack/proto/EthernetProto.h>
 #include <aprinter/ipstack/proto/ArpProto.h>
@@ -87,9 +88,11 @@ public:
         m_first_arp_entry = 0;
         
         for (int i : LoopRangeAuto(NumArpEntries)) {
-            m_arp_entries[i].next = (i < NumArpEntries-1) ? i+1 : -1;
-            m_arp_entries[i].state = ArpEntryState::FREE;
-            m_arp_entries[i].weak = true;
+            auto &e = m_arp_entries[i];
+            e.next = (i < NumArpEntries-1) ? i+1 : -1;
+            e.state = ArpEntryState::FREE;
+            e.weak = true;
+            e.retry_list.init();
         }
         
         m_arp_timer.appendAfter(Context(), ArpTimerTicks);
@@ -97,6 +100,10 @@ public:
     
     void deinit ()
     {
+        for (auto &e : m_arp_entries) {
+            e.retry_list.deinit();
+        }
+        
         m_driver->setCallback(nullptr);
         m_arp_timer.deinit(Context());
     }
@@ -114,10 +121,10 @@ public: // IpIfaceDriver
         return eth_mtu - EthHeader::Size;
     }
     
-    IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr) override
+    IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr, IpSendRetry::Request *retryReq) override
     {
         MacAddr dst_mac;
-        IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac);
+        IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac, retryReq);
         if (AMBRO_UNLIKELY(resolve_err != IpErr::SUCCESS)) {
             return resolve_err;
         }
@@ -199,9 +206,10 @@ private:
         uint8_t time_left;
         MacAddr mac_addr;
         Ip4Addr ip_addr;
+        IpSendRetry::List retry_list;
     };
     
-    IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr)
+    IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetry::Request *retryReq)
     {
         ArpEntry *entry;
         GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
@@ -221,6 +229,7 @@ private:
         }
         
         if (AMBRO_UNLIKELY(entry->state == ArpEntryState::QUERY)) {
+            entry->retry_list.addRequest(retryReq);
             return IpErr::ARP_QUERY;
         }
         
@@ -243,6 +252,7 @@ private:
             entry->state = ArpEntryState::VALID;
             entry->time_left = ArpValidTimeout;
             entry->mac_addr = mac_addr;
+            entry->retry_list.dispatchRequests();
         }
     }
     
@@ -327,7 +337,7 @@ private:
             AMBRO_ASSERT(index >= 0)
             e = &m_arp_entries[index];
             
-            e->state = ArpEntryState::FREE;
+            reset_arp_entry(e);
             e->ip_addr = ip_addr;
             e->weak = weak;
         }
@@ -340,6 +350,12 @@ private:
         
         *out_entry = e;
         return GetArpEntryRes::GotArpEntry;
+    }
+    
+    static void reset_arp_entry (ArpEntry *e)
+    {
+        e->state = ArpEntryState::FREE;
+        e->retry_list.reset();
     }
     
     void send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
@@ -383,7 +399,7 @@ private:
                 (e.ip_addr & ifaddr->netmask) != ifaddr->netaddr ||
                 e.ip_addr == ifaddr->bcastaddr)
             {
-                e.state = ArpEntryState::FREE;
+                reset_arp_entry(&e);
                 continue;
             }
             
@@ -391,7 +407,7 @@ private:
                 case ArpEntryState::QUERY: {
                     e.time_left--;
                     if (e.time_left == 0) {
-                        e.state = ArpEntryState::FREE;
+                        reset_arp_entry(&e);
                     } else {
                         send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), e.ip_addr);
                     }

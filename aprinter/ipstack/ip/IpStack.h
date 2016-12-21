@@ -41,6 +41,7 @@
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/misc/Chksum.h>
 #include <aprinter/ipstack/misc/Struct.h>
+#include <aprinter/ipstack/misc/SendRetry.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
 #include <aprinter/ipstack/proto/Ip4Proto.h>
 #include <aprinter/ipstack/proto/Icmp4Proto.h>
@@ -136,7 +137,8 @@ public:
         Iface *iface;
     };
     
-    IpErr sendIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
+    IpErr sendIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram,
+                        IpSendRetry::Request *retryReq = nullptr)
     {
         // Reveal IP header.
         IpBufRef pkt;
@@ -183,7 +185,7 @@ public:
         ip4_header.set(Ip4Header::HeaderChksum(), calc_chksum);
         
         // Send the packet to the driver.
-        IpErr err = route_iface->m_driver->sendIp4Packet(pkt.subTo(pkt_send_len), route_addr);
+        IpErr err = route_iface->m_driver->sendIp4Packet(pkt.subTo(pkt_send_len), route_addr, retryReq);
         
         // If no fragmentation is needed or sending failed, this is the end.
         if (AMBRO_LIKELY(!more_fragments) || err != IpErr::SUCCESS) {
@@ -220,7 +222,7 @@ public:
             IpBufRef frag_pkt = pkt.subHeaderToContinuedBy(Ip4Header::Size, &data_node, pkt_send_len, &header_node);
             
             // Send the packet to the driver.
-            err = route_iface->m_driver->sendIp4Packet(frag_pkt, route_addr);
+            err = route_iface->m_driver->sendIp4Packet(frag_pkt, route_addr, retryReq);
             
             // If this was the last fragment or there was an error, return.
             if (!more_fragments || err != IpErr::SUCCESS) {

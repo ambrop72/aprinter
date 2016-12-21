@@ -31,6 +31,7 @@
 #include <aprinter/base/StaticInterface.h>
 #include <aprinter/ipstack/misc/Buf.h>
 #include <aprinter/ipstack/misc/Err.h>
+#include <aprinter/ipstack/misc/SendRetry.h>
 #include <aprinter/ipstack/proto/IpAddr.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -50,7 +51,8 @@ class IpIfaceDriver {
 public:
     virtual void setCallback (IpIfaceDriverCallback<CallbackImpl> *callback) = 0;
     virtual size_t getIpMtu () = 0;
-    virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr) = 0;
+    virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
+                                 IpSendRetry::Request *sendRetryReq) = 0;
 };
 
 APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
