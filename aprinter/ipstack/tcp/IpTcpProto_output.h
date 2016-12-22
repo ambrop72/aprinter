@@ -99,13 +99,18 @@ public:
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
                              &pcb->send_retry_request);
         
-        // Have we sent the SYN for the first time?
-        if (err == IpErr::SUCCESS && pcb->snd_nxt == pcb->snd_una) {
-            // Start a round-trip-time measurement.
-            pcb_start_rtt_measurement(pcb);
-            
-            // Bump snd_nxt.
-            pcb->snd_nxt = seq_add(pcb->snd_nxt, 1);
+        if (err == IpErr::SUCCESS) {
+            // Have we sent the SYN for the first time?
+            if (pcb->snd_nxt == pcb->snd_una) {
+                // Start a round-trip-time measurement.
+                pcb_start_rtt_measurement(pcb);
+                
+                // Bump snd_nxt.
+                pcb->snd_nxt = seq_add(pcb->snd_nxt, 1);
+            } else {
+                // Retransmission, stop any round-trip-time measurement.
+                pcb->clearFlag(PcbFlags::RTT_PENDING);
+            }
         }
     }
     
