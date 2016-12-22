@@ -649,8 +649,7 @@ private:
         pcb->rcv_ann_thres = DefaultWndAnnThreshold;
         pcb->rcv_mss = iface_mss;
         pcb->snd_una = iss;
-        // TODO: Don't bump snd_nxt here.
-        pcb->snd_nxt = seq_add(iss, 1);
+        pcb->snd_nxt = iss;
         pcb->snd_buf_cur = IpBufRef{};
         pcb->snd_psh_index = 0;
         pcb->snd_mss = iface_mss;
@@ -667,7 +666,7 @@ private:
         pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
         
         // Send the SYN.
-        pcb_send_syn(pcb, true);
+        pcb_send_syn(pcb);
         
         // Return the PCB.
         *out_pcb = pcb;

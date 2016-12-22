@@ -201,8 +201,7 @@ private:
             pcb->rcv_ann_thres = TcpProto::DefaultWndAnnThreshold;
             pcb->rcv_mss = iface_mss;
             pcb->snd_una = iss;
-            // TODO: Don't bump snd_nxt here.
-            pcb->snd_nxt = seq_add(iss, 1);
+            pcb->snd_nxt = iss;
             pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
             pcb->snd_mss = snd_mss;
@@ -233,10 +232,7 @@ private:
             pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
             
             // Reply with a SYN-ACK.
-            // Only here we call this with initial==true. This will start a RTT
-            // measurement. Any retransmission of the SYN-ACK will be done with
-            // initial==false, in order to invalidate the RTT measurement.
-            Output::pcb_send_syn(pcb, true);
+            Output::pcb_send_syn(pcb);
             return;
         } while (false);
         
@@ -328,8 +324,11 @@ private:
             if ((flags_rst_syn_ack & Tcp4FlagRst) != 0) {
                 // RST, handle as per RFC 5961.
                 if (syn_sent) {
+                    // The RFC says the reset is acceptable if it acknowledges
+                    // the SYN. But due to the possibility that we sent an empty
+                    // ACK with seq_num==snd_una, accept also ack_num==snd_una.
                     if ((flags_rst_syn_ack & Tcp4FlagAck) != 0 &&
-                        tcp_meta.ack_num == seq_add(pcb->snd_una, 1))
+                        seq_lte(tcp_meta.ack_num, pcb->snd_nxt, pcb->snd_una))
                     {
                         TcpProto::pcb_abort(pcb, false);
                     }
@@ -337,8 +336,8 @@ private:
                     if (tcp_meta.seq_num == pcb->rcv_nxt) {
                         TcpProto::pcb_abort(pcb, false);
                     }
+                    // We're slightly violating RFC 5961 by allowing seq_num at nxt_wnd.
                     else if (seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt)) {
-                        // We're slightly violating RFC 5961 by allowing seq_num at nxt_wnd.
                         Output::pcb_send_empty_ack(pcb);
                     }
                 }
@@ -362,7 +361,7 @@ private:
                     {
                         // This seems to be a retransmission of the SYN, retransmit our
                         // SYN+ACK and bump the abort timeout.
-                        Output::pcb_send_syn(pcb, false);
+                        Output::pcb_send_syn(pcb);
                         pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
                     }
                     else {
@@ -395,8 +394,9 @@ private:
             seg_fin = false;
             
             // Check ACK validity for SYN_SENT state (RFC 793 p66).
-            // We require that the ACK acknowledges the SYN.
-            if (tcp_meta.ack_num != seq_add(pcb->snd_una, 1)) {
+            // We require that the ACK acknowledges the SYN. We must also
+            // check that we have event sent the SYN (snd_nxt).
+            if (pcb->snd_nxt == pcb->snd_una || tcp_meta.ack_num != pcb->snd_nxt) {
                 Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                                  pcb->local_port, pcb->remote_port,
                                  tcp_meta.ack_num, false, 0);
@@ -464,18 +464,11 @@ private:
             
             // Check ACK validity as per RFC 5961.
             // For this arithemtic to work we're relying on snd_nxt not wrapping around
-            // over snd_una-MaxAckBefore. Currently this cannot happen because we don't
-            // support window scaling so snd_nxt-snd_una cannot even exceed 2^16-1.
+            // over snd_una-MaxAckBefore.
             SeqType past_ack_num = seq_diff(pcb->snd_una, TcpProto::MaxAckBefore);
             bool valid_ack = seq_lte(tcp_meta.ack_num, pcb->snd_nxt, past_ack_num);
             if (AMBRO_UNLIKELY(!valid_ack)) {
-                if (pcb->state == TcpState::SYN_SENT) {
-                    Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                                    pcb->local_port, pcb->remote_port,
-                                    tcp_meta.ack_num, false, 0);
-                } else {
-                    Output::pcb_send_empty_ack(pcb);
-                }
+                Output::pcb_send_empty_ack(pcb);
                 return false;
             }
             
@@ -515,7 +508,7 @@ private:
         
         // In SYN_SENT and SYN_RCVD the remote acks only our SYN no more.
         // Otherwise we would have bailed out already (valid_ack, new_ack).
-        AMBRO_ASSERT(tcp_meta.ack_num == seq_add(pcb->snd_una, 1))
+        AMBRO_ASSERT(pcb->snd_nxt == seq_add(pcb->snd_una, 1))
         AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
         
         // Stop the SYN_RCVD abort timer.

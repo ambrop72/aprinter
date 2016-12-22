@@ -68,7 +68,7 @@ public:
     }
     
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
-    static void pcb_send_syn (TcpPcb *pcb, bool initial)
+    static void pcb_send_syn (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
@@ -99,15 +99,13 @@ public:
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
                              &pcb->send_retry_request);
         
-        // This RTT logic is relevant only when a segment was sent.
-        if (err == IpErr::SUCCESS) {
-            // If this is the initial SYN or SYN-ACK, start a RTT measurement.
-            // Otherwise (it's a retransmission), stop any RTT measurement.
-            if (initial) {
-                pcb_start_rtt_measurement(pcb);
-            } else {
-                pcb->clearFlag(PcbFlags::RTT_PENDING);
-            }
+        // Have we sent the SYN for the first time?
+        if (err == IpErr::SUCCESS && pcb->snd_nxt == pcb->snd_una) {
+            // Start a round-trip-time measurement.
+            pcb_start_rtt_measurement(pcb);
+            
+            // Bump snd_nxt.
+            pcb->snd_nxt = seq_add(pcb->snd_nxt, 1);
         }
     }
     
@@ -338,7 +336,7 @@ public:
         
         // If this for a SYN or SYN-ACK retransmission, retransmit and return.
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
-            pcb_send_syn(pcb, false);
+            pcb_send_syn(pcb);
             return;
         }
         
@@ -601,8 +599,7 @@ public:
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
-            // TODO: initial is not really known
-            pcb_send_syn(pcb, false);
+            pcb_send_syn(pcb);
         }
         else if (can_output_in_state(pcb->state)) {
             pcb_output_queued(pcb);
