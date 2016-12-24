@@ -36,6 +36,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/common/EthernetCommon.h>
@@ -52,6 +53,9 @@ template <typename Arg>
 class IpStackNetwork {
     using Context         = typename Arg::Context;
     using ParentObject    = typename Arg::ParentObject;
+    
+    APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, StackBufAllocator,
+                                   IpBufRef, IpBufNode, MacAddr, IpErr, Ip4Addr))
     
     using EthernetService            = typename Arg::Params::EthernetService;
     static int const NumArpEntries   = Arg::Params::NumArpEntries;
@@ -83,7 +87,7 @@ private:
     
     using TheBufAllocator = StackBufAllocator;
     
-    using TheIpStackService = IpStackService<
+    using TheIpStackService = AIpStack::IpStackService<
         EthHeader::Size, // HeaderBeforeIp
         IpTTL,           // IcmpTTL
         Arg::Params::MaxReassPackets,
@@ -93,7 +97,7 @@ private:
     
     using Iface = typename TheIpStack::Iface;
     
-    using TheIpTcpProtoService = IpTcpProtoService<
+    using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
         IpTTL,
         NumTcpPcbs,
         NumOosSegs,
@@ -114,7 +118,7 @@ private:
     using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, IpBufRef>;
     APRINTER_MAKE_INSTANCE(TheEthernet, (EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>))
     
-    using TheEthIpIfaceService = EthIpIfaceService<
+    using TheEthIpIfaceService = AIpStack::EthIpIfaceService<
         NumArpEntries,
         ArpProtectCount,
         0 // HeaderBeforeEth
@@ -169,7 +173,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == NOT_ACTIVATED)
         
-        MacAddr mac_addr = ReadSingleField<MacAddr>((char const *)params->mac_addr);
+        MacAddr mac_addr = AIpStack::ReadSingleField<MacAddr>((char const *)params->mac_addr);
         
         o->activation_state = ACTIVATING;
         o->config = *params;
@@ -217,15 +221,15 @@ public:
             memcpy(status.mac_addr, TheEthernet::getMacAddr(c)->data, 6);
             status.link_up = TheEthernet::getLinkUp(c);
             
-            IpIfaceIp4AddrSetting addr_setting = o->ip_iface.getIp4Addr();
+            auto addr_setting = o->ip_iface.getIp4Addr();
             if (addr_setting.present) {
-                WriteSingleField<Ip4Addr>((char *)status.ip_addr, addr_setting.addr);
-                WriteSingleField<Ip4Addr>((char *)status.ip_netmask, Ip4Addr::PrefixMask(addr_setting.prefix));
+                AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_addr, addr_setting.addr);
+                AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_netmask, Ip4Addr::PrefixMask(addr_setting.prefix));
             }
             
-            IpIfaceIp4GatewaySetting gw_setting = o->ip_iface.getIp4Gateway();
+            auto gw_setting = o->ip_iface.getIp4Gateway();
             if (gw_setting.present) {
-                WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gw_setting.addr);
+                AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gw_setting.addr);
             }
         }
         
@@ -795,7 +799,7 @@ public:
 private:
     using DriverCallbackImpl = typename TheEthIpIface::CallbackImpl;
     
-    class EthDriverProxy : public EthIfaceDriver<DriverCallbackImpl> {
+    class EthDriverProxy : public AIpStack::EthIfaceDriver<DriverCallbackImpl> {
         friend IpStackNetwork;
         
         void clear ()
@@ -804,7 +808,7 @@ private:
         }
         
     public:
-        void setCallback (EthIfaceDriverCallback<DriverCallbackImpl> *callback) override
+        void setCallback (AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *callback) override
         {
             m_callback = callback;
         }
@@ -838,7 +842,7 @@ private:
         }
         
     private:
-        EthIfaceDriverCallback<DriverCallbackImpl> *m_callback;
+        AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *m_callback;
     };
     
     static void ethernet_activate_handler (Context c, bool error)
@@ -855,15 +859,15 @@ private:
             o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
             
             if (!o->config.dhcp_enabled) {
-                Ip4Addr addr    = ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
-                Ip4Addr netmask = ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
-                Ip4Addr gateway = ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
+                Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
+                Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
+                Ip4Addr gateway = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
                 
                 if (addr != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface.setIp4Addr(IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
+                    o->ip_iface.setIp4Addr(AIpStack::IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
                 }
                 if (gateway != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface.setIp4Gateway(IpIfaceIp4GatewaySetting{true, gateway});
+                    o->ip_iface.setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting{true, gateway});
                 }
             }
         }

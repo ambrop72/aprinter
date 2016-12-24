@@ -32,8 +32,9 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/Preprocessor.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 template <typename Type, typename Dummy=void>
 struct StructTypeHandler;
@@ -102,7 +103,6 @@ using StructFieldRefType = typename StructFieldHandler<FieldType>::RefType;
  */
 template <typename TStructType>
 class StructBase {
-private:
     using StructType = TStructType;
     
     template <typename This=StructBase>
@@ -119,7 +119,7 @@ private:
     template <int FieldIndex, typename Dummy>
     struct FieldInfo {
         using PrevFieldInfo = FieldInfo<FieldIndex-1, void>;
-        using Field = TypeListGet<Fields<>, FieldIndex>;
+        using Field = APrinter::TypeListGet<Fields<>, FieldIndex>;
         
         using Handler = StructFieldHandler<typename Field::StructFieldType>;
         using ValType = typename Handler::ValType;
@@ -128,10 +128,10 @@ private:
     };
     
     template <typename Field, typename This=StructBase>
-    using GetFieldInfo = FieldInfo<TypeListIndex<Fields<This>, Field>::Value, void>;
+    using GetFieldInfo = FieldInfo<APrinter::TypeListIndex<Fields<This>, Field>::Value, void>;
     
     template <typename This=StructBase>
-    using LastFieldInfo = FieldInfo<TypeListLength<Fields<This>>::Value-1, void>;
+    using LastFieldInfo = FieldInfo<APrinter::TypeListLength<Fields<This>>::Value-1, void>;
     
 public:
     class Ref;
@@ -375,7 +375,7 @@ inline void WriteSingleField (char *ptr, StructFieldValType<FieldType> value)
  * @see StructBase
  */
 #define APRINTER_TSTRUCT(StructName, Fields) \
-struct StructName : public APrinter::StructBase<StructName> { \
+struct StructName : public AIpStack::StructBase<StructName> { \
     APRINTER_TSTRUCT__ADD_END(APRINTER_TSTRUCT__FIELD_1 Fields) \
     using StructFields = APrinter::MakeTypeList< \
         APRINTER_TSTRUCT__ADD_END(APRINTER_TSTRUCT__LIST_0 Fields) \
@@ -387,11 +387,11 @@ struct StructName : public APrinter::StructBase<StructName> { \
 #define APRINTER_TSTRUCT__ADD_END_2(...) __VA_ARGS__ ## _END
 
 #define APRINTER_TSTRUCT__FIELD_1(FieldName, FieldType) \
-struct FieldName : public APrinter::StructField<FieldType> {}; \
+struct FieldName : public AIpStack::StructField<FieldType> {}; \
 APRINTER_TSTRUCT__FIELD_2
 
 #define APRINTER_TSTRUCT__FIELD_2(FieldName, FieldType) \
-struct FieldName : public APrinter::StructField<FieldType> {}; \
+struct FieldName : public AIpStack::StructField<FieldType> {}; \
 APRINTER_TSTRUCT__FIELD_1
 
 #define APRINTER_TSTRUCT__FIELD_1_END
@@ -421,12 +421,12 @@ public:
     
     inline static ValType get (char const *data)
     {
-        return ReadBinaryInt<Type, BinaryBigEndian>(data);
+        return APrinter::ReadBinaryInt<Type, APrinter::BinaryBigEndian>(data);
     }
     
     inline static void set (char *data, ValType value)
     {
-        WriteBinaryInt<Type, BinaryBigEndian>(value, data);
+        APrinter::WriteBinaryInt<Type, APrinter::BinaryBigEndian>(value, data);
     }
 };
 
@@ -474,7 +474,7 @@ public:
 };
 
 template <typename Type>
-struct StructTypeHandler<Type, EnableIf<__is_base_of(StructBase<Type>, Type), void>> {
+struct StructTypeHandler<Type, APrinter::EnableIf<__is_base_of(StructBase<Type>, Type), void>> {
     using Handler = StructNestedTypeHandler<Type>;
 };
 
@@ -536,7 +536,7 @@ public:
     {
         ValType value;
         for (size_t i = 0; i < ValType::Length; i++) {
-            value.data[i] = ReadBinaryInt<typename ValType::ElemType, BinaryBigEndian>(data + i * ValType::ElemSize);
+            value.data[i] = APrinter::ReadBinaryInt<typename ValType::ElemType, APrinter::BinaryBigEndian>(data + i * ValType::ElemSize);
         }
         return value;
     }
@@ -544,7 +544,7 @@ public:
     inline static void set (char *data, ValType value)
     {
         for (size_t i = 0; i < ValType::Length; i++) {
-            WriteBinaryInt<typename ValType::ElemType, BinaryBigEndian>(value.data[i], data + i * ValType::ElemSize);
+            APrinter::WriteBinaryInt<typename ValType::ElemType, APrinter::BinaryBigEndian>(value.data[i], data + i * ValType::ElemSize);
         }
     }
 };
@@ -588,8 +588,8 @@ public:
  * for field types based on StructByteArray.
  */
 template <typename Type>
-struct StructTypeHandler<Type, EnableIf<__is_base_of(StructIntArray<typename Type::ElemType, Type::Length>, Type), void>> {
-    using Handler = If<
+struct StructTypeHandler<Type, APrinter::EnableIf<__is_base_of(StructIntArray<typename Type::ElemType, Type::Length>, Type), void>> {
+    using Handler = APrinter::If<
         __is_base_of(StructByteArray<Type::Length>, Type),
         StructByteArrayTypeHandler<Type>,
         StructIntArrayTypeHandler<Type>
@@ -630,6 +630,6 @@ struct StructTypeHandler<StructRawField<Type>, void> {
     using Handler = StructRawTypeHandler<Type>;
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

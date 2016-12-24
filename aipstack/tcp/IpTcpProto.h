@@ -51,7 +51,7 @@
 #include "IpTcpProto_input.h"
 #include "IpTcpProto_output.h"
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 /**
  * TCP protocol implementation.
@@ -67,6 +67,7 @@ class IpTcpProto :
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_TYPE1(Context::EventLoop, TimedEvent)
+    APRINTER_USE_ONEOF
     
     APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface))
     
@@ -80,7 +81,7 @@ class IpTcpProto :
     template <typename> friend class IpTcpProto_output;
     
 public:
-    APRINTER_USE_TYPES2(TcpUtils, (SeqType, PortType))
+    APRINTER_USE_TYPES1(TcpUtils, (SeqType, PortType))
     
     static SeqType const MaxRcvWnd = UINT32_C(0x3fffffff);
     
@@ -89,7 +90,7 @@ private:
     using Input = IpTcpProto_input<IpTcpProto>;
     using Output = IpTcpProto_output<IpTcpProto>;
     
-    APRINTER_USE_TYPES2(TcpUtils, (TcpState))
+    APRINTER_USE_TYPES1(TcpUtils, (TcpState))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
                                  seq_diff, seq_add))
@@ -116,9 +117,9 @@ private:
     
     // For retransmission time calculations we right-shift the Clock time
     // to obtain granularity between 1ms and 2ms.
-    static int const RttShift = BitsInFloat(1e-3 / Clock::time_unit);
+    static int const RttShift = APrinter::BitsInFloat(1e-3 / Clock::time_unit);
     static_assert(RttShift >= 0, "");
-    static constexpr double RttTimeFreq = Clock::time_freq / PowerOfTwoFunc<double>(RttShift);
+    static constexpr double RttTimeFreq = Clock::time_freq / APrinter::PowerOfTwoFunc<double>(RttShift);
     
     // We store such scaled times in 16-bit variables.
     // This gives us a range of at least 65 seconds.
@@ -270,7 +271,7 @@ private:
     static RttType const MinRtxTime               = 0.25 * RttTimeFreq;
     
     // Maximum retransmission time (need care not to overflow RttType).
-    static RttType const MaxRtxTime = MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
+    static RttType const MaxRtxTime = APrinter::MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
     
     // Number of duplicate ACKs to trigger fast retransmit/recovery.
     static uint8_t const FastRtxDupAcks = 3;
@@ -563,8 +564,8 @@ private:
     static uint16_t get_iface_mss (Iface *iface)
     {
         size_t mtu = iface->getIp4DgramMtu();
-        size_t mss = mtu - MinValue(mtu, Tcp4Header::Size);
-        return MinValueU((uint16_t)-1, mss);
+        size_t mss = mtu - APrinter::MinValue(mtu, Tcp4Header::Size);
+        return APrinter::MinValueU((uint16_t)-1, mss);
     }
     
     static inline SeqType make_iss ()
@@ -633,7 +634,7 @@ private:
         
         // The initial receive window will be at least one
         // because we must be prepared to accept the SYN.
-        SeqType rcv_wnd = 1 + MinValueU(seq_diff(MaxRcvWnd, 1), user_rcv_wnd);
+        SeqType rcv_wnd = 1 + APrinter::MinValueU(seq_diff(MaxRcvWnd, 1), user_rcv_wnd);
         
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
@@ -675,7 +676,7 @@ private:
     
     PortType get_ephemeral_port (Ip4Addr local_addr, Ip4Addr remote_addr, PortType remote_port)
     {
-        for (PortType i : LoopRangeAuto(NumEphemeralPorts)) {
+        for (PortType i : APrinter::LoopRangeAuto(NumEphemeralPorts)) {
             PortType port = m_next_ephemeral_port;
             m_next_ephemeral_port = (port < EphemeralPortLast) ? (port + 1) : EphemeralPortFirst;
             
@@ -704,7 +705,7 @@ private:
     }
     
 private:
-    using ListenersList = DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
+    using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
     
     TheIpStack *m_stack;
     ProtoListener m_proto_listener;
@@ -731,6 +732,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

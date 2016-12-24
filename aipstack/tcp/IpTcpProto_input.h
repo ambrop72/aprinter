@@ -40,17 +40,18 @@
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 template <typename TcpProto>
 class IpTcpProto_input
 {
-    APRINTER_USE_TYPES2(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
+    APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
                                    OptionFlags))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, OosSeg))
+    APRINTER_USE_ONEOF
     
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
@@ -86,8 +87,8 @@ public:
         IpChksumAccumulator chksum_accum;
         chksum_accum.addWords(&ip_meta.local_addr.data);
         chksum_accum.addWords(&ip_meta.remote_addr.data);
-        chksum_accum.addWord(WrapType<uint16_t>(), Ip4ProtocolTcp);
-        chksum_accum.addWord(WrapType<uint16_t>(), dgram.tot_len);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         chksum_accum.addIpBuf(dgram);
         if (chksum_accum.getChksum() != 0) {
             return;
@@ -214,7 +215,7 @@ private:
             // Handle window scaling option.
             if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
                 pcb->setFlag(PcbFlags::WND_SCALE);
-                pcb->snd_wnd_shift = MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
                 pcb->rcv_wnd_shift = TcpProto::RcvWndShift;
             }
             
@@ -539,7 +540,7 @@ private:
             
             // Update rcv_ann according to the new rcv_nxt.
             // Just in case, handle the possibility of rcv_ann being zero.
-            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann - MinValue(pcb->rcv_ann, (SeqType)1));
+            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann - APrinter::MinValue(pcb->rcv_ann, (SeqType)1));
             
             // Handle the window scale option.
             if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
@@ -548,7 +549,7 @@ private:
                 // this incoming segment has already been read above using
                 // pcb_decode_wnd_size while snd_wnd_shift was still zero, which
                 // is correct because the window size in a SYN-ACK is unscaled.
-                pcb->snd_wnd_shift = MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
             } else {
                 // Remote did not send the window scale option, which means we
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
@@ -663,7 +664,7 @@ private:
             pcb->snd_una = tcp_meta.ack_num;
             
             // The snd_wnd needs adjustment because it is relative to snd_una.
-            pcb->snd_wnd -= MinValue(pcb->snd_wnd, acked);
+            pcb->snd_wnd -= APrinter::MinValue(pcb->snd_wnd, acked);
             
             // Schedule pcb_output, so that the rtx_timer will be restarted
             // if needed (for retransmission or zero-window probe).
@@ -695,7 +696,7 @@ private:
                 }
                 
                 // Adjust the push index.
-                pcb->snd_psh_index -= MinValue(pcb->snd_psh_index, data_acked);
+                pcb->snd_psh_index -= APrinter::MinValue(pcb->snd_psh_index, data_acked);
                 
                 // Report data-sent event to the user.
                 if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_sent(data_acked); }))) {
@@ -1111,7 +1112,7 @@ private:
     static void pcb_calc_window_update (TcpPcb *pcb, SeqType &rcv_ann, uint16_t &hdr_wnd)
     {
         SeqType max_ann_wnd = (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
-        SeqType wnd_to_ann = MinValue(pcb->rcv_wnd, max_ann_wnd);
+        SeqType wnd_to_ann = APrinter::MinValue(pcb->rcv_wnd, max_ann_wnd);
         hdr_wnd = wnd_to_ann >> pcb->rcv_wnd_shift;
         rcv_ann = seq_add(pcb->rcv_nxt, (SeqType)hdr_wnd << pcb->rcv_wnd_shift);
     }
@@ -1121,7 +1122,7 @@ private:
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
+        SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
         if (pcb->rcv_wnd < avail_wnd) {
             pcb->rcv_wnd = avail_wnd;
         }
@@ -1133,6 +1134,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

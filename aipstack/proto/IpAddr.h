@@ -30,7 +30,7 @@
 #include <aprinter/base/Assert.h>
 #include <aipstack/misc/Struct.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 template <typename AddrType, typename ElemType, int Length>
 class IpGenericAddr : public StructIntArray<ElemType, Length>
@@ -132,6 +132,6 @@ public:
 
 class Ip4Addr : public IpGenericAddr<Ip4Addr, uint32_t, 1> {};
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

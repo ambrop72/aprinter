@@ -31,7 +31,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 APRINTER_TSTRUCT(ArpIp4Header,
     (HwType,       uint16_t)
@@ -50,6 +50,6 @@ static uint16_t const ArpHwTypeEth = 1;
 static uint16_t const ArpOpTypeRequest = 1;
 static uint16_t const ArpOpTypeReply   = 2;
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

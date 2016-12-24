@@ -34,7 +34,7 @@
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 struct IpIfaceIp4Addrs {
     Ip4Addr addr;
@@ -60,6 +60,6 @@ APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
     APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef pkt))
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

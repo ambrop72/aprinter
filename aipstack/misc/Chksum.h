@@ -36,7 +36,7 @@
 // Must be implemented externally.
 extern "C" uint16_t lwip_standard_chksum (void const *data, int mlen);
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 static inline uint16_t IpChksumInverted (char const *data, size_t len)
 {
@@ -86,23 +86,23 @@ public:
         addChksum(chksum_inverted, len);
     }
     
-    inline void addWord (WrapType<uint16_t>, uint16_t word)
+    inline void addWord (APrinter::WrapType<uint16_t>, uint16_t word)
     {
         uint32_t sum32 = (uint32_t)m_sum + word;
         m_sum = foldOnce(sum32);
     }
     
-    inline void addWord (WrapType<uint32_t>, uint32_t word)
+    inline void addWord (APrinter::WrapType<uint32_t>, uint32_t word)
     {
-        addWord(WrapType<uint16_t>(), (uint16_t)(word >> 16));
-        addWord(WrapType<uint16_t>(), (uint16_t)word);
+        addWord(APrinter::WrapType<uint16_t>(), (uint16_t)(word >> 16));
+        addWord(APrinter::WrapType<uint16_t>(), (uint16_t)word);
     }
     
     template <typename WordType, int NumWords>
     inline void addWords (WordType const *words)
     {
         for (int i = 0; i < NumWords; i++) {
-            addWord(WrapType<WordType>(), words[i]);
+            addWord(APrinter::WrapType<WordType>(), words[i]);
         }
     }
     
@@ -153,6 +153,6 @@ static uint16_t IpChksum (IpBufRef buf)
     return accum.getChksum();
 }
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

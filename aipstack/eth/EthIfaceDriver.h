@@ -32,7 +32,7 @@
 #include <aipstack/misc/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback);
 
@@ -49,6 +49,6 @@ APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback) {
     APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef frame))
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

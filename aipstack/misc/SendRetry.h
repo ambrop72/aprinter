@@ -28,7 +28,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 class IpSendRetry {
 public:
@@ -68,11 +68,11 @@ public:
     private:
         Callback *m_callback;
         List *m_list;
-        DoubleEndedListNode<Request> m_list_node;
+        APrinter::DoubleEndedListNode<Request> m_list_node;
     };
     
 private:
-    using ListStructure = DoubleEndedList<Request, &Request::m_list_node, false>;
+    using ListStructure = APrinter::DoubleEndedList<Request, &Request::m_list_node, false>;
     
 public:
     class List {
@@ -140,6 +140,6 @@ public:
     };
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

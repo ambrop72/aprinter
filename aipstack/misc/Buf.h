@@ -32,7 +32,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 struct IpBufNode {
     char *ptr;
@@ -63,7 +63,7 @@ struct IpBufRef {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(offset <= node->len)
         
-        return MinValue(tot_len, (size_t)(node->len - offset));
+        return APrinter::MinValue(tot_len, (size_t)(node->len - offset));
     }
     
     inline bool nextChunk ()
@@ -71,7 +71,7 @@ struct IpBufRef {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(offset <= node->len)
         
-        tot_len -= MinValue(tot_len, (size_t)(node->len - offset));
+        tot_len -= APrinter::MinValue(tot_len, (size_t)(node->len - offset));
         node = node->next;
         offset = 0;
         
@@ -197,7 +197,7 @@ struct IpBufRef {
         
         while (amount > 0) {
             size_t chunk_len = advanceToData();
-            size_t chunk_amount = MinValue(chunk_len, amount);
+            size_t chunk_amount = APrinter::MinValue(chunk_len, amount);
             
             func(getChunkPtr(), chunk_amount);
             
@@ -290,6 +290,6 @@ private:
     typename Allocator::template Allocation<HeaderBefore + MaxSize> m_alloc;
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

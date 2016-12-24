@@ -98,7 +98,7 @@ public:
         o->link_up = false;
     }
     
-    static void activate (Context c, MacAddr mac_addr)
+    static void activate (Context c, AIpStack::MacAddr mac_addr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
@@ -124,7 +124,7 @@ public:
         return o->link_up;
     }
     
-    static MacAddr const * getMacAddr (Context c)
+    static AIpStack::MacAddr const * getMacAddr (Context c)
     {
         auto *o = Object::self(c);
         
@@ -236,7 +236,7 @@ public:
         ThePhy
     >> {
         InitState init_state;
-        MacAddr mac_addr;
+        AIpStack::MacAddr mac_addr;
         bool link_up;
     };
 };

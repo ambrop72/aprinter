@@ -29,7 +29,7 @@
 
 #include <aipstack/misc/Struct.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 class MacAddr : public StructByteArray<6>
 {
@@ -58,6 +58,6 @@ APRINTER_TSTRUCT(EthHeader,
 static uint16_t const EthTypeIpv4 = UINT16_C(0x0800);
 static uint16_t const EthTypeArp  = UINT16_C(0x0806);
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

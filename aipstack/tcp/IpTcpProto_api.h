@@ -36,7 +36,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/TcpUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 template <typename> class IpTcpProto;
 template <typename> class IpTcpProto_input;
@@ -45,7 +45,7 @@ template <typename> class IpTcpProto_output;
 template <typename TcpProto>
 class IpTcpProto_api
 {
-    APRINTER_USE_TYPES2(TcpUtils, (TcpState, PortType, SeqType))
+    APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output))
     
@@ -191,11 +191,11 @@ public:
          */
         void setInitialReceiveWindow (size_t rcv_wnd)
         {
-            m_initial_rcv_wnd = MinValueU(TcpProto::MaxRcvWnd, rcv_wnd);
+            m_initial_rcv_wnd = APrinter::MinValueU(TcpProto::MaxRcvWnd, rcv_wnd);
         }
         
     private:
-        DoubleEndedListNode<TcpListener> m_listeners_node;
+        APrinter::DoubleEndedListNode<TcpListener> m_listeners_node;
         TcpProto *m_tcp;
         TcpListenerCallback *m_callback;
         SeqType m_initial_rcv_wnd;
@@ -760,6 +760,6 @@ public:
     };
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

@@ -105,7 +105,7 @@ public:
         o->init_state = InitState::INACTIVE;
     }
     
-    static void activate (Context c, MacAddr mac_addr)
+    static void activate (Context c, AIpStack::MacAddr mac_addr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
@@ -145,7 +145,7 @@ public:
         return o->init_state == InitState::RUNNING && o->working;
     }
     
-    static MacAddr const * getMacAddr (Context c)
+    static AIpStack::MacAddr const * getMacAddr (Context c)
     {
         auto *o = Object::self(c);
         
@@ -281,7 +281,7 @@ public:
         int tap_fd;
         InitState init_state;
         bool working;
-        MacAddr mac_addr;
+        AIpStack::MacAddr mac_addr;
     };
 };
 

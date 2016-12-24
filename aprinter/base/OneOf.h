@@ -93,6 +93,17 @@ OneOfStruct<OptType...> OneOf (OptType ... opt)
     return OneOfStruct<OptType...>(opt...);
 }
 
+/**
+ * Defines a OneOf function serving as an alias for OneOf.
+ * This is useful so one does not need to write APrinter::OneOf
+ * when using from another namespace.
+ */
+#define APRINTER_USE_ONEOF \
+template <typename... APrinter_OneOf_OptType> \
+AMBRO_ALWAYS_INLINE \
+static auto OneOf(APrinter_OneOf_OptType... APrinter_OneOf_opt) \
+{ return APrinter::OneOf(APrinter_OneOf_opt...); }
+
 #include <aprinter/EndNamespace.h>
 
 #endif

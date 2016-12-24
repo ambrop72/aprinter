@@ -45,7 +45,7 @@
 #include <aipstack/ip/IpIfaceDriver.h>
 #include <aipstack/eth/EthIfaceDriver.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 template <typename Arg>
 class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
@@ -65,7 +65,7 @@ class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     
     static int const ArpNonProtectCount = NumArpEntries - ArpProtectCount;
     
-    using ArpEntryIndexType = ChooseIntForMax<NumArpEntries, true>;
+    using ArpEntryIndexType = APrinter::ChooseIntForMax<NumArpEntries, true>;
     
     static TimeType const ArpTimerTicks = 1.0 * Clock::time_freq;
     
@@ -87,7 +87,7 @@ public:
         
         m_first_arp_entry = 0;
         
-        for (int i : LoopRangeAuto(NumArpEntries)) {
+        for (int i : APrinter::LoopRangeAuto(NumArpEntries)) {
             auto &e = m_arp_entries[i];
             e.next = (i < NumArpEntries-1) ? i+1 : -1;
             e.state = ArpEntryState::FREE;
@@ -460,6 +460,6 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

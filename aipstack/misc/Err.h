@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 enum class IpErr : uint8_t {
     SUCCESS         = 0,
@@ -41,6 +41,6 @@ enum class IpErr : uint8_t {
     NO_PCB_AVAIL    = 8,
 };
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

@@ -29,7 +29,7 @@
 
 #include <aipstack/misc/Struct.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 using Icmp4RestType = StructByteArray<4>;
 
@@ -43,6 +43,6 @@ APRINTER_TSTRUCT(Icmp4Header,
 static uint8_t const Icmp4TypeEchoReply   = 0;
 static uint8_t const Icmp4TypeEchoRequest = 8;
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

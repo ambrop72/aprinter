@@ -30,7 +30,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 APRINTER_TSTRUCT(Ip4Header,
     (VersionIhl,   uint8_t)
@@ -59,6 +59,6 @@ static uint8_t const Ip4ProtocolIcmp = 1;
 static uint8_t const Ip4ProtocolTcp  = 6;
 static uint8_t const Ip4ProtocolUdp  = 17;
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif

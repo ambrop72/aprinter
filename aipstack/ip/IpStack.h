@@ -47,7 +47,7 @@
 #include <aipstack/proto/Icmp4Proto.h>
 #include <aipstack/ip/IpIfaceDriver.h>
 
-#include <aprinter/BeginNamespace.h>
+#include <aipstack/BeginNamespace.h>
 
 struct IpIfaceIp4AddrSetting {
     bool present;
@@ -68,7 +68,7 @@ class IpStack {
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_TYPE1(Context::EventLoop, TimedEvent)
-    using TheClockUtils = ClockUtils<Context>;
+    using TheClockUtils = APrinter::ClockUtils<Context>;
     
     static_assert(MaxReassEntrys > 0, "");
     static_assert(MaxReassSize >= 576, "");
@@ -319,7 +319,7 @@ public:
     private:
         IpStack *m_stack;
         ProtoListenerCallback *m_callback;
-        DoubleEndedListNode<ProtoListener> m_listeners_list_node;
+        APrinter::DoubleEndedListNode<ProtoListener> m_listeners_list_node;
         uint8_t m_proto;
     };
     
@@ -344,7 +344,7 @@ public:
             m_have_gateway = false;
             
             // Get the MTU.
-            m_ip_mtu = MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
+            m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
             AMBRO_ASSERT(m_ip_mtu >= MinIpIfaceMtu)
             
             // Connect driver callbacks.
@@ -440,7 +440,7 @@ public:
         }
         
     private:
-        DoubleEndedListNode<Iface> m_iface_list_node;
+        APrinter::DoubleEndedListNode<Iface> m_iface_list_node;
         IpStack *m_stack;
         IpIfaceDriver<CallbackImpl> *m_driver;
         size_t m_ip_mtu;
@@ -908,8 +908,8 @@ private:
     }
     
 private:
-    using IfaceList = DoubleEndedList<Iface, &Iface::m_iface_list_node, false>;
-    using ProtoListenersList = DoubleEndedList<ProtoListener, &ProtoListener::m_listeners_list_node, false>;
+    using IfaceList = APrinter::DoubleEndedList<Iface, &Iface::m_iface_list_node, false>;
+    using ProtoListenersList = APrinter::DoubleEndedList<ProtoListener, &ProtoListener::m_listeners_list_node, false>;
     
     TimedEvent m_reass_purge_timer;
     IfaceList m_iface_list;
@@ -934,6 +934,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+#include <aipstack/EndNamespace.h>
 
 #endif
