@@ -29,6 +29,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <type_traits>
+
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/BinaryTools.h>
@@ -474,7 +476,7 @@ public:
 };
 
 template <typename Type>
-struct StructTypeHandler<Type, APrinter::EnableIf<__is_base_of(StructBase<Type>, Type), void>> {
+struct StructTypeHandler<Type, APrinter::EnableIf<std::is_base_of<StructBase<Type>, Type>::value, void>> {
     using Handler = StructNestedTypeHandler<Type>;
 };
 
@@ -588,9 +590,9 @@ public:
  * for field types based on StructByteArray.
  */
 template <typename Type>
-struct StructTypeHandler<Type, APrinter::EnableIf<__is_base_of(StructIntArray<typename Type::ElemType, Type::Length>, Type), void>> {
+struct StructTypeHandler<Type, APrinter::EnableIf<std::is_base_of<StructIntArray<typename Type::ElemType, Type::Length>, Type>::value, void>> {
     using Handler = APrinter::If<
-        __is_base_of(StructByteArray<Type::Length>, Type),
+        std::is_base_of<StructByteArray<Type::Length>, Type>::value,
         StructByteArrayTypeHandler<Type>,
         StructIntArrayTypeHandler<Type>
     >;
