@@ -36,14 +36,14 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/ipstack/misc/Struct.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/SendRetry.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
-#include <aprinter/ipstack/proto/ArpProto.h>
-#include <aprinter/ipstack/ip/IpIfaceDriver.h>
-#include <aprinter/ipstack/eth/EthIfaceDriver.h>
+#include <aipstack/misc/Struct.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/misc/SendRetry.h>
+#include <aipstack/proto/IpAddr.h>
+#include <aipstack/proto/EthernetProto.h>
+#include <aipstack/proto/ArpProto.h>
+#include <aipstack/ip/IpIfaceDriver.h>
+#include <aipstack/eth/EthIfaceDriver.h>
 
 #include <aprinter/BeginNamespace.h>
 

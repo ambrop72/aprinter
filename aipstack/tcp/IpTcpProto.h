@@ -39,13 +39,13 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/SendRetry.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
-#include <aprinter/ipstack/proto/Ip4Proto.h>
-#include <aprinter/ipstack/proto/Tcp4Proto.h>
-#include <aprinter/ipstack/proto/TcpUtils.h>
-#include <aprinter/ipstack/ip/IpStack.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/misc/SendRetry.h>
+#include <aipstack/proto/IpAddr.h>
+#include <aipstack/proto/Ip4Proto.h>
+#include <aipstack/proto/Tcp4Proto.h>
+#include <aipstack/proto/TcpUtils.h>
+#include <aipstack/ip/IpStack.h>
 
 #include "IpTcpProto_api.h"
 #include "IpTcpProto_input.h"

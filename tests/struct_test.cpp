@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <aprinter/ipstack/Struct.h>
+#include <aipstack/Struct.h>
 
 using namespace APrinter;
 

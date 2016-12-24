@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/ipstack/misc/Struct.h>
+#include <aipstack/misc/Struct.h>
 
 #include <aprinter/BeginNamespace.h>
 

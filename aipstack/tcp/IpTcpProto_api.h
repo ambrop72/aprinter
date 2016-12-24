@@ -32,9 +32,9 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
-#include <aprinter/ipstack/proto/TcpUtils.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/proto/IpAddr.h>
+#include <aipstack/proto/TcpUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

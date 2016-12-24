@@ -22,42 +22,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP4_PROTO_H
-#define APRINTER_IPSTACK_IP4_PROTO_H
+#ifndef APRINTER_IPSTACK_ICMP4_PROTO_H
+#define APRINTER_IPSTACK_ICMP4_PROTO_H
 
 #include <stdint.h>
 
-#include <aprinter/ipstack/misc/Struct.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
+#include <aipstack/misc/Struct.h>
 
 #include <aprinter/BeginNamespace.h>
 
-APRINTER_TSTRUCT(Ip4Header,
-    (VersionIhl,   uint8_t)
-    (DscpEcn,      uint8_t)
-    (TotalLen,     uint16_t)
-    (Ident,        uint16_t)
-    (FlagsOffset,  uint16_t)
-    (TimeToLive,   uint8_t)
-    (Protocol,     uint8_t)
-    (HeaderChksum, uint16_t)
-    (SrcAddr,      Ip4Addr)
-    (DstAddr,      Ip4Addr)
+using Icmp4RestType = StructByteArray<4>;
+
+APRINTER_TSTRUCT(Icmp4Header,
+    (Type,         uint8_t)
+    (Code,         uint8_t)
+    (Chksum,       uint16_t)
+    (Rest,         Icmp4RestType)
 )
 
-static int const Ip4VersionShift = 4;
-static uint8_t const Ip4IhlMask = 0xF;
-
-static uint16_t const Ip4FlagDF = (uint16_t)1 << 14;
-static uint16_t const Ip4FlagMF = (uint16_t)1 << 13;
-
-static uint16_t const Ip4OffsetMask = UINT16_C(0x1fff);
-
-static size_t const Ip4MaxHeaderSize = 60;
-
-static uint8_t const Ip4ProtocolIcmp = 1;
-static uint8_t const Ip4ProtocolTcp  = 6;
-static uint8_t const Ip4ProtocolUdp  = 17;
+static uint8_t const Icmp4TypeEchoReply   = 0;
+static uint8_t const Icmp4TypeEchoRequest = 8;
 
 #include <aprinter/EndNamespace.h>
 

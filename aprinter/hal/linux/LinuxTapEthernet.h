@@ -48,7 +48,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
+#include <aipstack/proto/EthernetProto.h>
 
 #include <aprinter/BeginNamespace.h>
 

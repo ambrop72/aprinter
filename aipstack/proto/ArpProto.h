@@ -27,9 +27,9 @@
 
 #include <stdint.h>
 
-#include <aprinter/ipstack/misc/Struct.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
+#include <aipstack/misc/Struct.h>
+#include <aipstack/proto/IpAddr.h>
+#include <aipstack/proto/EthernetProto.h>
 
 #include <aprinter/BeginNamespace.h>
 

@@ -37,15 +37,15 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/ipstack/misc/Err.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/Chksum.h>
-#include <aprinter/ipstack/misc/Struct.h>
-#include <aprinter/ipstack/misc/SendRetry.h>
-#include <aprinter/ipstack/proto/IpAddr.h>
-#include <aprinter/ipstack/proto/Ip4Proto.h>
-#include <aprinter/ipstack/proto/Icmp4Proto.h>
-#include <aprinter/ipstack/ip/IpIfaceDriver.h>
+#include <aipstack/misc/Err.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Chksum.h>
+#include <aipstack/misc/Struct.h>
+#include <aipstack/misc/SendRetry.h>
+#include <aipstack/proto/IpAddr.h>
+#include <aipstack/proto/Ip4Proto.h>
+#include <aipstack/proto/Icmp4Proto.h>
+#include <aipstack/ip/IpIfaceDriver.h>
 
 #include <aprinter/BeginNamespace.h>
 

@@ -22,31 +22,42 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
-#define APRINTER_IPSTACK_ETH_IFACE_DRIVER_H
+#ifndef APRINTER_IPSTACK_IP_IFACE_DRIVER_H
+#define APRINTER_IPSTACK_IP_IFACE_DRIVER_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <aprinter/base/StaticInterface.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/Err.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Err.h>
+#include <aipstack/misc/SendRetry.h>
+#include <aipstack/proto/IpAddr.h>
 
 #include <aprinter/BeginNamespace.h>
 
-APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback);
-
-template <typename CallbackImpl>
-class EthIfaceDriver {
-public:
-    virtual void setCallback (EthIfaceDriverCallback<CallbackImpl> *callback) = 0;
-    virtual MacAddr const * getMacAddr () = 0;
-    virtual size_t getEthMtu () = 0;
-    virtual IpErr sendFrame (IpBufRef frame) = 0;
+struct IpIfaceIp4Addrs {
+    Ip4Addr addr;
+    Ip4Addr netmask;
+    Ip4Addr netaddr;
+    Ip4Addr bcastaddr;
+    uint8_t prefix;
 };
 
-APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback) {
-    APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef frame))
+APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback);
+
+template <typename CallbackImpl>
+class IpIfaceDriver {
+public:
+    virtual void setCallback (IpIfaceDriverCallback<CallbackImpl> *callback) = 0;
+    virtual size_t getIpMtu () = 0;
+    virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
+                                 IpSendRetry::Request *sendRetryReq) = 0;
+};
+
+APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
+    APRINTER_IFACE_FUNC(IpIfaceIp4Addrs const *, getIp4Addrs, ())
+    APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef pkt))
 };
 
 #include <aprinter/EndNamespace.h>

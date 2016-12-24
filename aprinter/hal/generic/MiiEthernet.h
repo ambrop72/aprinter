@@ -35,8 +35,8 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/ipstack/proto/EthernetProto.h>
 #include <aprinter/hal/common/MiiCommon.h>
+#include <aipstack/proto/EthernetProto.h>
 
 #ifdef APRINTER_DEBUG_MII
 #include <aprinter/base/ProgramMemory.h>

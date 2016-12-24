@@ -35,10 +35,10 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/ipstack/misc/Buf.h>
-#include <aprinter/ipstack/misc/Chksum.h>
-#include <aprinter/ipstack/proto/Tcp4Proto.h>
-#include <aprinter/ipstack/proto/TcpUtils.h>
+#include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Chksum.h>
+#include <aipstack/proto/Tcp4Proto.h>
+#include <aipstack/proto/TcpUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

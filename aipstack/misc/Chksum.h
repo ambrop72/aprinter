@@ -31,7 +31,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/ipstack/misc/Buf.h>
+#include <aipstack/misc/Buf.h>
 
 // Must be implemented externally.
 extern "C" uint16_t lwip_standard_chksum (void const *data, int mlen);
