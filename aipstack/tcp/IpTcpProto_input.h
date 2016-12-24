@@ -226,6 +226,12 @@ private:
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
             lis->m_num_pcbs++;
             
+            // Add the PCB to the index.
+            pcb->tcp->m_pcb_index.addEntry(*pcb);
+            
+            // Move the PCB to the front of the unreferenced list.
+            pcb->tcp->move_unrefed_pcb_to_front(pcb);
+            
             // Start the SYN_RCVD abort timeout.
             pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
             
@@ -477,8 +483,11 @@ private:
             new_ack = !seq_lte(tcp_meta.ack_num, pcb->snd_una, past_ack_num);
         }
         
-        // Bump the last-time of the PCB.
-        pcb->last_time = TcpProto::Clock::getTime(Context());
+        // If this PCB is unreferenced, move it to the front
+        // of the unreferenced list.
+        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+            pcb->tcp->move_unrefed_pcb_to_front(pcb);
+        }
         
         return true;
     }

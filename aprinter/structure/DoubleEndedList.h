@@ -71,6 +71,13 @@ public:
         return m_first;
     }
     
+    APRINTER_FUNCTION_IF(WithLast, Entry *, lastNotEmpty () const)
+    {
+        AMBRO_ASSERT(m_first != nullptr)
+        
+        return this->m_last;
+    }
+    
     Entry * next (Entry *e) const
     {
         return ac(*e).next;
@@ -147,7 +154,7 @@ private:
 template <class Entry, DoubleEndedListNode<Entry> Entry::*NodeMember, bool WithLast=true>
 class DoubleEndedList : public DoubleEndedListWithAccessor<
     Entry,
-    MemberAccessor<Entry, DoubleEndedListNode<Entry>, NodeMember>,
+    APRINTER_MEMBER_ACCESSOR_TN(NodeMember),
     WithLast
 > {};
 

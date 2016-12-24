@@ -29,17 +29,48 @@
 
 template <typename Object, typename Member, Member Object::*MemberPtr>
 struct MemberAccessor {
-    inline static Member & access (Object &e)
+    using ObjectType = Object;
+    using MemberType = Member;
+    
+    inline static MemberType & access (ObjectType &e)
     {
         return e.*MemberPtr;
     }
 };
 
+template <typename Object, typename Member>
+struct MakeMemberAccessorHelper {
+    template <Member Object::*MemberPtr>
+    using Make = MemberAccessor<Object, Member, MemberPtr>;
+};
+
+template <typename Object, typename Member>
+inline MakeMemberAccessorHelper<Object, Member> MakeMemberAccessorHelperFunc(Member Object::*memberPtr);
+
+#define APRINTER_MEMBER_ACCESSOR(member) \
+decltype(APrinter::MakeMemberAccessorHelperFunc((member)))::template Make<(member)>
+
+#define APRINTER_MEMBER_ACCESSOR_TN(member) typename APRINTER_MEMBER_ACCESSOR(member)
+
 template <typename Object, typename Member, typename Base, Member Base::*MemberPtr>
 struct MemberAccessorWithBase {
-    inline static Member & access (Object &e)
+    using ObjectType = Object;
+    using MemberType = Member;
+    
+    inline static MemberType & access (ObjectType &e)
     {
         return e.*MemberPtr;
+    }
+};
+
+template <typename Accessor1, typename Accessor2>
+struct ComposedAccessor {
+    using ObjectType = typename Accessor1::ObjectType;
+    using MemberType = typename Accessor2::MemberType;
+    
+    inline static MemberType & access (ObjectType &e)
+    {
+        return Accessor2::access(Accessor1::access(e));
     }
 };
 

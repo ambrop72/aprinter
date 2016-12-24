@@ -300,6 +300,7 @@ public:
                 // Disassociate with the PCB.
                 TcpPcb *pcb = m_pcb;
                 pcb->con = nullptr;
+                pcb->tcp->m_unrefed_pcbs_list.append(pcb);
                 m_pcb = nullptr;
                 
                 // Handle abandonment of connection.
@@ -328,6 +329,7 @@ public:
             // Associate with the PCB.
             m_pcb = lis->m_accept_pcb;
             m_pcb->con = this;
+            m_pcb->tcp->m_unrefed_pcbs_list.remove(m_pcb);
             
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_flags = Flags::STARTED;
@@ -685,6 +687,10 @@ public:
     private:
         // These are called by TCP internals when various things happen.
         
+        // NOTE: This does not add the PCB to the unreferenced list.
+        // It will be done afterward by the caller. This makes sure that
+        // any allocate_pcb done from the user callback will not find
+        // this PCB.
         void pcb_aborted ()
         {
             assert_connected();

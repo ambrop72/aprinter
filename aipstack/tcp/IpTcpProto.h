@@ -38,6 +38,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
+#include <aprinter/base/Accessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -46,6 +47,7 @@
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 #include <aipstack/ip/IpStack.h>
+#include <aipstack/misc/index/MruListIndex.h>
 
 #include "IpTcpProto_api.h"
 #include "IpTcpProto_input.h"
@@ -104,7 +106,6 @@ private:
         OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
         FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
         FIN_PENDING = 1 << 3, // A FIN is to be transmitted
-        PROTECT     = 1 << 4, // Prevent allocate_pcb from taking this PCB
         RTT_PENDING = 1 << 5, // Round-trip-time is being measured
         RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
         OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
@@ -139,6 +140,20 @@ private:
         SeqType end;
     };
     
+    // PCB key for the PCB index.
+    struct PcbKey {
+        Ip4Addr local_addr;
+        Ip4Addr remote_addr;
+        PortType local_port;
+        PortType remote_port;
+    };
+    
+    // Instantiate the PCB index.
+    struct PcbIndexAccessor;
+    struct PcbIndexKeyFuncs;
+    using PcbIndex = MruListIndex<TcpPcb, PcbIndexAccessor, PcbKey, PcbIndexKeyFuncs>;
+    using PcbIndexNode = typename PcbIndex::Node;
+    
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
                               TcpListener, TcpListenerCallback))
@@ -150,6 +165,12 @@ private:
      * survive deinit/reset of an associated TcpConnection object.
      */
     struct TcpPcb : public IpSendRetry::Callback {
+        // Node for the PCB index.
+        PcbIndexNode index_hook;
+        
+        // Node for the unreferenced PCBs list.
+        APrinter::DoubleEndedListNode<TcpPcb> unrefed_list_node;
+        
         // Timers.
         TimedEvent abrt_timer;   // timer for aborting PCB (TIME_WAIT, abandonment)
         TimedEvent output_timer; // timer for pcb_output after send buffer extension
@@ -162,7 +183,6 @@ private:
         IpTcpProto *tcp;    // pointer back to IpTcpProto
         TcpConnection *con; // pointer to any associated TcpConnection
         TcpListener *lis;   // pointer to any associated TcpListener
-        TimeType last_time; // time when the last valid segment was received
         
         // Addresses and ports.
         Ip4Addr local_addr;
@@ -240,6 +260,9 @@ private:
         void retrySending () override final { Output::pcb_send_retry(this); }
     };
     
+    // Define the hook accessor for the PCB index.
+    struct PcbIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
+    
     // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
     static SeqType const DefaultWndAnnThreshold = 2700;
     
@@ -297,6 +320,8 @@ public:
         m_listeners_list.init();
         m_current_pcb = nullptr;
         m_next_ephemeral_port = EphemeralPortFirst;
+        m_unrefed_pcbs_list.init();
+        m_pcb_index.init();
         
         for (TcpPcb &pcb : m_pcbs) {
             pcb.abrt_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::abrt_timer_handler, &pcb));
@@ -307,6 +332,7 @@ public:
             pcb.con = nullptr;
             pcb.lis = nullptr;
             pcb.state = TcpState::CLOSED;
+            m_unrefed_pcbs_list.prepend(&pcb);
         }
     }
     
@@ -340,54 +366,31 @@ private:
     
     TcpPcb * allocate_pcb ()
     {
-        TimeType now = Clock::getTime(Context());
-        TcpPcb *the_pcb = nullptr;
-        
-        // Find a PCB to use, either a CLOSED one (preferably) or one which
-        // has no associated TcpConnection. For the latter case use the least
-        // recently used such PCB.
-        for (TcpPcb &pcb : m_pcbs) {
-            if (pcb.hasFlag(PcbFlags::PROTECT)) {
-                // Don't take protected PCB.
-                continue;
-            }
-            
-            if (pcb.state == TcpState::CLOSED) {
-                the_pcb = &pcb;
-                break;
-            }
-            
-            if (pcb.con == nullptr) {
-                if (the_pcb == nullptr ||
-                    (TimeType)(now - pcb.last_time) > (TimeType)(now - the_pcb->last_time))
-                {
-                    the_pcb = &pcb;
-                }
-            }
-        }
-        
         // No PCB available?
-        if (the_pcb == nullptr) {
+        if (m_unrefed_pcbs_list.isEmpty()) {
+            printf("OUT OF PCB\n");
             return nullptr;
         }
         
+        // Get a PCB to use.
+        // TODO: protect
+        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty();
+        AMBRO_ASSERT(pcb->state == TcpState::CLOSED || pcb->con == nullptr)
+        
         // Abort the PCB if it's not closed.
-        if (the_pcb->state != TcpState::CLOSED) {
-            pcb_abort(the_pcb);
+        if (pcb->state != TcpState::CLOSED) {
+            pcb_abort(pcb);
         }
         
-        // Set the last-time, since we already have the time here.
-        the_pcb->last_time = now;
+        AMBRO_ASSERT(!pcb->abrt_timer.isSet(Context()))
+        AMBRO_ASSERT(!pcb->output_timer.isSet(Context()))
+        AMBRO_ASSERT(!pcb->rtx_timer.isSet(Context()))
+        AMBRO_ASSERT(pcb->tcp == this)
+        AMBRO_ASSERT(pcb->con == nullptr)
+        AMBRO_ASSERT(pcb->lis == nullptr)
+        AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
         
-        AMBRO_ASSERT(!the_pcb->abrt_timer.isSet(Context()))
-        AMBRO_ASSERT(!the_pcb->output_timer.isSet(Context()))
-        AMBRO_ASSERT(!the_pcb->rtx_timer.isSet(Context()))
-        AMBRO_ASSERT(the_pcb->tcp == this)
-        AMBRO_ASSERT(the_pcb->con == nullptr)
-        AMBRO_ASSERT(the_pcb->lis == nullptr)
-        AMBRO_ASSERT(the_pcb->state == TcpState::CLOSED)
-        
-        return the_pcb;
+        return pcb;
     }
     
     inline static void pcb_abort (TcpPcb *pcb)
@@ -411,7 +414,7 @@ private:
         
         // Disassociate any TcpConnection. This will call the
         // connectionAborted callback if we do have a TcpConnection.
-        pcb_unlink_con(pcb);
+        pcb_unlink_con(pcb, true);
         
         // Disassociate any TcpListener.
         pcb_unlink_lis(pcb);
@@ -422,6 +425,9 @@ private:
         if (pcb->tcp->m_current_pcb == pcb) {
             pcb->tcp->m_current_pcb = nullptr;
         }
+        
+        // Remove the PCB from the index.
+        pcb->tcp->m_pcb_index.removeEntry(*pcb);
         
         // Reset other relevant fields to initial state.
         pcb->abrt_timer.unset(Context());
@@ -437,7 +443,7 @@ private:
         
         // Disassociate any TcpConnection. This will call the
         // connectionAborted callback if we do have a TcpConnection.
-        pcb_unlink_con(pcb);
+        pcb_unlink_con(pcb, false);
         
         // Disassociate any TcpListener.
         pcb_unlink_lis(pcb);
@@ -459,22 +465,37 @@ private:
         pcb->abrt_timer.appendAfter(Context(), TimeWaitTimeTicks);
     }
     
-    static void pcb_unlink_con (TcpPcb *pcb)
+    static void pcb_unlink_con (TcpPcb *pcb, bool closing)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
-        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::PROTECT))
         
         if (pcb->con != nullptr) {
-            // Use the protect flag to prevent allocate_pcb from taking the PCB.
-            pcb->setFlag(PcbFlags::PROTECT);
-            
             // Inform the connection object about the aborting.
+            // Pass the closing flag so that if the PCB will go
+            // to CLOSED state, it will be added to the end of the
+            // unreferenced PCBs list.
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con->m_pcb == pcb)
             con->pcb_aborted();
             
+            // Add the PCB to the unreferenced PCBs list.
+            if (closing) {
+                pcb->tcp->m_unrefed_pcbs_list.append(pcb);
+            } else {
+                pcb->tcp->m_unrefed_pcbs_list.prepend(pcb);
+            }
+            
             AMBRO_ASSERT(pcb->con == nullptr)
-            pcb->clearFlag(PcbFlags::PROTECT);
+        } else {
+            // If the PCB will go to CLOSED state, make sure it is at
+            // the end of the unreferenced PCBs list.
+            if (closing) {
+                IpTcpProto *tcp = pcb->tcp;
+                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty()) {
+                    tcp->m_unrefed_pcbs_list.remove(pcb);
+                    tcp->m_unrefed_pcbs_list.append(pcb);
+                }
+            }
         }
     }
     
@@ -640,6 +661,7 @@ private:
         pcb->state = TcpState::SYN_SENT;
         pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
         pcb->con = con;
+        m_unrefed_pcbs_list.remove(pcb);
         pcb->local_addr = local_addr;
         pcb->remote_addr = remote_addr;
         pcb->local_port = local_port;
@@ -659,6 +681,9 @@ private:
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = RcvWndShift;
+        
+        // Add the PCB to the index.
+        m_pcb_index.addEntry(*pcb);
         
         // Start the connection timeout.
         pcb->abrt_timer.appendAfter(Context(), SynSentTimeoutTicks);
@@ -688,30 +713,47 @@ private:
         return 0;
     }
     
+    void move_unrefed_pcb_to_front (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->con == nullptr)
+        
+        if (pcb != m_unrefed_pcbs_list.first()) {
+            m_unrefed_pcbs_list.remove(pcb);
+            m_unrefed_pcbs_list.prepend(pcb);
+        }
+    }
+    
     TcpPcb * find_pcb_by_addr (Ip4Addr local_addr, PortType local_port,
                                Ip4Addr remote_addr, PortType remote_port)
     {
-        for (TcpPcb &pcb : m_pcbs) {
-            if (pcb.state != TcpState::CLOSED  &&
-                pcb.local_addr  == local_addr  &&
-                pcb.remote_addr == remote_addr &&
-                pcb.local_port  == local_port  &&
-                pcb.remote_port == remote_port)
-            {
-                return &pcb;
-            }
-        }
-        return nullptr;
+        TcpPcb *pcb = m_pcb_index.findEntry(PcbKey{local_addr, remote_addr, local_port, remote_port});
+        AMBRO_ASSERT(pcb == nullptr || pcb->state != TcpState::CLOSED)
+        return pcb;
     }
+    
+    struct PcbIndexKeyFuncs {
+        inline static bool EntryHasKey (TcpPcb &pcb, PcbKey const &key)
+        {
+            AMBRO_ASSERT(pcb.state != TcpState::CLOSED)
+            
+            return pcb.local_addr  == key.local_addr  &&
+                   pcb.remote_addr == key.remote_addr &&
+                   pcb.local_port  == key.local_port  &&
+                   pcb.remote_port == key.remote_port;
+        }
+    };
     
 private:
     using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
+    using UnrefedPcbsList = APrinter::DoubleEndedList<TcpPcb, &TcpPcb::unrefed_list_node, true>;
     
     TheIpStack *m_stack;
     ProtoListener m_proto_listener;
     ListenersList m_listeners_list;
     TcpPcb *m_current_pcb;
     PortType m_next_ephemeral_port;
+    UnrefedPcbsList m_unrefed_pcbs_list;
+    typename PcbIndex::Index m_pcb_index;
     TcpPcb m_pcbs[NumTcpPcbs];
 };
 
