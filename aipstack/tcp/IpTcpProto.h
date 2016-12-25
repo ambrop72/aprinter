@@ -29,6 +29,8 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include <tuple>
+
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
@@ -141,12 +143,12 @@ private:
     };
     
     // PCB key for the PCB index.
-    struct PcbKey {
-        Ip4Addr local_addr;
-        Ip4Addr remote_addr;
-        PortType local_port;
-        PortType remote_port;
-    };
+    using PcbKey = std::tuple<
+        PortType, // remote_port
+        Ip4Addr,  // remote_addr
+        PortType, // local_port
+        Ip4Addr   // local_addr
+    >;
     
     // Instantiate the PCB index.
     struct PcbIndexAccessor;
@@ -726,20 +728,15 @@ private:
     TcpPcb * find_pcb_by_addr (Ip4Addr local_addr, PortType local_port,
                                Ip4Addr remote_addr, PortType remote_port)
     {
-        TcpPcb *pcb = m_pcb_index.findEntry(PcbKey{local_addr, remote_addr, local_port, remote_port});
+        TcpPcb *pcb = m_pcb_index.findEntry(PcbKey{remote_port, remote_addr, local_port, local_addr});
         AMBRO_ASSERT(pcb == nullptr || pcb->state != TcpState::CLOSED)
         return pcb;
     }
     
     struct PcbIndexKeyFuncs {
-        inline static bool EntryHasKey (TcpPcb &pcb, PcbKey const &key)
+        inline static PcbKey GetKeyOfEntry (TcpPcb &pcb)
         {
-            AMBRO_ASSERT(pcb.state != TcpState::CLOSED)
-            
-            return pcb.local_addr  == key.local_addr  &&
-                   pcb.remote_addr == key.remote_addr &&
-                   pcb.local_port  == key.local_port  &&
-                   pcb.remote_port == key.remote_port;
+            return PcbKey{pcb.remote_port, pcb.remote_addr, pcb.local_port, pcb.local_addr};
         }
     };
     

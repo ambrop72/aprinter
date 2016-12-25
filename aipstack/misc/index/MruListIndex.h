@@ -73,7 +73,7 @@ public:
         {
             for (Entry *ep = m_list.first(); ep != nullptr; ep = m_list.next(ep)) {
                 Entry &e = *ep;
-                if (KeyFuncs::EntryHasKey(e, key)) {
+                if (KeyFuncs::GetKeyOfEntry(e) == key) {
                     if (&e != m_list.first()) {
                         m_list.remove(&e);
                         m_list.prepend(&e);
