@@ -27,6 +27,41 @@
 
 #include <aprinter/BeginNamespace.h>
 
+/**
+ * @file
+ * 
+ * A Link Model defines the model how an intrusive data structure
+ * is linked together. Currently, two link models are predefined:
+ * using pointers (PointerLinkModel), and by array indices (ArrayLinkModel).
+ * 
+ * The link model defines the following types:
+ * 
+ * - Link. This is what is used in the data structure for links
+ *   to objects. For example, a pointer or an array index.
+ *   The ref() function of Link returns a Ref corresponding to the
+ *   linked object. Null links must be supported (Link::null(),
+ *   Link::isNull()).
+ * 
+ * - Ref. This is intended for referencing objects in the short
+ *   term while working with the data structure. From the Ref a
+ *   C++ reference to the object can be obtained (operator*)
+ *   as well as the corresponding Link (link()). A Ref can be
+ *   be null.
+ * 
+ * - State. The state is passed to all data structure manipulation
+ *   functions and forwarded to calls of the Link::ref(). The
+ *   PointerLinkModel does not use this, but the ArrayLinkModel uses
+ *   a State object which must be initialized with the pointer to
+ *   the base of the array, so that Link::ref() can work.
+ */
+
+/**
+ * Pointer link model for intrusive data structures.
+ * 
+ * The data structure will be linked using pointers.
+ * The State type is defined as an empty class with a
+ * default constructor, as it is not really needed.
+ */
 template <typename Entry>
 class PointerLinkModel {
 public:
@@ -115,6 +150,23 @@ public:
     };
 };
 
+/**
+ * Array index link model for intrusive data structures.
+ * 
+ * The data structure will be linked using array incides.
+ * This can only work when all elements are contained in
+ * the same array.
+ * 
+ * The IndexType template parameter is the integer type to
+ * be used for array indices. The NullIndex is the value to
+ * be used for null links. For example, if IndexType is
+ * signed, -1 would be a good choice for NullIndex.
+ * 
+ * To create a Ref for an object (e.g. when inserting into
+ * the data structure), use the Ref(Entry &, IndexType)
+ * constructor, with the reference to the entry and its
+ * array index.
+ */
 template <
     typename Entry,
     typename IndexType,
