@@ -37,7 +37,7 @@
 
 template <typename Arg>
 class AvlTreeIndex {
-    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKey, KeyFuncs))
+    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs))
     
     using LinkModel = APrinter::PointerLinkModel<Entry>;
     using Ref = typename LinkModel::Ref;
@@ -77,7 +77,7 @@ public:
             m_tree.remove(nullptr, e);
         }
         
-        inline Entry * findEntry (LookupKey const &key)
+        inline Entry * findEntry (LookupKeyArg key)
         {
             Entry *entry = m_tree.lookup(nullptr, key).pointer();
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
@@ -93,7 +93,7 @@ struct AvlTreeIndexService {
     APRINTER_ALIAS_STRUCT_EXT(Index, (
         APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
-        APRINTER_AS_TYPE(LookupKey),
+        APRINTER_AS_TYPE(LookupKeyArg),
         APRINTER_AS_TYPE(KeyFuncs)
     ), (
         APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)

@@ -35,7 +35,7 @@
 
 template <typename Arg>
 class MruListIndex {
-    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKey, KeyFuncs))
+    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs))
     
     using ListNode = APrinter::DoubleEndedListNode<Entry>;
     
@@ -69,7 +69,7 @@ public:
             m_list.remove(&e);
         }
         
-        Entry * findEntry (LookupKey const &key)
+        Entry * findEntry (LookupKeyArg key)
         {
             for (Entry *ep = m_list.first(); ep != nullptr; ep = m_list.next(ep)) {
                 Entry &e = *ep;
@@ -93,7 +93,7 @@ struct MruListIndexService {
     APRINTER_ALIAS_STRUCT_EXT(Index, (
         APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
-        APRINTER_AS_TYPE(LookupKey),
+        APRINTER_AS_TYPE(LookupKeyArg),
         APRINTER_AS_TYPE(KeyFuncs)
     ), (
         APRINTER_DEF_INSTANCE(Index, MruListIndex)

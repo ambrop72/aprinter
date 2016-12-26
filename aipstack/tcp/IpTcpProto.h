@@ -152,8 +152,9 @@ private:
     
     // Instantiate the PCB index.
     struct PcbIndexAccessor;
+    using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
-    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<TcpPcb, PcbIndexAccessor, PcbKey, PcbIndexKeyFuncs>))
+    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs>))
     using PcbIndexNode = typename PcbIndex::Node;
     
 public:
