@@ -154,8 +154,8 @@ private:
     struct PcbIndexAccessor;
     using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
-    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs>))
-    using PcbIndexNode = typename PcbIndex::Node;
+    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
+        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs>))
     
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
@@ -169,7 +169,7 @@ private:
      */
     struct TcpPcb : public IpSendRetry::Callback {
         // Node for the PCB index.
-        PcbIndexNode index_hook;
+        typename PcbIndex::Node index_hook;
         
         // Node for the unreferenced PCBs list.
         APrinter::DoubleEndedListNode<TcpPcb> unrefed_list_node;
@@ -324,7 +324,8 @@ public:
         m_current_pcb = nullptr;
         m_next_ephemeral_port = EphemeralPortFirst;
         m_unrefed_pcbs_list.init();
-        m_pcb_index.init();
+        m_pcb_index_active.init();
+        m_pcb_index_timewait.init();
         
         for (TcpPcb &pcb : m_pcbs) {
             pcb.abrt_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::abrt_timer_handler, &pcb));
@@ -429,8 +430,12 @@ private:
             pcb->tcp->m_current_pcb = nullptr;
         }
         
-        // Remove the PCB from the index.
-        pcb->tcp->m_pcb_index.removeEntry(*pcb);
+        // Remove the PCB from the index in which it is.
+        if (pcb->state == TcpState::TIME_WAIT) {
+            pcb->tcp->m_pcb_index_timewait.removeEntry(*pcb);
+        } else {
+            pcb->tcp->m_pcb_index_active.removeEntry(*pcb);
+        }
         
         // Reset other relevant fields to initial state.
         pcb->abrt_timer.unset(Context());
@@ -442,7 +447,8 @@ private:
     
     static void pcb_go_to_time_wait (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD,
+                                         TcpState::TIME_WAIT))
         
         // Disassociate any TcpConnection. This will call the
         // connectionAborted callback if we do have a TcpConnection.
@@ -459,6 +465,10 @@ private:
         
         // Change state.
         pcb->state = TcpState::TIME_WAIT;
+        
+        // Move the PCB from the active index to the time-wait index.
+        pcb->tcp->m_pcb_index_active.removeEntry(*pcb);
+        pcb->tcp->m_pcb_index_timewait.addEntry(*pcb);
         
         // Stop these timers due to asserts in their handlers.
         pcb->output_timer.unset(Context());
@@ -685,8 +695,8 @@ private:
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = RcvWndShift;
         
-        // Add the PCB to the index.
-        m_pcb_index.addEntry(*pcb);
+        // Add the PCB to the active index.
+        m_pcb_index_active.addEntry(*pcb);
         
         // Start the connection timeout.
         pcb->abrt_timer.appendAfter(Context(), SynSentTimeoutTicks);
@@ -729,8 +739,18 @@ private:
     TcpPcb * find_pcb_by_addr (Ip4Addr local_addr, PortType local_port,
                                Ip4Addr remote_addr, PortType remote_port)
     {
-        TcpPcb *pcb = m_pcb_index.findEntry(PcbKey{remote_port, remote_addr, local_port, local_addr});
-        AMBRO_ASSERT(pcb == nullptr || pcb->state != TcpState::CLOSED)
+        PcbKey key{remote_port, remote_addr, local_port, local_addr};
+        
+        // Look in the active index firss.
+        TcpPcb *pcb = m_pcb_index_active.findEntry(key);
+        AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
+        
+        // If not found, look in the time-wait index.
+        if (pcb == nullptr) {
+            pcb = m_pcb_index_timewait.findEntry(key);
+            AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
+        }
+        
         return pcb;
     }
     
@@ -751,7 +771,8 @@ private:
     TcpPcb *m_current_pcb;
     PortType m_next_ephemeral_port;
     UnrefedPcbsList m_unrefed_pcbs_list;
-    typename PcbIndex::Index m_pcb_index;
+    typename PcbIndex::Index m_pcb_index_active;
+    typename PcbIndex::Index m_pcb_index_timewait;
     TcpPcb m_pcbs[NumTcpPcbs];
 };
 

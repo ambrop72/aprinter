@@ -226,8 +226,8 @@ private:
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
             lis->m_num_pcbs++;
             
-            // Add the PCB to the index.
-            pcb->tcp->m_pcb_index.addEntry(*pcb);
+            // Add the PCB to the active index.
+            pcb->tcp->m_pcb_index_active.addEntry(*pcb);
             
             // Move the PCB to the front of the unreferenced list.
             pcb->tcp->move_unrefed_pcb_to_front(pcb);
