@@ -28,8 +28,10 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Accessor.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/AvlTree.h>
+#include <aprinter/structure/TreeCompare.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -54,7 +56,7 @@ public:
             APRINTER_MEMBER_ACCESSOR_TN(&Node::tree_node)
         >;
         
-        struct TreeCompare;
+        struct TreeCompare : public APrinter::TreeCompare<LinkModel, KeyFuncs> {};
         
         using EntryTree = APrinter::AvlTree<Entry, TreeNodeAccessor, TreeCompare, LinkModel>;
         
@@ -75,30 +77,12 @@ public:
             m_tree.remove(nullptr, e);
         }
         
-        Entry * findEntry (LookupKey const &key)
+        inline Entry * findEntry (LookupKey const &key)
         {
             Entry *entry = m_tree.lookup(nullptr, key).pointer();
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }
-        
-    private:
-        struct TreeCompare {
-            inline static int compareEntries (nullptr_t, Ref ref1, Ref ref2)
-            {
-                auto key1 = KeyFuncs::GetKeyOfEntry(*ref1);
-                auto key2 = KeyFuncs::GetKeyOfEntry(*ref2);
-                
-                return (key1 < key2) ? -1 : (key1 == key2) ? 0 : 1;
-            }
-            
-            inline static int compareKeyEntry (nullptr_t, LookupKey const &key1, Ref ref2)
-            {
-                auto key2 = KeyFuncs::GetKeyOfEntry(*ref2);
-                
-                return (key1 < key2) ? -1 : (key1 == key2) ? 0 : 1;
-            }
-        };
         
     private:
         EntryTree m_tree;

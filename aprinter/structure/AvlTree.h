@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <utility>
 
 #include <aprinter/base/Assert.h>
 
@@ -155,8 +156,8 @@ public:
         assert_tree(st);
     }
     
-    template <typename Key, typename LookupCompare = Compare>
-    Ref lookup (State st, Key key)
+    template <typename LookupCompare = Compare, typename Key>
+    Ref lookup (State st, Key &&key)
     {
         if (m_root.isNull()) {
             return Ref::null();
@@ -166,7 +167,7 @@ public:
         
         while (true) {
             // compare
-            int comp = LookupCompare::compareKeyEntry(st, key, c);
+            int comp = LookupCompare::compareKeyEntry(st, std::forward<Key>(key), c);
             
             // have we found a node that compares equal?
             if (comp == 0) {
