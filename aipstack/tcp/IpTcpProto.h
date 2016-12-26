@@ -49,7 +49,6 @@
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 #include <aipstack/ip/IpStack.h>
-#include <aipstack/misc/index/MruListIndex.h>
 
 #include "IpTcpProto_api.h"
 #include "IpTcpProto_input.h"
@@ -66,6 +65,7 @@ class IpTcpProto :
 {
     APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
                                     EphemeralPortFirst, EphemeralPortLast))
+    APRINTER_USE_TYPES1(Arg::Params, (PcbIndexService))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, TheIpStack))
     
     APRINTER_USE_TYPE1(Context, Clock)
@@ -153,7 +153,7 @@ private:
     // Instantiate the PCB index.
     struct PcbIndexAccessor;
     struct PcbIndexKeyFuncs;
-    using PcbIndex = MruListIndex<TcpPcb, PcbIndexAccessor, PcbKey, PcbIndexKeyFuncs>;
+    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<TcpPcb, PcbIndexAccessor, PcbKey, PcbIndexKeyFuncs>))
     using PcbIndexNode = typename PcbIndex::Node;
     
 public:
@@ -759,7 +759,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     APRINTER_AS_VALUE(int, NumTcpPcbs),
     APRINTER_AS_VALUE(uint8_t, NumOosSegs),
     APRINTER_AS_VALUE(uint16_t, EphemeralPortFirst),
-    APRINTER_AS_VALUE(uint16_t, EphemeralPortLast)
+    APRINTER_AS_VALUE(uint16_t, EphemeralPortLast),
+    APRINTER_AS_TYPE(PcbIndexService)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),

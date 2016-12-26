@@ -42,6 +42,7 @@
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/index/MruListIndex.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/IpTcpProto.h>
@@ -102,7 +103,8 @@ private:
         NumTcpPcbs,
         NumOosSegs,
         49152, // EphemeralPortFirst
-        65535 // EphemeralPortLast
+        65535, // EphemeralPortLast
+        AIpStack::MruListIndexService
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
     

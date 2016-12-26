@@ -1334,7 +1334,7 @@ def setup_network(gen, config, key):
             network_config.key_path('MaxReassSize').error('Value out of range.')
         
         num_tcp_pcbs = network_config.get_int('NumTcpPcbs')
-        if not 2 <= num_tcp_pcbs <= 128:
+        if not 2 <= num_tcp_pcbs <= 2048:
             network_config.key_path('NumTcpPcbs').error('Value out of range.')
         
         num_oos_segs = network_config.get_int('NumOosSegs')
@@ -1672,7 +1672,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 tcpconsole_config.key_path('Port').error('Bad value.')
                             
                             console_max_clients = tcpconsole_config.get_int('MaxClients')
-                            if not (1 <= console_max_clients <= 20):
+                            if not (1 <= console_max_clients <= 32):
                                 tcpconsole_config.key_path('MaxClients').error('Bad value.')
                             
                             console_max_pcbs = tcpconsole_config.get_int('MaxPcbs')
@@ -1730,11 +1730,11 @@ def generate(config_root_data, cfg_name, main_template):
                                 webif_config.key_path('Port').error('Bad value.')
                             
                             webif_max_clients = webif_config.get_int('MaxClients')
-                            if not (1 <= webif_max_clients <= 20):
+                            if not (1 <= webif_max_clients <= 128):
                                 webif_config.key_path('MaxClients').error('Bad value.')
                             
                             webif_queue_size = webif_config.get_int('QueueSize')
-                            if not (0 <= webif_queue_size <= 50):
+                            if not (0 <= webif_queue_size <= 512):
                                 webif_config.key_path('QueueSize').error('Bad value.')
                             
                             webif_max_pcbs = webif_config.get_int('MaxPcbs')

@@ -22,81 +22,97 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_MRU_INDEX_H
-#define APRINTER_IPSTACK_MRU_INDEX_H
+#ifndef APRINTER_IPSTACK_BOOST_AVL_INDEX_H
+#define APRINTER_IPSTACK_BOOST_AVL_INDEX_H
 
 #include <aprinter/meta/ServiceUtils.h>
-#include <aprinter/base/Accessor.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/AvlTree.h>
 
 #include <aipstack/BeginNamespace.h>
 
 template <typename Arg>
-class MruListIndex {
+class AvlTreeIndex {
     APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKey, KeyFuncs))
     
-    using ListNode = APrinter::DoubleEndedListNode<Entry>;
+    using LinkModel = APrinter::PointerLinkModel<Entry>;
+    using Ref = typename LinkModel::Ref;
+    using TreeNode = APrinter::AvlTreeNode<LinkModel>;
     
 public:
     class Node {
-        friend MruListIndex;
+        friend AvlTreeIndex;
         
-        ListNode list_node;
+        TreeNode tree_node;
     };
     
     class Index {
-        using ListNodeAccessor = APrinter::ComposedAccessor<
+        using TreeNodeAccessor = APrinter::ComposedAccessor<
             HookAccessor,
-            APRINTER_MEMBER_ACCESSOR_TN(&Node::list_node)
+            APRINTER_MEMBER_ACCESSOR_TN(&Node::tree_node)
         >;
-        using EntryList = APrinter::DoubleEndedListWithAccessor<Entry, ListNodeAccessor, false>;
+        
+        struct TreeCompare;
+        
+        using EntryTree = APrinter::AvlTree<Entry, TreeNodeAccessor, TreeCompare, LinkModel>;
         
     public:
         inline void init ()
         {
-            m_list.init();
+            m_tree.init();
         }
         
         inline void addEntry (Entry &e)
         {
-            m_list.prepend(&e);
+            bool inserted = m_tree.insert(nullptr, e, nullptr);
+            AMBRO_ASSERT(inserted)
         }
         
         inline void removeEntry (Entry &e)
         {
-            m_list.remove(&e);
+            m_tree.remove(nullptr, e);
         }
         
         Entry * findEntry (LookupKey const &key)
         {
-            for (Entry *ep = m_list.first(); ep != nullptr; ep = m_list.next(ep)) {
-                Entry &e = *ep;
-                if (KeyFuncs::GetKeyOfEntry(e) == key) {
-                    if (&e != m_list.first()) {
-                        m_list.remove(&e);
-                        m_list.prepend(&e);
-                    }
-                    return &e;
-                }
-            }
-            return nullptr;
+            Entry *entry = m_tree.lookup(nullptr, key).pointer();
+            AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
+            return entry;
         }
         
     private:
-        EntryList m_list;
+        struct TreeCompare {
+            inline static int compareEntries (nullptr_t, Ref ref1, Ref ref2)
+            {
+                auto key1 = KeyFuncs::GetKeyOfEntry(*ref1);
+                auto key2 = KeyFuncs::GetKeyOfEntry(*ref2);
+                
+                return (key1 < key2) ? -1 : (key1 == key2) ? 0 : 1;
+            }
+            
+            inline static int compareKeyEntry (nullptr_t, LookupKey const &key1, Ref ref2)
+            {
+                auto key2 = KeyFuncs::GetKeyOfEntry(*ref2);
+                
+                return (key1 < key2) ? -1 : (key1 == key2) ? 0 : 1;
+            }
+        };
+        
+    private:
+        EntryTree m_tree;
     };
 };
 
-struct MruListIndexService {
+struct AvlTreeIndexService {
     APRINTER_ALIAS_STRUCT_EXT(Index, (
         APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
         APRINTER_AS_TYPE(LookupKey),
         APRINTER_AS_TYPE(KeyFuncs)
     ), (
-        APRINTER_DEF_INSTANCE(Index, MruListIndex)
+        APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)
     ))
 };
 

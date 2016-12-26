@@ -508,6 +508,19 @@ public:
         return !operator==(other);
     }
     
+    inline constexpr bool operator< (StructIntArray const &other) const
+    {
+        for (size_t i = 0; i < Length; i++) {
+            if (data[i] < other.data[i]) {
+                return true;
+            }
+            if (data[i] != other.data[i]) {
+                return false;
+            }
+        }
+        return false;
+    }
+    
 public:
     ElemType data[Length];
 };
