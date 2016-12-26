@@ -37,6 +37,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Callback.h>
@@ -139,6 +140,9 @@ private:
     
     // Number of ephemeral ports.
     static PortType const NumEphemeralPorts = EphemeralPortLast - EphemeralPortFirst + 1;
+    
+    // Signed integer type usable as an index for the PCBs array.
+    using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, true>;
     
     // Represents a segment of contiguous out-of-sequence data.
     struct OosSeg {
@@ -270,28 +274,6 @@ private:
     
     // Define the hook accessor for the PCB index.
     struct PcbIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
-    
-    // PCB index link-model specific setup.
-    AMBRO_STRUCT_IF(LinkModelSel, LinkWithArrayIndices) {
-        using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, true>;
-        using Model = APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, -1>;
-        APRINTER_USE_TYPES1(Model, (Ref, State))
-        
-        inline static State makeState (IpTcpProto *tcp) { return tcp->m_pcbs; }
-        inline static Ref makeRef (IpTcpProto *tcp, TcpPcb &pcb) { return Ref(pcb, &pcb - tcp->m_pcbs); }
-    }
-    AMBRO_STRUCT_ELSE(LinkModelSel) {
-        using Model = APrinter::PointerLinkModel<TcpPcb>;
-        APRINTER_USE_TYPES1(Model, (Ref, State))
-        
-        inline static State makeState (IpTcpProto *tcp) { return State(); }
-        inline static Ref makeRef (IpTcpProto *tcp, TcpPcb &pcb) { return pcb; }
-    };
-    
-    // Bring out the things from LinkModelSel.
-    struct PcbIndexLinkModel : public LinkModelSel::Model {};
-    inline auto link_model_state() { return LinkModelSel::makeState(this); }
-    inline auto link_model_ref(TcpPcb &pcb) { return LinkModelSel::makeRef(this, pcb); }
     
     // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
     static SeqType const DefaultWndAnnThreshold = 2700;
@@ -789,6 +771,27 @@ private:
             return PcbKey{pcb.remote_port, pcb.remote_addr, pcb.local_port, pcb.local_addr};
         }
     };
+    
+    // Define the link model.
+    struct PcbIndexLinkModel : public APrinter::If<LinkWithArrayIndices,
+        APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, -1>,
+        APrinter::PointerLinkModel<TcpPcb>
+    > {};
+    APRINTER_USE_TYPES1(PcbIndexLinkModel, (Ref, State))
+    
+    // Returns the link model State value.
+    APRINTER_FUNCTION_IF_ELSE_EXT(LinkWithArrayIndices, inline, State, link_model_state (), {
+        return m_pcbs;
+    }, {
+        return State();
+    })
+    
+    // Returns the link model Ref for a PCB.
+    APRINTER_FUNCTION_IF_ELSE_EXT(LinkWithArrayIndices, inline, Ref, link_model_ref (TcpPcb &pcb), {
+        return Ref(pcb, &pcb - m_pcbs);
+    }, {
+        return pcb;
+    })
     
 private:
     using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
