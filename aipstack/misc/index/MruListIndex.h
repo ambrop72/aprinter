@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_MRU_INDEX_H
-#define APRINTER_IPSTACK_MRU_INDEX_H
+#ifndef APRINTER_IPSTACK_MRU_LIST_INDEX_H
+#define APRINTER_IPSTACK_MRU_LIST_INDEX_H
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Accessor.h>
@@ -35,7 +35,12 @@
 
 template <typename Arg>
 class MruListIndex {
-    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs))
+    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs,
+                              LinkModel))
+    
+    // TODO: This really only works with PointerLinkModel, need to improve
+    // DoubleEndedList to work with a LinkModel.
+    APRINTER_USE_TYPES1(LinkModel, (State, Ref))
     
     using ListNode = APrinter::DoubleEndedListNode<Entry>;
     
@@ -59,17 +64,17 @@ public:
             m_list.init();
         }
         
-        inline void addEntry (Entry &e)
+        inline void addEntry (State st, Ref e)
         {
-            m_list.prepend(&e);
+            m_list.prepend(&*e);
         }
         
-        inline void removeEntry (Entry &e)
+        inline void removeEntry (State st, Ref e)
         {
-            m_list.remove(&e);
+            m_list.remove(&*e);
         }
         
-        Entry * findEntry (LookupKeyArg key)
+        Entry * findEntry (State st, LookupKeyArg key)
         {
             for (Entry *ep = m_list.first(); ep != nullptr; ep = m_list.next(ep)) {
                 Entry &e = *ep;
@@ -94,7 +99,8 @@ struct MruListIndexService {
         APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
         APRINTER_AS_TYPE(LookupKeyArg),
-        APRINTER_AS_TYPE(KeyFuncs)
+        APRINTER_AS_TYPE(KeyFuncs),
+        APRINTER_AS_TYPE(LinkModel)
     ), (
         APRINTER_DEF_INSTANCE(Index, MruListIndex)
     ))

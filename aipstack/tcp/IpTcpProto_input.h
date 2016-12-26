@@ -226,11 +226,13 @@ private:
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
             lis->m_num_pcbs++;
             
+            TcpProto *tcp = pcb->tcp;
+            
             // Add the PCB to the active index.
-            pcb->tcp->m_pcb_index_active.addEntry(*pcb);
+            tcp->m_pcb_index_active.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
             
             // Move the PCB to the front of the unreferenced list.
-            pcb->tcp->move_unrefed_pcb_to_front(pcb);
+            tcp->move_unrefed_pcb_to_front(pcb);
             
             // Start the SYN_RCVD abort timeout.
             pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);

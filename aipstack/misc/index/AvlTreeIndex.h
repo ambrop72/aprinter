@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_BOOST_AVL_INDEX_H
-#define APRINTER_IPSTACK_BOOST_AVL_INDEX_H
+#ifndef APRINTER_IPSTACK_AVL_TREE_INDEX_H
+#define APRINTER_IPSTACK_AVL_TREE_INDEX_H
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Preprocessor.h>
@@ -37,11 +37,11 @@
 
 template <typename Arg>
 class AvlTreeIndex {
-    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs))
+    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs,
+                              LinkModel))
     
-    using LinkModel = APrinter::PointerLinkModel<Entry>;
-    using State = typename LinkModel::State;
-    using Ref = typename LinkModel::Ref;
+    APRINTER_USE_TYPES1(LinkModel, (State, Ref))
+    
     using TreeNode = APrinter::AvlTreeNode<LinkModel>;
     
 public:
@@ -67,20 +67,20 @@ public:
             m_tree.init();
         }
         
-        inline void addEntry (Entry &e)
+        inline void addEntry (State st, Ref e)
         {
-            bool inserted = m_tree.insert(State(), e, nullptr);
+            bool inserted = m_tree.insert(st, e, nullptr);
             AMBRO_ASSERT(inserted)
         }
         
-        inline void removeEntry (Entry &e)
+        inline void removeEntry (State st, Ref e)
         {
-            m_tree.remove(State(), e);
+            m_tree.remove(st, e);
         }
         
-        inline Entry * findEntry (LookupKeyArg key)
+        inline Entry * findEntry (State st, LookupKeyArg key)
         {
-            Entry *entry = m_tree.template lookup<LookupKeyArg>(State(), key).pointer();
+            Entry *entry = m_tree.template lookup<LookupKeyArg>(st, key).pointer();
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }
@@ -95,7 +95,8 @@ struct AvlTreeIndexService {
         APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
         APRINTER_AS_TYPE(LookupKeyArg),
-        APRINTER_AS_TYPE(KeyFuncs)
+        APRINTER_AS_TYPE(KeyFuncs),
+        APRINTER_AS_TYPE(LinkModel)
     ), (
         APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)
     ))

@@ -112,14 +112,12 @@ public:
 
 template <
     typename Entry,
-    typename StateType,
-    typename ArrayAccessor,
     typename IndexType,
     IndexType NullIndex
 >
 class ArrayLinkModel {
 public:
-    using State = StateType;
+    using State = Entry *;
     
     class Ref;
     
@@ -145,10 +143,9 @@ public:
         inline Ref ref (State state) const
         {
             if (isNull()) {
-                return Ref(this, nullptr);
+                return Ref(*this, nullptr);
             } else {
-                auto array = ArrayAccessor::access(state);
-                return Ref(this, &array[m_index]);
+                return Ref(*this, &state[m_index]);
             }
         }
         
@@ -192,6 +189,11 @@ public:
         inline Entry & operator* () const
         {
             return *m_ptr;
+        }
+        
+        inline Entry * pointer () const
+        {
+            return m_ptr;
         }
         
     private:

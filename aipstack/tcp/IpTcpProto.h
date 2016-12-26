@@ -35,6 +35,8 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Callback.h>
@@ -42,6 +44,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkModel.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
@@ -64,7 +67,8 @@ class IpTcpProto :
     private Arg::TheIpStack::ProtoListenerCallback
 {
     APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
-                                    EphemeralPortFirst, EphemeralPortLast))
+                                    EphemeralPortFirst, EphemeralPortLast,
+                                    LinkWithArrayIndices))
     APRINTER_USE_TYPES1(Arg::Params, (PcbIndexService))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, TheIpStack))
     
@@ -154,8 +158,9 @@ private:
     struct PcbIndexAccessor;
     using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
+    struct PcbIndexLinkModel;
     APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
-        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs>))
+        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbIndexLinkModel>))
     
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
@@ -265,6 +270,28 @@ private:
     
     // Define the hook accessor for the PCB index.
     struct PcbIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
+    
+    // PCB index link-model specific setup.
+    AMBRO_STRUCT_IF(LinkModelSel, LinkWithArrayIndices) {
+        using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, true>;
+        using Model = APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, -1>;
+        APRINTER_USE_TYPES1(Model, (Ref, State))
+        
+        inline static State makeState (IpTcpProto *tcp) { return tcp->m_pcbs; }
+        inline static Ref makeRef (IpTcpProto *tcp, TcpPcb &pcb) { return Ref(pcb, &pcb - tcp->m_pcbs); }
+    }
+    AMBRO_STRUCT_ELSE(LinkModelSel) {
+        using Model = APrinter::PointerLinkModel<TcpPcb>;
+        APRINTER_USE_TYPES1(Model, (Ref, State))
+        
+        inline static State makeState (IpTcpProto *tcp) { return State(); }
+        inline static Ref makeRef (IpTcpProto *tcp, TcpPcb &pcb) { return pcb; }
+    };
+    
+    // Bring out the things from LinkModelSel.
+    struct PcbIndexLinkModel : public LinkModelSel::Model {};
+    inline auto link_model_state() { return LinkModelSel::makeState(this); }
+    inline auto link_model_ref(TcpPcb &pcb) { return LinkModelSel::makeRef(this, pcb); }
     
     // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
     static SeqType const DefaultWndAnnThreshold = 2700;
@@ -431,10 +458,11 @@ private:
         }
         
         // Remove the PCB from the index in which it is.
+        IpTcpProto *tcp = pcb->tcp;
         if (pcb->state == TcpState::TIME_WAIT) {
-            pcb->tcp->m_pcb_index_timewait.removeEntry(*pcb);
+            tcp->m_pcb_index_timewait.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
         } else {
-            pcb->tcp->m_pcb_index_active.removeEntry(*pcb);
+            tcp->m_pcb_index_active.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
         }
         
         // Reset other relevant fields to initial state.
@@ -467,8 +495,9 @@ private:
         pcb->state = TcpState::TIME_WAIT;
         
         // Move the PCB from the active index to the time-wait index.
-        pcb->tcp->m_pcb_index_active.removeEntry(*pcb);
-        pcb->tcp->m_pcb_index_timewait.addEntry(*pcb);
+        IpTcpProto *tcp = pcb->tcp;
+        tcp->m_pcb_index_active.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+        tcp->m_pcb_index_timewait.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
         
         // Stop these timers due to asserts in their handlers.
         pcb->output_timer.unset(Context());
@@ -742,12 +771,12 @@ private:
         PcbKey key{remote_port, remote_addr, local_port, local_addr};
         
         // Look in the active index firss.
-        TcpPcb *pcb = m_pcb_index_active.findEntry(key);
+        TcpPcb *pcb = m_pcb_index_active.findEntry(link_model_state(), key);
         AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
         if (pcb == nullptr) {
-            pcb = m_pcb_index_timewait.findEntry(key);
+            pcb = m_pcb_index_timewait.findEntry(link_model_state(), key);
             AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
         }
         
@@ -782,7 +811,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     APRINTER_AS_VALUE(uint8_t, NumOosSegs),
     APRINTER_AS_VALUE(uint16_t, EphemeralPortFirst),
     APRINTER_AS_VALUE(uint16_t, EphemeralPortLast),
-    APRINTER_AS_TYPE(PcbIndexService)
+    APRINTER_AS_TYPE(PcbIndexService),
+    APRINTER_AS_VALUE(bool, LinkWithArrayIndices)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),

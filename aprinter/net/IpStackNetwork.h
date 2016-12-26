@@ -104,7 +104,8 @@ private:
         NumOosSegs,
         49152, // EphemeralPortFirst
         65535, // EphemeralPortLast
-        AIpStack::MruListIndexService
+        AIpStack::MruListIndexService,
+        false // LinkWithArrayIndices
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
     
