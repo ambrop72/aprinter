@@ -69,18 +69,18 @@ public:
         
         inline void addEntry (State st, Ref e)
         {
-            bool inserted = m_tree.insert(st, e, nullptr);
+            bool inserted = m_tree.insert(e, nullptr, st);
             AMBRO_ASSERT(inserted)
         }
         
         inline void removeEntry (State st, Ref e)
         {
-            m_tree.remove(st, e);
+            m_tree.remove(e, st);
         }
         
         inline Entry * findEntry (State st, LookupKeyArg key)
         {
-            Entry *entry = m_tree.template lookup<LookupKeyArg>(st, key).pointer();
+            Entry *entry = m_tree.template lookup<LookupKeyArg>(key, st).pointer();
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }

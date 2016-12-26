@@ -70,7 +70,7 @@ public:
         m_root = Link::null();
     }
     
-    bool insert (State st, Ref node, Ref *out_ref)
+    bool insert (Ref node, Ref *out_ref, State st = State())
     {
         AMBRO_ASSERT(!node.isNull())
         
@@ -129,7 +129,7 @@ public:
         return true;
     }
     
-    void remove (State st, Ref node)
+    void remove (Ref node, State st = State())
     {
         AMBRO_ASSERT(!node.isNull())
         AMBRO_ASSERT(!m_root.isNull())
@@ -156,7 +156,7 @@ public:
     }
     
     template <typename KeyType, typename LookupCompare = Compare>
-    Ref lookup (State st, KeyType key)
+    Ref lookup (KeyType key, State st = State())
     {
         if (m_root.isNull()) {
             return Ref::null();

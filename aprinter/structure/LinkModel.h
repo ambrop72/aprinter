@@ -117,7 +117,18 @@ template <
 >
 class ArrayLinkModel {
 public:
-    using State = Entry *;
+    class State {
+        friend ArrayLinkModel;
+        
+    public:
+        State() = delete;
+        
+        inline State(Entry *array)
+        : m_array(array) {}
+        
+    private:
+        Entry *m_array;
+    };
     
     class Ref;
     
@@ -145,7 +156,7 @@ public:
             if (isNull()) {
                 return Ref(*this, nullptr);
             } else {
-                return Ref(*this, &state[m_index]);
+                return Ref(*this, &state.m_array[m_index]);
             }
         }
         
