@@ -49,7 +49,7 @@ class IpTcpProto_output
                                  can_output_in_state, accepting_data_in_state,
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
-                                   Input, Clock, TimeType, RttType, RttNextType))
+                                   Input, Clock, TimeType, RttType, RttNextType, Constants))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TcpProto::TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -156,7 +156,7 @@ public:
         if (pcb->state != TcpState::SYN_SENT) {
             // Start the output timer if not running.
             if (!pcb->output_timer.isSet(Context())) {
-                pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+                pcb->output_timer.appendAfter(Context(), Constants::OutputTimerTicks);
             }
         }
     }
@@ -194,7 +194,7 @@ public:
                 pcb->setFlag(PcbFlags::OUT_PENDING);
             } else {
                 if (!pcb->output_timer.isSet(Context())) {
-                    pcb->output_timer.appendAfter(Context(), TcpProto::OutputTimerTicks);
+                    pcb->output_timer.appendAfter(Context(), Constants::OutputTimerTicks);
                 }
             }
         }
@@ -338,7 +338,7 @@ public:
         
         // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
-        pcb->rto = APrinter::MinValue(TcpProto::MaxRtxTime, doubled_rto);
+        pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
         pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
         
         // If this for a SYN or SYN-ACK retransmission, retransmit and return.
@@ -419,7 +419,7 @@ public:
         }
         
         // Not in fast recovery?
-        if (AMBRO_LIKELY(pcb->num_dupack < TcpProto::FastRtxDupAcks)) {
+        if (AMBRO_LIKELY(pcb->num_dupack < Constants::FastRtxDupAcks)) {
             // Reset the duplicate ACK counter.
             pcb->num_dupack = 0;
             
@@ -494,7 +494,7 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
-        AMBRO_ASSERT(pcb->num_dupack == TcpProto::FastRtxDupAcks)
+        AMBRO_ASSERT(pcb->num_dupack == Constants::FastRtxDupAcks)
         
         // If we have recover (>=snd_nxt), we must not enter fast recovery.
         // In that case we must decrement num_dupack by one, to indicate that
@@ -529,7 +529,7 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
-        AMBRO_ASSERT(pcb->num_dupack > TcpProto::FastRtxDupAcks)
+        AMBRO_ASSERT(pcb->num_dupack > Constants::FastRtxDupAcks)
         
         // Increment CWND by snd_mss.
         pcb_increase_cwnd(pcb, pcb->snd_mss);
@@ -546,9 +546,9 @@ public:
             RttType k_rttvar = (pcb->rttvar > RttTypeMax / k) ? RttTypeMax : (k * pcb->rttvar);
             RttType var_part = APrinter::MaxValue((RttType)1, k_rttvar);
             RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
-            pcb->rto = APrinter::MaxValue(TcpProto::MinRtxTime, APrinter::MinValue(TcpProto::MaxRtxTime, base_rto));
+            pcb->rto = APrinter::MaxValue(Constants::MinRtxTime, APrinter::MinValue(Constants::MaxRtxTime, base_rto));
         } else {
-            pcb->rto = TcpProto::InitialRtxTime;
+            pcb->rto = Constants::InitialRtxTime;
         }
     }
     

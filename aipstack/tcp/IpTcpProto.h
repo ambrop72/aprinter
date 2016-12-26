@@ -54,6 +54,7 @@
 #include <aipstack/proto/TcpUtils.h>
 #include <aipstack/ip/IpStack.h>
 
+#include "IpTcpProto_constants.h"
 #include "IpTcpProto_api.h"
 #include "IpTcpProto_input.h"
 #include "IpTcpProto_output.h"
@@ -85,6 +86,7 @@ class IpTcpProto :
     static_assert(EphemeralPortFirst > 0, "");
     static_assert(EphemeralPortFirst <= EphemeralPortLast, "");
     
+    template <typename> friend class IpTcpProto_constants;
     template <typename> friend class IpTcpProto_api;
     template <typename> friend class IpTcpProto_input;
     template <typename> friend class IpTcpProto_output;
@@ -92,9 +94,8 @@ class IpTcpProto :
 public:
     APRINTER_USE_TYPES1(TcpUtils, (SeqType, PortType))
     
-    static SeqType const MaxRcvWnd = UINT32_C(0x3fffffff);
-    
 private:
+    using Constants = IpTcpProto_constants<IpTcpProto>;
     using Api = IpTcpProto_api<IpTcpProto>;
     using Input = IpTcpProto_input<IpTcpProto>;
     using Output = IpTcpProto_output<IpTcpProto>;
@@ -169,6 +170,8 @@ private:
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
                               TcpListener, TcpListenerCallback))
+    
+    static SeqType const MaxRcvWnd = Constants::MaxRcvWnd;
     
 private:
     /**
@@ -275,48 +278,6 @@ private:
     // Define the hook accessor for the PCB index.
     struct PcbIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
     
-    // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
-    static SeqType const DefaultWndAnnThreshold = 2700;
-    
-    // How old at most an ACK may be to be considered acceptable (MAX.SND.WND in RFC 5961).
-    static SeqType const MaxAckBefore = UINT32_C(0xFFFF);
-    
-    // Don't allow the remote host to lower the MSS beyond this.
-    static uint16_t const MinAllowedMss = 128;
-    
-    // SYN_RCVD state timeout.
-    static TimeType const SynRcvdTimeoutTicks     = 20.0  * Clock::time_freq;
-    
-    // SYN_SENT state timeout.
-    static TimeType const SynSentTimeoutTicks     = 30.0  * Clock::time_freq;
-    
-    // TIME_WAIT state timeout.
-    static TimeType const TimeWaitTimeTicks       = 120.0 * Clock::time_freq;
-    
-    // Timeout to abort connection after it has been abandoned.
-    static TimeType const AbandonedTimeoutTicks   = 30.0  * Clock::time_freq;
-    
-    // Time after the send buffer is extended to calling pcb_output.
-    static TimeType const OutputTimerTicks        = 0.0005 * Clock::time_freq;
-    
-    // Initial retransmission time, before any round-trip-time measurement.
-    static RttType const InitialRtxTime           = 1.0 * RttTimeFreq;
-    
-    // Minimum retransmission time.
-    static RttType const MinRtxTime               = 0.25 * RttTimeFreq;
-    
-    // Maximum retransmission time (need care not to overflow RttType).
-    static RttType const MaxRtxTime = APrinter::MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
-    
-    // Number of duplicate ACKs to trigger fast retransmit/recovery.
-    static uint8_t const FastRtxDupAcks = 3;
-    
-    // Maximum number of additional duplicate ACKs that will result in CWND increase.
-    static uint8_t const MaxAdditionaDupAcks = 32;
-    
-    // Window scale shift count to send and use in outgoing ACKs.
-    static uint8_t const RcvWndShift = 6;
-    
 public:
     /**
      * Initialize the TCP protocol implementation.
@@ -386,7 +347,6 @@ private:
         }
         
         // Get a PCB to use.
-        // TODO: protect
         TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty();
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED || pcb->con == nullptr)
         
@@ -486,7 +446,7 @@ private:
         pcb->rtx_timer.unset(Context());
         
         // Start the TIME_WAIT timeout.
-        pcb->abrt_timer.appendAfter(Context(), TimeWaitTimeTicks);
+        pcb->abrt_timer.appendAfter(Context(), Constants::TimeWaitTimeTicks);
     }
     
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)
@@ -578,7 +538,7 @@ private:
         }
         
         // Start the abort timeout.
-        pcb->abrt_timer.appendAfter(Context(), AbandonedTimeoutTicks);
+        pcb->abrt_timer.appendAfter(Context(), Constants::AbandonedTimeoutTicks);
     }
     
     static void pcb_abrt_timer_handler (TcpPcb *pcb)
@@ -664,7 +624,7 @@ private:
         
         // Calculate the initial MSS.
         uint16_t iface_mss = get_iface_mss(iface);
-        if (iface_mss < MinAllowedMss) {
+        if (iface_mss < Constants::MinAllowedMss) {
             return IpErr::NO_HEADER_SPACE;
         }
         
@@ -679,7 +639,7 @@ private:
         
         // The initial receive window will be at least one
         // because we must be prepared to accept the SYN.
-        SeqType rcv_wnd = 1 + APrinter::MinValueU(seq_diff(MaxRcvWnd, 1), user_rcv_wnd);
+        SeqType rcv_wnd = 1 + APrinter::MinValueU(seq_diff(Constants::MaxRcvWnd, 1), user_rcv_wnd);
         
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
@@ -693,24 +653,24 @@ private:
         pcb->rcv_nxt = 0; // it is sent in the SYN
         pcb->rcv_wnd = rcv_wnd;
         pcb->rcv_ann = pcb->rcv_nxt;
-        pcb->rcv_ann_thres = DefaultWndAnnThreshold;
+        pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
         pcb->rcv_mss = iface_mss;
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
         pcb->snd_buf_cur = IpBufRef{};
         pcb->snd_psh_index = 0;
         pcb->snd_mss = iface_mss;
-        pcb->rto = InitialRtxTime;
+        pcb->rto = Constants::InitialRtxTime;
         pcb->num_ooseq = 0;
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
-        pcb->rcv_wnd_shift = RcvWndShift;
+        pcb->rcv_wnd_shift = Constants::RcvWndShift;
         
         // Add the PCB to the active index.
         m_pcb_index_active.addEntry(*pcb);
         
         // Start the connection timeout.
-        pcb->abrt_timer.appendAfter(Context(), SynSentTimeoutTicks);
+        pcb->abrt_timer.appendAfter(Context(), Constants::SynSentTimeoutTicks);
         
         // Start the retransmission timer.
         pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));

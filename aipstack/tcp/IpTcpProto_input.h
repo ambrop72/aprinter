@@ -50,7 +50,7 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
-                                   TcpPcb, PcbFlags, Output, OosSeg))
+                                   TcpPcb, PcbFlags, Output, OosSeg, Constants))
     APRINTER_USE_ONEOF
     
 public:
@@ -175,7 +175,7 @@ private:
             // Calculate MSSes.
             uint16_t iface_mss = TcpProto::get_iface_mss(ip_meta.iface);
             uint16_t snd_mss;
-            if (!TcpUtils::calc_snd_mss<TcpProto::MinAllowedMss>(iface_mss, *tcp_meta.opts, &snd_mss)) {
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &snd_mss)) {
                 goto refuse;
             }
             
@@ -199,14 +199,14 @@ private:
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
             pcb->rcv_wnd = lis->m_initial_rcv_wnd;
             pcb->rcv_ann = pcb->rcv_nxt;
-            pcb->rcv_ann_thres = TcpProto::DefaultWndAnnThreshold;
+            pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
             pcb->rcv_mss = iface_mss;
             pcb->snd_una = iss;
             pcb->snd_nxt = iss;
             pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
             pcb->snd_mss = snd_mss;
-            pcb->rto = TcpProto::InitialRtxTime;
+            pcb->rto = Constants::InitialRtxTime;
             pcb->num_ooseq = 0;
             pcb->num_dupack = 0;
             pcb->snd_wnd_shift = 0;
@@ -216,7 +216,7 @@ private:
             if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
                 pcb->setFlag(PcbFlags::WND_SCALE);
                 pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
-                pcb->rcv_wnd_shift = TcpProto::RcvWndShift;
+                pcb->rcv_wnd_shift = Constants::RcvWndShift;
             }
             
             // These will be initialized at transition to ESTABLISHED:
@@ -235,7 +235,7 @@ private:
             tcp->move_unrefed_pcb_to_front(pcb);
             
             // Start the SYN_RCVD abort timeout.
-            pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
+            pcb->abrt_timer.appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
             
             // Start the retransmission timer.
             pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
@@ -289,7 +289,7 @@ private:
         else if (pcb->state == TcpState::TIME_WAIT) {
             // Reply with an ACK and restart the timeout.
             pcb->setFlag(PcbFlags::ACK_PENDING);
-            pcb->abrt_timer.appendAfter(Context(), TcpProto::TimeWaitTimeTicks);
+            pcb->abrt_timer.appendAfter(Context(), Constants::TimeWaitTimeTicks);
         }
         
         // Try to output if desired.
@@ -371,7 +371,7 @@ private:
                         // This seems to be a retransmission of the SYN, retransmit our
                         // SYN+ACK and bump the abort timeout.
                         Output::pcb_send_syn(pcb);
-                        pcb->abrt_timer.appendAfter(Context(), TcpProto::SynRcvdTimeoutTicks);
+                        pcb->abrt_timer.appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
                     }
                     else {
                         Output::pcb_send_empty_ack(pcb);
@@ -474,7 +474,7 @@ private:
             // Check ACK validity as per RFC 5961.
             // For this arithemtic to work we're relying on snd_nxt not wrapping around
             // over snd_una-MaxAckBefore.
-            SeqType past_ack_num = seq_diff(pcb->snd_una, TcpProto::MaxAckBefore);
+            SeqType past_ack_num = seq_diff(pcb->snd_una, Constants::MaxAckBefore);
             bool valid_ack = seq_lte(tcp_meta.ack_num, pcb->snd_nxt, past_ack_num);
             if (AMBRO_UNLIKELY(!valid_ack)) {
                 Output::pcb_send_empty_ack(pcb);
@@ -574,12 +574,12 @@ private:
         if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
             Output::pcb_end_rtt_measurement(pcb);
         } else {
-            pcb->rto = TcpProto::InitialRtxTime;
+            pcb->rto = Constants::InitialRtxTime;
         }
         
         // Initialize congestion control variables.
         pcb->cwnd = Output::pcb_calc_initial_cwnd(pcb);
-        pcb->ssthresh = TcpProto::MaxRcvWnd;
+        pcb->ssthresh = Constants::MaxRcvWnd;
         pcb->cwnd_acked = 0;
         
         if (syn_sent) {
@@ -760,12 +760,12 @@ private:
                 tcp_meta.ack_num == pcb->snd_una &&
                 pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->snd_wnd)
             {
-                if (pcb->num_dupack < TcpProto::FastRtxDupAcks + TcpProto::MaxAdditionaDupAcks) {
+                if (pcb->num_dupack < Constants::FastRtxDupAcks + Constants::MaxAdditionaDupAcks) {
                     pcb->num_dupack++;
-                    if (pcb->num_dupack == TcpProto::FastRtxDupAcks) {
+                    if (pcb->num_dupack == Constants::FastRtxDupAcks) {
                         Output::pcb_fast_rtx_dup_acks_received(pcb);
                     }
-                    else if (pcb->num_dupack > TcpProto::FastRtxDupAcks) {
+                    else if (pcb->num_dupack > Constants::FastRtxDupAcks) {
                         Output::pcb_extra_dup_ack_received(pcb);
                     }
                 }
@@ -1133,7 +1133,7 @@ private:
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), TcpProto::MaxRcvWnd);
+        SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxRcvWnd);
         if (pcb->rcv_wnd < avail_wnd) {
             pcb->rcv_wnd = avail_wnd;
         }

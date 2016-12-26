@@ -47,7 +47,7 @@ class IpTcpProto_api
 {
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output))
+    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants))
     
 public:
     class TcpConnection;
@@ -191,7 +191,7 @@ public:
          */
         void setInitialReceiveWindow (size_t rcv_wnd)
         {
-            m_initial_rcv_wnd = APrinter::MinValueU(TcpProto::MaxRcvWnd, rcv_wnd);
+            m_initial_rcv_wnd = APrinter::MinValueU(Constants::MaxRcvWnd, rcv_wnd);
         }
         
     private:
@@ -426,7 +426,7 @@ public:
         {
             assert_connected();
             AMBRO_ASSERT(rcv_ann_thres > 0)
-            AMBRO_ASSERT(rcv_ann_thres <= TcpProto::MaxRcvWnd)
+            AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxRcvWnd)
             
             m_pcb->rcv_ann_thres = rcv_ann_thres;
         }
