@@ -29,7 +29,7 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedList.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -38,11 +38,9 @@ class MruListIndex {
     APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs,
                               LinkModel))
     
-    // TODO: This really only works with PointerLinkModel, need to improve
-    // DoubleEndedList to work with a LinkModel.
     APRINTER_USE_TYPES1(LinkModel, (State, Ref))
     
-    using ListNode = APrinter::DoubleEndedListNode<Entry>;
+    using ListNode = APrinter::LinkedListNode<LinkModel>;
     
 public:
     class Node {
@@ -56,7 +54,7 @@ public:
             HookAccessor,
             APRINTER_MEMBER_ACCESSOR_TN(&Node::list_node)
         >;
-        using EntryList = APrinter::DoubleEndedListWithAccessor<Entry, ListNodeAccessor, false>;
+        using EntryList = APrinter::LinkedList<Entry, ListNodeAccessor, LinkModel, false>;
         
     public:
         inline void init ()
@@ -66,24 +64,23 @@ public:
         
         inline void addEntry (State st, Ref e)
         {
-            m_list.prepend(&*e);
+            m_list.prepend(e, st);
         }
         
         inline void removeEntry (State st, Ref e)
         {
-            m_list.remove(&*e);
+            m_list.remove(e, st);
         }
         
         Entry * findEntry (State st, LookupKeyArg key)
         {
-            for (Entry *ep = m_list.first(); ep != nullptr; ep = m_list.next(ep)) {
-                Entry &e = *ep;
-                if (KeyFuncs::GetKeyOfEntry(e) == key) {
-                    if (&e != m_list.first()) {
-                        m_list.remove(&e);
-                        m_list.prepend(&e);
+            for (Ref e = m_list.first(st); !e.isNull(); e = m_list.next(e, st)) {
+                if (KeyFuncs::GetKeyOfEntry(*e) == key) {
+                    if (!(e == m_list.first(st))) {
+                        m_list.remove(e, st);
+                        m_list.prepend(e, st);
                     }
-                    return &e;
+                    return &*e;
                 }
             }
             return nullptr;

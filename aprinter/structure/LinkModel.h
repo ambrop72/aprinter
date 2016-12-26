@@ -105,6 +105,11 @@ public:
             return m_link.m_ptr;
         }
         
+        inline bool operator== (Ref const &other) const
+        {
+            return m_link == other.m_link;
+        }
+        
     private:
         Link m_link;
     };
@@ -205,6 +210,11 @@ public:
         inline Entry * pointer () const
         {
             return m_ptr;
+        }
+        
+        inline bool operator== (Ref const &other) const
+        {
+            return m_link == other.m_link;
         }
         
     private:
