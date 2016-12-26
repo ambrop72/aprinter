@@ -40,6 +40,7 @@ class AvlTreeIndex {
     APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs))
     
     using LinkModel = APrinter::PointerLinkModel<Entry>;
+    using State = typename LinkModel::State;
     using Ref = typename LinkModel::Ref;
     using TreeNode = APrinter::AvlTreeNode<LinkModel>;
     
@@ -68,18 +69,18 @@ public:
         
         inline void addEntry (Entry &e)
         {
-            bool inserted = m_tree.insert(nullptr, e, nullptr);
+            bool inserted = m_tree.insert(State(), e, nullptr);
             AMBRO_ASSERT(inserted)
         }
         
         inline void removeEntry (Entry &e)
         {
-            m_tree.remove(nullptr, e);
+            m_tree.remove(State(), e);
         }
         
         inline Entry * findEntry (LookupKeyArg key)
         {
-            Entry *entry = m_tree.template lookup<LookupKeyArg>(nullptr, key).pointer();
+            Entry *entry = m_tree.template lookup<LookupKeyArg>(State(), key).pointer();
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }

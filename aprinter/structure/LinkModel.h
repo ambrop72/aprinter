@@ -30,7 +30,7 @@
 template <typename Entry>
 class PointerLinkModel {
 public:
-    using State = nullptr_t;
+    struct State {};
     
     class Ref;
     
