@@ -25,7 +25,6 @@
 #ifndef APRINTER_LINKED_HEAP_H
 #define APRINTER_LINKED_HEAP_H
 
-#include <stdint.h>
 #include <stddef.h>
 
 #include <type_traits>
