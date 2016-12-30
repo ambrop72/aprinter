@@ -28,6 +28,7 @@
 #include <stddef.h>
 
 #include <type_traits>
+#include <limits>
 
 #include <aprinter/base/Assert.h>
 
@@ -250,15 +251,13 @@ public:
             }
         }
         
-        if (node.link() == m_last) {
+        Ref srcnode = m_last.ref(st);
+        
+        if (!(node == cur)) {
             m_last = cur.link();
-        } else {
-            Ref srcnode = m_last.ref(st);
-            
-            if (!(node == cur)) {
-                m_last = cur.link();
-            }
-            
+        }
+        
+        if (!(node.link() == srcnode.link())) {
             Ref parent = ac(node).parent.ref(st);
             bool side = !parent.isNull() && node.link() == ac(parent).link[1];
             Link child0 = ac(node).link[0];
