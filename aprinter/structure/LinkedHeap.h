@@ -102,17 +102,9 @@ public:
             return;
         }
         
-        SizeType prev_count = m_count;
-        m_count = prev_count + 1;
-        SizeType next_level_bit = 2 * m_level_bit;
-        if (m_count == next_level_bit) {
-            m_level_bit = next_level_bit;
-        }
-        
-        SizeType insert_path = m_count;
-        SizeType rollover_bit = (prev_count ^ insert_path) + 1;
-        SizeType rollover_cost_bit = rollover_bit * rollover_bit;
-        bool from_root = rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
+        SizeType prev_count = increment_count();
+        SizeType new_count = m_count;
+        bool from_root = should_walk_from_root(prev_count, new_count);
         
         Ref cur;
         bool dir;
@@ -123,14 +115,14 @@ public:
             
             while (bit > 2) {
                 bit >>= 1;
-                bool next_dir = (insert_path & bit) != 0;
+                bool next_dir = (new_count & bit) != 0;
                 
                 AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
                 cur = ac(cur).link[next_dir].ref(st);
             }
             
             bit >>= 1;
-            dir = (insert_path & bit) != 0;
+            dir = (new_count & bit) != 0;
         } else {
             cur = m_last.ref(st);
             Ref parent = ac(cur).parent.ref(st);
@@ -193,16 +185,9 @@ public:
             return;
         }
         
-        SizeType prev_count = m_count;
-        m_count = prev_count - 1;
-        if (prev_count == m_level_bit) {
-            m_level_bit = m_level_bit / 2;
-        }
-        
-        SizeType path = m_count;
-        SizeType rollover_bit = (prev_count ^ path) + 1;
-        SizeType rollover_cost_bit = rollover_bit * rollover_bit;
-        bool from_root = rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
+        SizeType prev_count = decrement_count();
+        SizeType new_count = m_count;
+        bool from_root = should_walk_from_root(prev_count, new_count);
         
         Ref cur;
         
@@ -215,7 +200,7 @@ public:
             
             while (bit > 1) {
                 bit >>= 1;
-                bool next_dir = (path & bit) != 0;
+                bool next_dir = (new_count & bit) != 0;
                 
                 AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
                 cur = ac(cur).link[next_dir].ref(st);
@@ -291,6 +276,34 @@ private:
     inline static LinkedHeapNode<LinkModel> & ac (Ref ref)
     {
         return Accessor::access(*ref);
+    }
+    
+    inline SizeType increment_count ()
+    {
+        SizeType prev_count = m_count;
+        m_count = prev_count + 1;
+        SizeType next_level_bit = 2 * m_level_bit;
+        if (m_count == next_level_bit) {
+            m_level_bit = next_level_bit;
+        }
+        return prev_count;
+    }
+    
+    inline SizeType decrement_count ()
+    {
+        SizeType prev_count = m_count;
+        m_count = prev_count - 1;
+        if (prev_count == m_level_bit) {
+            m_level_bit = m_level_bit / 2;
+        }
+        return prev_count;
+    }
+    
+    inline bool should_walk_from_root (SizeType prev_count, SizeType new_count)
+    {
+        SizeType rollover_bit = (prev_count ^ new_count) + 1;
+        SizeType rollover_cost_bit = rollover_bit * rollover_bit;
+        return rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
     }
     
     inline void bubble_up_node (State st, Ref node, Ref parent, Link sibling, bool side)
