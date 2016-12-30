@@ -257,7 +257,7 @@ public:
             m_last = cur.link();
         }
         
-        if (!(node.link() == srcnode.link())) {
+        if (!(node == srcnode)) {
             Ref parent = ac(node).parent.ref(st);
             bool side = !parent.isNull() && node.link() == ac(parent).link[1];
             Link child0 = ac(node).link[0];
