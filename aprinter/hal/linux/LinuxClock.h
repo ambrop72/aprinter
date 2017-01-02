@@ -73,6 +73,8 @@ public:
     static constexpr double time_freq = PowerOfTwo<uint32_t, SubSecondBits>::Value;
     static constexpr double time_unit = 1.0 / time_freq;
     
+    static int const SecondBits = 32 - SubSecondBits;
+    
 private:
     using TheClockUtils = ClockUtilsForClock<LinuxClock>;
     using TheDebugObject = DebugObject<Context, Object>;

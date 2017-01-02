@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <time.h>
 
 #include <atomic>
 
@@ -46,6 +47,10 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedHeap.h>
+#include <aprinter/structure/LinkModel.h>
+#include <aprinter/structure/TreeCompare.h>
+#include <aprinter/base/Accessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -80,6 +85,8 @@ public:
     using TimedEvent = LinuxEventLoopTimedEvent<LinuxEventLoop>;
     using FdEvent = LinuxEventLoopFdEvent<LinuxEventLoop>;
     
+    using TimerLinkModel = PointerLinkModel<TimedEvent>;
+    
     using FastHandlerType = void (*) (Context);
     
     struct FdEvFlags { enum {
@@ -100,15 +107,17 @@ public:
     {
         auto *o = Object::self(c);
         
-        // Init event lists.
+        // Init event data structures.
         o->queued_event_list.init();
-        o->timed_event_list.init();
+        o->timed_event_heap.init();
         o->timed_event_expired_list.init();
+        o->timed_event_dispatch_list.init();
         
         // Initialize other event-related states;
         o->cur_epoll_event = 0;
         o->num_epoll_events = 0;
-        o->timers_changed = false;
+        o->timerfd_configured = false;
+        o->timers_now = Clock::getTime(c);
         
         // Clear the fastevent pending flags.
         for (auto i : LoopRangeAuto(Extra<>::NumFastEvents)) {
@@ -140,53 +149,25 @@ public:
         // Dispatch any initial queued events.
         dispatch_queued_events(c);
         
-        // Get the current time.
-        struct timespec now_ts = Clock::getTimespec(c);
-        TimeType now = Clock::timespecToTime(now_ts);
+        struct timespec now_ts;
+        TimeType now;
         
         while (true) {
-            // All previous events must have been processed.
-            AMBRO_ASSERT(o->timed_event_expired_list.isEmpty())
-            AMBRO_ASSERT(o->cur_epoll_event == o->num_epoll_events)
-            
-            // Make sure the timerfd is set to expire accordign to the current timers.
-            if (o->timers_changed) {
-                o->timers_changed = false;
-                configure_timerfd(c, now_ts, now);
-            }
-            
-            // Wait for events with epoll.
-            int wait_res;
-            while (true) {
-                wait_res = ::epoll_wait(o->epoll_fd, o->epoll_events, NumEpollEvents, -1);
-                if (wait_res >= 0) {
-                    break;
-                }
-                int err = errno;
-                AMBRO_ASSERT_FORCE(err == EINTR) // nothign else should happen here
-            }
-            AMBRO_ASSERT_FORCE(wait_res <= NumEpollEvents)
-            
             // Update the current time.
             now_ts = Clock::getTimespec(c);
             now = Clock::timespecToTime(now_ts);
             
-            // Set the epoll event count and position.
-            o->cur_epoll_event = 0;
-            o->num_epoll_events = wait_res;
-            
-            // Move expired timers to the expired list.
-            move_expired_timers_to_expired(c, now);
+            // Move expired timers to the dispatch list, update timers_now.
+            update_timers_for_dispatch(c, now);
             
             // Dispatch expired timers.
-            while (TimedEvent *tev = o->timed_event_expired_list.first()) {
+            while (TimedEvent *tev = o->timed_event_dispatch_list.first()) {
                 tev->debugAccess(c);
-                AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
-                AMBRO_ASSERT(tev->m_expired)
+                AMBRO_ASSERT(tev->m_state == TimedEvent::State::DISPATCH)
                 
-                // Remove event from expired list.
-                o->timed_event_expired_list.removeFirst();
-                TimedEventList::markRemoved(tev);
+                // Remove event from dispatch list, adjust state.
+                o->timed_event_dispatch_list.removeFirst();
+                tev->m_state = TimedEvent::State::IDLE;
                 
                 // Call the handler.
                 tev->m_handler(c);
@@ -242,6 +223,29 @@ public:
                     }
                 }
             }
+            
+            // All previous events must have been processed.
+            AMBRO_ASSERT(o->timed_event_dispatch_list.isEmpty())
+            AMBRO_ASSERT(o->cur_epoll_event == o->num_epoll_events)
+            
+            // Make sure the timerfd is set to expire according to the current timers.
+            configure_timerfd(c, now_ts);
+            
+            // Wait for events with epoll.
+            int wait_res;
+            while (true) {
+                wait_res = ::epoll_wait(o->epoll_fd, o->epoll_events, NumEpollEvents, -1);
+                if (wait_res >= 0) {
+                    break;
+                }
+                int err = errno;
+                AMBRO_ASSERT_FORCE(err == EINTR) // nothign else should happen here
+            }
+            AMBRO_ASSERT_FORCE(wait_res <= NumEpollEvents)
+            
+            // Set the epoll event count and position.
+            o->cur_epoll_event = 0;
+            o->num_epoll_events = wait_res;
         }
     }
     
@@ -303,6 +307,11 @@ private:
     using QueuedEventList = DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node>;
     using TimedEventList = DoubleEndedList<TimedEvent, &TimedEvent::m_list_node>;
     
+    using TimerHeapNodeAccessor = typename APRINTER_MEMBER_ACCESSOR(&TimedEvent::m_heap_node);
+    struct TimerKeyFuncs;
+    using TimerCompare = TreeCompare<TimerLinkModel, TimerKeyFuncs>;
+    using TimedEventHeap = LinkedHeap<TimedEvent, TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
+    
     template <typename This=LinuxEventLoop>
     using Extra = typename This::ExtraDelay::Type;
     
@@ -337,60 +346,89 @@ private:
         }
     }
     
-    static void move_expired_timers_to_expired (Context c, TimeType now)
+    static void update_timers_for_dispatch (Context c, TimeType now)
     {
         auto *o = Object::self(c);
         
-        TimedEvent *tev = o->timed_event_list.first();
+        TimedEvent *tev;
         
-        while (tev != nullptr) {
+        while ((tev = o->timed_event_expired_list.first()) != nullptr) {
             tev->debugAccess(c);
-            AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
-            AMBRO_ASSERT(!tev->m_expired)
-            TimedEvent *next_tev = o->timed_event_list.next(tev);
+            AMBRO_ASSERT(tev->m_state == TimedEvent::State::EXPIRED)
             
-            if (TheClockUtils::timeGreaterOrEqual(now, tev->m_time)) {
-                tev->m_expired = true;
-                o->timed_event_list.remove(tev);
-                o->timed_event_expired_list.append(tev);
-                o->timers_changed = true;
+            tev->m_state = TimedEvent::State::DISPATCH;
+            o->timed_event_expired_list.removeFirst();
+            o->timed_event_dispatch_list.append(tev);
+        }
+        
+        bool force_expire = !TheClockUtils::timeGreaterOrEqual(now, o->timers_now);
+        
+        while ((tev = o->timed_event_heap.first().pointer()) != nullptr) {
+            tev->debugAccess(c);
+            AMBRO_ASSERT(tev->m_state == TimedEvent::State::QUEUED)
+            AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(tev->m_time, o->timers_now))
+            
+            if (!force_expire && !TheClockUtils::timeGreaterOrEqual(now, tev->m_time)) {
+                break;
             }
             
-            tev = next_tev;
+            tev->m_state = TimedEvent::State::DISPATCH;
+            o->timed_event_heap.remove(*tev);
+            o->timed_event_dispatch_list.append(tev);
         }
+        
+        o->timers_now = now;
     }
     
-    static void configure_timerfd (Context c, struct timespec now_ts, TimeType now)
+    // now_ts MUST correspod to o->timers_now!
+    static void configure_timerfd (Context c, struct timespec now_ts)
     {
         auto *o = Object::self(c);
         
         bool have_first_time = false;
         TimeType first_time;
         
-        for (TimedEvent *tev = o->timed_event_list.first(); tev != nullptr; tev = o->timed_event_list.next(tev)) {
+        TimedEvent *tev;
+        if (!o->timed_event_expired_list.isEmpty()) {
+            have_first_time = true;
+            first_time = o->timers_now;
+        }
+        else if ((tev = o->timed_event_heap.first().pointer()) != nullptr) {
             tev->debugAccess(c);
-            AMBRO_ASSERT(!TimedEventList::isRemoved(tev))
-            AMBRO_ASSERT(!tev->m_expired)
+            AMBRO_ASSERT(tev->m_state == TimedEvent::State::QUEUED)
+            AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(tev->m_time, o->timers_now))
             
-            TimeType tev_time = tev->m_time;
-            if (!TheClockUtils::timeGreaterOrEqual(tev_time, now)) {
-                have_first_time = true;
-                first_time = now;
-                break;
-            }
-            
-            if (!have_first_time || !TheClockUtils::timeGreaterOrEqual(tev_time, first_time)) {
-                have_first_time = true;
-                first_time = tev_time;
-            }
+            have_first_time = true;
+            first_time = tev->m_time;
         }
         
         struct itimerspec itspec = {};
+        
         if (have_first_time) {
+            // Avoid redundant timerfd_settime.
+            time_t now_high_sec = now_ts.tv_sec >> Clock::SecondBits;
+            if (o->timerfd_configured &&
+                first_time == o->timerfd_time &&
+                now_high_sec == o->timerfd_now_high_sec) {
+                return;
+            }
+            
             // Compute the target timespec based on difference between first_time and now.
-            TimeType time_from_now = TheClockUtils::timeDifference(first_time, now);
+            TimeType time_from_now = TheClockUtils::timeDifference(first_time, o->timers_now);
             itspec.it_value = Clock::addTimeToTimespec(now_ts, time_from_now);
-        } // Else leave itspec zeroed, this disarms the timerfd.
+            
+            o->timerfd_time = first_time;
+            o->timerfd_now_high_sec = now_high_sec;
+        } else {
+            // Avoid redundant timerfd_settime.
+            if (!o->timerfd_configured) {
+                return;
+            }
+            
+            // Leave itspec zeroed to disable the timer.
+        }
+        
+        o->timerfd_configured = have_first_time;
         
         int res = ::timerfd_settime(o->timer_fd, TFD_TIMER_ABSTIME, &itspec, nullptr);
         AMBRO_ASSERT_FORCE(res == 0)
@@ -456,17 +494,42 @@ private:
         return (events & ~(FdEvFlags::EV_READ|FdEvFlags::EV_WRITE)) == 0;
     }
     
+    struct ComparableTime {
+        TimeType value;
+        
+        inline bool operator== (ComparableTime const &other) const
+        {
+            return value == other.value;
+        }
+        
+        inline bool operator< (ComparableTime const &other) const
+        {
+            return !TheClockUtils::timeGreaterOrEqual(value, other.value);
+        }
+    };
+    
+    struct TimerKeyFuncs {
+        inline static ComparableTime GetKeyOfEntry (TimedEvent const &timer)
+        {
+            return ComparableTime{timer.m_time};
+        }
+    };
+    
 public:
     struct Object : public ObjBase<LinuxEventLoop, ParentObject, MakeTypeList<TheDebugObject>> {
         QueuedEventList queued_event_list;
-        TimedEventList timed_event_list;
+        TimedEventHeap timed_event_heap;
         TimedEventList timed_event_expired_list;
+        TimedEventList timed_event_dispatch_list;
         int cur_epoll_event;
         int num_epoll_events;
         int epoll_fd;
         int timer_fd;
         int event_fd;
-        bool timers_changed;
+        TimeType timers_now;
+        TimeType timerfd_time;
+        time_t timerfd_now_high_sec;
+        bool timerfd_configured;
         struct epoll_event epoll_events[NumEpollEvents];
     };
 };
@@ -610,6 +673,8 @@ class LinuxEventLoopTimedEvent
 {
     friend Loop;
     
+    enum class State : uint8_t {IDLE, QUEUED, EXPIRED, DISPATCH};
+    
 public:
     APRINTER_USE_TYPE1(Loop, Context)
     APRINTER_USE_TYPE1(Loop, TimeType)
@@ -620,7 +685,7 @@ public:
         AMBRO_ASSERT(handler)
         
         m_handler = handler;
-        Loop::TimedEventList::markRemoved(this);
+        m_state = State::IDLE;
         
         this->debugInit(c);
     }
@@ -629,8 +694,8 @@ public:
     {
         this->debugDeinit(c);
         
-        if (!Loop::TimedEventList::isRemoved(this)) {
-            remove_from_list(c);
+        if (m_state != State::IDLE) {
+            unlink_it(c);
         }
     }
     
@@ -638,9 +703,9 @@ public:
     {
         this->debugAccess(c);
         
-        if (!Loop::TimedEventList::isRemoved(this)) {
-            remove_from_list(c);
-            Loop::TimedEventList::markRemoved(this);
+        if (m_state != State::IDLE) {
+            unlink_it(c);
+            m_state = State::IDLE;
         }
     }
     
@@ -648,27 +713,27 @@ public:
     {
         this->debugAccess(c);
         
-        return !Loop::TimedEventList::isRemoved(this);
+        return m_state != State::IDLE;
     }
     
     void appendAtNotAlready (Context c, TimeType time)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(Loop::TimedEventList::isRemoved(this))
+        AMBRO_ASSERT(m_state == State::IDLE)
         
-        add_to_list(c);
         m_time = time;
+        link_it(c);
     }
     
     void appendAt (Context c, TimeType time)
     {
         this->debugAccess(c);
         
-        if (!Loop::TimedEventList::isRemoved(this)) {
-            remove_from_list(c);
+        if (m_state != State::IDLE) {
+            unlink_it(c);
         }
-        add_to_list(c);
         m_time = time;
+        link_it(c);
     }
     
     void appendNowNotAlready (Context c)
@@ -699,29 +764,42 @@ public:
     }
     
 private:
-    void add_to_list (Context c)
+    void link_it (Context c)
     {
         auto *lo = Loop::Object::self(c);
-        m_expired = false;
-        lo->timed_event_list.append(this);
-        lo->timers_changed = true;
-    }
-    
-    void remove_from_list (Context c)
-    {
-        auto *lo = Loop::Object::self(c);
-        if (m_expired) {
-            lo->timed_event_expired_list.remove(this);
+        
+        if (Loop::TheClockUtils::timeGreaterOrEqual(m_time, lo->timers_now)) {
+            lo->timed_event_heap.insert(*this);
+            m_state = State::QUEUED;
         } else {
-            lo->timed_event_list.remove(this);
-            lo->timers_changed = true;
+            lo->timed_event_expired_list.append(this);
+            m_state = State::EXPIRED;
         }
     }
     
-    DoubleEndedListNode<LinuxEventLoopTimedEvent> m_list_node;
+    void unlink_it (Context c)
+    {
+        auto *lo = Loop::Object::self(c);
+        
+        if (m_state == State::QUEUED) {
+            lo->timed_event_heap.remove(*this);
+        }
+        else if (m_state == State::EXPIRED) {
+            lo->timed_event_expired_list.remove(this);
+        }
+        else {
+            AMBRO_ASSERT(m_state == State::DISPATCH)
+            lo->timed_event_dispatch_list.remove(this);
+        }
+    }
+    
+    union {
+        DoubleEndedListNode<LinuxEventLoopTimedEvent> m_list_node;
+        LinkedHeapNode<typename Loop::TimerLinkModel> m_heap_node;
+    };
     HandlerType m_handler;
     TimeType m_time;
-    bool m_expired;
+    State m_state;
 };
 
 template <typename Loop>
