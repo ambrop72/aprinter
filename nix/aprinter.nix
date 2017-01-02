@@ -23,7 +23,7 @@
  */
 
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
-, clang, asf, stm32cubef4, teensyCores, boost-aprinter
+, clang, asf, stm32cubef4, teensyCores
 , aprinterSource, buildVars, extraSources
 , extraIncludes, defines, linkerSymbols
 , mainText, boardName, buildName, desiredOutputs
@@ -34,7 +34,6 @@
 , buildWithClang ? false
 , verboseBuild ? false
 , debugSymbols ? false
-, useBoost ? false
 }:
 
 let
@@ -43,8 +42,6 @@ let
     board = builtins.getAttr boardName boardDefinitions;
     
     collectSources = suffix: (stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix suffix) extraSources));
-    
-    boostIncludes = if useBoost then ["${boost-aprinter}"] else [];
     
     targetVars = {
         PLATFORM = board.platform;
@@ -55,9 +52,7 @@ let
         EXTRA_C_SOURCES = collectSources ".c";
         EXTRA_CXX_SOURCES = collectSources ".cpp";
         EXTRA_ASM_SOURCES = collectSources ".S";
-        EXTRA_COMPILE_FLAGS =
-            (map (f: "-I${f}") (extraIncludes ++ boostIncludes)) ++
-            (map (define: "-D${define.name}=${define.value}") defines);
+        EXTRA_COMPILE_FLAGS = (map (f: "-I" + f) extraIncludes) ++ (map (define: "-D${define.name}=${define.value}") defines);
         EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
     };
     
@@ -116,7 +111,6 @@ assert buildWithClang && isLinux -> clang != null;
 assert needAsf -> asf != null;
 assert needStm32CubeF4 -> stm32cubef4 != null;
 assert needTeensyCores -> teensyCores != null;
-assert useBoost -> boost-aprinter != null;
 
 stdenv.mkDerivation rec {
     aprinterBuildName = buildName;
