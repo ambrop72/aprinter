@@ -71,9 +71,9 @@ nix-build nix/ -A aprinterWebifTest -o ~/aprinter-webif-test && ~/aprinter-webif
 # TAP config for Linux
 ip tuntap add dev tap9 mode tap user ambro
 ifconfig tap9 192.168.64.1/24
-tc qdisc add dev tap9 root netem delay 5ms
+tc qdisc add dev tap9 root netem delay 1ms
 modprobe ifb
 ip link set dev ifb0 up
 tc qdisc add dev tap9 ingress
 tc filter add dev tap9 parent ffff: protocol ip u32 match u32 0 0 flowid 1:1 action mirred egress redirect dev ifb0
-tc qdisc add dev ifb0 root netem delay 5ms
+tc qdisc add dev ifb0 root netem delay 1ms
