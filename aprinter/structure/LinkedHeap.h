@@ -98,7 +98,7 @@ public:
             ac(node).link[0] = Link::null();
             ac(node).link[1] = Link::null();
             
-            assert_heap(st);
+            assertValidHeap(st);
             return;
         }
         
@@ -170,7 +170,7 @@ public:
             bubble_up_node(st, node, parent, sibling, dir);
         }
         
-        assert_heap(st);
+        assertValidHeap(st);
     }
     
     void remove (Ref node, State st = State())
@@ -181,7 +181,7 @@ public:
             m_root = Link::null();
             m_count = 0;
             
-            assert_heap(st);
+            assertValidHeap(st);
             return;
         }
         
@@ -269,7 +269,59 @@ public:
             }
         }
         
-        assert_heap(st);
+        assertValidHeap(st);
+    }
+    
+    template <typename KeyType>
+    Ref findFirstLesserOrEqual (KeyType key, State st = State())
+    {
+        Ref root = m_root.ref(st);
+        if (!root.isNull() && Compare::compareKeyEntry(st, key, root) >= 0) {
+            return root;
+        }
+        
+        return Ref::null();
+    }
+    
+    template <typename KeyType>
+    Ref findNextLesserOrEqual (KeyType key, Ref node, State st = State())
+    {
+        AMBRO_ASSERT(!node.isNull())
+        AMBRO_ASSERT(Compare::compareKeyEntry(st, key, node) >= 0)
+        
+        for (bool side : {false, true}) {
+            Ref child = ac(node).link[side].ref(st);
+            if (!child.isNull() && Compare::compareKeyEntry(st, key, child) >= 0) {
+                return child;
+            }
+        }
+        
+        Ref parent = ac(node).parent.ref(st);
+        
+        while (!parent.isNull()) {
+            AMBRO_ASSERT(Compare::compareKeyEntry(st, key, parent) >= 0)
+            
+            if (!(node.link() == ac(parent).link[1])) {
+                AMBRO_ASSERT(node.link() == ac(parent).link[0])
+                
+                Ref sibling = ac(parent).link[1].ref(st);
+                if (!sibling.isNull() && Compare::compareKeyEntry(st, key, sibling) >= 0) {
+                    return sibling;
+                }
+            }
+            
+            node = parent;
+            parent = ac(node).parent.ref(st);
+        }
+        
+        return Ref::null();
+    }
+    
+    inline void assertValidHeap (State st = State())
+    {
+#if APRINTER_LINKED_HEAP_VERIFY
+        verify_heap(st);
+#endif
     }
     
 private:
@@ -397,13 +449,6 @@ private:
         if (!(ac(node).link[1] = child1).isNull()) {
             ac(child1.ref(st)).parent = node.link();
         }
-    }
-    
-    inline void assert_heap (State st)
-    {
-#if APRINTER_LINKED_HEAP_VERIFY
-        verify_heap(st);
-#endif
     }
     
 #if APRINTER_LINKED_HEAP_VERIFY
