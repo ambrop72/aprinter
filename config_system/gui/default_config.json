@@ -4040,8 +4040,8 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "NumArpEntries": 16,
-          "ArpProtectCount": 8,
+          "MaxReassSize": 10000,
+          "ArpProtectCount": 16,
           "EthernetDriver": {
             "_compoundName": "LinuxTapEthernet"
           },
@@ -4049,24 +4049,43 @@
           "IpGateway": "192.168.64.1",
           "IpNetmask": "255.255.255.0",
           "MacAddress": "BE:EF:DE:AD:FE:ED",
-          "NetEnabled": true,
+          "MaxReassPackets": 2,
           "DhcpEnabled": false,
-          "NumTcpPcbs": 16,
-          "TcpRxBuf": 5840,
-          "TcpTxBuf": 7300,
+          "NetEnabled": true,
+          "NumArpEntries": 32,
+          "NumOosSegs": 4,
+          "NumTcpPcbs": 512,
           "TcpWndUpdThrDiv": 4,
           "_compoundName": "Network",
           "tcpconsole": {
-            "MaxClients": 2,
+            "MaxClients": 8,
             "MaxCommandSize": 256,
             "MaxParts": 16,
-            "MaxPcbs": 4,
+            "MaxPcbs": 32,
             "Port": 23,
+            "RecvBufferSize": 50000,
             "SendBufTimeout": 5,
+            "SendBufferSize": 50000,
+            "SendEndTimeout": 10,
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "_compoundName": "NoWebInterface"
+            "MaxPcbs": 256,
+            "AllowPersistent": false,
+            "GcodeSendBufTimeout": 10,
+            "InactivityTimeout": 10,
+            "JsonBufferSize": 512,
+            "MaxClients": 64,
+            "MaxGcodeCommandSize": 128,
+            "MaxGcodeParts": 16,
+            "EnableDebug": false,
+            "NumGcodeSlots": 8,
+            "Port": 80,
+            "QueueSize": 64,
+            "QueueTimeout": 10,
+            "RecvBufferSize": 50000,
+            "SendBufferSize": 50000,
+            "_compoundName": "WebInterface"
           }
         }
       },
@@ -4108,7 +4127,34 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "_compoundName": "NoSdCard"
+          "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "EnableFsTest": true,
+            "EnableReadHinting": true,
+            "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "MaxIoBlocks": 24,
+            "NumCacheEntries": 24,
+            "_compoundName": "Fat32"
+          },
+          "GcodeParser": {
+            "MaxParts": 16,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "BlockSize": 512,
+            "MaxIoBlocks": 1024,
+            "MaxIoDescriptors": 24,
+            "_compoundName": "LinuxSdCard"
+          },
+          "_compoundName": "SdCard"
         }
       },
       "serial_ports": [
@@ -7199,71 +7245,296 @@
       }
     },
     {
-      "board": "Linux Test",
-      "WaitReportPeriod": 1,
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
+      "platform_config": {
+        "platform": {
+          "_compoundName": "Linux",
+          "adc": {
+            "_compoundName": "NoAdc"
+          },
+          "clock": {
+            "MaxTimers": 4,
+            "SubSecondBits": 20,
+            "_compoundName": "LinuxClock",
+            "avail_oc_units": [
+              {
+                "value": "0"
+              },
+              {
+                "value": "1"
+              },
+              {
+                "value": "2"
+              },
+              {
+                "value": "3"
+              },
+              {
+                "value": "4"
+              },
+              {
+                "value": "5"
+              },
+              {
+                "value": "6"
+              },
+              {
+                "value": "7"
+              },
+              {
+                "value": "8"
+              },
+              {
+                "value": "9"
+              },
+              {
+                "value": "10"
+              },
+              {
+                "value": "11"
+              },
+              {
+                "value": "12"
+              },
+              {
+                "value": "13"
+              },
+              {
+                "value": "14"
+              },
+              {
+                "value": "15"
+              }
+            ],
+            "primary_timer": ""
+          },
+          "pins": {
+            "_compoundName": "StubPins",
+            "input_mode_type": "StubPinInputMode"
+          },
+          "watchdog": {
+            "_compoundName": "NullWatchdog"
+          }
+        },
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "linuxtest",
+        "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": true,
+          "output_hex": false
+        }
       },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
-      },
-      "fans": [
+      "digital_inputs": [],
+      "analog_inputs": [],
+      "pwm_outputs": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "SoftPwmTest"
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "StubPin",
+            "PulseInterval": 0.1,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "3"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "SoftPwmTest",
+          "_compoundName": "pwm_output"
         }
       ],
-      "heaters": [],
-      "lasers": [],
       "name": "Linux Test",
-      "probe_config": {
-        "_compoundName": "ProbeConfig",
-        "probe": {
-          "_compoundName": "NoProbe"
+      "development": {
+        "EnableBasicTestModule": true,
+        "AssertionsEnabled": true,
+        "DebugSymbols": true,
+        "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
+        "BuildWithClang": false,
+        "EnableBulkOutputTest": true,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": true,
+        "_compoundName": "development"
+      },
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "StubPin",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "MaxReassSize": 10000,
+          "ArpProtectCount": 16,
+          "EthernetDriver": {
+            "_compoundName": "LinuxTapEthernet"
+          },
+          "IpAddress": "192.168.64.10",
+          "IpGateway": "192.168.64.1",
+          "IpNetmask": "255.255.255.0",
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "MaxReassPackets": 2,
+          "DhcpEnabled": false,
+          "NetEnabled": true,
+          "NumArpEntries": 32,
+          "NumOosSegs": 4,
+          "NumTcpPcbs": 512,
+          "TcpWndUpdThrDiv": 4,
+          "_compoundName": "Network",
+          "tcpconsole": {
+            "MaxClients": 8,
+            "MaxCommandSize": 256,
+            "MaxParts": 16,
+            "MaxPcbs": 32,
+            "Port": 23,
+            "RecvBufferSize": 50000,
+            "SendBufTimeout": 5,
+            "SendBufferSize": 50000,
+            "SendEndTimeout": 10,
+            "_compoundName": "TcpConsole"
+          },
+          "webinterface": {
+            "MaxPcbs": 256,
+            "AllowPersistent": false,
+            "GcodeSendBufTimeout": 10,
+            "InactivityTimeout": 10,
+            "JsonBufferSize": 512,
+            "MaxClients": 64,
+            "MaxGcodeCommandSize": 128,
+            "MaxGcodeParts": 16,
+            "EnableDebug": false,
+            "NumGcodeSlots": 8,
+            "Port": 80,
+            "QueueSize": 64,
+            "QueueTimeout": 10,
+            "RecvBufferSize": 50000,
+            "SendBufferSize": 50000,
+            "_compoundName": "WebInterface"
+          }
         }
       },
-      "steppers": [
+      "performance": {
+        "LookaheadCommitCount": 8,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 512,
+        "FpType": "double",
+        "LookaheadBufferSize": 32,
+        "EventChannelBufferSize": 64,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 100000,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 64,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "0"
+      },
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "_compoundName": "NoStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "EnableFsTest": true,
+            "EnableReadHinting": true,
+            "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "MaxIoBlocks": 24,
+            "NumCacheEntries": 24,
+            "_compoundName": "Fat32"
+          },
+          "GcodeParser": {
+            "MaxParts": 16,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "BlockSize": 512,
+            "MaxIoBlocks": 1024,
+            "MaxIoDescriptors": 24,
+            "_compoundName": "LinuxSdCard"
+          },
+          "_compoundName": "SdCard"
+        }
+      },
+      "serial_ports": [
         {
-          "MinPos": 0,
-          "CorneringDistance": 40,
-          "EnableCartesianSpeedLimit": true,
-          "IsExtruder": false,
-          "MaxAccel": 1500,
-          "MaxPos": 200,
-          "MaxSpeed": 300,
-          "DistanceFactor": 1,
-          "Name": "X",
-          "PreloadCommands": false,
-          "StepsPerUnit": 80,
-          "_compoundName": "stepper",
-          "delay": {
-            "_compoundName": "NoDelay"
+          "BaudRate": 0,
+          "GcodeMaxParts": 15,
+          "RecvBufferSizeExp": 12,
+          "SendBufferSizeExp": 12,
+          "Service": {
+            "_compoundName": "LinuxStdInOutSerial"
           },
-          "homing": {
-            "_compoundName": "no_homing"
-          },
-          "slave_steppers": [
-            {
-              "Current": 0,
-              "InvertDir": false,
-              "MicroSteps": 0,
-              "_compoundName": "slave_stepper",
-              "stepper_port": "X"
-            }
-          ]
+          "_compoundName": "serial"
         }
       ],
-      "transform": {
-        "_compoundName": "NoTransform"
-      }
+      "stepper_ports": [
+        {
+          "DirPin": "StubPin",
+          "EnableLevel": false,
+          "EnablePin": "StubPin",
+          "Name": "X",
+          "StepLevel": true,
+          "StepPin": "StubPin",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "1"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "StubPin",
+          "EnableLevel": false,
+          "EnablePin": "StubPin",
+          "Name": "Y",
+          "StepLevel": true,
+          "StepPin": "StubPin",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "2"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        }
+      ]
     }
   ],
   "_compoundName": "editor",
