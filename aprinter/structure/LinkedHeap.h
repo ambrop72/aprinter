@@ -34,6 +34,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
+//#define APRINTER_LINKED_HEAP_VERIFY 1
+
 template<typename, typename, typename, typename, typename>
 class LinkedHeap;
 
@@ -272,6 +274,43 @@ public:
         assertValidHeap(st);
     }
     
+    void fixup (Ref node, State st = State())
+    {
+        AMBRO_ASSERT(!m_root.isNull() && m_count > 0)
+        
+        if (m_count == 1) {
+            assertValidHeap(st);
+            return;
+        }
+        
+        Ref parent = ac(node).parent.ref(st);
+        if (!parent.isNull() && Compare::compareEntries(st, node, parent) < 0) {
+            Link child0 = ac(node).link[0];
+            Link child1 = ac(node).link[1];
+            
+            bool side = node.link() == ac(parent).link[1];
+            Link sibling = ac(parent).link[!side];
+            
+            if (!(ac(parent).link[0] = child0).isNull()) {
+                ac(child0.ref(st)).parent = parent.link();
+            }
+            
+            if (!(ac(parent).link[1] = child1).isNull()) {
+                ac(child1.ref(st)).parent = parent.link();
+            }
+            
+            if (m_last == node.link()) {
+                m_last = parent.link();
+            }
+            
+            bubble_up_node(st, node, parent, sibling, side);
+        } else {
+            bubble_down_node_if_needed(st, node);
+        }
+        
+        assertValidHeap(st);
+    }
+    
     template <typename KeyType>
     Ref findFirstLesserOrEqual (KeyType key, State st = State())
     {
@@ -320,8 +359,37 @@ public:
     inline void assertValidHeap (State st = State())
     {
 #if APRINTER_LINKED_HEAP_VERIFY
-        verify_heap(st);
+        verifyHeap(st);
 #endif
+    }
+    
+    void verifyHeap (State st = State())
+    {
+        if (m_root.isNull()) {
+            AMBRO_ASSERT_FORCE(m_count == 0)
+            return;
+        }
+        
+        AssertData ad;
+        ad.state = AssertState::NoDepth;
+        ad.prev_leaf = Link::null();
+        ad.count = 0;
+        
+        AMBRO_ASSERT_FORCE(!m_last.isNull())
+        AMBRO_ASSERT_FORCE(ac(m_root.ref(st)).parent.isNull())
+        
+        assert_recurser(st, m_root.ref(st), ad, 0);
+        
+        AMBRO_ASSERT_FORCE(ad.prev_leaf == m_last)
+        AMBRO_ASSERT_FORCE(ad.count == m_count)
+        
+        int bits = 0;
+        SizeType x = m_count;
+        while (x > 0) {
+            x /= 2;
+            bits++;
+        }
+        AMBRO_ASSERT_FORCE(m_level_bit == ((SizeType)1 << (bits - 1)))
     }
     
 private:
@@ -397,43 +465,80 @@ private:
         }
     }
     
+    inline Ref check_for_bubble_down (State st, Ref node, Link child0, Link child1, bool *out_next_side)
+    {
+        Ref child = child0.ref(st);
+        bool next_side = false;
+        
+        Ref child1_ref = child1.ref(st);
+        if (!child1_ref.isNull() && Compare::compareEntries(st, child1_ref, child) < 0) {
+            child = child1_ref;
+            next_side = true;
+        }
+        
+        if (child.isNull() || Compare::compareEntries(st, child, node) >= 0) {
+            return Ref::null();
+        }
+        
+        *out_next_side = next_side;
+        return child;
+    }
+    
+    inline void bubble_down_node_if_needed (State st, Ref node)
+    {
+        Link child0 = ac(node).link[0];
+        Link child1 = ac(node).link[1];
+        
+        bool next_side;
+        Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
+        if (child.isNull()) {
+            return;
+        }
+        
+        Ref parent = ac(node).parent.ref(st);
+        bool side = !parent.isNull() && node.link() == ac(parent).link[1];
+        
+        do_one_step_bubble_down(st, node, child, next_side, parent, side, child0, child1);
+        
+        connect_and_bubble_down_node(st, node, parent, side, child0, child1);
+    }
+    
+    inline void do_one_step_bubble_down (State st, Ref node, Ref child, bool next_side,
+                                         Ref &parent, bool &side, Link &child0, Link &child1)
+    {
+        Link other_child = next_side ? child0 : child1;
+        
+        child0 = ac(child).link[0];
+        child1 = ac(child).link[1];
+        
+        if (!(ac(child).parent = parent.link()).isNull()) {
+            ac(parent).link[side] = child.link();
+        } else {
+            m_root = child.link();
+        }
+        
+        if (!(ac(child).link[!next_side] = other_child).isNull()) {
+            ac(other_child.ref(st)).parent = child.link();
+        }
+        
+        if (m_last == child.link()) {
+            m_last = node.link();
+        }
+        
+        parent = child;
+        side = next_side;
+    }
+    
     inline void connect_and_bubble_down_node (State st, Ref node, Ref parent, bool side, Link child0, Link child1)
     {
         while (true) {
-            Ref child = child0.ref(st);
-            bool next_side = false;
-            
-            Ref child1_ref = child1.ref(st);
-            if (!child1_ref.isNull() && Compare::compareEntries(st, child1_ref, child) < 0) {
-                child = child1_ref;
-                next_side = true;
-            }
-            
-            if (child.isNull() || Compare::compareEntries(st, child, node) >= 0) {
+            bool next_side;
+            Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
+            if (child.isNull()) {
                 break;
             }
             
-            Link other_child = next_side ? child0 : child1;
-            
-            child0 = ac(child).link[0];
-            child1 = ac(child).link[1];
-            
-            if (!(ac(child).parent = parent.link()).isNull()) {
-                ac(parent).link[side] = child.link();
-            } else {
-                m_root = child.link();
-            }
-            
-            if (!(ac(child).link[!next_side] = other_child).isNull()) {
-                ac(other_child.ref(st)).parent = child.link();
-            }
-            
-            if (m_last == child.link()) {
-                m_last = node.link();
-            }
-            
-            parent = child;
-            side = next_side;
+            do_one_step_bubble_down(st, node, child, next_side, parent, side, child0, child1);
         }
         
         if (!(ac(node).parent = parent.link()).isNull()) {
@@ -451,7 +556,6 @@ private:
         }
     }
     
-#if APRINTER_LINKED_HEAP_VERIFY
     enum class AssertState {NoDepth, Lowest, LowestEnd};
     
     struct AssertData {
@@ -460,37 +564,6 @@ private:
         Link prev_leaf;
         SizeType count;
     };
-    
-    void verify_heap (State st)
-    {
-        AssertData ad;
-        ad.state = AssertState::NoDepth;
-        ad.prev_leaf = Link::null();
-        ad.count = 0;
-        
-        if (!m_root.isNull()) {
-            AMBRO_ASSERT_FORCE(!m_last.isNull())
-            AMBRO_ASSERT_FORCE(ac(m_root.ref(st)).parent.isNull())
-            
-            assert_recurser(st, m_root.ref(st), ad, 0);
-            
-            if (ad.state == AssertState::Lowest) {
-                AMBRO_ASSERT_FORCE(ad.prev_leaf == m_last)
-            }
-        }
-        
-        AMBRO_ASSERT_FORCE(ad.count == m_count)
-        
-        if (!m_root.isNull()) {
-            int bits = 0;
-            SizeType x = m_count;
-            while (x > 0) {
-                x /= 2;
-                bits++;
-            }
-            AMBRO_ASSERT_FORCE(m_level_bit == ((SizeType)1 << (bits - 1)))
-        }
-    }
     
     void assert_recurser (State st, Ref n, AssertData &ad, int level)
     {
@@ -536,6 +609,8 @@ private:
                 case AssertState::LowestEnd:
                     AMBRO_ASSERT_FORCE(ac(n).link[0].isNull() && ac(n).link[1].isNull())
                     break;
+                default:
+                    AMBRO_ASSERT(false);
             }
         }
         else if (level == ad.level) {
@@ -547,7 +622,6 @@ private:
             AMBRO_ASSERT_FORCE(false)
         }
     }
-#endif
 };
 
 #include <aprinter/EndNamespace.h>

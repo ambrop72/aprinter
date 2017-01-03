@@ -73,25 +73,44 @@ int main ()
     Heap heap;
     heap.init();
     
+    while (true) {
 #if 1
-    printf("Inserting\n");
-    for (size_t i = 0; i < NumEntries; i++) {
-        Entry &e = entries[i];
-        e.value = rand();
-        //e.value = NumEntries-i;
-        heap.insert(e);
-    }
-    printf("The minimum is %d\n", (*heap.first()).value);
+        printf("Inserting\n");
+        for (size_t i = 0; i < NumEntries; i++) {
+            Entry &e = entries[i];
+            e.value = rand();
+            //e.value = NumEntries-i;
+            heap.insert(e);
+        }
+        printf("The minimum is %d\n", (*heap.first()).value);
+#endif
+        
+        heap.verifyHeap();
+        
+#if 1
+        printf("Fixuping\n");
+        for (size_t i = 0; i < NumEntries; i++) {
+            Entry &e = entries[i];
+            e.value = rand();
+            heap.fixup(e);
+        }
+        printf("The minimum is %d\n", (*heap.first()).value);
 #endif
     
+        heap.verifyHeap();
+        
 #if 1
-    printf("Removing\n");
-    for (size_t i = 0; i < NumEntries; i++) {
-        Entry &e = entries[i];
-        heap.remove(e);
-    }
-    AMBRO_ASSERT_FORCE(heap.first().isNull())
+        printf("Removing\n");
+        for (size_t i = 0; i < NumEntries; i++) {
+            Entry &e = entries[i];
+            heap.remove(e);
+        }
+        AMBRO_ASSERT_FORCE(heap.first().isNull())
+        heap.verifyHeap();
+#else
+        heap.init();
 #endif
+    }
     
     return 0;
 }

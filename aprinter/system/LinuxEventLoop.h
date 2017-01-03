@@ -161,15 +161,18 @@ public:
             // Dispatch timers marked for dispatch.
             while (TimedEvent *tev = o->timed_event_heap.first().pointer()) {
                 tev->debugAccess(c);
-                AMBRO_ASSERT(tev->m_state != TimedEvent::State::IDLE)
+                AMBRO_ASSERT(tev->m_state == one_of_heap_timer_states())
                 
+                // If this is not a DISPATCH state timer, ther are no more
+                // DISPATCH timers, since DISPATCH timers are lesser than timers
+                // in any other state that can appear in the heap.
                 if (tev->m_state != TimedEvent::State::DISPATCH) {
                     break;
                 }
                 
-                // Remove timer from heap, set to IDLE state.
-                o->timed_event_heap.remove(*tev);
-                tev->m_state = TimedEvent::State::IDLE;
+                // Set to TENTATIVE state, fixup the heap.
+                tev->m_state = TimedEvent::State::TENTATIVE;
+                o->timed_event_heap.fixup(*tev);
                 
                 // Call the handler.
                 tev->m_handler(c);
@@ -230,8 +233,9 @@ public:
             AMBRO_ASSERT(!has_timers_for_dispatch(c))
             AMBRO_ASSERT(o->cur_epoll_event == o->num_epoll_events)
             
-            // Make sure the timerfd is set to expire according to the current timers.
-            configure_timerfd(c, now_ts);
+            // Remove any TENTATIVE timers from the heap and make sure the
+            // timerfd is set correctly for the current timers.
+            remove_tentative_configure_timerfd(c, now_ts);
             
             // Wait for events with epoll.
             int wait_res;
@@ -353,6 +357,9 @@ private:
         }
     }
     
+    // This is called after epoll_wait to transition to DISPATCH state
+    // any timers which are expired and to update timers_now.
+    // There MUST be no DISPATCH or TENTATIVE timers in the heap.
     static void update_timers_for_dispatch (Context c, TimeType now)
     {
         auto *o = Object::self(c);
@@ -377,7 +384,7 @@ private:
         if (tev != nullptr) {
             do {
                 tev->debugAccess(c);
-                AMBRO_ASSERT(tev->m_state != TimedEvent::State::IDLE)
+                AMBRO_ASSERT(tev->m_state == OneOf(TimedEvent::State::PAST, TimedEvent::State::FUTURE))
                 
                 tev->m_state = TimedEvent::State::DISPATCH;
                 
@@ -396,25 +403,40 @@ private:
         o->timers_now = now;
     }
     
-    // now_ts MUST correspod to o->timers_now!
-    static void configure_timerfd (Context c, struct timespec now_ts)
+    // This is called before epoll_wait to remove any TENTATIVE state timers
+    // and ensure that the timerfd is configured correctly.
+    // Any DISPATCH state timers MUST have been dispatched and now_ts
+    // MUST correspond to timers_now.
+    static void remove_tentative_configure_timerfd (Context c, struct timespec now_ts)
     {
         auto *o = Object::self(c);
         
         bool have_first_time = false;
         TimeType first_time;
         
-        if (TimedEvent *tev = o->timed_event_heap.first().pointer()) {
+        while (TimedEvent *tev = o->timed_event_heap.first().pointer()) {
             tev->debugAccess(c);
-            AMBRO_ASSERT(tev->m_state != TimedEvent::State::IDLE)
+            AMBRO_ASSERT(tev->m_state == OneOf(TimedEvent::State::TENTATIVE, TimedEvent::State::PAST,
+                                               TimedEvent::State::FUTURE))
             
+            // If this is a TENTATIVE timer, remove it from the heap,
+            // set it to IDLE state and proceed to look at the next timer.
+            if (tev->m_state == TimedEvent::State::TENTATIVE) {
+                o->timed_event_heap.remove(*tev);
+                tev->m_state = TimedEvent::State::IDLE;
+                continue;
+            }
+            
+            // The timerfd is to be configured based on this timer.
             have_first_time = true;
             if (tev->m_state == TimedEvent::State::FUTURE) {
                 AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(tev->m_time, o->timers_now))
                 first_time = tev->m_time;
             } else {
+                AMBRO_ASSERT(tev->m_state == TimedEvent::State::PAST)
                 first_time = o->timers_now;
             }
+            break;
         }
         
         struct itimerspec itspec = {};
@@ -509,6 +531,12 @@ private:
         return (events & ~(FdEvFlags::EV_READ|FdEvFlags::EV_WRITE)) == 0;
     }
     
+    inline static auto one_of_heap_timer_states ()
+    {
+        using TimState = typename TimedEvent::State;
+        return OneOf(TimState::DISPATCH, TimState::TENTATIVE, TimState::PAST, TimState::FUTURE);
+    }
+    
     // This implements comparisons used by the timers heap.
     class TimerCompare {
         using TimState = typename TimedEvent::State;
@@ -523,8 +551,8 @@ private:
             auto *o = Object::self(c);
             TimedEvent &tev1 = *ref1;
             TimedEvent &tev2 = *ref2;
-            AMBRO_ASSERT(tev1.m_state == OneOf(TimState::DISPATCH, TimState::PAST, TimState::FUTURE))
-            AMBRO_ASSERT(tev2.m_state == OneOf(TimState::DISPATCH, TimState::PAST, TimState::FUTURE))
+            AMBRO_ASSERT(tev1.m_state == one_of_heap_timer_states())
+            AMBRO_ASSERT(tev2.m_state == one_of_heap_timer_states())
             AMBRO_ASSERT(tev1.m_state != TimState::FUTURE || TheClockUtils::timeGreaterOrEqual(tev1.m_time, o->timers_now))
             AMBRO_ASSERT(tev2.m_state != TimState::FUTURE || TheClockUtils::timeGreaterOrEqual(tev2.m_time, o->timers_now))
             
@@ -551,7 +579,7 @@ private:
             auto *o = Object::self(c);
             TimedEvent &tev2 = *ref2;
             AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(time1, o->timers_now))
-            AMBRO_ASSERT(tev2.m_state == OneOf(TimState::DISPATCH, TimState::PAST, TimState::FUTURE))
+            AMBRO_ASSERT(tev2.m_state == one_of_heap_timer_states())
             AMBRO_ASSERT(tev2.m_state != TimState::FUTURE || TheClockUtils::timeGreaterOrEqual(tev2.m_time, o->timers_now))
             
             TimState state1 = TimState::FUTURE;
@@ -724,14 +752,29 @@ class LinuxEventLoopTimedEvent
     friend Loop;
     
     // NOTE: The relative order of DISPATCH, PAST and FUTURE is
-    // important because because it is used for the heap order:
-    // - DISPATCH is is before PAST and FUTURE so that run() can
-    //   find the timers to be dispatched by taking the first (root)
-    //   timers from the heap.
-    // - PAST is before FUTURE because the PAST timers are considered
-    //   already expired; their m_time values may no longer be suitable
-    //   for comparison with FUTURE timers.
-    enum class State : uint8_t {IDLE, DISPATCH, PAST, FUTURE};
+    // important because because it is used for the heap order.
+    // - IDLE timers are inactive and not in the heap.
+    // - DISPATCH is means the timer is active, has expired and is
+    //   about to be dispatched in this event loop iteration.
+    //   These timers must be lesser than timers in any other state
+    //   for timers in the heap, so that timers can be dispatched by
+    //   consuming the heap until there are no more timers in the heap
+    //   or the lease timer is  not in DISPATCH state.
+    // - PAST timers are active timers that are considered expired but
+    //   are not queued for dispatching. This state exists because the
+    //   m_time value if the timers may no longer be valid for comparison
+    //   (>=timers_now). Therefore PAST timers are considered lesser
+    //   than FUTURE timers.
+    // - TENTATIVE timers are *inactive* timers which have recently been
+    //   dispatched but are still in the heap, in the hope that if they
+    //   are restarted the update of the heap will be more efficient than
+    //   if they were removed and re-inserted. The TENTATIVE timers are
+    //   greater than DISPATCH timers so that are not considered for
+    //   dispatching dequeued. But they are lesser than PAST and FUTURE
+    //   timers in order to keep them close to the top of the heap.
+    // - FUTURE timers are those which are not considered expired and
+    //   have a valid time (m_time>=timers_now).
+    enum class State : uint8_t {IDLE, DISPATCH, TENTATIVE, PAST, FUTURE};
     
 public:
     APRINTER_USE_TYPE1(Loop, Context)
@@ -761,7 +804,7 @@ public:
     {
         this->debugAccess(c);
         
-        if (m_state != State::IDLE) {
+        if (m_state != OneOf(State::IDLE, State::TENTATIVE)) {
             unlink_it(c);
             m_state = State::IDLE;
         }
@@ -771,27 +814,29 @@ public:
     {
         this->debugAccess(c);
         
-        return m_state != State::IDLE;
+        return m_state != OneOf(State::IDLE, State::TENTATIVE);
     }
     
-    void appendAtNotAlready (Context c, TimeType time)
+    inline void appendAtNotAlready (Context c, TimeType time)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == State::IDLE)
-        
-        m_time = time;
-        link_it(c);
+        AMBRO_ASSERT(m_state == OneOf(State::IDLE, State::TENTATIVE))
+        appendAt(c, time);
     }
     
     void appendAt (Context c, TimeType time)
     {
+        auto *lo = Loop::Object::self(c);
         this->debugAccess(c);
         
-        if (m_state != State::IDLE) {
-            unlink_it(c);
-        }
         m_time = time;
-        link_it(c);
+        State old_state = m_state;
+        m_state = state_for_link(c);
+        
+        if (old_state == State::IDLE) {
+            lo->timed_event_heap.insert(*this);
+        } else {
+            lo->timed_event_heap.fixup(*this);
+        }
     }
     
     void appendNowNotAlready (Context c)
@@ -822,16 +867,15 @@ public:
     }
     
 private:
-    inline void link_it (Context c)
+    inline State state_for_link (Context c)
     {
         auto *lo = Loop::Object::self(c);
         
         if (Loop::TheClockUtils::timeGreaterOrEqual(m_time, lo->timers_now)) {
-            m_state = State::FUTURE;
+            return State::FUTURE;
         } else {
-            m_state = State::PAST;
+            return State::PAST;
         }
-        lo->timed_event_heap.insert(*this);
     }
     
     inline void unlink_it (Context c)
