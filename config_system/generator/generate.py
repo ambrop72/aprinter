@@ -113,8 +113,11 @@ class GenState(object):
     def add_platform_include (self, inc_file):
         self._platform_includes.append(inc_file)
     
-    def add_aprinter_include (self, inc_file):
+    def add_include (self, inc_file):
         self._aprinter_includes.add(inc_file)
+    
+    def add_aprinter_include (self, inc_file):
+        self.add_include('aprinter/'+inc_file)
     
     def register_objects (self, kind, config, key):
         if kind not in self._objects:
@@ -220,7 +223,7 @@ class GenState(object):
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('ConfigOptions', ''.join('{}\n'.format(c) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
-        self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
+        self.add_subst('AprinterIncludes', ''.join('#include <{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
         self.add_subst('GlobalResourceExprs', ''.join(gr['code'] for gr in global_resources))
@@ -1343,6 +1346,14 @@ def setup_network(gen, config, key):
         
         tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
         
+        pcb_index_name = network_config.get_string('PcbIndexService')
+        if pcb_index_name not in ('MruListIndex', 'AvlTreeIndex'):
+            network_config.key_path('PcbIndexService').error('Invalid value.')
+        gen.add_include('aipstack/misc/index/{}.h'.format(pcb_index_name))
+        pcb_index_service = 'AIpStack::{}Service'.format(pcb_index_name)
+        
+        link_with_array_indices = network_config.get_bool('LinkWithArrayIndices')
+        
         checksum_src_file = gen.get_singleton_object('checksum_src_file')
         gen.add_extra_source(checksum_src_file)
         
@@ -1355,6 +1366,8 @@ def setup_network(gen, config, key):
             num_tcp_pcbs,
             num_oos_segs,
             tcp_wnd_upd_thr_div,
+            pcb_index_service,
+            link_with_array_indices,
         ])
         service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
         network_expr = TemplateExpr('NetworkService::Compose', ['Context', 'Program'])

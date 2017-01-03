@@ -846,6 +846,8 @@ def editor():
                         ce.Integer(key='NumTcpPcbs', title='Number of TCP PCBs', default=16),
                         ce.Integer(key='NumOosSegs', title='Number of out-of-sequence segment slots', default=4),
                         ce.Integer(key='TcpWndUpdThrDiv', title='TCP window update threshold divisor (threshold = RX buffer / N)', default=4),
+                        ce.String(key='PcbIndexService', title='Data structure for looking up PCBs', enum=['MruListIndex', 'AvlTreeIndex'], default='MruListIndex'),
+                        ce.Boolean(key='LinkWithArrayIndices', title='Use array indices in data structure', default=True),
                         ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                         ce.Boolean(key='DhcpEnabled', title='DHCP enabled', default=True),

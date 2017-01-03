@@ -42,7 +42,6 @@
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
-#include <aipstack/misc/index/MruListIndex.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/IpTcpProto.h>
@@ -52,18 +51,14 @@
 
 template <typename Arg>
 class IpStackNetwork {
-    using Context         = typename Arg::Context;
-    using ParentObject    = typename Arg::ParentObject;
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
     
     APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, StackBufAllocator,
                                    IpBufRef, IpBufNode, MacAddr, IpErr, Ip4Addr))
     
-    using EthernetService            = typename Arg::Params::EthernetService;
-    static int const NumArpEntries   = Arg::Params::NumArpEntries;
-    static int const ArpProtectCount = Arg::Params::ArpProtectCount;
-    static int const NumTcpPcbs      = Arg::Params::NumTcpPcbs;
-    static int const NumOosSegs      = Arg::Params::NumOosSegs;
-    static int const TcpWndUpdThrDiv = Arg::Params::TcpWndUpdThrDiv;
+    APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService))
+    APRINTER_USE_VALS(Params, (NumArpEntries, ArpProtectCount, NumTcpPcbs, NumOosSegs,
+                               TcpWndUpdThrDiv, LinkWithArrayIndices))
     
     static_assert(NumArpEntries >= 4, "");
     static_assert(ArpProtectCount >= 2, "");
@@ -104,8 +99,8 @@ private:
         NumOosSegs,
         49152, // EphemeralPortFirst
         65535, // EphemeralPortLast
-        AIpStack::MruListIndexService,
-        false // LinkWithArrayIndices
+        PcbIndexService,
+        LinkWithArrayIndices
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
     
@@ -951,7 +946,9 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     APRINTER_AS_VALUE(uint16_t, MaxReassSize),
     APRINTER_AS_VALUE(int, NumTcpPcbs),
     APRINTER_AS_VALUE(int, NumOosSegs),
-    APRINTER_AS_VALUE(int, TcpWndUpdThrDiv)
+    APRINTER_AS_VALUE(int, TcpWndUpdThrDiv),
+    APRINTER_AS_TYPE(PcbIndexService),
+    APRINTER_AS_VALUE(bool, LinkWithArrayIndices)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
