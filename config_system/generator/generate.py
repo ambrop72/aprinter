@@ -398,7 +398,6 @@ def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
     arm_checksum_src_file = 'aprinter/net/inet_chksum_arm.S'
-    generic_checksum_src_file = 'aprinter/net/inet_chksum_generic.c'
     
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
@@ -434,7 +433,6 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
         gen.add_init_call(-1, 'platform_init(argc, argv);')
         gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
-        gen.register_singleton_object('checksum_src_file', generic_checksum_src_file)
     
     config.do_selection(key, platform_sel)
 
@@ -1354,8 +1352,10 @@ def setup_network(gen, config, key):
         
         link_with_array_indices = network_config.get_bool('LinkWithArrayIndices')
         
-        checksum_src_file = gen.get_singleton_object('checksum_src_file')
-        gen.add_extra_source(checksum_src_file)
+        checksum_src_file = gen.get_singleton_object('checksum_src_file', allow_none=True)
+        if checksum_src_file is not None:
+            gen.add_extra_source(checksum_src_file)
+            gen.add_define('AIPSTACK_EXTERNAL_CHKSUM', 1)
         
         service_expr = TemplateExpr('IpStackNetworkService', [
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),

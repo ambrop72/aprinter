@@ -31,23 +31,39 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/BinaryTools.h>
 #include <aipstack/misc/Buf.h>
 
-// Must be implemented externally.
-extern "C" uint16_t lwip_standard_chksum (void const *data, int mlen);
+#if AIPSTACK_EXTERNAL_CHKSUM
+extern "C" uint16_t IpChksumInverted (char const *data, size_t len);
+#else
+
+inline uint16_t IpChksumInverted (char const *data, size_t len)
+{
+    char const *even_end = data + (len & (size_t)-2);
+    uint32_t sum = 0;
+    
+    while (data < even_end) {
+        sum += APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>(data);
+        data += 2;
+    }
+    
+    if ((len & 1) != 0) {
+        uint8_t byte = APrinter::ReadBinaryInt<uint8_t, APrinter::BinaryBigEndian>(data);
+        sum += (uint16_t)byte << 8;
+    }
+    
+    sum = (sum & UINT32_C(0xFFFF)) + (sum >> 16);
+    sum = (sum & UINT32_C(0xFFFF)) + (sum >> 16);
+    
+    return sum;
+}
+
+#endif
 
 #include <aipstack/BeginNamespace.h>
 
-static inline uint16_t IpChksumInverted (char const *data, size_t len)
-{
-    uint16_t chksum = lwip_standard_chksum(data, len);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    chksum = __builtin_bswap16(chksum);
-#endif
-    return chksum;
-}
-
-static inline uint16_t IpChksum (char const *data, size_t len)
+inline static uint16_t IpChksum (char const *data, size_t len)
 {
     return ~IpChksumInverted(data, len);
 }
