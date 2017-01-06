@@ -34,18 +34,17 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/Callback.h>
-#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
+
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
-#include <aipstack/misc/Struct.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
 #include <aipstack/ip/IpIfaceDriver.h>
+#include <aipstack/ip/IpReassembly.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -62,38 +61,12 @@ struct IpIfaceIp4GatewaySetting {
 
 template <typename Arg>
 class IpStack {
-    APRINTER_USE_VALS(Arg::Params, (HeaderBeforeIp, IcmpTTL, MaxReassEntrys, MaxReassSize))
+    APRINTER_USE_TYPES1(Arg, (Params))
+    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator))
     
-    APRINTER_USE_TYPE1(Context, Clock)
-    APRINTER_USE_TYPE1(Clock, TimeType)
-    APRINTER_USE_TYPE1(Context::EventLoop, TimedEvent)
-    using TheClockUtils = APrinter::ClockUtils<Context>;
-    
-    static_assert(MaxReassEntrys > 0, "");
-    static_assert(MaxReassSize >= 576, "");
-    
-    static uint16_t const ReassNullLink = UINT16_MAX;
-    
-    APRINTER_TSTRUCT(HoleDescriptor,
-        (HoleSize,       StructRawField<uint16_t>)
-        (NextHoleOffset, StructRawField<uint16_t>)
-    )
-    
-    // We need to be able to put a hole descriptor after the reassembled data.
-    static_assert(MaxReassSize <= UINT16_MAX - HoleDescriptor::Size, "");
-    
-    // The size of the reassembly buffers, with additional space for a hole descriptor at the end.
-    static uint16_t const ReassBufferSize = MaxReassSize + HoleDescriptor::Size;
-    
-    // Maximum time that a reassembly entry can be valid.
-    static TimeType const ReassMaxExpirationTicks = 255.0 * (TimeType)Clock::time_freq;
-    
-    // Maximum number of holes during reassembly.
-    static uint8_t const MaxReassHoles = 10;
-    
-    static_assert(ReassMaxExpirationTicks <= TheClockUtils::WorkingTimeSpanTicks, "");
-    static_assert(MaxReassHoles <= 250, "");
+    using ReassemblyService = IpReassemblyService<Params::MaxReassEntrys, Params::MaxReassSize>;
+    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<Context>))
     
 public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
@@ -106,18 +79,11 @@ public:
 public:
     void init ()
     {
-        m_reass_purge_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&IpStack::reass_purge_timer_handler, this));
+        m_reassembly.init();
+        
         m_iface_list.init();
         m_proto_listeners_list.init();
         m_next_id = 0;
-        
-        // Start the reassembly purge timer.
-        m_reass_purge_timer.appendAfter(Context(), ReassMaxExpirationTicks);
-        
-        // Initialize reassembly entries to unused.
-        for (auto &reass : m_reass_packets) {
-            reass.first_hole_offset = ReassNullLink;
-        }
     }
     
     void deinit ()
@@ -125,7 +91,7 @@ public:
         AMBRO_ASSERT(m_iface_list.isEmpty())
         AMBRO_ASSERT(m_proto_listeners_list.isEmpty())
         
-        m_reass_purge_timer.deinit(Context());
+        m_reassembly.deinit();
     }
     
 public:
@@ -451,21 +417,6 @@ public:
     };
     
 private:
-    struct ReassEntry {
-        // Offset in data to the first hole, or ReassNullLink for free entry.
-        uint16_t first_hole_offset;
-        // The total data length, or 0 if last fragment not yet received.
-        uint16_t data_length;
-        // Time after which the entry is considered invalid.
-        TimeType expiration_time;
-        // IPv4 header.
-        char header[Ip4MaxHeaderSize];
-        // Data and holes, each hole starts with a HoleDescriptor.
-        // The last HoleDescriptor::Size bytes are to ensure these is space
-        // for the last hole descriptor, they cannot contain data.
-        char data[ReassBufferSize];
-    };
-    
     void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
     {
         // Check base IP header length.
@@ -535,7 +486,7 @@ private:
             uint16_t fragment_offset = fragment_offset_8b * 8;
             
             // Perform reassembly.
-            if (!reassembleIp4(
+            if (!m_reassembly.reassembleIp4(
                 ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr, proto, ttl,
                 more_fragments, fragment_offset, ip4_header.data, header_len, dgram))
             {
@@ -625,283 +576,6 @@ private:
         sendIp4Dgram(meta, dgram);
     }
     
-    bool reassembleIp4 (uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto,
-                        uint8_t ttl, bool more_fragments, uint16_t fragment_offset,
-                        char const *header, uint8_t header_len, IpBufRef &dgram)
-    {
-        AMBRO_ASSERT(header_len <= Ip4MaxHeaderSize)
-        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
-        
-        // Sanity check data length.
-        if (dgram.tot_len == 0) {
-            return false;
-        }
-        
-        // Check if we have a reassembly entry for this datagram.
-        TimeType now = Clock::getTime(Context());
-        ReassEntry *reass = find_reass_entry(now, ident, src_addr, dst_addr, proto);
-        
-        if (reass == nullptr) {
-            // Allocate an entry.
-            reass = alloc_reass_entry(now, ttl);
-            
-            // Copy the IP header.
-            ::memcpy(reass->header, header, header_len);
-            
-            // Set first hole and unknown data length.
-            reass->first_hole_offset = 0;
-            reass->data_length = 0;
-            
-            // Write a hole from start of data to infinity (ReassBufferSize).
-            // The final HoleDescriptor::Size bytes of the hole serve as
-            // infinity because they cannot be filled by a fragment. This also
-            // means that we will always have at least one hole in the list.
-            auto hole = HoleDescriptor::MakeRef(reass->data);
-            hole.set(typename HoleDescriptor::HoleSize(),       ReassBufferSize);
-            hole.set(typename HoleDescriptor::NextHoleOffset(), ReassNullLink);
-        } else {
-            // If this is the first fragment, update the IP header.
-            if (fragment_offset == 0) {
-                ::memcpy(reass->header, header, header_len);
-            }
-        }
-        
-        do {
-            // Verify that the fragment fits into the buffer.
-            if (fragment_offset > MaxReassSize || dgram.tot_len > MaxReassSize - fragment_offset) {
-                goto invalidate_reass;
-            }
-            uint16_t fragment_end = fragment_offset + dgram.tot_len;
-            
-            // Summary of last-fragment related sanity checks:
-            // - When we first receive a last fragment, we remember the data size and
-            //   also check that we have not yet received any data that would fall
-            //   beyond the end of this last fragment.
-            // - When we receive any subsequent fragment after having received a last
-            //   fragment, we check that it does not contain any data beyond the
-            //   remembered end of data.
-            // - When we receive any additional last fragment we check that it has
-            //   the same end as the first received last fragment.
-            
-            // Is this the last fragment?
-            if (!more_fragments) {
-                // Check for inconsistent data_length.
-                if (reass->data_length != 0 && fragment_end != reass->data_length) {
-                    goto invalidate_reass;
-                }
-                
-                // Remember the data_length.
-                reass->data_length = fragment_end;
-            } else {
-                // Check for data beyond the end.
-                if (reass->data_length != 0 && fragment_end > reass->data_length) {
-                    goto invalidate_reass;
-                }
-            }
-            
-            // Update the holes based on this fragment.
-            uint16_t prev_hole_offset = ReassNullLink;
-            uint16_t hole_offset = reass->first_hole_offset;
-            uint8_t num_holes = 0;
-            do {
-                AMBRO_ASSERT(prev_hole_offset == ReassNullLink ||
-                             hole_offset_valid(prev_hole_offset))
-                AMBRO_ASSERT(hole_offset_valid(hole_offset))
-                
-                // Get the hole info.
-                auto hole = HoleDescriptor::MakeRef(reass->data + hole_offset);
-                uint16_t hole_size        = hole.get(typename HoleDescriptor::HoleSize());
-                uint16_t next_hole_offset = hole.get(typename HoleDescriptor::NextHoleOffset());
-                
-                // Calculate the hole end.
-                AMBRO_ASSERT(hole_size <= ReassBufferSize - hole_offset)
-                uint16_t hole_end = hole_offset + hole_size;
-                
-                // If this is the last fragment, sanity check that the hole offset
-                // is not greater than the end of this fragment; this would mean
-                // that some data was received beyond the end.
-                if (!more_fragments && hole_offset > fragment_end) {
-                    goto invalidate_reass;
-                }
-                
-                // If the fragment does not overlap with the hole, skip the hole.
-                if (fragment_offset >= hole_end || fragment_end <= hole_offset) {
-                    prev_hole_offset = hole_offset;
-                    hole_offset = next_hole_offset;
-                    num_holes++;
-                    continue;
-                }
-                
-                // The fragment overlaps with the hole. We will be dismantling
-                // this hole and creating between zero and two new holes.
-                
-                // Create a new hole on the left if needed.
-                if (fragment_offset > hole_offset) {
-                    // Sanity check hole size.
-                    uint16_t new_hole_size = fragment_offset - hole_offset;
-                    if (new_hole_size < HoleDescriptor::Size) {
-                        goto invalidate_reass;
-                    }
-                    
-                    // Write the hole size.
-                    // Note that the hole is in the same place as the old hole.
-                    hole.set(typename HoleDescriptor::HoleSize(), new_hole_size);
-                    
-                    // The link to this hole is already set up.
-                    //reass_link_prev(reass, prev_hole_offset, hole_offset);
-                    
-                    // Advance prev_hole_offset to this hole.
-                    prev_hole_offset = hole_offset;
-                    
-                    num_holes++;
-                }
-                
-                // Create a new hole on the right if needed.
-                if (fragment_end < hole_end) {
-                    // Sanity check hole size.
-                    uint16_t new_hole_size = hole_end - fragment_end;
-                    if (new_hole_size < HoleDescriptor::Size) {
-                        goto invalidate_reass;
-                    }
-                    
-                    // Write the hole size.
-                    auto new_hole = HoleDescriptor::MakeRef(reass->data + fragment_end);
-                    new_hole.set(typename HoleDescriptor::HoleSize(), new_hole_size);
-                    
-                    // Setup the link to this hole.
-                    reass_link_prev(reass, prev_hole_offset, fragment_end);
-                    
-                    // Advance prev_hole_offset to this hole.
-                    prev_hole_offset = fragment_end;
-                    
-                    num_holes++;
-                }
-                
-                // Setup the link to the next hole.
-                reass_link_prev(reass, prev_hole_offset, next_hole_offset);
-                
-                // Advance to the next hole (if any).
-                hole_offset = next_hole_offset;
-            } while (hole_offset != ReassNullLink);
-            
-            // It is not possible that there are no more holes due to
-            // the final HoleDescriptor::Size bytes that cannot be filled.
-            AMBRO_ASSERT(reass->first_hole_offset != ReassNullLink)
-            
-            // Copy the fragment data into the reassembly buffer.
-            IpBufRef dgram_tmp = dgram;
-            dgram_tmp.takeBytes(dgram.tot_len, reass->data + fragment_offset);
-            
-            // If we have not yet received the final fragment or there
-            // are still holes after the end, the reassembly is not complete.
-            if (reass->data_length == 0 || reass->first_hole_offset < reass->data_length) {
-                // If there are too many holes, invalidate.
-                if (num_holes > MaxReassHoles) {
-                    goto invalidate_reass;
-                }
-                return false;
-            }
-            
-            // Invalidate the reassembly entry.
-            reass->first_hole_offset = ReassNullLink;
-            
-            // Setup dgram to point to the reassembled data.
-            m_reass_node = IpBufNode{reass->data, MaxReassSize};
-            dgram = IpBufRef{&m_reass_node, 0, reass->data_length};
-            
-            // Continue to process the reassembled datagram.
-            return true;
-        } while (false);
-        
-    invalidate_reass:
-        reass->first_hole_offset = ReassNullLink;
-        return false;
-    }
-    
-    ReassEntry * find_reass_entry (TimeType now, uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto)
-    {
-        ReassEntry *found_entry = nullptr;
-        
-        for (auto &reass : m_reass_packets) {
-            // Ignore free entries.
-            if (reass.first_hole_offset == ReassNullLink) {
-                continue;
-            }
-            
-            // If the entry has expired, mark is as free and ignore.
-            if ((TimeType)(reass.expiration_time - now) > ReassMaxExpirationTicks) {
-                reass.first_hole_offset = ReassNullLink;
-                continue;
-            }
-            
-            // If the entry matches, return it after goingh through all.
-            auto reass_hdr = Ip4Header::MakeRef(reass.header);
-            if (reass_hdr.get(Ip4Header::Ident())    == ident &&
-                reass_hdr.get(Ip4Header::SrcAddr())  == src_addr &&
-                reass_hdr.get(Ip4Header::DstAddr())  == dst_addr &&
-                reass_hdr.get(Ip4Header::Protocol()) == proto)
-            {
-                found_entry = &reass;
-            }
-        }
-        
-        return found_entry;
-    }
-    
-    ReassEntry * alloc_reass_entry (TimeType now, uint8_t ttl)
-    {
-        TimeType future = now + ReassMaxExpirationTicks;
-        
-        ReassEntry *result_reass = nullptr;
-        
-        for (auto &reass : m_reass_packets) {
-            // If the entry is unused, use it.
-            if (reass.first_hole_offset == ReassNullLink) {
-                result_reass = &reass;
-                break;
-            }
-            
-            // Look for the entry with the least expiration time.
-            if (result_reass == nullptr ||
-                (TimeType)(future - reass.expiration_time) > (TimeType)(future - result_reass->expiration_time))
-            {
-                result_reass = &reass;
-            }
-        }
-        
-        // Set the expiration time to TTL seconds in the future.
-        result_reass->expiration_time = now + ttl * (TimeType)Clock::time_freq;
-        
-        return result_reass;
-    }
-    
-    static void reass_link_prev (ReassEntry *reass, uint16_t prev_hole_offset, uint16_t hole_offset)
-    {
-        AMBRO_ASSERT(prev_hole_offset == ReassNullLink || hole_offset_valid(prev_hole_offset))
-        
-        if (prev_hole_offset == ReassNullLink) {
-            reass->first_hole_offset = hole_offset;
-        } else {
-            auto prev_hole = HoleDescriptor::MakeRef(reass->data + prev_hole_offset);
-            prev_hole.set(typename HoleDescriptor::NextHoleOffset(), hole_offset);
-        }
-    }
-    
-    static bool hole_offset_valid (uint16_t hole_offset)
-    {
-        return hole_offset <= MaxReassSize;
-    }
-    
-    void reass_purge_timer_handler (Context)
-    {
-        // Restart the timer.
-        m_reass_purge_timer.appendAfter(Context(), ReassMaxExpirationTicks);
-        
-        // Purge any expired reassembly entries.
-        TimeType now = Clock::getTime(Context());
-        find_reass_entry(now, 0, Ip4Addr::ZeroAddr(), Ip4Addr::ZeroAddr(), 0);
-    }
-    
     static size_t round_frag_length (uint8_t header_length, size_t pkt_length)
     {
         return header_length + (((pkt_length - header_length) / 8) * 8);
@@ -911,12 +585,10 @@ private:
     using IfaceList = APrinter::DoubleEndedList<Iface, &Iface::m_iface_list_node, false>;
     using ProtoListenersList = APrinter::DoubleEndedList<ProtoListener, &ProtoListener::m_listeners_list_node, false>;
     
-    TimedEvent m_reass_purge_timer;
+    Reassembly m_reassembly;
     IfaceList m_iface_list;
     ProtoListenersList m_proto_listeners_list;
     uint16_t m_next_id;
-    IpBufNode m_reass_node;
-    ReassEntry m_reass_packets[MaxReassEntrys];
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
