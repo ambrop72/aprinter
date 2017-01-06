@@ -82,7 +82,7 @@ class IpTcpProto :
     APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface))
     
     static_assert(NumTcpPcbs > 0, "");
-    static_assert(NumOosSegs > 0, "");
+    static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
     static_assert(EphemeralPortFirst > 0, "");
     static_assert(EphemeralPortFirst <= EphemeralPortLast, "");
     
@@ -241,21 +241,21 @@ private:
         uint16_t snd_mss; // NOTE: If updating this, consider invalidation of pcb_need_rtx_timer!
         uint16_t rcv_mss;
         
-        // PCB state.
-        TcpState state;
-        
         // Flags (see comments in PcbFlags).
         FlagsType flags;
         
+        // PCB state.
+        TcpState state;
+        
         // Number of valid elements in ooseq_segs;
-        uint8_t num_ooseq;
+        uint8_t num_ooseq : 4;
         
         // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
-        uint8_t num_dupack;
+        uint8_t num_dupack : Constants::DupAckBits;
         
         // Window shift values.
-        uint8_t snd_wnd_shift;
-        uint8_t rcv_wnd_shift;
+        uint8_t snd_wnd_shift : 4;
+        uint8_t rcv_wnd_shift : 4;
         
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }

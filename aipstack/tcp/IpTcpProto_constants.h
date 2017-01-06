@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aipstack/proto/TcpUtils.h>
 
@@ -85,6 +86,9 @@ public:
     
     // Window scale shift count to send and use in outgoing ACKs.
     static uint8_t const RcvWndShift = 6;
+    
+public:
+    static int const DupAckBits = APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
 };
 
 #include <aipstack/EndNamespace.h>
