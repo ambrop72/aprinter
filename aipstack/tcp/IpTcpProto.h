@@ -44,7 +44,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -159,13 +159,14 @@ private:
         Ip4Addr   // local_addr
     >;
     
+    struct PcbLinkModel;
+    
     // Instantiate the PCB index.
     struct PcbIndexAccessor;
     using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
-    struct PcbIndexLinkModel;
     APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
-        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbIndexLinkModel>))
+        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
     
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
@@ -184,7 +185,7 @@ private:
         typename PcbIndex::Node index_hook;
         
         // Node for the unreferenced PCBs list.
-        APrinter::DoubleEndedListNode<TcpPcb> unrefed_list_node;
+        APrinter::LinkedListNode<PcbLinkModel> unrefed_list_node;
         
         // Timers.
         TimedEvent abrt_timer;   // timer for aborting PCB (TIME_WAIT, abandonment)
@@ -306,7 +307,7 @@ public:
             pcb.con = nullptr;
             pcb.lis = nullptr;
             pcb.state = TcpState::CLOSED;
-            m_unrefed_pcbs_list.prepend(&pcb);
+            m_unrefed_pcbs_list.prepend(link_model_ref(pcb), link_model_state());
         }
     }
     
@@ -342,12 +343,11 @@ private:
     {
         // No PCB available?
         if (m_unrefed_pcbs_list.isEmpty()) {
-            printf("OUT OF PCB\n");
             return nullptr;
         }
         
         // Get a PCB to use.
-        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty();
+        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(link_model_state()).pointer();
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED || pcb->con == nullptr)
         
         // Abort the PCB if it's not closed.
@@ -452,6 +452,7 @@ private:
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        IpTcpProto *tcp = pcb->tcp;
         
         if (pcb->con != nullptr) {
             // Inform the connection object about the aborting.
@@ -464,9 +465,9 @@ private:
             
             // Add the PCB to the unreferenced PCBs list.
             if (closing) {
-                pcb->tcp->m_unrefed_pcbs_list.append(pcb);
+                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
             } else {
-                pcb->tcp->m_unrefed_pcbs_list.prepend(pcb);
+                tcp->m_unrefed_pcbs_list.prepend(tcp->link_model_ref(*pcb), tcp->link_model_state());
             }
             
             AMBRO_ASSERT(pcb->con == nullptr)
@@ -474,10 +475,9 @@ private:
             // If the PCB will go to CLOSED state, make sure it is at
             // the end of the unreferenced PCBs list.
             if (closing) {
-                IpTcpProto *tcp = pcb->tcp;
-                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty()) {
-                    tcp->m_unrefed_pcbs_list.remove(pcb);
-                    tcp->m_unrefed_pcbs_list.append(pcb);
+                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state()).pointer()) {
+                    tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
+                    tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 }
             }
         }
@@ -645,7 +645,7 @@ private:
         pcb->state = TcpState::SYN_SENT;
         pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
         pcb->con = con;
-        m_unrefed_pcbs_list.remove(pcb);
+        m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
         pcb->local_addr = local_addr;
         pcb->remote_addr = remote_addr;
         pcb->local_port = local_port;
@@ -701,9 +701,9 @@ private:
     {
         AMBRO_ASSERT(pcb->con == nullptr)
         
-        if (pcb != m_unrefed_pcbs_list.first()) {
-            m_unrefed_pcbs_list.remove(pcb);
-            m_unrefed_pcbs_list.prepend(pcb);
+        if (pcb != m_unrefed_pcbs_list.first(link_model_state()).pointer()) {
+            m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
+            m_unrefed_pcbs_list.prepend(link_model_ref(*pcb), link_model_state());
         }
     }
     
@@ -733,11 +733,11 @@ private:
     };
     
     // Define the link model.
-    struct PcbIndexLinkModel : public APrinter::If<LinkWithArrayIndices,
+    struct PcbLinkModel : public APrinter::If<LinkWithArrayIndices,
         APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, -1>,
         APrinter::PointerLinkModel<TcpPcb>
     > {};
-    APRINTER_USE_TYPES1(PcbIndexLinkModel, (Ref, State))
+    APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
     
     // Returns the link model State value.
     APRINTER_FUNCTION_IF_ELSE_EXT(LinkWithArrayIndices, inline, State, link_model_state (), {
@@ -755,7 +755,9 @@ private:
     
 private:
     using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
-    using UnrefedPcbsList = APrinter::DoubleEndedList<TcpPcb, &TcpPcb::unrefed_list_node, true>;
+    
+    using UnrefedPcbsList = APrinter::LinkedList<
+        TcpPcb, APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
     ProtoListener m_proto_listener;

@@ -299,8 +299,9 @@ public:
                 
                 // Disassociate with the PCB.
                 TcpPcb *pcb = m_pcb;
+                TcpProto *tcp = pcb->tcp;
                 pcb->con = nullptr;
-                pcb->tcp->m_unrefed_pcbs_list.append(pcb);
+                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 m_pcb = nullptr;
                 
                 // Handle abandonment of connection.
@@ -328,8 +329,9 @@ public:
             
             // Associate with the PCB.
             m_pcb = lis->m_accept_pcb;
+            TcpProto *tcp = m_pcb->tcp;
             m_pcb->con = this;
-            m_pcb->tcp->m_unrefed_pcbs_list.remove(m_pcb);
+            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*m_pcb), tcp->link_model_state());
             
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_flags = Flags::STARTED;
