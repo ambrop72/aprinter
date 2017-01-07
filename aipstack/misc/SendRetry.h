@@ -26,22 +26,36 @@
 #define APRINTER_IPSTACK_SEND_RETRY_H
 
 #include <aprinter/base/Assert.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/base/Accessor.h>
+#include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/LinkModel.h>
 
 #include <aipstack/BeginNamespace.h>
 
 class IpSendRetry {
-public:
-    class List;
+private:
+    struct ListEntry;
     
-    class Request {
+    using LinkModel = APrinter::PointerLinkModel<ListEntry>;
+    
+    using ListNode = APrinter::LinkedListNode<LinkModel>;
+    
+    struct ListEntry : public ListNode {};
+    
+    using ListNodeAccessor = APrinter::BaseClassAccessor<ListEntry, ListNode>;
+    
+    using ListStructure = APrinter::AnonymousLinkedList<ListNodeAccessor, LinkModel>;
+    
+public:
+    class Request :
+        private ListEntry
+    {
         friend IpSendRetry;
-        friend class List;
         
     public:
         void init ()
         {
-            m_list = nullptr;
+            ListStructure::markRemoved(*this);
         }
         
         void deinit ()
@@ -51,31 +65,25 @@ public:
         
         void reset ()
         {
-            if (m_list != nullptr) {
-                m_list->m_list.remove(this);
-                m_list = nullptr;
+            if (!ListStructure::isRemoved(*this)) {
+                ListStructure::remove(*this);
+                ListStructure::markRemoved(*this);
             }
         }
         
-    public:
+    protected:
         virtual void retrySending () = 0;
-        
-    private:
-        List *m_list;
-        APrinter::DoubleEndedListNode<Request> m_list_node;
     };
     
-private:
-    using ListStructure = APrinter::DoubleEndedList<Request, &Request::m_list_node, false>;
-    
-public:
-    class List {
-        friend class Request;
+    class List :
+        private ListEntry
+    {
+        friend IpSendRetry;
         
     public:
         void init ()
         {
-            m_list.init();
+            ListStructure::initLonely(*this);
         }
         
         void deinit ()
@@ -85,52 +93,49 @@ public:
         
         void reset ()
         {
-            for (Request *req = m_list.first(); req != nullptr; req = m_list.next(req)) {
-                AMBRO_ASSERT(req->m_list == this)
-                req->m_list = nullptr;
+            ListEntry *e = ListStructure::next(*this);
+            while (e != nullptr) {
+                AMBRO_ASSERT(!ListStructure::isRemoved(*e))
+                ListEntry *next = ListStructure::next(*e);
+                ListStructure::markRemoved(*e);
+                e = next;
             }
-            m_list.init();
+            ListStructure::initLonely(*this);
         }
         
         void addRequest (Request *req)
         {
             if (req != nullptr) {
-                if (req->m_list != nullptr) {
-                    req->m_list->m_list.remove(req);
+                if (!ListStructure::isRemoved(*req)) {
+                    ListStructure::remove(*req);
                 }
-                m_list.prepend(req);
-                req->m_list = this;
+                ListStructure::initAfter(*req, *this);
             }
         }
         
         void dispatchRequests ()
         {
-            // Move the requests to a temporary list.
-            List temp_list;
-            temp_list.m_list = m_list;
-            for (Request *req = m_list.first(); req != nullptr; req = m_list.next(req)) {
-                AMBRO_ASSERT(req->m_list == this)
-                req->m_list = &temp_list;
-            }
-            m_list.init();
+            // Move the requests to a temporary list and clear the main list.
+            ListEntry temp_head;
+            ListStructure::replaceFirst(temp_head, *this);
+            ListStructure::initLonely(*this);
             
             // Dispatch the requests from the temporary list.
             // We do it this way to avoid any issues if the callback adds the request
             // back or adds or removes other requests. We can safely consume the
             // temporary list from the front, as it is not possible that any request
             // be added back to it.
-            Request *req;
-            while ((req = temp_list.m_list.first()) != nullptr) {
-                AMBRO_ASSERT(req->m_list == &temp_list)
-                temp_list.m_list.removeFirst();
-                req->m_list = nullptr;
-                
+            ListEntry *e;
+            while ((e = ListStructure::next(temp_head)) != nullptr) {
+                AMBRO_ASSERT(!ListStructure::isRemoved(*e))
+                ListStructure::remove(*e);
+                ListStructure::markRemoved(*e);
+                Request *req = static_cast<Request *>(e);
                 req->retrySending();
             }
+            
+            AMBRO_ASSERT(ListStructure::prev(temp_head).isNull())
         }
-        
-    private:
-        ListStructure m_list;
     };
 };
 

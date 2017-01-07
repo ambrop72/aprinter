@@ -167,6 +167,114 @@ private:
     }
 };
 
+template <
+    typename Accessor,
+    typename LinkModel
+>
+class AnonymousLinkedList
+{
+    using Link = typename LinkModel::Link;
+    
+public:
+    using State = typename LinkModel::State;
+    using Ref = typename LinkModel::Ref;
+    
+    AnonymousLinkedList() = delete;
+    
+    inline static void initLonely (Ref e)
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        ac(e).prev = Link::null();
+        ac(e).next = Link::null();
+    }
+    
+    static void initAfter (Ref e, Ref other, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        AMBRO_ASSERT(!other.isNull())
+        
+        ac(e).prev = other.link();
+        ac(e).next = ac(other).next;
+        ac(other).next = e.link();
+        if (!ac(e).next.isNull()) {
+            ac(ac(e).next.ref(st)).prev = e.link();
+        }
+    }
+    
+    static void initBefore (Ref e, Ref other, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        AMBRO_ASSERT(!other.isNull())
+        
+        ac(e).next = other.link();
+        ac(e).prev = ac(other).prev;
+        ac(other).prev = e.link();
+        if (!ac(e).prev.isNull()) {
+            ac(ac(e).prev.ref(st)).next = e.link();
+        }
+    }
+    
+    static void remove (Ref e, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        if (!ac(e).prev.isNull()) {
+            ac(ac(e).prev.ref(st)).next = ac(e).next;
+        }
+        if (!ac(e).next.isNull()) {
+            ac(ac(e).next.ref(st)).prev = ac(e).prev;
+        }
+    }
+    
+    static void replaceFirst (Ref e, Ref old_first, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        AMBRO_ASSERT(!old_first.isNull())
+        AMBRO_ASSERT(ac(old_first).prev.isNull())
+        
+        ac(e).prev = Link::null();
+        ac(e).next = ac(old_first).next;
+        if (!ac(e).next.isNull()) {
+            ac(ac(e).next.ref(st)).prev = e.link();
+        }
+    }
+    
+    inline static Ref prev (Ref e, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        return ac(e).prev.ref(st);
+    }
+    
+    inline static Ref next (Ref e, State st = State())
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        return ac(e).next.ref(st);
+    }
+    
+    inline static void markRemoved (Ref e)
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        ac(e).next = e.link();
+    }
+    
+    inline static bool isRemoved (Ref e)
+    {
+        AMBRO_ASSERT(!e.isNull())
+        
+        return ac(e).next == e.link();
+    }
+    
+private:
+    inline static LinkedListNode<LinkModel> & ac (Ref ref)
+    {
+        return Accessor::access(*ref);
+    }
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif

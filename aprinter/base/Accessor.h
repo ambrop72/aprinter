@@ -74,6 +74,17 @@ struct ComposedAccessor {
     }
 };
 
+template <typename Object, typename Member>
+struct BaseClassAccessor {
+    using ObjectType = Object;
+    using MemberType = Member;
+    
+    inline static MemberType & access (ObjectType &e)
+    {
+        return e;
+    }
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif
