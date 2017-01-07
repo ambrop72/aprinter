@@ -143,8 +143,11 @@ private:
     // Number of ephemeral ports.
     static PortType const NumEphemeralPorts = EphemeralPortLast - EphemeralPortFirst + 1;
     
-    // Signed integer type usable as an index for the PCBs array.
-    using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, true>;
+    // Unsigned integer type usable as an index for the PCBs array.
+    // We use the largest value of that type as null (which cannot
+    // be a valid PCB index).
+    using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, false>;
+    static PcbIndexType const PcbIndexNull = PcbIndexType(-1);
     
     // Represents a segment of contiguous out-of-sequence data.
     struct OosSeg {
@@ -740,7 +743,7 @@ private:
     
     // Define the link model.
     struct PcbLinkModel : public APrinter::If<LinkWithArrayIndices,
-        APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, -1>,
+        APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, PcbIndexNull>,
         APrinter::PointerLinkModel<TcpPcb>
     > {};
     APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
