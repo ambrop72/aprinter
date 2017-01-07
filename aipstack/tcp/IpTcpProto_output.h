@@ -49,7 +49,8 @@ class IpTcpProto_output
                                  can_output_in_state, accepting_data_in_state,
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
-                                   Input, Clock, TimeType, RttType, RttNextType, Constants))
+                                   Input, Clock, TimeType, RttType, RttNextType, Constants,
+                                   OutputTimer, RtxTimer))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TcpProto::TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -155,8 +156,8 @@ public:
         
         if (pcb->state != TcpState::SYN_SENT) {
             // Start the output timer if not running.
-            if (!pcb->output_timer.isSet(Context())) {
-                pcb->output_timer.appendAfter(Context(), Constants::OutputTimerTicks);
+            if (!pcb->tim(OutputTimer()).isSet(Context())) {
+                pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
             }
         }
     }
@@ -193,8 +194,8 @@ public:
             if (pcb == pcb->tcp->m_current_pcb) {
                 pcb->setFlag(PcbFlags::OUT_PENDING);
             } else {
-                if (!pcb->output_timer.isSet(Context())) {
-                    pcb->output_timer.appendAfter(Context(), Constants::OutputTimerTicks);
+                if (!pcb->tim(OutputTimer()).isSet(Context())) {
+                    pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
                 }
             }
         }
@@ -242,8 +243,8 @@ public:
             // Start timer for idle timeout unless already running for idle timeout.
             // NOTE: We might set the idle timer even if it has already expired and
             // nothing has been sent since, but this is not really a problem.
-            if (!pcb->rtx_timer.isSet(Context()) || !pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
-                pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+            if (!pcb->tim(RtxTimer()).isSet(Context()) || !pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
                 pcb->setFlag(PcbFlags::IDLE_TIMER);
             }
             return false;
@@ -291,13 +292,13 @@ public:
         if (pcb_need_rtx_timer(pcb)) {
             // Start timer for retransmission or window probe, if not already
             // or if it was running for idle timeout.
-            if (!pcb->rtx_timer.isSet(Context()) || pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
-                pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+            if (!pcb->tim(RtxTimer()).isSet(Context()) || pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
                 pcb->clearFlag(PcbFlags::IDLE_TIMER);
             }
         } else {
             // Stop the timer.
-            pcb->rtx_timer.unset(Context());
+            pcb->tim(RtxTimer()).unset(Context());
         }
         
         return sent;
@@ -339,7 +340,7 @@ public:
         // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
         pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
-        pcb->rtx_timer.appendAfter(Context(), pcb_rto_time(pcb));
+        pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
         
         // If this for a SYN or SYN-ACK retransmission, retransmit and return.
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
@@ -404,7 +405,7 @@ public:
         
         // Stop the rtx_timer. Consider that the state changes done by Input
         // just after this might invalidate the asserts in pcb_rtx_timer_handler.
-        pcb->rtx_timer.unset(Context());
+        pcb->tim(RtxTimer()).unset(Context());
         
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);

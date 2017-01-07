@@ -31,11 +31,12 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/system/TimedEventWrapper.h>
+
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -48,7 +49,14 @@
 #include <aipstack/BeginNamespace.h>
 
 template <typename Arg>
+class EthIpIface;
+
+template <typename Arg>
+APRINTER_DECL_TIMERS_CLASS(EthIpIfaceTimers, typename Arg::Context, EthIpIface<Arg>, (ArpTimer))
+
+template <typename Arg>
 class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
+    private EthIpIfaceTimers<Arg>::Timers,
     private EthIfaceDriverCallback<EthIpIface<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
@@ -56,6 +64,8 @@ class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
+    
+    APRINTER_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
     
     static size_t const EthArpPktSize = EthHeader::Size + ArpIp4Header::Size;
     
@@ -78,7 +88,7 @@ public:
     
     void init (EthIfaceDriver<CallbackImpl> *driver)
     {
-        m_arp_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&EthIpIface::arp_timer_handler, this));
+        tim(ArpTimer()).init(Context());
         m_driver = driver;
         m_callback = nullptr;
         
@@ -95,7 +105,7 @@ public:
             e.retry_list.init();
         }
         
-        m_arp_timer.appendAfter(Context(), ArpTimerTicks);
+        tim(ArpTimer()).appendAfter(Context(), ArpTimerTicks);
     }
     
     void deinit ()
@@ -105,7 +115,7 @@ public:
         }
         
         m_driver->setCallback(nullptr);
-        m_arp_timer.deinit(Context());
+        tim(ArpTimer()).deinit(Context());
     }
     
 public: // IpIfaceDriver
@@ -384,9 +394,9 @@ private:
         m_driver->sendFrame(frame_alloc.getBufRef());
     }
     
-    void arp_timer_handler (Context)
+    void timerExpired (ArpTimer, Context)
     {
-        m_arp_timer.appendAfter(Context(), ArpTimerTicks);
+        tim(ArpTimer()).appendAfter(Context(), ArpTimerTicks);
         
         IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
         
@@ -437,7 +447,6 @@ private:
     }
     
 private:
-    typename Context::EventLoop::TimedEvent m_arp_timer;
     EthIfaceDriver<CallbackImpl> *m_driver;
     IpIfaceDriverCallback<IpCallbackImpl> *m_callback;
     MacAddr const *m_mac_addr;

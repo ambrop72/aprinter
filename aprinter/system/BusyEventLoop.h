@@ -35,7 +35,9 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ServiceUtils.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/LinkModel.h>
+#include <aprinter/base/Accessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -43,6 +45,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/system/TimedEventCompat.h>
 #include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -55,6 +58,9 @@ class BusyEventLoop {
     using ParentObject = typename Arg::ParentObject;
     using ExtraDelay   = typename Arg::ExtraDelay;
     
+    template <typename> friend class BusyEventLoopQueuedEvent;
+    template <typename> friend class BusyEventLoopTimedEvent;
+    
 public:
     struct Object;
     using Context = typename Arg::Context;
@@ -62,7 +68,8 @@ public:
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
     using QueuedEvent = BusyEventLoopQueuedEvent<BusyEventLoop>;
-    using TimedEvent = BusyEventLoopTimedEvent<BusyEventLoop>;
+    using TimedEventNew = BusyEventLoopTimedEvent<BusyEventLoop>;
+    using TimedEvent = TimedEventCompat<TimedEventNew>;
     using FastHandlerType = void (*) (Context);
     
 private:
@@ -72,10 +79,8 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-#ifdef AMBROLIB_SUPPORT_QUIT
-        o->m_quitting = false;
-#endif
-        o->m_event_list.init();
+        o->m_queued_event_list.init();
+        o->m_timed_event_list.init();
         Delay::extra(c)->m_fast_event_pos = 0;
         for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
             Delay::extra(c)->m_fast_events[i].not_triggered = true;
@@ -91,13 +96,16 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
-        AMBRO_ASSERT(o->m_event_list.isEmpty())
+        AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
+        AMBRO_ASSERT(o->m_timed_event_list.isEmpty())
     }
     
     static void run (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
+        
+        dispatch_queued_events(c);
         
         while (1) {
             for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
@@ -111,6 +119,7 @@ public:
                     sei();
                     bench_start_measuring(c);
                     Delay::extra(c)->m_fast_events[Delay::extra(c)->m_fast_event_pos].handler(c);
+                    dispatch_queued_events(c);
                     c.check();
                     bench_stop_measuring(c);
                     break;
@@ -118,28 +127,21 @@ public:
                 sei();
             }
             
-        again:;
             TimeType now = Clock::getTime(c);
-            for (BaseEventStruct *ev = o->m_event_list.first(); ev; ev = o->m_event_list.next(ev)) {
-                AMBRO_ASSERT(!EventList::isRemoved(ev))
-                if (ev->handler_or_hack || TheClockUtils::timeGreaterOrEqual(now, static_cast<TimedEventStruct *>(ev)->time)) {
-                    o->m_event_list.remove(ev);
-                    EventList::markRemoved(ev);
+            
+            for (TimedEventNew *tev = o->m_timed_event_list.first(); tev; tev = o->m_timed_event_list.next(*tev)) {
+                tev->debugAccess(c);
+                AMBRO_ASSERT(!TimedEventList::isRemoved(*tev))
+                
+                if (TheClockUtils::timeGreaterOrEqual(now, tev->m_time)) {
+                    o->m_timed_event_list.remove(*tev);
+                    TimedEventList::markRemoved(*tev);
                     bench_start_measuring(c);
-                    if (ev->handler_or_hack) {
-                        ev->handler_or_hack(c);
-                    } else {
-                        auto handler = EventHandlerType::Make(static_cast<TimedEventStruct *>(ev)->handler_func, ev->handler_or_hack.m_arg);
-                        handler(c);
-                    }
+                    tev->handleTimerExpired(c);
+                    dispatch_queued_events(c);
                     c.check();
                     bench_stop_measuring(c);
-#ifdef AMBROLIB_SUPPORT_QUIT
-                    if (o->m_quitting) {
-                        return;
-                    }
-#endif
-                    goto again;
+                    break;
                 }
             }
         }
@@ -156,14 +158,6 @@ public:
     {
         auto *o = Object::self(c);
         return o->m_bench_time;
-    }
-#endif
-    
-#ifdef AMBROLIB_SUPPORT_QUIT
-    static void quit (Context c)
-    {
-        auto *o = Object::self(c);
-        o->m_quitting = true;
     }
 #endif
     
@@ -198,22 +192,11 @@ public:
     }
     
 private:
-    template <typename> friend class BusyEventLoopQueuedEvent;
-    template <typename> friend class BusyEventLoopTimedEvent;
+    using QueuedEventList = LinkedList<QueuedEvent, typename APRINTER_MEMBER_ACCESSOR(&QueuedEvent::m_list_node),
+                                       PointerLinkModel<QueuedEvent>, true>;
     
-    using EventHandlerType = Callback<void(Context)>;
-    
-    struct BaseEventStruct {
-        EventHandlerType handler_or_hack;
-        DoubleEndedListNode<BaseEventStruct> list_node;
-    };
-    
-    struct TimedEventStruct : public BaseEventStruct {
-        typename EventHandlerType::FuncType handler_func;
-        TimeType time;
-    };
-    
-    using EventList = DoubleEndedList<BaseEventStruct, &BaseEventStruct::list_node>;
+    using TimedEventList = LinkedList<TimedEventNew, typename APRINTER_MEMBER_ACCESSOR(&TimedEventNew::m_list_node),
+                                      PointerLinkModel<TimedEventNew>, true>;
     
     struct Delay {
         using Extra = typename ExtraDelay::Type;
@@ -236,12 +219,26 @@ private:
 #endif
     }
     
+    static void dispatch_queued_events (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        while (QueuedEvent *qev = o->m_queued_event_list.first()) {
+            qev->debugAccess(c);
+            AMBRO_ASSERT(qev->m_handler)
+            AMBRO_ASSERT(!QueuedEventList::isRemoved(*qev))
+            
+            o->m_queued_event_list.removeFirst();
+            QueuedEventList::markRemoved(*qev);
+            
+            qev->m_handler(c);
+        }
+    }
+    
 public:
     struct Object : public ObjBase<BusyEventLoop, ParentObject, MakeTypeList<TheDebugObject>> {
-#ifdef AMBROLIB_SUPPORT_QUIT
-        bool m_quitting;
-#endif
-        EventList m_event_list;
+        QueuedEventList m_queued_event_list;
+        TimedEventList m_timed_event_list;
 #ifdef EVENTLOOP_BENCHMARK
         TimeType m_bench_time;
         TimeType m_bench_enter_time;
@@ -296,19 +293,26 @@ APRINTER_ALIAS_STRUCT_EXT(BusyEventLoopExtraArg, (
 
 template <typename Loop>
 class BusyEventLoopQueuedEvent
-: private SimpleDebugObject<typename Loop::Context>, private Loop::BaseEventStruct
+: private SimpleDebugObject<typename Loop::Context>
 {
+    friend Loop;
+    
 public:
     using Context = typename Loop::Context;
     using TimeType = typename Loop::TimeType;
     using HandlerType = Callback<void(Context c)>;
     
+private:
+    LinkedListNode<PointerLinkModel<BusyEventLoopQueuedEvent>> m_list_node;
+    HandlerType m_handler;
+    
+public:
     void init (Context c, HandlerType handler)
     {
         AMBRO_ASSERT(handler)
         
-        this->handler_or_hack = handler;
-        Loop::EventList::markRemoved(this);
+        m_handler = handler;
+        Loop::QueuedEventList::markRemoved(*this);
         
         this->debugInit(c);
     }
@@ -318,8 +322,8 @@ public:
         this->debugDeinit(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
+        if (!Loop::QueuedEventList::isRemoved(*this)) {
+            lo->m_queued_event_list.remove(*this);
         }
     }
     
@@ -328,9 +332,9 @@ public:
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
-            Loop::EventList::markRemoved(this);
+        if (!Loop::QueuedEventList::isRemoved(*this)) {
+            lo->m_queued_event_list.remove(*this);
+            Loop::QueuedEventList::markRemoved(*this);
         }
     }
     
@@ -338,16 +342,16 @@ public:
     {
         this->debugAccess(c);
         
-        return !Loop::EventList::isRemoved(this);
+        return !Loop::QueuedEventList::isRemoved(*this);
     }
     
     void appendNowNotAlready (Context c)
     {
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
+        AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(*this))
         
-        lo->m_event_list.append(this);
+        lo->m_queued_event_list.append(*this);
     }
     
     void appendNow (Context c)
@@ -355,19 +359,19 @@ public:
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
+        if (!Loop::QueuedEventList::isRemoved(*this)) {
+            lo->m_queued_event_list.remove(*this);
         }
-        lo->m_event_list.append(this);
+        lo->m_queued_event_list.append(*this);
     }
     
     void prependNowNotAlready (Context c)
     {
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
+        AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(*this))
         
-        lo->m_event_list.prepend(this);
+        lo->m_queued_event_list.prepend(*this);
     }
     
     void prependNow (Context c)
@@ -375,29 +379,31 @@ public:
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
+        if (!Loop::QueuedEventList::isRemoved(*this)) {
+            lo->m_queued_event_list.remove(*this);
         }
-        lo->m_event_list.prepend(this);
+        lo->m_queued_event_list.prepend(*this);
     }
 };
 
 template <typename Loop>
 class BusyEventLoopTimedEvent
-: private SimpleDebugObject<typename Loop::Context>, private Loop::TimedEventStruct
+: private SimpleDebugObject<typename Loop::Context>
 {
+    friend Loop;
+    
 public:
     using Context = typename Loop::Context;
     using TimeType = typename Loop::TimeType;
-    using HandlerType = Callback<void(Context c)>;
     
-    void init (Context c, HandlerType handler)
+private:
+    LinkedListNode<PointerLinkModel<BusyEventLoopTimedEvent>> m_list_node;
+    TimeType m_time;
+    
+public:
+    void init (Context c)
     {
-        AMBRO_ASSERT(handler)
-        
-        this->handler_or_hack = HandlerType::Make(nullptr, handler.m_arg);
-        Loop::EventList::markRemoved(this);
-        this->handler_func = handler.m_func;
+        Loop::TimedEventList::markRemoved(*this);
         
         this->debugInit(c);
     }
@@ -407,8 +413,8 @@ public:
         this->debugDeinit(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
+        if (!Loop::TimedEventList::isRemoved(*this)) {
+            lo->m_timed_event_list.remove(*this);
         }
     }
     
@@ -417,27 +423,34 @@ public:
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
-            Loop::EventList::markRemoved(this);
+        if (!Loop::TimedEventList::isRemoved(*this)) {
+            lo->m_timed_event_list.remove(*this);
+            Loop::TimedEventList::markRemoved(*this);
         }
     }
     
-    bool isSet (Context c)
+    inline bool isSet (Context c)
     {
         this->debugAccess(c);
         
-        return !Loop::EventList::isRemoved(this);
+        return !Loop::TimedEventList::isRemoved(*this);
     }
     
-    void appendNowNotAlready (Context c)
+    inline TimeType getSetTime (Context c)
+    {
+        this->debugAccess(c);
+        
+        return m_time;
+    }
+    
+    void appendAtNotAlready (Context c, TimeType time)
     {
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
+        AMBRO_ASSERT(Loop::TimedEventList::isRemoved(*this))
         
-        lo->m_event_list.append(this);
-        this->time = Context::Clock::getTime(c);
+        lo->m_timed_event_list.append(*this);
+        m_time = time;
     }
     
     void appendAt (Context c, TimeType time)
@@ -445,11 +458,16 @@ public:
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
-        if (!Loop::EventList::isRemoved(this)) {
-            lo->m_event_list.remove(this);
+        if (!Loop::TimedEventList::isRemoved(*this)) {
+            lo->m_timed_event_list.remove(*this);
         }
-        lo->m_event_list.append(this);
-        this->time = time;
+        lo->m_timed_event_list.append(*this);
+        m_time = time;
+    }
+    
+    void appendNowNotAlready (Context c)
+    {
+        appendAtNotAlready(c, Context::Clock::getTime(c));
     }
     
     void appendAfter (Context c, TimeType after_time)
@@ -459,30 +477,16 @@ public:
     
     void appendAfterNotAlready (Context c, TimeType after_time)
     {
-        this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
-        
-        lo->m_event_list.append(this);
-        this->time = Context::Clock::getTime(c) + after_time;
+        appendAtNotAlready(c, Context::Clock::getTime(c) + after_time);
     }
     
     void appendAfterPrevious (Context c, TimeType after_time)
     {
-        this->debugAccess(c);
-        auto *lo = Loop::Object::self(c);
-        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
-        
-        lo->m_event_list.append(this);
-        this->time += after_time;
+        appendAtNotAlready(c, m_time + after_time);
     }
     
-    TimeType getSetTime (Context c)
-    {
-        this->debugAccess(c);
-        
-        return this->time;
-    }
+protected:
+    virtual void handleTimerExpired (Context c) = 0;
 };
 
 #include <aprinter/EndNamespace.h>

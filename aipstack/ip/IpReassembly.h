@@ -30,9 +30,9 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/ClockUtils.h>
+#include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
@@ -42,15 +42,23 @@
 #include <aipstack/BeginNamespace.h>
 
 template <typename Arg>
-class IpReassembly
+class IpReassembly;
+
+template <typename Arg>
+APRINTER_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::Context, IpReassembly<Arg>, (PurgeTimer))
+
+template <typename Arg>
+class IpReassembly :
+    private IpReassemblyTimers<Arg>::Timers
 {
     APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize))
     APRINTER_USE_TYPES1(Arg, (Context))
     
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
-    APRINTER_USE_TYPES1(Context::EventLoop, (TimedEvent))
     using TheClockUtils = APrinter::ClockUtils<Context>;
+    
+    APRINTER_USE_TIMERS_CLASS(IpReassemblyTimers<Arg>, (PurgeTimer)) 
     
     static_assert(MaxReassEntrys > 0, "");
     static_assert(MaxReassSize >= 576, "");
@@ -93,16 +101,15 @@ class IpReassembly
     };
     
 private:
-    TimedEvent m_reass_purge_timer;
     IpBufNode m_reass_node;
     ReassEntry m_reass_packets[MaxReassEntrys];
     
 public:
     void init ()
     {
-        m_reass_purge_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&IpReassembly::reass_purge_timer_handler, this));
+        tim(PurgeTimer()).init(Context());
         
-        m_reass_purge_timer.appendAfter(Context(), ReassMaxExpirationTicks);
+        tim(PurgeTimer()).appendAfter(Context(), ReassMaxExpirationTicks);
         
         for (auto &reass : m_reass_packets) {
             reass.first_hole_offset = ReassNullLink;
@@ -111,7 +118,7 @@ public:
     
     void deinit ()
     {
-        m_reass_purge_timer.deinit(Context());
+        tim(PurgeTimer()).deinit(Context());
     }
     
     bool reassembleIp4 (uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto,
@@ -382,10 +389,10 @@ private:
         return hole_offset <= MaxReassSize;
     }
     
-    void reass_purge_timer_handler (Context)
+    void timerExpired (PurgeTimer, Context)
     {
         // Restart the timer.
-        m_reass_purge_timer.appendAfter(Context(), ReassMaxExpirationTicks);
+        tim(PurgeTimer()).appendAfter(Context(), ReassMaxExpirationTicks);
         
         // Purge any expired reassembly entries.
         TimeType now = Clock::getTime(Context());

@@ -46,6 +46,8 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
+#include <aprinter/system/TimedEventWrapper.h>
+
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
@@ -76,7 +78,6 @@ class IpTcpProto :
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
-    APRINTER_USE_TYPE1(Context::EventLoop, TimedEvent)
     APRINTER_USE_ONEOF
     
     APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface))
@@ -176,24 +177,29 @@ public:
     
 private:
     /**
+     * Timers:
+     * AbrtTimer: for aborting PCB (TIME_WAIT, abandonment)
+     * OutputTimer: for pcb_output after send buffer extension
+     * RtxTimer: for retransmission, window probe and cwnd idle reset
+     */
+    APRINTER_DECL_TIMERS(TcpPcbTimers, typename Context, TcpPcb, (AbrtTimer, OutputTimer, RtxTimer))
+    
+    /**
      * A TCP Protocol Control Block.
      * These are maintained internally within the stack and may
      * survive deinit/reset of an associated TcpConnection object.
      */
     struct TcpPcb :
         // Send retry request (inherited for efficiency).
-        public IpSendRetry::Request
+        public IpSendRetry::Request,
+        // PCB timers.
+        public TcpPcbTimers
     {
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
         
         // Node for the unreferenced PCBs list.
         APrinter::LinkedListNode<PcbLinkModel> unrefed_list_node;
-        
-        // Timers.
-        TimedEvent abrt_timer;   // timer for aborting PCB (TIME_WAIT, abandonment)
-        TimedEvent output_timer; // timer for pcb_output after send buffer extension
-        TimedEvent rtx_timer;    // timer for retransmission, window probe and cwnd idle reset
         
         // Basic stuff.
         IpTcpProto *tcp;    // pointer back to IpTcpProto
@@ -268,9 +274,9 @@ private:
         inline size_t rcvBufLen () { return (con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
         
         // Trampolines for timer handlers.
-        void abrt_timer_handler (Context) { pcb_abrt_timer_handler(this); }
-        void output_timer_handler (Context) { Output::pcb_output_timer_handler(this); }
-        void rtx_timer_handler (Context) { Output::pcb_rtx_timer_handler(this); }
+        inline void timerExpired (AbrtTimer, Context) { pcb_abrt_timer_handler(this); }
+        inline void timerExpired (OutputTimer, Context) { Output::pcb_output_timer_handler(this); }
+        inline void timerExpired (RtxTimer, Context) { Output::pcb_rtx_timer_handler(this); }
         
         // Send retry callback.
         void retrySending () override final { Output::pcb_send_retry(this); }
@@ -299,9 +305,9 @@ public:
         m_pcb_index_timewait.init();
         
         for (TcpPcb &pcb : m_pcbs) {
-            pcb.abrt_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::abrt_timer_handler, &pcb));
-            pcb.output_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::output_timer_handler, &pcb));
-            pcb.rtx_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::rtx_timer_handler, &pcb));
+            pcb.tim(AbrtTimer()).init(Context());
+            pcb.tim(OutputTimer()).init(Context());
+            pcb.tim(RtxTimer()).init(Context());
             pcb.IpSendRetry::Request::init();
             pcb.tcp = this;
             pcb.con = nullptr;
@@ -325,9 +331,9 @@ public:
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.con == nullptr)
             pcb.IpSendRetry::Request::deinit();
-            pcb.rtx_timer.deinit(Context());
-            pcb.output_timer.deinit(Context());
-            pcb.abrt_timer.deinit(Context());
+            pcb.tim(RtxTimer()).deinit(Context());
+            pcb.tim(OutputTimer()).deinit(Context());
+            pcb.tim(AbrtTimer()).deinit(Context());
         }
         
         m_proto_listener.deinit();
@@ -355,9 +361,9 @@ private:
             pcb_abort(pcb);
         }
         
-        AMBRO_ASSERT(!pcb->abrt_timer.isSet(Context()))
-        AMBRO_ASSERT(!pcb->output_timer.isSet(Context()))
-        AMBRO_ASSERT(!pcb->rtx_timer.isSet(Context()))
+        AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet(Context()))
+        AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet(Context()))
+        AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet(Context()))
         AMBRO_ASSERT(pcb->tcp == this)
         AMBRO_ASSERT(pcb->con == nullptr)
         AMBRO_ASSERT(pcb->lis == nullptr)
@@ -408,9 +414,9 @@ private:
         }
         
         // Reset other relevant fields to initial state.
-        pcb->abrt_timer.unset(Context());
-        pcb->output_timer.unset(Context());
-        pcb->rtx_timer.unset(Context());
+        pcb->tim(AbrtTimer()).unset(Context());
+        pcb->tim(OutputTimer()).unset(Context());
+        pcb->tim(RtxTimer()).unset(Context());
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
     }
@@ -442,11 +448,11 @@ private:
         tcp->m_pcb_index_timewait.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
         
         // Stop these timers due to asserts in their handlers.
-        pcb->output_timer.unset(Context());
-        pcb->rtx_timer.unset(Context());
+        pcb->tim(OutputTimer()).unset(Context());
+        pcb->tim(RtxTimer()).unset(Context());
         
         // Start the TIME_WAIT timeout.
-        pcb->abrt_timer.appendAfter(Context(), Constants::TimeWaitTimeTicks);
+        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
     }
     
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)
@@ -538,7 +544,7 @@ private:
         }
         
         // Start the abort timeout.
-        pcb->abrt_timer.appendAfter(Context(), Constants::AbandonedTimeoutTicks);
+        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::AbandonedTimeoutTicks);
     }
     
     static void pcb_abrt_timer_handler (TcpPcb *pcb)
@@ -670,10 +676,10 @@ private:
         m_pcb_index_active.addEntry(*pcb);
         
         // Start the connection timeout.
-        pcb->abrt_timer.appendAfter(Context(), Constants::SynSentTimeoutTicks);
+        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynSentTimeoutTicks);
         
         // Start the retransmission timer.
-        pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
+        pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
         
         // Send the SYN.
         pcb_send_syn(pcb);

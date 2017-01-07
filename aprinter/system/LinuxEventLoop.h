@@ -58,6 +58,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/misc/ClockUtils.h>
+#include <aprinter/system/TimedEventCompat.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -82,10 +83,11 @@ public:
     APRINTER_USE_TYPE1(Clock, TimeType)
     
     using QueuedEvent = LinuxEventLoopQueuedEvent<LinuxEventLoop>;
-    using TimedEvent = LinuxEventLoopTimedEvent<LinuxEventLoop>;
+    using TimedEventNew = LinuxEventLoopTimedEvent<LinuxEventLoop>;
+    using TimedEvent = TimedEventCompat<TimedEventNew>;
     using FdEvent = LinuxEventLoopFdEvent<LinuxEventLoop>;
     
-    using TimerLinkModel = PointerLinkModel<TimedEvent>;
+    using TimerLinkModel = PointerLinkModel<TimedEventNew>;
     
     using FastHandlerType = void (*) (Context);
     
@@ -159,23 +161,23 @@ public:
             update_timers_for_dispatch(c, now);
             
             // Dispatch timers marked for dispatch.
-            while (TimedEvent *tev = o->timed_event_heap.first()) {
+            while (TimedEventNew *tev = o->timed_event_heap.first()) {
                 tev->debugAccess(c);
                 AMBRO_ASSERT(tev->m_state == one_of_heap_timer_states())
                 
                 // If this is not a DISPATCH state timer, ther are no more
                 // DISPATCH timers, since DISPATCH timers are lesser than timers
                 // in any other state that can appear in the heap.
-                if (tev->m_state != TimedEvent::State::DISPATCH) {
+                if (tev->m_state != TimedEventNew::State::DISPATCH) {
                     break;
                 }
                 
                 // Set to TENTATIVE state, fixup the heap.
-                tev->m_state = TimedEvent::State::TENTATIVE;
+                tev->m_state = TimedEventNew::State::TENTATIVE;
                 o->timed_event_heap.fixup(*tev);
                 
                 // Call the handler.
-                tev->m_handler(c);
+                tev->handleTimerExpired(c);
                 dispatch_queued_events(c);
             }
             
@@ -312,16 +314,16 @@ public:
     inline static bool has_timers_for_dispatch (Context c)
     {
         auto *o = Object::self(c);
-        TimedEvent *tev = o->timed_event_heap.first();
-        return tev != nullptr && tev->m_state == TimedEvent::State::DISPATCH;
+        TimedEventNew *tev = o->timed_event_heap.first();
+        return tev != nullptr && tev->m_state == TimedEventNew::State::DISPATCH;
     }
     
 private:
     using QueuedEventList = DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node>;
     
-    using TimerHeapNodeAccessor = typename APRINTER_MEMBER_ACCESSOR(&TimedEvent::m_heap_node);
+    using TimerHeapNodeAccessor = typename APRINTER_MEMBER_ACCESSOR(&TimedEventNew::m_heap_node);
     class TimerCompare;
-    using TimedEventHeap = LinkedHeap<TimedEvent, TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
+    using TimedEventHeap = LinkedHeap<TimedEventNew, TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
     
     template <typename This=LinuxEventLoop>
     using Extra = typename This::ExtraDelay::Type;
@@ -380,13 +382,13 @@ private:
         // Because the traversal is pre-order, the heap property is preserved
         // even during this iteration, ensuring the asserts in this heap code
         // to pass.
-        TimedEvent *tev = o->timed_event_heap.findFirstLesserOrEqual(dispatch_time);
+        TimedEventNew *tev = o->timed_event_heap.findFirstLesserOrEqual(dispatch_time);
         if (tev != nullptr) {
             do {
                 tev->debugAccess(c);
-                AMBRO_ASSERT(tev->m_state == OneOf(TimedEvent::State::PAST, TimedEvent::State::FUTURE))
+                AMBRO_ASSERT(tev->m_state == OneOf(TimedEventNew::State::PAST, TimedEventNew::State::FUTURE))
                 
-                tev->m_state = TimedEvent::State::DISPATCH;
+                tev->m_state = TimedEventNew::State::DISPATCH;
                 
                 tev = o->timed_event_heap.findNextLesserOrEqual(dispatch_time, *tev);
             } while (tev != nullptr);
@@ -414,26 +416,26 @@ private:
         bool have_first_time = false;
         TimeType first_time;
         
-        while (TimedEvent *tev = o->timed_event_heap.first()) {
+        while (TimedEventNew *tev = o->timed_event_heap.first()) {
             tev->debugAccess(c);
-            AMBRO_ASSERT(tev->m_state == OneOf(TimedEvent::State::TENTATIVE, TimedEvent::State::PAST,
-                                               TimedEvent::State::FUTURE))
+            AMBRO_ASSERT(tev->m_state == OneOf(TimedEventNew::State::TENTATIVE, TimedEventNew::State::PAST,
+                                               TimedEventNew::State::FUTURE))
             
             // If this is a TENTATIVE timer, remove it from the heap,
             // set it to IDLE state and proceed to look at the next timer.
-            if (tev->m_state == TimedEvent::State::TENTATIVE) {
+            if (tev->m_state == TimedEventNew::State::TENTATIVE) {
                 o->timed_event_heap.remove(*tev);
-                tev->m_state = TimedEvent::State::IDLE;
+                tev->m_state = TimedEventNew::State::IDLE;
                 continue;
             }
             
             // The timerfd is to be configured based on this timer.
             have_first_time = true;
-            if (tev->m_state == TimedEvent::State::FUTURE) {
+            if (tev->m_state == TimedEventNew::State::FUTURE) {
                 AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(tev->m_time, o->timers_now))
                 first_time = tev->m_time;
             } else {
-                AMBRO_ASSERT(tev->m_state == TimedEvent::State::PAST)
+                AMBRO_ASSERT(tev->m_state == TimedEventNew::State::PAST)
                 first_time = o->timers_now;
             }
             break;
@@ -533,13 +535,13 @@ private:
     
     inline static auto one_of_heap_timer_states ()
     {
-        using TimState = typename TimedEvent::State;
+        using TimState = typename TimedEventNew::State;
         return OneOf(TimState::DISPATCH, TimState::TENTATIVE, TimState::PAST, TimState::FUTURE);
     }
     
     // This implements comparisons used by the timers heap.
     class TimerCompare {
-        using TimState = typename TimedEvent::State;
+        using TimState = typename TimedEventNew::State;
         using State = typename TimerLinkModel::State;
         using Ref = typename TimerLinkModel::Ref;
         
@@ -549,8 +551,8 @@ private:
         {
             Context c;
             auto *o = Object::self(c);
-            TimedEvent &tev1 = *ref1;
-            TimedEvent &tev2 = *ref2;
+            TimedEventNew &tev1 = *ref1;
+            TimedEventNew &tev2 = *ref2;
             AMBRO_ASSERT(tev1.m_state == one_of_heap_timer_states())
             AMBRO_ASSERT(tev2.m_state == one_of_heap_timer_states())
             AMBRO_ASSERT(tev1.m_state != TimState::FUTURE || TheClockUtils::timeGreaterOrEqual(tev1.m_time, o->timers_now))
@@ -577,7 +579,7 @@ private:
         {
             Context c;
             auto *o = Object::self(c);
-            TimedEvent &tev2 = *ref2;
+            TimedEventNew &tev2 = *ref2;
             AMBRO_ASSERT(TheClockUtils::timeGreaterOrEqual(time1, o->timers_now))
             AMBRO_ASSERT(tev2.m_state == one_of_heap_timer_states())
             AMBRO_ASSERT(tev2.m_state != TimState::FUTURE || TheClockUtils::timeGreaterOrEqual(tev2.m_time, o->timers_now))
@@ -779,13 +781,9 @@ class LinuxEventLoopTimedEvent
 public:
     APRINTER_USE_TYPE1(Loop, Context)
     APRINTER_USE_TYPE1(Loop, TimeType)
-    using HandlerType = Callback<void(Context c)>;
     
-    void init (Context c, HandlerType handler)
+    void init (Context c)
     {
-        AMBRO_ASSERT(handler)
-        
-        m_handler = handler;
         m_state = State::IDLE;
         
         this->debugInit(c);
@@ -815,6 +813,13 @@ public:
         this->debugAccess(c);
         
         return m_state != OneOf(State::IDLE, State::TENTATIVE);
+    }
+    
+    inline TimeType getSetTime (Context c)
+    {
+        this->debugAccess(c);
+        
+        return m_time;
     }
     
     inline void appendAtNotAlready (Context c, TimeType time)
@@ -859,12 +864,8 @@ public:
         appendAtNotAlready(c, m_time + after_time);
     }
     
-    inline TimeType getSetTime (Context c)
-    {
-        this->debugAccess(c);
-        
-        return m_time;
-    }
+protected:
+    virtual void handleTimerExpired (Context c) = 0;
     
 private:
     inline State state_for_link (Context c)
@@ -885,7 +886,6 @@ private:
     }
     
     LinkedHeapNode<typename Loop::TimerLinkModel> m_heap_node;
-    HandlerType m_handler;
     TimeType m_time;
     State m_state;
 };

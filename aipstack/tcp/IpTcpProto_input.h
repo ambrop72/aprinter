@@ -50,7 +50,8 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
-                                   TcpPcb, PcbFlags, Output, OosSeg, Constants))
+                                   TcpPcb, PcbFlags, Output, OosSeg, Constants,
+                                   AbrtTimer, RtxTimer, OutputTimer))
     APRINTER_USE_ONEOF
     
 public:
@@ -235,10 +236,10 @@ private:
             tcp->move_unrefed_pcb_to_front(pcb);
             
             // Start the SYN_RCVD abort timeout.
-            pcb->abrt_timer.appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
+            pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
             
             // Start the retransmission timer.
-            pcb->rtx_timer.appendAfter(Context(), Output::pcb_rto_time(pcb));
+            pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
             
             // Reply with a SYN-ACK.
             Output::pcb_send_syn(pcb);
@@ -289,7 +290,7 @@ private:
         else if (pcb->state == TcpState::TIME_WAIT) {
             // Reply with an ACK and restart the timeout.
             pcb->setFlag(PcbFlags::ACK_PENDING);
-            pcb->abrt_timer.appendAfter(Context(), Constants::TimeWaitTimeTicks);
+            pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
         }
         
         // Try to output if desired.
@@ -371,7 +372,7 @@ private:
                         // This seems to be a retransmission of the SYN, retransmit our
                         // SYN+ACK and bump the abort timeout.
                         Output::pcb_send_syn(pcb);
-                        pcb->abrt_timer.appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
+                        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
                     }
                     else {
                         Output::pcb_send_empty_ack(pcb);
@@ -524,10 +525,10 @@ private:
         AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
         
         // Stop the SYN_RCVD abort timer.
-        pcb->abrt_timer.unset(Context());
+        pcb->tim(AbrtTimer()).unset(Context());
         
         // Stop the retransmission timer.
-        pcb->rtx_timer.unset(Context());
+        pcb->tim(RtxTimer()).unset(Context());
         
         // Go to ESTABLISHED state.
         pcb->state = TcpState::ESTABLISHED;
@@ -735,7 +736,7 @@ private:
                     pcb->state = TcpState::FIN_WAIT_2;
                     // At this transition output_timer and rtx_timer must be unset
                     // due to assert in their handlers (rtx_timer was unset above).
-                    pcb->output_timer.unset(Context());
+                    pcb->tim(OutputTimer()).unset(Context());
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.
@@ -800,12 +801,12 @@ private:
                 // Check if we need to end widow probing.
                 // This is done by checking if the assert pcb_need_rtx_timer has been
                 // invalidated while the rtx_timer was running not for idle timeout.
-                if (pcb->rtx_timer.isSet(Context()) &&
+                if (pcb->tim(RtxTimer()).isSet(Context()) &&
                     !pcb->hasFlag(PcbFlags::IDLE_TIMER) &&
                     !Output::pcb_need_rtx_timer(pcb))
                 {
                     // Stop the timer to stop window probes and avoid hitting the assert.
-                    pcb->rtx_timer.unset(Context());
+                    pcb->tim(RtxTimer()).unset(Context());
                     
                     // Undo any increase of the retransmission time.
                     Output::pcb_update_rto(pcb);
