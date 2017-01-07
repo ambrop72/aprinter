@@ -159,7 +159,7 @@ public:
             update_timers_for_dispatch(c, now);
             
             // Dispatch timers marked for dispatch.
-            while (TimedEvent *tev = o->timed_event_heap.first().pointer()) {
+            while (TimedEvent *tev = o->timed_event_heap.first()) {
                 tev->debugAccess(c);
                 AMBRO_ASSERT(tev->m_state == one_of_heap_timer_states())
                 
@@ -312,7 +312,7 @@ public:
     inline static bool has_timers_for_dispatch (Context c)
     {
         auto *o = Object::self(c);
-        TimedEvent *tev = o->timed_event_heap.first().pointer();
+        TimedEvent *tev = o->timed_event_heap.first();
         return tev != nullptr && tev->m_state == TimedEvent::State::DISPATCH;
     }
     
@@ -380,7 +380,7 @@ private:
         // Because the traversal is pre-order, the heap property is preserved
         // even during this iteration, ensuring the asserts in this heap code
         // to pass.
-        TimedEvent *tev = o->timed_event_heap.findFirstLesserOrEqual(dispatch_time).pointer();
+        TimedEvent *tev = o->timed_event_heap.findFirstLesserOrEqual(dispatch_time);
         if (tev != nullptr) {
             do {
                 tev->debugAccess(c);
@@ -388,7 +388,7 @@ private:
                 
                 tev->m_state = TimedEvent::State::DISPATCH;
                 
-                tev = o->timed_event_heap.findNextLesserOrEqual(dispatch_time, *tev).pointer();
+                tev = o->timed_event_heap.findNextLesserOrEqual(dispatch_time, *tev);
             } while (tev != nullptr);
             
             // If the heap verification is enabled, verify here after
@@ -414,7 +414,7 @@ private:
         bool have_first_time = false;
         TimeType first_time;
         
-        while (TimedEvent *tev = o->timed_event_heap.first().pointer()) {
+        while (TimedEvent *tev = o->timed_event_heap.first()) {
             tev->debugAccess(c);
             AMBRO_ASSERT(tev->m_state == OneOf(TimedEvent::State::TENTATIVE, TimedEvent::State::PAST,
                                                TimedEvent::State::FUTURE))

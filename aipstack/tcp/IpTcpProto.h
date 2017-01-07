@@ -347,7 +347,7 @@ private:
         }
         
         // Get a PCB to use.
-        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(link_model_state()).pointer();
+        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(link_model_state());
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED || pcb->con == nullptr)
         
         // Abort the PCB if it's not closed.
@@ -475,7 +475,7 @@ private:
             // If the PCB will go to CLOSED state, make sure it is at
             // the end of the unreferenced PCBs list.
             if (closing) {
-                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state()).pointer()) {
+                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state())) {
                     tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
                     tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 }
@@ -701,7 +701,7 @@ private:
     {
         AMBRO_ASSERT(pcb->con == nullptr)
         
-        if (pcb != m_unrefed_pcbs_list.first(link_model_state()).pointer()) {
+        if (pcb != m_unrefed_pcbs_list.first(link_model_state())) {
             m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
             m_unrefed_pcbs_list.prepend(link_model_ref(*pcb), link_model_state());
         }

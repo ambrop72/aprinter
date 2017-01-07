@@ -80,7 +80,7 @@ public:
         
         inline Entry * findEntry (State st, LookupKeyArg key)
         {
-            Entry *entry = m_tree.template lookup<LookupKeyArg>(key, st).pointer();
+            Entry *entry = m_tree.template lookup<LookupKeyArg>(key, st);
             AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }

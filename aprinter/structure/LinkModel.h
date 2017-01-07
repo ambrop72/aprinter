@@ -116,10 +116,6 @@ public:
         
         Ref() = default;
         
-        inline Ref(Entry &entry)
-        : m_link(Link(&entry))
-        {}
-        
         inline bool isNull () const
         {
             return m_link.isNull();
@@ -135,7 +131,7 @@ public:
             return *m_link.m_ptr;
         }
         
-        inline Entry * pointer () const
+        inline operator Entry * () const
         {
             return m_link.m_ptr;
         }
@@ -144,6 +140,11 @@ public:
         {
             return m_link == other.m_link;
         }
+        
+        // for users not data structures
+        inline Ref(Entry &entry)
+        : m_link(Link(&entry))
+        {}
         
     private:
         Link m_link;
@@ -240,10 +241,6 @@ public:
         
         Ref() = default;
         
-        inline Ref(Entry &entry, IndexType index)
-        : m_link(Link(index)), m_ptr(&entry)
-        {}
-        
         inline bool isNull () const
         {
             return m_link.isNull();
@@ -259,7 +256,7 @@ public:
             return *m_ptr;
         }
         
-        inline Entry * pointer () const
+        inline operator Entry * () const
         {
             return m_ptr;
         }
@@ -268,6 +265,11 @@ public:
         {
             return m_link == other.m_link;
         }
+        
+        // for users not data structures
+        inline Ref(Entry &entry, IndexType index)
+        : m_link(Link(index)), m_ptr(&entry)
+        {}
         
     private:
         Link m_link;
