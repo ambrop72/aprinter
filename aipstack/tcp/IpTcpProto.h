@@ -180,7 +180,10 @@ private:
      * These are maintained internally within the stack and may
      * survive deinit/reset of an associated TcpConnection object.
      */
-    struct TcpPcb : public IpSendRetry::Callback {
+    struct TcpPcb :
+        // Send retry request (inherited for efficiency).
+        public IpSendRetry::Request
+    {
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
         
@@ -191,9 +194,6 @@ private:
         TimedEvent abrt_timer;   // timer for aborting PCB (TIME_WAIT, abandonment)
         TimedEvent output_timer; // timer for pcb_output after send buffer extension
         TimedEvent rtx_timer;    // timer for retransmission, window probe and cwnd idle reset
-        
-        // Send retry request.
-        IpSendRetry::Request send_retry_request;
         
         // Basic stuff.
         IpTcpProto *tcp;    // pointer back to IpTcpProto
@@ -302,7 +302,7 @@ public:
             pcb.abrt_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::abrt_timer_handler, &pcb));
             pcb.output_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::output_timer_handler, &pcb));
             pcb.rtx_timer.init(Context(), APRINTER_CB_OBJFUNC_T(&TcpPcb::rtx_timer_handler, &pcb));
-            pcb.send_retry_request.init(&pcb);
+            pcb.IpSendRetry::Request::init();
             pcb.tcp = this;
             pcb.con = nullptr;
             pcb.lis = nullptr;
@@ -324,7 +324,7 @@ public:
         
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.con == nullptr)
-            pcb.send_retry_request.deinit();
+            pcb.IpSendRetry::Request::deinit();
             pcb.rtx_timer.deinit(Context());
             pcb.output_timer.deinit(Context());
             pcb.abrt_timer.deinit(Context());
@@ -411,7 +411,7 @@ private:
         pcb->abrt_timer.unset(Context());
         pcb->output_timer.unset(Context());
         pcb->rtx_timer.unset(Context());
-        pcb->send_retry_request.reset();
+        pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
     }
     

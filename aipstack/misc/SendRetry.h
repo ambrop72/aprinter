@@ -32,11 +32,6 @@
 
 class IpSendRetry {
 public:
-    class Callback {
-    public:
-        virtual void retrySending () = 0;
-    };
-    
     class List;
     
     class Request {
@@ -44,11 +39,8 @@ public:
         friend class List;
         
     public:
-        void init (Callback *callback)
+        void init ()
         {
-            AMBRO_ASSERT(callback != nullptr)
-            
-            m_callback = callback;
             m_list = nullptr;
         }
         
@@ -65,8 +57,10 @@ public:
             }
         }
         
+    public:
+        virtual void retrySending () = 0;
+        
     private:
-        Callback *m_callback;
         List *m_list;
         APrinter::DoubleEndedListNode<Request> m_list_node;
     };
@@ -131,7 +125,7 @@ public:
                 temp_list.m_list.removeFirst();
                 req->m_list = nullptr;
                 
-                req->m_callback->retrySending();
+                req->retrySending();
             }
         }
         

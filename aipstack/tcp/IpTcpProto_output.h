@@ -99,7 +99,7 @@ public:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, flags, &tcp_opts};
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
-                             &pcb->send_retry_request);
+                             pcb);
         
         if (err == IpErr::SUCCESS) {
             // Have we sent the SYN for the first time?
@@ -122,7 +122,7 @@ public:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
         send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
-                 &pcb->send_retry_request);
+                 pcb);
     }
     
     // Send an RST for this PCB.
@@ -685,7 +685,7 @@ private:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), seg_flags};
         IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
-                             data.subTo(seg_data_len), &pcb->send_retry_request);
+                             data.subTo(seg_data_len), pcb);
         
         // These things are needed only when a segment was sent.
         if (err == IpErr::SUCCESS) {
