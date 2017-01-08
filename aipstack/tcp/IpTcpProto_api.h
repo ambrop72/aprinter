@@ -299,14 +299,10 @@ public:
                 assert_started();
                 
                 TcpPcb *pcb = m_pcb;
-                TcpProto *tcp = pcb->tcp;
                 
                 // Disassociate with the PCB.
                 pcb->con = nullptr;
                 m_pcb = nullptr;
-                
-                // Add the PCB to the unreferenced PCBs list.
-                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 
                 // Handle abandonment of connection.
                 TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0);
@@ -327,8 +323,7 @@ public:
         {
             assert_init();
             AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
-            AMBRO_ASSERT(lis->m_accept_pcb->state == TcpState::ESTABLISHED)
-            AMBRO_ASSERT(lis->m_accept_pcb->hasFlag(PcbFlags::LIS_LINK))
+            AMBRO_ASSERT(lis->m_accept_pcb->state == TcpState::SYN_RCVD)
             AMBRO_ASSERT(lis->m_accept_pcb->lis == lis)
             
             TcpPcb *pcb = lis->m_accept_pcb;
@@ -341,13 +336,11 @@ public:
             AMBRO_ASSERT(lis->m_num_pcbs > 0)
             lis->m_num_pcbs--;
             
-            // Remove the PCB from the unreferenced PCBs list.
-            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
+            // Note that the PCB has already been removed from the list of
+            // unreferenced PCBs, so we must not try to remove it here.
             
-            // Clear the LIS_LINK flag of the PCB since we have disassociated
-            // it from the listener and will be associating it with this
-            // PcbConnection.
-            pcb->clearFlag(PcbFlags::LIS_LINK);
+            // Set the PCB state to ESTABLISHED.
+            pcb->state = TcpState::ESTABLISHED;
             
             // Associate with the PCB.
             m_pcb = pcb;
@@ -684,9 +677,9 @@ public:
         void assert_started ()
         {
             AMBRO_ASSERT((m_flags & Flags::STARTED) != 0)
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->con == this)
             AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
                 state_is_active(m_pcb->state))
+            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->con == this)
             AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
                 snd_open_in_state(m_pcb->state) == ((m_flags & Flags::SND_CLOSED) == 0))
         }
