@@ -123,6 +123,7 @@ private:
         RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
         IDLE_TIMER  = 1 << 11, // If rtx_timer is running it is for idle timeout
         WND_SCALE   = 1 << 12, // Window scaling is used
+        LIS_LINK    = 1 << 13, // pcb->lis is valid rather than pcb->con
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -204,10 +205,16 @@ private:
         // Node for the unreferenced PCBs list.
         APrinter::LinkedListNode<PcbLinkModel> unrefed_list_node;
         
-        // Basic stuff.
-        IpTcpProto *tcp;    // pointer back to IpTcpProto
-        TcpConnection *con; // pointer to any associated TcpConnection
-        TcpListener *lis;   // pointer to any associated TcpListener
+        // Pointer back to IpTcpProto.
+        IpTcpProto *tcp;    
+        
+        union {
+            // Pointer to the associated TcpListener, if the LIS_LINK flag is set.
+            TcpListener *lis;
+            
+            // Pointer to any associated TcpConnection, otherwise.
+            TcpConnection *con;
+        };
         
         // Addresses and ports.
         Ip4Addr local_addr;
@@ -314,8 +321,8 @@ public:
             pcb.IpSendRetry::Request::init();
             pcb.tcp = this;
             pcb.con = nullptr;
-            pcb.lis = nullptr;
             pcb.state = TcpState::CLOSED;
+            pcb.flags = 0; // because LIS_LINK flag may be checked in CLOSED
             m_unrefed_pcbs_list.prepend(link_model_ref(pcb), link_model_state());
         }
     }
@@ -357,22 +364,28 @@ private:
         
         // Get a PCB to use.
         TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(link_model_state());
-        AMBRO_ASSERT(pcb->state == TcpState::CLOSED || pcb->con == nullptr)
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::LIS_LINK) || pcb->con == nullptr)
         
         // Abort the PCB if it's not closed.
         if (pcb->state != TcpState::CLOSED) {
             pcb_abort(pcb);
+        } else {
+            pcb_assert_closed(pcb);
         }
         
+        return pcb;
+    }
+    
+    void pcb_assert_closed (TcpPcb *pcb)
+    {
         AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet(Context()))
         AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet(Context()))
         AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet(Context()))
+        AMBRO_ASSERT(!pcb->IpSendRetry::Request::isQueued())
         AMBRO_ASSERT(pcb->tcp == this)
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb->con == nullptr)
-        AMBRO_ASSERT(pcb->lis == nullptr)
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
-        
-        return pcb;
     }
     
     inline static void pcb_abort (TcpPcb *pcb)
@@ -388,32 +401,40 @@ private:
     static void pcb_abort (TcpPcb *pcb, bool send_rst)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        IpTcpProto *tcp = pcb->tcp;
         
         // Send RST if desired.
         if (send_rst) {
             Output::pcb_send_rst(pcb);
         }
         
-        // Disassociate any TcpConnection. This will call the
-        // connectionAborted callback if we do have a TcpConnection.
-        pcb_unlink_con(pcb, true);
-        
-        // Disassociate any TcpListener.
-        pcb_unlink_lis(pcb);
+        if (pcb->hasFlag(PcbFlags::LIS_LINK)) {
+            // Disassociate the TcpListener.
+            pcb_unlink_lis(pcb);
+        } else {
+            // Disassociate any TcpConnection. This will call the
+            // connectionAborted callback if we do have a TcpConnection.
+            pcb_unlink_con(pcb, true);
+        }
         
         // If this is called from input processing of this PCB,
         // clear m_current_pcb. This way, input processing can
         // detect aborts performed from within user callbacks.
-        if (pcb->tcp->m_current_pcb == pcb) {
-            pcb->tcp->m_current_pcb = nullptr;
+        if (tcp->m_current_pcb == pcb) {
+            tcp->m_current_pcb = nullptr;
         }
         
         // Remove the PCB from the index in which it is.
-        IpTcpProto *tcp = pcb->tcp;
         if (pcb->state == TcpState::TIME_WAIT) {
             tcp->m_pcb_index_timewait.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
         } else {
             tcp->m_pcb_index_active.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+        }
+        
+        // Make sure the PCB is at the end of the unreferenced PCBs list.
+        if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state())) {
+            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
+            tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
         }
         
         // Reset other relevant fields to initial state.
@@ -422,19 +443,19 @@ private:
         pcb->tim(RtxTimer()).unset(Context());
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
+        
+        tcp->pcb_assert_closed(pcb);
     }
     
     static void pcb_go_to_time_wait (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD,
                                          TcpState::TIME_WAIT))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // Disassociate any TcpConnection. This will call the
         // connectionAborted callback if we do have a TcpConnection.
         pcb_unlink_con(pcb, false);
-        
-        // Disassociate any TcpListener.
-        pcb_unlink_lis(pcb);
         
         // Set snd_nxt to snd_una in order to not accept any more acknowledgements.
         // This is currently not necessary since we only enter TIME_WAIT after
@@ -461,7 +482,7 @@ private:
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
-        IpTcpProto *tcp = pcb->tcp;
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         if (pcb->con != nullptr) {
             // Inform the connection object about the aborting.
@@ -473,6 +494,7 @@ private:
             con->pcb_aborted();
             
             // Add the PCB to the unreferenced PCBs list.
+            IpTcpProto *tcp = pcb->tcp;
             if (closing) {
                 tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
             } else {
@@ -480,41 +502,36 @@ private:
             }
             
             AMBRO_ASSERT(pcb->con == nullptr)
-        } else {
-            // If the PCB will go to CLOSED state, make sure it is at
-            // the end of the unreferenced PCBs list.
-            if (closing) {
-                if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state())) {
-                    tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
-                    tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
-                }
-            }
         }
     }
     
     static void pcb_unlink_lis (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::LIS_LINK))
+        AMBRO_ASSERT(pcb->lis != nullptr)
         
-        if (pcb->lis != nullptr) {
-            TcpListener *lis = pcb->lis;
-            
-            // Decrement the listener's PCB count.
-            AMBRO_ASSERT(lis->m_num_pcbs > 0)
-            lis->m_num_pcbs--;
-            
-            // Remove a possible accept link.
-            if (lis->m_accept_pcb == pcb) {
-                lis->m_accept_pcb = nullptr;
-            }
-            
-            pcb->lis = nullptr;
+        TcpListener *lis = pcb->lis;
+        
+        // Decrement the listener's PCB count.
+        AMBRO_ASSERT(lis->m_num_pcbs > 0)
+        lis->m_num_pcbs--;
+        
+        // Remove a possible accept link.
+        if (lis->m_accept_pcb == pcb) {
+            lis->m_accept_pcb = nullptr;
         }
+        
+        // Clear the LIS_LINK flag and clear pcb->con since
+        // clearing LIS_LINK makes pcb->con relevant.
+        pcb->clearFlag(PcbFlags::LIS_LINK);
+        pcb->con = nullptr;
     }
     
     static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection haa just disassociated itself
         AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
         
@@ -524,11 +541,6 @@ private:
         if (pcb->state == TcpState::SYN_SENT || snd_buf_nonempty) {
             return pcb_abort(pcb);
         }
-        
-        // Disassociate any TcpListener.
-        // We don't want abandoned connections to contributing to the
-        // listener's PCB count and prevent new connections.
-        pcb_unlink_lis(pcb);
         
         // Arrange for sending the FIN.
         if (snd_open_in_state(pcb->state)) {
@@ -563,6 +575,7 @@ private:
     inline static bool pcb_event (TcpPcb *pcb, Action action)
     {
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb->con == nullptr || pcb->con->m_pcb == pcb)
         
         if (pcb->con == nullptr) {
@@ -600,14 +613,10 @@ private:
     
     void unlink_listener (TcpListener *lis)
     {
-        // Disassociate any PCBs associated with this listener,
-        // and also abort any such PCBs in SYN_RCVD state (without RST).
+        // Abort any PCBs associated with the listener (without RST).
         for (TcpPcb &pcb : m_pcbs) {
-            if (pcb.lis == lis) {
-                pcb.lis = nullptr;
-                if (pcb.state == TcpState::SYN_RCVD) {
-                    pcb_abort(&pcb, false);
-                }
+            if (pcb.hasFlag(PcbFlags::LIS_LINK) && pcb.lis == lis) {
+                pcb_abort(&pcb, false);
             }
         }
     }
@@ -643,6 +652,9 @@ private:
             return IpErr::NO_PCB_AVAIL;
         }
         
+        // Remove the PCB from the unreferenced PCBs list.
+        m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
+        
         // Generate an initial sequence number.
         SeqType iss = make_iss();
         
@@ -654,7 +666,6 @@ private:
         pcb->state = TcpState::SYN_SENT;
         pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
         pcb->con = con;
-        m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
         pcb->local_addr = local_addr;
         pcb->remote_addr = remote_addr;
         pcb->local_port = local_port;
@@ -708,7 +719,7 @@ private:
     
     void move_unrefed_pcb_to_front (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->con == nullptr)
+        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::LIS_LINK) || pcb->con == nullptr)
         
         if (pcb != m_unrefed_pcbs_list.first(link_model_state())) {
             m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());

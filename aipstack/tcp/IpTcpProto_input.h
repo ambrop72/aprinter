@@ -144,6 +144,7 @@ public:
     static void pcb_rcv_buf_extended (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb->con != nullptr)
         
         // If we haven't received a FIN yet, update the receive window.
@@ -191,7 +192,7 @@ private:
             
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
-            pcb->flags = 0;
+            pcb->flags = PcbFlags::LIS_LINK;
             pcb->lis = lis;
             pcb->local_addr = ip_meta.local_addr;
             pcb->remote_addr = ip_meta.remote_addr;
@@ -486,23 +487,23 @@ private:
             new_ack = !seq_lte(tcp_meta.ack_num, pcb->snd_una, past_ack_num);
         }
         
-        // If this PCB is unreferenced, move it to the front
-        // of the unreferenced list.
-        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
-            pcb->tcp->move_unrefed_pcb_to_front(pcb);
-        }
-        
         return true;
     }
     
     static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
     {
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(pcb->state != TcpState::SYN_SENT || (
+                     !pcb->hasFlag(PcbFlags::LIS_LINK) && pcb->con != nullptr))
+        AMBRO_ASSERT(pcb->state != TcpState::SYN_RCVD || (
+                     pcb->hasFlag(PcbFlags::LIS_LINK) && pcb->lis != nullptr))
         
         // See if this is for SYN_SENT or SYN_RCVD. The processing here is
         // sufficiently similar that we benefit from one function handling
         // both of these states.
         bool syn_sent = pcb->state == TcpState::SYN_SENT;
+        
+        bool proceed = true;
         
         // If our SYN is not acknowledged, send RST and drop. In SYN_RCVD,
         // RFC 793 seems to allow ack_num==snd_una which doesn't make sense.
@@ -511,11 +512,20 @@ private:
             Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                              pcb->local_port, pcb->remote_port,
                              tcp_meta.ack_num, false, 0);
-            return false;
+            proceed = false;
+        }
+        // If in SYN_SENT a SYN is not received, drop the segment silently.
+        else if (syn_sent && (tcp_meta.flags & Tcp4FlagSyn) == 0) {
+            proceed = false;
         }
         
-        // If in SYN_SENT a SYN is not received, drop the segment silently.
-        if (syn_sent && (tcp_meta.flags & Tcp4FlagSyn) == 0) {
+        if (!proceed) {
+            // If this PCB is unreferenced, move it to the front of
+            // the unreferenced list. Note, at this stage a SYN_SENT
+            // PCB is always referenced and a SYN_RCVD PCB is never.
+            if (!syn_sent) {
+                pcb->tcp->move_unrefed_pcb_to_front(pcb);
+            }
             return false;
         }
         
@@ -586,7 +596,6 @@ private:
         if (syn_sent) {
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con != nullptr)
             AMBRO_ASSERT(con->m_pcb == pcb)
             
             // Make sure the ACK to the SYN-ACK is sent.
@@ -616,12 +625,9 @@ private:
             // - ESTABLISHED->FIN_WAIT_1
         } else {
             // We have a TcpListener (if it went away the PCB would have been aborted).
-            // We also have no TcpConnection.
             TcpListener *lis = pcb->lis;
-            AMBRO_ASSERT(lis != nullptr)
             AMBRO_ASSERT(lis->m_listening)
             AMBRO_ASSERT(lis->m_accept_pcb == nullptr)
-            AMBRO_ASSERT(pcb->con == nullptr)
             
             // Inform the user that the connection has been established
             // and allow association with a TcpConnection to be done.
@@ -643,7 +649,10 @@ private:
             
             // If the connection has not been accepted or has been accepted but
             // already abandoned, abort with RST.
-            if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+            // NOTE: We must not leave the PCB associated with the listener, as other code
+            // expects this to be impossible past this point. If this code is changed to
+            // keep the PCB alive, the association with the listener must be broken.
+            if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::LIS_LINK) || pcb->con == nullptr)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -655,6 +664,12 @@ private:
     static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack, size_t data_len)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
+        
+        // If this PCB is unreferenced, move it to the front of the unreferenced list.
+        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+            pcb->tcp->move_unrefed_pcb_to_front(pcb);
+        }
         
         // Handle new acknowledgments.
         if (new_ack) {
@@ -824,6 +839,7 @@ private:
                                           IpBufRef tcp_data)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // We only get here if the segment fits into the receive window.
         size_t data_offset = seq_diff(eff_seq, pcb->rcv_nxt);

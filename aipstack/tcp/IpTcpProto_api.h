@@ -47,7 +47,8 @@ class IpTcpProto_api
 {
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants))
+    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
+                                   PcbFlags))
     
 public:
     class TcpConnection;
@@ -297,12 +298,15 @@ public:
             if (m_pcb != nullptr) {
                 assert_started();
                 
-                // Disassociate with the PCB.
                 TcpPcb *pcb = m_pcb;
                 TcpProto *tcp = pcb->tcp;
+                
+                // Disassociate with the PCB.
                 pcb->con = nullptr;
-                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 m_pcb = nullptr;
+                
+                // Add the PCB to the unreferenced PCBs list.
+                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
                 
                 // Handle abandonment of connection.
                 TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0);
@@ -323,21 +327,34 @@ public:
         {
             assert_init();
             AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
-            AMBRO_ASSERT(lis->m_accept_pcb->lis == lis)
-            AMBRO_ASSERT(lis->m_accept_pcb->con == nullptr)
             AMBRO_ASSERT(lis->m_accept_pcb->state == TcpState::ESTABLISHED)
+            AMBRO_ASSERT(lis->m_accept_pcb->hasFlag(PcbFlags::LIS_LINK))
+            AMBRO_ASSERT(lis->m_accept_pcb->lis == lis)
             
-            // Associate with the PCB.
-            m_pcb = lis->m_accept_pcb;
-            TcpProto *tcp = m_pcb->tcp;
-            m_pcb->con = this;
-            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*m_pcb), tcp->link_model_state());
-            
-            // Set STARTED flag to indicate we're no longer in INIT state.
-            m_flags = Flags::STARTED;
+            TcpPcb *pcb = lis->m_accept_pcb;
+            TcpProto *tcp = pcb->tcp;
             
             // Clear the m_accept_pcb link from the listener.
             lis->m_accept_pcb = nullptr;
+            
+            // Decrement the listener's PCB count.
+            AMBRO_ASSERT(lis->m_num_pcbs > 0)
+            lis->m_num_pcbs--;
+            
+            // Remove the PCB from the unreferenced PCBs list.
+            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
+            
+            // Clear the LIS_LINK flag of the PCB since we have disassociated
+            // it from the listener and will be associating it with this
+            // PcbConnection.
+            pcb->clearFlag(PcbFlags::LIS_LINK);
+            
+            // Associate with the PCB.
+            m_pcb = pcb;
+            pcb->con = this;
+            
+            // Set STARTED flag to indicate we're no longer in INIT state.
+            m_flags = Flags::STARTED;
         }
         
         /**

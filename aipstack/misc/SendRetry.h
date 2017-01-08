@@ -53,14 +53,19 @@ public:
         friend IpSendRetry;
         
     public:
-        void init ()
+        inline void init ()
         {
             ListStructure::markRemoved(*this);
         }
         
-        void deinit ()
+        inline void deinit ()
         {
             reset();
+        }
+        
+        inline bool isQueued ()
+        {
+            return !ListStructure::isRemoved(*this);
         }
         
         void reset ()
@@ -81,12 +86,12 @@ public:
         friend IpSendRetry;
         
     public:
-        void init ()
+        inline void init ()
         {
             ListStructure::initLonely(*this);
         }
         
-        void deinit ()
+        inline void deinit ()
         {
             reset();
         }

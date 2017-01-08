@@ -165,6 +165,7 @@ public:
     static void pcb_end_sending (TcpPcb *pcb)
     {
         AMBRO_ASSERT(snd_open_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // Make the appropriate state transition, effectively
         // queuing a FIN for sending.
@@ -185,6 +186,7 @@ public:
     static void pcb_push_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // Set the push index to the end of the send buffer.
         pcb->snd_psh_index = pcb->sndBufLen();
@@ -205,6 +207,7 @@ public:
     static bool pcb_has_snd_outstanding (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         return pcb->sndBufLen() > 0 || !snd_open_in_state(pcb->state);
     }
@@ -214,6 +217,7 @@ public:
     static bool pcb_need_rtx_timer (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         return (pcb->snd_wnd == 0) ? !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
@@ -225,6 +229,7 @@ public:
     static bool pcb_has_snd_unacked (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
                (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
@@ -237,6 +242,7 @@ public:
     static bool pcb_output_queued (TcpPcb *pcb, bool no_delay = false)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // Is there nothing outstanding to be sent or ACKed?
         if (!pcb_has_snd_outstanding(pcb)) {
@@ -307,6 +313,7 @@ public:
     static void pcb_output_timer_handler (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         // Send any unsent data as permissible.
         pcb_output_queued(pcb);
@@ -353,6 +360,9 @@ public:
         // that would have stopped the timer.
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
+        
+        // Impossible to have a listener here.
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         
         if (pcb->snd_wnd == 0) {
             // Send a window probe.
@@ -659,6 +669,7 @@ private:
     static SeqType pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
         AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
         AMBRO_ASSERT(data.tot_len > 0 || fin)
@@ -729,6 +740,7 @@ private:
     static void pcb_output_front (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::LIS_LINK))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Compute a maximum number of sequence counts to send.
