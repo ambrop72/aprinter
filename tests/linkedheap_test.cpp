@@ -58,7 +58,7 @@ struct KeyFuncs {
 
 using Compare = TreeCompare<LinkModel, KeyFuncs>;
 
-using Heap = LinkedHeap<Entry, APRINTER_MEMBER_ACCESSOR(&Entry::node), Compare, LinkModel>;
+using Heap = LinkedHeap<APRINTER_MEMBER_ACCESSOR(&Entry::node), Compare, LinkModel>;
 
 static size_t const NumEntries = 10000;
 

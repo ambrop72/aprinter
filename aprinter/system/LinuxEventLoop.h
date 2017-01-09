@@ -323,7 +323,7 @@ private:
     
     using TimerHeapNodeAccessor = typename APRINTER_MEMBER_ACCESSOR(&TimedEventNew::m_heap_node);
     class TimerCompare;
-    using TimedEventHeap = LinkedHeap<TimedEventNew, TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
+    using TimedEventHeap = LinkedHeap<TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
     
     template <typename This=LinuxEventLoop>
     using Extra = typename This::ExtraDelay::Type;

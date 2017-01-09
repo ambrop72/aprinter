@@ -33,12 +33,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template<typename, typename, typename, typename>
+template<typename, typename, typename>
 class AvlTree;
 
 template <typename LinkModel>
 class AvlTreeNode {
-    template<typename, typename, typename, typename>
+    template<typename, typename, typename>
     friend class AvlTree;
     
     using Link = typename LinkModel::Link;
@@ -50,7 +50,6 @@ private:
 };
 
 template <
-    typename Entry,
     typename Accessor,
     typename Compare,
     typename LinkModel

@@ -36,12 +36,12 @@
 
 //#define APRINTER_LINKED_HEAP_VERIFY 1
 
-template<typename, typename, typename, typename, typename>
+template<typename, typename, typename, typename>
 class LinkedHeap;
 
 template <typename LinkModel>
 class LinkedHeapNode {
-    template<typename, typename, typename, typename, typename>
+    template<typename, typename, typename, typename>
     friend class LinkedHeap;
     
     using Link = typename LinkModel::Link;
@@ -52,7 +52,6 @@ private:
 };
 
 template <
-    typename Entry,
     typename Accessor,
     typename Compare,
     typename LinkModel,

@@ -170,7 +170,7 @@ private:
     using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
     APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
-        TcpPcb, PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
+        PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
     
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
@@ -817,7 +817,7 @@ private:
     using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
     
     using UnrefedPcbsList = APrinter::LinkedList<
-        TcpPcb, APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
+        APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
     ProtoListener m_proto_listener;

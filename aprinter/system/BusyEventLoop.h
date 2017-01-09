@@ -192,10 +192,10 @@ public:
     }
     
 private:
-    using QueuedEventList = LinkedList<QueuedEvent, typename APRINTER_MEMBER_ACCESSOR(&QueuedEvent::m_list_node),
+    using QueuedEventList = LinkedList<APRINTER_MEMBER_ACCESSOR_TN(&QueuedEvent::m_list_node),
                                        PointerLinkModel<QueuedEvent>, true>;
     
-    using TimedEventList = LinkedList<TimedEventNew, typename APRINTER_MEMBER_ACCESSOR(&TimedEventNew::m_list_node),
+    using TimedEventList = LinkedList<APRINTER_MEMBER_ACCESSOR_TN(&TimedEventNew::m_list_node),
                                       PointerLinkModel<TimedEventNew>, true>;
     
     struct Delay {

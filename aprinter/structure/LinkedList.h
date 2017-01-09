@@ -32,12 +32,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename, typename, typename, bool>
+template <typename, typename, bool>
 class LinkedList;
 
 template <typename LinkModel>
 class LinkedListNode {
-    template <typename, typename, typename, bool>
+    template <typename, typename, bool>
     friend class LinkedList;
     
     using Link = typename LinkModel::Link;
@@ -55,7 +55,6 @@ struct LinkedList__Extra {
 };
 
 template <
-    typename Entry,
     typename Accessor,
     typename LinkModel,
     bool WithLast_

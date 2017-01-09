@@ -37,8 +37,7 @@
 
 template <typename Arg>
 class AvlTreeIndex {
-    APRINTER_USE_TYPES1(Arg, (Entry, HookAccessor, LookupKeyArg, KeyFuncs,
-                              LinkModel))
+    APRINTER_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
     
     APRINTER_USE_TYPES1(LinkModel, (State, Ref))
     
@@ -59,7 +58,7 @@ public:
         
         struct TreeCompare : public APrinter::TreeCompare<LinkModel, KeyFuncs> {};
         
-        using EntryTree = APrinter::AvlTree<Entry, TreeNodeAccessor, TreeCompare, LinkModel>;
+        using EntryTree = APrinter::AvlTree<TreeNodeAccessor, TreeCompare, LinkModel>;
         
     public:
         inline void init ()
@@ -78,10 +77,10 @@ public:
             m_tree.remove(e, st);
         }
         
-        inline Entry * findEntry (State st, LookupKeyArg key)
+        inline Ref findEntry (State st, LookupKeyArg key)
         {
-            Entry *entry = m_tree.template lookup<LookupKeyArg>(key, st);
-            AMBRO_ASSERT(entry == nullptr || KeyFuncs::GetKeyOfEntry(*entry) == key)
+            Ref entry = m_tree.template lookup<LookupKeyArg>(key, st);
+            AMBRO_ASSERT(entry.isNull() || KeyFuncs::GetKeyOfEntry(*entry) == key)
             return entry;
         }
         
@@ -92,7 +91,6 @@ public:
 
 struct AvlTreeIndexService {
     APRINTER_ALIAS_STRUCT_EXT(Index, (
-        APRINTER_AS_TYPE(Entry),
         APRINTER_AS_TYPE(HookAccessor),
         APRINTER_AS_TYPE(LookupKeyArg),
         APRINTER_AS_TYPE(KeyFuncs),
