@@ -40,6 +40,7 @@
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
+#include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -52,10 +53,11 @@ public:
     struct Object;
     
 private:
+    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr))
     using TimeType = typename Context::Clock::TimeType;
     using Network = typename Context::Network;
-    APRINTER_USE_TYPES1(Network, (TcpListener, TcpListenParams, TcpProto))
-    APRINTER_USE_TYPES1(TcpProto, (TcpConnection))
+    APRINTER_USE_TYPES1(Network, (TcpProto))
+    APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener, TcpConnection))
     
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
@@ -90,15 +92,17 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
+        o->listener.init(&o->listener_callback);
         
-        TcpListenParams listen_params = {};
-        listen_params.port = Params::Port;
-        listen_params.max_pcbs = Params::MaxPcbs;
-        listen_params.min_rcv_buf_size = RecvBufferSize;
+        TcpListenParams params = {};
+        params.addr = Ip4Addr::ZeroAddr();
+        params.port = Params::Port;
+        params.max_pcbs = Params::MaxPcbs;
         
-        if (!o->listener.startListening(c, listen_params)) {
+        if (!o->listener.startListening(Network::getTcpProto(c), params)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
+        } else {
+            o->listener.setInitialReceiveWindow(RecvBufferSize);
         }
         
         for (Client &client : o->clients) {
@@ -114,22 +118,26 @@ public:
             client.deinit(c);
         }
         
-        o->listener.deinit(c);
+        o->listener.deinit();
     }
     
 private:
-    static void listener_accept_handler (Context c)
+    struct ListenerCallback : public TcpProto::TcpListenerCallback
     {
-        auto *o = Object::self(c);
-        
-        for (Client &client : o->clients) {
-            if (client.m_state == Client::State::NOT_CONNECTED) {
-                return client.accept_connection(c);
+        void connectionEstablished (TcpListener *) override final
+        {
+            Context c;
+            auto *o = Object::self(c);
+            
+            for (Client &client : o->clients) {
+                if (client.m_state == Client::State::NOT_CONNECTED) {
+                    return client.accept_connection(c);
+                }
             }
+            
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
         }
-        
-        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
-    }
+    };
     
     struct Client :
         private TheConvenientStream::UserCallback,
@@ -165,7 +173,7 @@ private:
             
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
             
-            o->listener.acceptIpConnection(c, &m_connection);
+            m_connection.acceptConnection(&o->listener);
             
             m_send_ring_buf.setup(m_connection, m_send_buf, SendBufferSize);
             m_recv_ring_buf.setup(m_connection, m_recv_buf, RecvBufferSize, Network::TcpWndUpdThrDiv);
@@ -375,6 +383,7 @@ private:
 public:
     struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
         TcpListener listener;
+        ListenerCallback listener_callback;
         Client clients[MaxClients];
     };
 };

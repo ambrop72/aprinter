@@ -73,6 +73,15 @@ public:
     };
     
     /**
+     * Structure for listening parameters.
+     */
+    struct TcpListenParams {
+        Ip4Addr addr;
+        PortType port;
+        int max_pcbs;
+    };
+    
+    /**
      * Represents listening for connections on a specific address and port.
      */
     class TcpListener {
@@ -154,22 +163,22 @@ public:
          * Return success/failure to start listening. It can fail only if there
          * is another listener listening on the same pair of address and port.
          */
-        bool listenIp4 (TcpProto *tcp, Ip4Addr addr, PortType port, int max_pcbs)
+        bool startListening (TcpProto *tcp, TcpListenParams const &params)
         {
             AMBRO_ASSERT(!m_listening)
             AMBRO_ASSERT(tcp != nullptr)
-            AMBRO_ASSERT(max_pcbs > 0)
+            AMBRO_ASSERT(params.max_pcbs > 0)
             
             // Check if there is an existing listener listning on this address+port.
-            if (tcp->find_listener(addr, port) != nullptr) {
+            if (tcp->find_listener(params.addr, params.port) != nullptr) {
                 return false;
             }
             
             // Start listening.
             m_tcp = tcp;
-            m_addr = addr;
-            m_port = port;
-            m_max_pcbs = max_pcbs;
+            m_addr = params.addr;
+            m_port = params.port;
+            m_max_pcbs = params.max_pcbs;
             m_num_pcbs = 0;
             m_listening = true;
             m_tcp->m_listeners_list.prepend(this);

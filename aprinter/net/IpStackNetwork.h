@@ -194,6 +194,13 @@ public:
         return o->activation_state != NOT_ACTIVATED;
     }
     
+    static TcpProto * getTcpProto (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        return &o->ip_tcp_proto;
+    }
+    
     static NetworkParams getConfig (Context c)
     {
         auto *o = Object::self(c);
@@ -365,7 +372,11 @@ public:
             AMBRO_ASSERT(params.queue_size == 0 || params.queue_entries != nullptr)
             
             // Start listening.
-            if (!m_ip_listener.listenIp4(&o->ip_tcp_proto, Ip4Addr::ZeroAddr(), params.port, params.max_pcbs)) {
+            typename TcpProto::TcpListenParams tcp_listen_params = {};
+            tcp_listen_params.addr = Ip4Addr::ZeroAddr();
+            tcp_listen_params.port = params.port;
+            tcp_listen_params.max_pcbs = params.max_pcbs;
+            if (!m_ip_listener.startListening(&o->ip_tcp_proto, tcp_listen_params)) {
                 return false;
             }
             

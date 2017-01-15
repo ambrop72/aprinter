@@ -174,7 +174,7 @@ private:
     
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
-                              TcpListener, TcpListenerCallback))
+                              TcpListenParams, TcpListener, TcpListenerCallback))
     
     static SeqType const MaxRcvWnd = Constants::MaxRcvWnd;
     
