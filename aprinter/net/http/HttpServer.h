@@ -47,6 +47,8 @@
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
 
+#include <aipstack/utils/TcpRingBufferUtils.h>
+
 #include <aprinter/BeginNamespace.h>
 
 #if APRINTER_DEBUG_HTTP_SERVER
@@ -69,7 +71,11 @@ private:
     APRINTER_USE_TYPE1(Context::Clock, TimeType)
     APRINTER_USE_TYPE1(Context, Network)
     APRINTER_USE_TYPES1(Network, (TcpListener, TcpListenParams, TcpListenerQueueEntry,
-                                  TcpConnection, TcpConnectionBufferInfo))
+                                  TcpProto))
+    APRINTER_USE_TYPES1(TcpProto, (TcpConnection))
+    
+    using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
+    APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
     
     // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
     // This has to be set to a sufficiently large value that accomodates the worst case
@@ -80,8 +86,8 @@ private:
     static_assert(Params::Net::MaxClients > 0, "");
     static_assert(Params::Net::QueueSize >= 0, "");
     static_assert(Params::Net::MaxPcbs > 0, "");
-    static_assert(Params::Net::SendBufferSize >= TcpConnection::MinSendBufSize, "");
-    static_assert(Params::Net::RecvBufferSize >= TcpConnection::MinRecvBufSize, "");
+    static_assert(Params::Net::SendBufferSize >= Network::MinTcpSendBufSize, "");
+    static_assert(Params::Net::RecvBufferSize >= Network::MinTcpRecvBufSize, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
@@ -91,7 +97,7 @@ private:
     
     static size_t const TxBufferSize = Params::Net::SendBufferSize;
     static size_t const RxBufferSize = Params::Net::RecvBufferSize;
-    static size_t const GuaranteedTxBufferSize = TxBufferSize - TcpConnection::MaxSndBufOverhead;
+    static size_t const GuaranteedTxBufferSize = TxBufferSize - Network::MaxTcpSndBufOverhead;
     
     // Check that the send buffer is large enough for a response. This is needed
     // for waiting in the WAIT_SEND_BUF_FOR_REQUEST state. Since there was a poke
@@ -172,7 +178,7 @@ private:
         }
     }
     
-    class Client : private Network::TcpConnectionCallback {
+    class Client : private TcpProto::TcpConnectionCallback {
         friend HttpServer;
         
     private:
@@ -204,7 +210,7 @@ private:
             m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
             m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
             m_recv_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_timeout_event_handler, this));
-            m_connection.init(c, this);
+            m_connection.init(this);
             m_user = nullptr;
             m_state = State::NOT_CONNECTED;
             m_recv_state = RecvState::INVALID;
@@ -215,7 +221,7 @@ private:
         void deinit (Context c)
         {
             m_user_client_state.deinit(c);
-            m_connection.deinit(c);
+            m_connection.deinit();
             m_recv_timeout_event.deinit(c);
             m_send_timeout_event.deinit(c);
             m_recv_event.deinit(c);
@@ -228,14 +234,12 @@ private:
             
             HTTP_SERVER_DEBUG("HttpClientConnected");
             
-            auto buffer_info = TcpConnectionBufferInfo{};
-            buffer_info.send_buf = m_tx_buf;
-            buffer_info.send_buf_size = TxBufferSize;
-            buffer_info.recv_buf = m_rx_buf;
-            buffer_info.recv_buf_size = RxBufferSize;
-            
             // Accept the connection.
-            m_connection.acceptConnection(c, listener, buffer_info);
+            listener->acceptIpConnection(c, &m_connection);
+            
+            // Set up the ring buffers.
+            m_send_ring_buf.setup(m_connection, m_tx_buf, TxBufferSize);
+            m_recv_ring_buf.setup(m_connection, m_rx_buf, RxBufferSize, Network::TcpWndUpdThrDiv);
             
             // Go prepare_for_request() very soon through this state for simplicity.
             // Really there will be no waiting.
@@ -252,7 +256,7 @@ private:
             terminate_user(c);
             
             // Clean up in preparation to accept another client.
-            m_connection.reset(c);
+            m_connection.reset();
             m_recv_timeout_event.unset(c);
             m_send_timeout_event.unset(c);
             m_recv_event.unset(c);
@@ -340,24 +344,27 @@ private:
             }
         }
         
-        void connectionAborted (Context c) override
+        void connectionAborted () override
         {
+            Context c;
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             HTTP_SERVER_DEBUG("HttpClientAborted");
             disconnect(c);
         }
         
-        void dataReceived (Context c, size_t amount) override
+        void dataReceived (size_t amount) override
         {
+            Context c;
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             // Check for things to be done now that we have new data.
             m_recv_event.prependNow(c);
         }
         
-        void dataSent (Context c, size_t amount) override
+        void dataSent (size_t amount) override
         {
+            Context c;
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             // Check for things to be done now that we have more space.
@@ -369,7 +376,7 @@ private:
             switch (m_state) {
                 case State::WAIT_SEND_BUF_FOR_REQUEST: {
                     // When we have sufficient space in the send buffer, start receiving a request.
-                    if (m_connection.getSendBufferSpace(c) >= Params::ExpectedResponseLength) {
+                    if (m_send_ring_buf.getFreeLen(m_connection) >= Params::ExpectedResponseLength) {
                         m_send_timeout_event.unset(c);
                         prepare_for_request(c);
                     } else {
@@ -390,7 +397,7 @@ private:
                         
                         case SendState::SEND_LAST_CHUNK: {
                             // Not enough space in the send buffer yet?
-                            if (m_connection.getSendBufferSpace(c) < TxLastChunkSize) {
+                            if (m_send_ring_buf.getFreeLen(m_connection) < TxLastChunkSize) {
                                 m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                                 return;
                             }
@@ -411,7 +418,7 @@ private:
                 
                 case State::DISCONNECT_AFTER_SENDING: {
                     // Disconnect the client once the FIN has been sent.
-                    if (m_connection.wasEndSent(c)) {
+                    if (m_connection.wasEndSent()) {
                         HTTP_SERVER_DEBUG("HttpClientFinSent");
                         disconnect(c);
                     } else {
@@ -450,7 +457,7 @@ private:
                         case RecvState::RECV_CHUNK_DATA: {
                             // Detect premature EOF from the client.
                             // We don't bother passing any remaining data to the user, this is easier.
-                            if (m_connection.wasEndReceived(c) && m_connection.getRecvBufferUsed(c) < m_rem_req_body_length) {
+                            if (m_connection.wasEndReceived() && m_recv_ring_buf.getUsedLen(m_connection) < m_rem_req_body_length) {
                                 HTTP_SERVER_DEBUG("HttpClientEofInData");
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
@@ -538,8 +545,8 @@ private:
             
             size_t pos = 0;
             bool end_of_line = false;
-            char *data = m_connection.getRecvBufferPtr(c).ptr1;
-            size_t data_length = m_connection.getRecvBufferUsed(c);
+            char *data = m_recv_ring_buf.getReadPtr(m_connection).ptr1;
+            size_t data_length = m_recv_ring_buf.getUsedLen(m_connection);
             
             while (pos < data_length) {
                 if (AMBRO_UNLIKELY(data == m_rx_buf + RxBufferSize)) {
@@ -562,7 +569,7 @@ private:
             }
             
             // Adjust the RX buffer, accepting all the data we have looked at.
-            m_connection.consumeRecvData(c, pos);
+            m_recv_ring_buf.consumeData(m_connection, pos);
             
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
@@ -573,7 +580,7 @@ private:
             // No newline yet?
             if (!end_of_line) {
                 // If no EOF either, wait for more data.
-                if (!m_connection.wasEndReceived(c)) {
+                if (!m_connection.wasEndReceived()) {
                     return line_not_received_yet(c);
                 }
                 
@@ -897,7 +904,7 @@ private:
             // Send 100-continue if needed.
             if (m_expect_100_continue && m_send_state == OneOf(SendState::HEAD_NOT_SENT, SendState::SEND_HEAD)) {
                 send_string_lit(c, "HTTP/1.1 100 Continue\r\n\r\n");
-                m_connection.pokeSending(c);
+                m_connection.sendPush();
             }
             
             // Remember if the user is accepting the body (else we're discarding it).
@@ -920,7 +927,7 @@ private:
             AMBRO_ASSERT(receiving_request_body(c))
             
             if (m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA)) {
-                return MinValueU(m_connection.getRecvBufferUsed(c), m_rem_req_body_length);
+                return MinValueU(m_recv_ring_buf.getUsedLen(m_connection), m_rem_req_body_length);
             } else {
                 return 0;
             }
@@ -930,12 +937,12 @@ private:
         {
             AMBRO_ASSERT(m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA))
             AMBRO_ASSERT(amount > 0)
-            AMBRO_ASSERT(amount <= m_connection.getRecvBufferUsed(c))
+            AMBRO_ASSERT(amount <= m_recv_ring_buf.getUsedLen(m_connection))
             AMBRO_ASSERT(amount <= m_rem_req_body_length)
             AMBRO_ASSERT(!m_req_body_recevied)
             
             // Adjust RX buffer and remaining-data length.
-            m_connection.consumeRecvData(c, amount);
+            m_recv_ring_buf.consumeData(m_connection, amount);
             m_rem_req_body_length -= amount;
             
             // End of known-length body or chunk?
@@ -980,8 +987,8 @@ private:
             }
             
             // Ensure sending is closed.
-            if (!m_connection.wasSendingClosed(c)) {
-                m_connection.closeSending(c);
+            if (!m_connection.wasSendingClosed()) {
+                m_connection.closeSending();
             }
             
             // Disconnect the client after all data has been sent.
@@ -1035,14 +1042,14 @@ private:
         
         void send_string (Context c, char const *str)
         {
-            m_connection.copySendData(c, MemRef(str));
+            m_send_ring_buf.writeData(m_connection, MemRef(str));
         }
         
         template <size_t Size>
         void send_string_lit (Context c, char const (&str)[Size])
         {
             static_assert(Size > 0, "");
-            m_connection.copySendData(c, MemRef(str, Size-1));
+            m_send_ring_buf.writeData(m_connection, MemRef(str, Size-1));
         }
         
         void abandon_response_body (Context c)
@@ -1071,9 +1078,9 @@ private:
             
             // Close or poke sending.
             if (m_close_connection) {
-                m_connection.closeSending(c);
+                m_connection.closeSending();
             } else {
-                m_connection.pokeSending(c);
+                m_connection.sendPush();
             }
             
             // Make the state transition.
@@ -1215,7 +1222,7 @@ private:
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(user_receiving_request_body(c))
             
-            WrapBuffer data = m_connection.getRecvBufferPtr(c);
+            WrapBuffer data = m_recv_ring_buf.getReadPtr(m_connection);
             size_t data_len = get_request_body_avail(c);
             return RequestBodyBufferState{data, data_len, m_req_body_recevied};
         }
@@ -1316,7 +1323,7 @@ private:
             
             // We want to give a worst case value for how much buffer will be available
             // for data if the head is sent right now.
-            size_t con_space_avail = m_connection.getSendBufferSpace(c);
+            size_t con_space_avail = m_send_ring_buf.getFreeLen(m_connection);
             con_space_avail -= MinValue(con_space_avail, (size_t)(Params::ExpectedResponseLength+TxChunkOverhead));
             return con_space_avail;
         }
@@ -1327,7 +1334,7 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
             
-            size_t con_space_avail = m_connection.getSendBufferSpace(c);
+            size_t con_space_avail = m_send_ring_buf.getFreeLen(m_connection);
             
             // Check for space for chunk header.
             if (con_space_avail <= TxChunkOverhead) {
@@ -1335,7 +1342,7 @@ private:
             }
             
             // Return info about the available buffer space for data.
-            WrapBuffer con_space_buffer = m_connection.getSendBufferPtr(c);
+            WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(m_connection);
             return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkOverhead};
         }
         
@@ -1347,7 +1354,7 @@ private:
             AMBRO_ASSERT(length > 0)
             
             // Get the send buffer reference and sanity check the length / space.
-            size_t con_space_avail = m_connection.getSendBufferSpace(c);
+            size_t con_space_avail = m_send_ring_buf.getFreeLen(m_connection);
             AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
             AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
@@ -1363,12 +1370,12 @@ private:
             }
             
             // Write the chunk header and footer.
-            WrapBuffer con_space_buffer = m_connection.getSendBufferPtr(c);
+            WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(m_connection);
             con_space_buffer.copyIn(MemRef(m_chunk_header, TxChunkHeaderSize));
             con_space_buffer.subFrom(TxChunkHeaderSize + length).copyIn(MemRef(m_chunk_header+TxChunkHeaderDigits, 2));
             
             // Submit data to the connection and poke sending.
-            m_connection.provideSendData(c, TxChunkOverhead + length);
+            m_send_ring_buf.provideData(m_connection, TxChunkOverhead + length);
         }
         
         void pushResponseBody (Context c)
@@ -1377,7 +1384,7 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
             
-            m_connection.pokeSending(c);
+            m_connection.sendPush();
         }
         
         void pokeResponseBodyBufferEvent (Context c)
@@ -1408,6 +1415,8 @@ private:
         typename Context::EventLoop::TimedEvent m_send_timeout_event;
         typename Context::EventLoop::TimedEvent m_recv_timeout_event;
         TcpConnection m_connection;
+        SendRingBuffer m_send_ring_buf;
+        RecvRingBuffer m_recv_ring_buf;
         HttpPathParser<Params::MaxQueryParams> m_path_parser;
         RequestUserCallback *m_user;
         UserClientState m_user_client_state;

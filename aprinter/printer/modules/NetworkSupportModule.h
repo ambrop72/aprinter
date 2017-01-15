@@ -61,7 +61,7 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        TheNetwork::enableDebugMessages(c, true);
+        
         o->network_event_listener.init(c, APRINTER_CB_STATFUNC_T(&NetworkSupportModule::network_event_handler));
         o->network_event_listener.startListening(c);
         

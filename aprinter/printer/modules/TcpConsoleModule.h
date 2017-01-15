@@ -36,9 +36,11 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
-#include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
+
+#include <aipstack/utils/TcpRingBufferUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -51,9 +53,12 @@ public:
     
 private:
     using TimeType = typename Context::Clock::TimeType;
-    using TheNetwork = typename Context::Network;
-    using TheTcpListener = typename TheNetwork::TcpListener;
-    using TheTcpConnection = typename TheNetwork::TcpConnection;
+    using Network = typename Context::Network;
+    APRINTER_USE_TYPES1(Network, (TcpListener, TcpListenParams, TcpProto))
+    APRINTER_USE_TYPES1(TcpProto, (TcpConnection))
+    
+    using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
+    APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
     
     using TheConvenientStream = ConvenientCommandStream<Context, ThePrinterMain>;
     
@@ -67,12 +72,12 @@ private:
     static_assert(MaxCommandSize > 0, "");
     
     static size_t const SendBufferSize = Params::SendBufferSize;
-    static_assert(SendBufferSize >= TheTcpConnection::MinSendBufSize, "");
-    static size_t const GuaranteedSendBuf = SendBufferSize - TheTcpConnection::MaxSndBufOverhead;
+    static_assert(SendBufferSize >= Network::MinTcpSendBufSize, "");
+    static size_t const GuaranteedSendBuf = SendBufferSize - Network::MaxTcpSndBufOverhead;
     static_assert(GuaranteedSendBuf >= ThePrinterMain::CommandSendBufClearance, "");
     
     static size_t const RecvBufferSize = Params::RecvBufferSize;
-    static_assert(RecvBufferSize >= TheTcpConnection::MinRecvBufSize, "");
+    static_assert(RecvBufferSize >= Network::MinTcpRecvBufSize, "");
     static_assert(RecvBufferSize >= MaxCommandSize, "");
     
     static size_t const RecvMirrorSize = MaxCommandSize - 1;
@@ -87,7 +92,7 @@ public:
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
         
-        typename TheNetwork::TcpListenParams listen_params = {};
+        TcpListenParams listen_params = {};
         listen_params.port = Params::Port;
         listen_params.max_pcbs = Params::MaxPcbs;
         listen_params.min_rcv_buf_size = RecvBufferSize;
@@ -126,7 +131,9 @@ private:
         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
     }
     
-    struct Client : private TheConvenientStream::UserCallback, TheNetwork::TcpConnectionCallback
+    struct Client :
+        private TheConvenientStream::UserCallback,
+        private TcpProto::TcpConnectionCallback
     {
         enum class State : uint8_t {NOT_CONNECTED, CONNECTED, SENDING_END, WAITING_CMD};
         
@@ -137,7 +144,7 @@ private:
         
         void init (Context c)
         {
-            m_connection.init(c, this);
+            m_connection.init(this);
             m_state = State::NOT_CONNECTED;
         }
         
@@ -148,7 +155,7 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
-            m_connection.deinit(c);
+            m_connection.deinit();
         }
         
         void accept_connection (Context c)
@@ -158,14 +165,10 @@ private:
             
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
             
-            typename TheNetwork::TcpConnectionBufferInfo bufinfo = {};
-            bufinfo.send_buf = m_send_buf;
-            bufinfo.send_buf_size = SendBufferSize;
-            bufinfo.recv_buf = m_recv_buf;
-            bufinfo.recv_buf_size = RecvBufferSize;
-            bufinfo.recv_buf_mirror = RecvMirrorSize;
+            o->listener.acceptIpConnection(c, &m_connection);
             
-            m_connection.acceptConnection(c, &o->listener, bufinfo);
+            m_send_ring_buf.setup(m_connection, m_send_buf, SendBufferSize);
+            m_recv_ring_buf.setup(m_connection, m_recv_buf, RecvBufferSize, Network::TcpWndUpdThrDiv);
             
             m_gcode_parser.init(c);
             m_command_stream.init(c, SendBufTimeoutTicks, this, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
@@ -182,7 +185,7 @@ private:
             m_command_stream.deinit(c);
             m_gcode_parser.deinit(c);
             
-            m_connection.reset(c);
+            m_connection.reset();
             
             m_state = State::NOT_CONNECTED;
         }
@@ -194,7 +197,7 @@ private:
             if (m_command_stream.tryCancelCommand(c)) {
                 disconnect(c);
             } else {
-                m_connection.reset(c);
+                m_connection.reset();
                 m_state = State::WAITING_CMD;
                 m_command_stream.updateSendBufEvent(c);
                 m_send_timeout_event.unset(c);
@@ -205,15 +208,16 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            m_connection.closeSending(c);
+            m_connection.closeSending();
             m_state = State::SENDING_END;
             m_command_stream.updateSendBufEvent(c);
             m_command_stream.unsetNextEvent(c);
             m_send_timeout_event.appendAfter(c, SendEndTimeoutTicks);
         }
         
-        void connectionAborted (Context c) override
+        void connectionAborted () override
         {
+            Context c;
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
             m_command_stream.setAcceptMsg(c, false);
@@ -222,17 +226,21 @@ private:
             start_disconnect(c);
         }
         
-        void dataReceived (Context c, size_t amount) override
+        void dataReceived (size_t amount) override
         {
+            Context c;
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
+            
+            m_recv_ring_buf.updateMirrorAfterDataReceived(m_connection, RecvMirrorSize, amount);
             
             if (m_state == State::CONNECTED) {
                 m_command_stream.setNextEventIfNoCommand(c);
             }
         }
         
-        void dataSent (Context c, size_t amount) override
+        void dataSent (size_t amount) override
         {
+            Context c;
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
             if (m_state == State::CONNECTED) {
@@ -262,18 +270,18 @@ private:
                 return disconnect(c);
             }
             
-            size_t avail = MinValue(MaxCommandSize, m_connection.getRecvBufferUsed(c));
+            size_t avail = MinValue(MaxCommandSize, m_recv_ring_buf.getUsedLen(m_connection));
             bool line_buffer_exhausted = (avail == MaxCommandSize);
             
             if (!m_gcode_parser.haveCommand(c)) {
-                m_gcode_parser.startCommand(c, m_connection.getRecvBufferPtr(c).ptr1, 0);
+                m_gcode_parser.startCommand(c, m_recv_ring_buf.getReadPtr(m_connection).ptr1, 0);
             }
             
             if (m_gcode_parser.extendCommand(c, avail, line_buffer_exhausted)) {
                 return m_command_stream.startCommand(c, &m_gcode_parser);
             }
             
-            if (line_buffer_exhausted || m_connection.wasEndReceived(c)) {
+            if (line_buffer_exhausted || m_connection.wasEndReceived()) {
                 m_command_stream.setAcceptMsg(c, false);
                 if (line_buffer_exhausted) {
                     ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
@@ -287,7 +295,7 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == OneOf(State::CONNECTED, State::SENDING_END)) {
-                m_connection.consumeRecvData(c, m_gcode_parser.getLength(c));
+                m_recv_ring_buf.consumeData(m_connection, m_gcode_parser.getLength(c));
             }
             
             if (m_state != State::SENDING_END) {
@@ -300,7 +308,7 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (push && m_state == State::CONNECTED) {
-                m_connection.pokeSending(c);
+                m_connection.sendPush();
             }
         }
         
@@ -309,12 +317,12 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == State::CONNECTED && !m_command_stream.isSendOverrunBeingRaised(c)) {
-                size_t avail = m_connection.getSendBufferSpace(c);
+                size_t avail = m_send_ring_buf.getFreeLen(m_connection);
                 if (avail < length) {
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                m_connection.copySendData(c, MemRef(str, length));
+                m_send_ring_buf.writeData(m_connection, MemRef(str, length));
             }
         }
         
@@ -322,7 +330,7 @@ private:
         {
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
-            return (m_state != State::CONNECTED) ? (size_t)-1 : m_connection.getSendBufferSpace(c);
+            return (m_state != State::CONNECTED) ? (size_t)-1 : m_send_ring_buf.getFreeLen(m_connection);
         }
         
         void commandStreamError (Context c, typename TheConvenientStream::Error error) override
@@ -353,7 +361,9 @@ private:
             return (m_state != State::CONNECTED || length <= GuaranteedSendBuf);
         }
         
-        TheTcpConnection m_connection;
+        TcpConnection m_connection;
+        SendRingBuffer m_send_ring_buf;
+        RecvRingBuffer m_recv_ring_buf;
         TheGcodeParser m_gcode_parser;
         TheConvenientStream m_command_stream;
         typename Context::EventLoop::TimedEvent m_send_timeout_event;
@@ -364,7 +374,7 @@ private:
     
 public:
     struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
-        TheTcpListener listener;
+        TcpListener listener;
         Client clients[MaxClients];
     };
 };
