@@ -30,15 +30,12 @@
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
@@ -71,13 +68,9 @@ class IpStackNetwork {
     
 public:
     struct Object;
-    class TcpListener;
     
 private:
     static uint8_t const IpTTL = 64;
-    
-    using TheClockUtils = ClockUtils<Context>;
-    using TimeType = typename Context::Clock::TimeType;
     
     using TheBufAllocator = StackBufAllocator;
     
@@ -101,11 +94,6 @@ private:
         LinkWithArrayIndices
     >;
     APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
-    
-    using IpTcpListener           = typename TheIpTcpProto::TcpListener;
-    using IpTcpListenerCallback   = typename TheIpTcpProto::TcpListenerCallback;
-    using IpTcpConnection         = typename TheIpTcpProto::TcpConnection;
-    using IpTcpConnectionCallback = typename TheIpTcpProto::TcpConnectionCallback;
     
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
@@ -294,262 +282,6 @@ public:
         EventHandler m_event_handler;
         bool m_listening;
         DoubleEndedListNode<NetworkEventListener> m_node;
-    };
-    
-    class TcpListenerQueueEntry : private IpTcpConnectionCallback {
-        friend class TcpListener;
-        
-    private:
-        void connectionAborted () override
-        {
-            AMBRO_ASSERT(!m_ip_connection.isInit())
-            
-            m_ip_connection.reset();
-            m_listener->update_timeout(Context());
-        }
-        
-        void dataReceived (size_t) override
-        {
-            AMBRO_ASSERT(false) // zero window
-        }
-        
-        void dataSent (size_t) override
-        {
-            AMBRO_ASSERT(false) // nothing sent
-        }
-        
-    private:
-        TcpListener *m_listener;
-        IpTcpConnection m_ip_connection;
-        TimeType m_time;
-    };
-    
-    struct TcpListenParams {
-        uint16_t port;
-        int max_pcbs;
-        size_t min_rcv_buf_size;
-        int queue_size;
-        TimeType queue_timeout;
-        TcpListenerQueueEntry *queue_entries;
-    };
-    
-    class TcpListener : private IpTcpListenerCallback {
-    public:
-        using AcceptHandler = Callback<void(Context)>;
-        
-        void init (Context c, AcceptHandler accept_handler)
-        {
-            auto *o = Object::self(c);
-            
-            m_dequeue_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpListener::dequeue_event_handler, this));
-            m_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpListener::timeout_event_handler, this));
-            m_ip_listener.init(this);
-            m_accept_handler = accept_handler;
-        }
-        
-        void deinit (Context c)
-        {
-            deinit_queue();
-            m_ip_listener.deinit();
-            m_timeout_event.deinit(c);
-            m_dequeue_event.deinit(c);
-        }
-        
-        void reset (Context c)
-        {
-            deinit_queue();
-            m_dequeue_event.unset(c);
-            m_timeout_event.unset(c);
-            m_ip_listener.reset();
-        }
-        
-        bool startListening (Context c, TcpListenParams const &params)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(!m_ip_listener.isListening())
-            AMBRO_ASSERT(params.max_pcbs > 0)
-            AMBRO_ASSERT(params.queue_size >= 0)
-            AMBRO_ASSERT(params.queue_size == 0 || params.queue_entries != nullptr)
-            
-            // Start listening.
-            typename TcpProto::TcpListenParams tcp_listen_params = {};
-            tcp_listen_params.addr = Ip4Addr::ZeroAddr();
-            tcp_listen_params.port = params.port;
-            tcp_listen_params.max_pcbs = params.max_pcbs;
-            if (!m_ip_listener.startListening(&o->ip_tcp_proto, tcp_listen_params)) {
-                return false;
-            }
-            
-            // Init queue variables.
-            m_queue = params.queue_entries;
-            m_queue_size = params.queue_size;
-            m_queue_timeout = params.queue_timeout;
-            m_queued_to_accept = nullptr;
-            
-            // Init queue entries.
-            for (int i = 0; i < m_queue_size; i++) {
-                TcpListenerQueueEntry *entry = &m_queue[i];
-                entry->m_listener = this;
-                entry->m_ip_connection.init(entry);
-            }
-            
-            // If there is no queue, raise the initial receive window.
-            // If there is a queue, we have to leave it at zero.
-            if (m_queue_size == 0) {
-                m_ip_listener.setInitialReceiveWindow(params.min_rcv_buf_size);
-            }
-            
-            return true;
-        }
-        
-        void scheduleDequeue (Context c)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            
-            if (m_queue_size > 0) {
-                m_dequeue_event.prependNow(c);
-            }
-        }
-        
-        void acceptIpConnection (Context c, IpTcpConnection *dst_con)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            
-            if (m_queued_to_accept != nullptr) {
-                TcpListenerQueueEntry *entry = m_queued_to_accept;
-                dst_con->moveConnection(&entry->m_ip_connection);
-            } else {
-                dst_con->acceptConnection(&m_ip_listener);
-            }
-        }
-        
-    private:
-        void connectionEstablished (IpTcpListener *lis) override
-        {
-            Context c;
-            AMBRO_ASSERT(lis == &m_ip_listener)
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            AMBRO_ASSERT(m_ip_listener.hasAcceptPending())
-            AMBRO_ASSERT(m_queued_to_accept == nullptr)
-            
-            // Call the accept callback so the user can call acceptConnection.
-            m_accept_handler(c);
-            
-            // If the user did not accept the connection, try to queue it.
-            if (m_ip_listener.hasAcceptPending()) {
-                for (int i = 0; i < m_queue_size; i++) {
-                    TcpListenerQueueEntry *entry = &m_queue[i];
-                    if (entry->m_ip_connection.isInit()) {
-                        entry->m_ip_connection.acceptConnection(&m_ip_listener);
-                        entry->m_time = Context::Clock::getTime(c);
-                        update_timeout(c);
-                        break;
-                    }
-                }
-            }
-        }
-        
-        void dequeue_event_handler (Context c)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
-            AMBRO_ASSERT(m_queued_to_accept == nullptr)
-            
-            bool queue_changed = false;
-            
-            // Find the oldest queued connection.
-            TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
-            
-            while (oldest_entry != nullptr) {
-                AMBRO_ASSERT(!oldest_entry->m_ip_connection.isInit())
-                
-                // Call the accept handler, while publishing the connection.
-                m_queued_to_accept = oldest_entry;
-                m_accept_handler(c);
-                m_queued_to_accept = nullptr;
-                
-                // If the connection was not taken, stop trying.
-                if (!oldest_entry->m_ip_connection.isInit()) {
-                    break;
-                }
-                
-                queue_changed = true;
-                
-                // Refresh the oldest entry.
-                oldest_entry = find_oldest_queued_pcb();
-            }
-            
-            // Update the dequeue timeout if we dequeued any connection.
-            if (queue_changed) {
-                update_timeout(c, oldest_entry);
-            }
-        }
-        
-        void update_timeout (Context c)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
-            
-            update_timeout(c, find_oldest_queued_pcb());
-        }
-        
-        void update_timeout (Context c, TcpListenerQueueEntry *oldest_entry)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
-            
-            if (oldest_entry != nullptr) {
-                TimeType expire_time = oldest_entry->m_time + m_queue_timeout;
-                m_timeout_event.appendAt(c, expire_time);
-            } else {
-                m_timeout_event.unset(c);
-            }
-        }
-        
-        void timeout_event_handler (Context c)
-        {
-            AMBRO_ASSERT(m_ip_listener.isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
-            
-            // The oldest queued connection has expired, close it.
-            TcpListenerQueueEntry *entry = find_oldest_queued_pcb();
-            AMBRO_ASSERT(entry != nullptr)
-            entry->m_ip_connection.reset();
-            update_timeout(c);
-        }
-        
-        void deinit_queue ()
-        {
-            if (m_ip_listener.isListening()) {
-                for (int i = 0; i < m_queue_size; i++) {
-                    TcpListenerQueueEntry *entry = &m_queue[i];
-                    entry->m_ip_connection.deinit();
-                }
-            }
-        }
-        
-        TcpListenerQueueEntry * find_oldest_queued_pcb ()
-        {
-            TcpListenerQueueEntry *oldest_entry = nullptr;
-            for (int i = 0; i < m_queue_size; i++) {
-                TcpListenerQueueEntry *entry = &m_queue[i];
-                if (!entry->m_ip_connection.isInit() &&
-                    (oldest_entry == nullptr || !TheClockUtils::timeGreaterOrEqual(entry->m_time, oldest_entry->m_time)))
-                {
-                    oldest_entry = entry;
-                }
-            }
-            return oldest_entry;
-        }
-        
-        typename Context::EventLoop::QueuedEvent m_dequeue_event;
-        typename Context::EventLoop::TimedEvent m_timeout_event;
-        AcceptHandler m_accept_handler;
-        IpTcpListener m_ip_listener;
-        TcpListenerQueueEntry *m_queue;
-        int m_queue_size;
-        TimeType m_queue_timeout;
-        TcpListenerQueueEntry *m_queued_to_accept;
     };
     
     // Minimum required send buffer size for TCP.

@@ -47,7 +47,9 @@
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
 
+#include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
+#include <aipstack/utils/TcpListenQueue.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -68,14 +70,18 @@ public:
 private:
     class Client;
     
+    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr))
     APRINTER_USE_TYPE1(Context::Clock, TimeType)
     APRINTER_USE_TYPE1(Context, Network)
-    APRINTER_USE_TYPES1(Network, (TcpListener, TcpListenParams, TcpListenerQueueEntry,
-                                  TcpProto))
-    APRINTER_USE_TYPES1(TcpProto, (TcpConnection))
+    APRINTER_USE_TYPES1(Network, (TcpProto))
+    APRINTER_USE_TYPES1(TcpProto, (TcpConnection, TcpListenParams))
     
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
+    
+    using ListenQueue = AIpStack::TcpListenQueue<Context, TcpProto>;
+    APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams,
+                                      QueuedListenerCallback, QueuedListener))
     
     // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
     // This has to be set to a sufficiently large value that accomodates the worst case
@@ -136,17 +142,20 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
+        o->listener.init(&o->listener_callback);
         
         auto listen_params = TcpListenParams{};
+        listen_params.addr = Ip4Addr::ZeroAddr();
         listen_params.port = Params::Net::Port;
         listen_params.max_pcbs = Params::Net::MaxPcbs;
-        listen_params.min_rcv_buf_size = RxBufferSize;
-        listen_params.queue_size = Params::Net::QueueSize;
-        listen_params.queue_timeout = QueueTimeoutTicks;
-        listen_params.queue_entries = o->queue;
         
-        if (!o->listener.startListening(c, listen_params)) {
+        auto queue_params = ListenQueueParams{};
+        queue_params.min_rcv_buf_size = RxBufferSize;
+        queue_params.queue_size = Params::Net::QueueSize;
+        queue_params.queue_timeout = QueueTimeoutTicks;
+        queue_params.queue_entries = o->queue;
+        
+        if (!o->listener.startListening(Network::getTcpProto(c), listen_params, queue_params)) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         
@@ -163,20 +172,23 @@ public:
             client.deinit(c);
         }
         
-        o->listener.deinit(c);
+        o->listener.deinit();
     }
     
 private:
-    static void listener_accept_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        for (Client &client : o->clients) {
-            if (client.m_state == Client::State::NOT_CONNECTED) {
-                return client.accept_connection(c, &o->listener);
+    struct ListenerCallback : public QueuedListenerCallback {
+        void connectionEstablished (QueuedListener *lis) override final
+        {
+            Context c;
+            auto *o = Object::self(c);
+            
+            for (Client &client : o->clients) {
+                if (client.m_state == Client::State::NOT_CONNECTED) {
+                    return client.accept_connection(c, &o->listener);
+                }
             }
         }
-    }
+    };
     
     class Client : private TcpProto::TcpConnectionCallback {
         friend HttpServer;
@@ -228,14 +240,14 @@ private:
             m_send_event.deinit(c);
         }
         
-        void accept_connection (Context c, TcpListener *listener)
+        void accept_connection (Context c, QueuedListener *listener)
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
             HTTP_SERVER_DEBUG("HttpClientConnected");
             
             // Accept the connection.
-            listener->acceptIpConnection(c, &m_connection);
+            listener->acceptConnection(&m_connection);
             
             // Set up the ring buffers.
             m_send_ring_buf.setup(m_connection, m_tx_buf, TxBufferSize);
@@ -266,7 +278,7 @@ private:
             m_send_state = SendState::INVALID;
             
             // Remind the listener to give any queued connection.
-            o->listener.scheduleDequeue(c);
+            o->listener.scheduleDequeue();
         }
         
         void terminate_user (Context c)
@@ -1452,8 +1464,9 @@ private:
     
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
-        TcpListener listener;
-        TcpListenerQueueEntry queue[Params::Net::QueueSize];
+        QueuedListener listener;
+        ListenerCallback listener_callback;
+        ListenQueueEntry queue[Params::Net::QueueSize];
         Client clients[Params::Net::MaxClients];
     };
 };
