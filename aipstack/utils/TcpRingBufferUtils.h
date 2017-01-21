@@ -65,8 +65,7 @@ public:
         WrapBuffer getWritePtr (TcpConnection &con)
         {
             IpBufRef snd_buf = get_send_buf(con);
-            size_t read_offset = (snd_buf.offset == m_buf_node.len) ? 0 : snd_buf.offset;
-            size_t write_offset = add_modulo(read_offset, snd_buf.tot_len, m_buf_node.len);
+            size_t write_offset = add_modulo(snd_buf.offset, snd_buf.tot_len, m_buf_node.len);
             return WrapBuffer(m_buf_node.len - write_offset, m_buf_node.ptr + write_offset, m_buf_node.ptr);
         }
         
@@ -90,7 +89,7 @@ public:
         {
             IpBufRef snd_buf = con.getSendBuf();
             AMBRO_ASSERT(snd_buf.tot_len <= m_buf_node.len)
-            AMBRO_ASSERT(snd_buf.offset <= m_buf_node.len)
+            AMBRO_ASSERT(snd_buf.offset < m_buf_node.len) // < due to eager buffer consumption
             return snd_buf;
         }
         
@@ -123,8 +122,7 @@ public:
         WrapBuffer getReadPtr (TcpConnection &con)
         {
             IpBufRef rcv_buf = get_recv_buf(con);
-            size_t write_offset = (rcv_buf.offset == m_buf_node.len) ? 0 : rcv_buf.offset;
-            size_t read_offset = add_modulo(write_offset, rcv_buf.tot_len, m_buf_node.len);
+            size_t read_offset = add_modulo(rcv_buf.offset, rcv_buf.tot_len, m_buf_node.len);
             return WrapBuffer(m_buf_node.len - read_offset, m_buf_node.ptr + read_offset, m_buf_node.ptr);
         }
         
@@ -152,9 +150,8 @@ public:
                 // Calculate the offset in the buffer to which new data was written.
                 IpBufRef rcv_buf = con.getRecvBuf();
                 AMBRO_ASSERT(rcv_buf.tot_len + amount <= m_buf_node.len)
-                AMBRO_ASSERT(rcv_buf.offset <= m_buf_node.len)
-                size_t write_offset = (rcv_buf.offset == m_buf_node.len) ? 0 : rcv_buf.offset;
-                size_t data_offset = add_modulo(write_offset, m_buf_node.len - amount, m_buf_node.len);
+                AMBRO_ASSERT(rcv_buf.offset < m_buf_node.len)
+                size_t data_offset = add_modulo(rcv_buf.offset, m_buf_node.len - amount, m_buf_node.len);
                 
                 // Copy data to the mirror region as needed.
                 if (data_offset < mirror_size) {
@@ -177,7 +174,7 @@ public:
         {
             IpBufRef rcv_buf = con.getRecvBuf();
             AMBRO_ASSERT(rcv_buf.tot_len <= m_buf_node.len)
-            AMBRO_ASSERT(rcv_buf.offset <= m_buf_node.len)
+            AMBRO_ASSERT(rcv_buf.offset < m_buf_node.len) // < due to eager buffer consumption
             return rcv_buf;
         }
         

@@ -518,6 +518,11 @@ public:
         /**
          * Returns the current receive buffer.
          * May only be called in CONNECTED or CLOSED state.
+         * 
+         * When the stack shifts the receive buffer it will move to
+         * subsequent buffer nodes eagerly (see IpBufRef::processBytes).
+         * This is convenient when using a ring buffer as it guarantees
+         * that the offset will remain less than the buffer size.
          */
         inline IpBufRef getRecvBuf ()
         {
@@ -610,6 +615,11 @@ public:
         /**
          * Returns the current send buffer.
          * May only be called in CONNECTED or CLOSED state.
+         * 
+         * When the stack shifts the send buffer it will move to
+         * subsequent buffer nodes eagerly (see IpBufRef::processBytes).
+         * This is convenient when using a ring buffer as it guarantees
+         * that the offset will remain less than the buffer size.
          */
         inline IpBufRef getSendBuf ()
         {
