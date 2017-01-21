@@ -35,6 +35,7 @@
 #include <aprinter/base/OneOf.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
+#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 

@@ -40,6 +40,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/SendRetry.h>
+#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>

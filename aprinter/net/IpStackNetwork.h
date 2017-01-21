@@ -39,6 +39,7 @@
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/IpTcpProto.h>

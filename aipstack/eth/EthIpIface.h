@@ -40,6 +40,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
+#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
