@@ -1532,6 +1532,22 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_aprinter_include('printer/modules/StubCommandModule.h')
                         stub_command_module = gen.add_module()
                         stub_command_module.set_expr('StubCommandModuleService')
+                    
+                    networktest_sel = selection.Selection()
+                    
+                    @networktest_sel.option('Disabled')
+                    def option(networksel_config):
+                        pass
+                    
+                    @networktest_sel.option('Enabled')
+                    def option(networksel_config):
+                        gen.add_aprinter_include('printer/modules/NetworkTestModule.h')
+                        network_test_module = gen.add_module()
+                        network_test_module.set_expr(TemplateExpr('NetworkTestModuleService', [
+                            networksel_config.get_int('BufferSize'),
+                        ]))
+                    
+                    development.do_selection('NetworkTestModule', networktest_sel)
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
