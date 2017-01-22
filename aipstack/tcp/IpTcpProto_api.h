@@ -376,7 +376,7 @@ public:
             
             // Create the PCB for the connection.
             TcpPcb *pcb = nullptr;
-            IpErr err = TcpProto::create_connection(this, addr, port, rcv_wnd, &pcb);
+            IpErr err = tcp->create_connection(this, addr, port, rcv_wnd, &pcb);
             if (err != IpErr::SUCCESS) {
                 return err;
             }

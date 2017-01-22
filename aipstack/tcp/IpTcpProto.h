@@ -654,17 +654,24 @@ private:
     }
     
     IpErr create_connection (TcpConnection *con, Ip4Addr remote_addr, PortType remote_port,
-                             size_t user_rcv_wnd, TcpPcb *out_pcb)
+                             size_t user_rcv_wnd, TcpPcb **out_pcb)
     {
         AMBRO_ASSERT(con != nullptr)
         AMBRO_ASSERT(out_pcb != nullptr)
         
-        // Determine the local IP address.
+        // Determine the local interface.
         Iface *iface;
-        Ip4Addr local_addr;
-        if (!m_stack->routeIp4(remote_addr, nullptr, &iface, &local_addr)) {
+        Ip4Addr route_addr;
+        if (!m_stack->routeIp4(remote_addr, nullptr, &iface, &route_addr)) {
             return IpErr::NO_IP_ROUTE;
         }
+        
+        // Determine the local IP address.
+        IpIfaceIp4AddrSetting addr_setting = iface->getIp4Addr();
+        if (!addr_setting.present) {
+            return IpErr::NO_IP_ROUTE;
+        }
+        Ip4Addr local_addr = addr_setting.addr;
         
         // Determine the local port.
         PortType local_port = get_ephemeral_port(local_addr, remote_addr, remote_port);
@@ -719,7 +726,7 @@ private:
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
         
         // Add the PCB to the active index.
-        m_pcb_index_active.addEntry(*pcb);
+        m_pcb_index_active.addEntry(link_model_state(), link_model_ref(*pcb));
         
         // Start the connection timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynSentTimeoutTicks);
@@ -728,7 +735,7 @@ private:
         pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
         
         // Send the SYN.
-        pcb_send_syn(pcb);
+        Output::pcb_send_syn(pcb);
         
         // Return the PCB.
         *out_pcb = pcb;
