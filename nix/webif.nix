@@ -1,4 +1,4 @@
-{ stdenv, fetchurl, unzip, typescript, definitelyTyped, aprinterSource
+{ stdenv, fetchurl, unzip, typescript, aprinterSource
 , useDebugReact ? false
 }:
 let
@@ -65,8 +65,8 @@ stdenv.mkDerivation {
         tsc \
             --allowSyntheticDefaultImports \
             --jsx react \
-            ${definitelyTyped}/jquery/jquery.d.ts \
-            ${definitelyTyped}/react/react-global.d.ts \
+            ${aprinterSource}/webif/typings/react/index.d.ts \
+            ${aprinterSource}/webif/typings/jquery/index.d.ts \
             ${aprinterSource}/webif/reprap.tsx \
             --outDir $out \
             || [[ $? = 2 ]]
