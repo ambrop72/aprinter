@@ -25,6 +25,8 @@
 #ifndef AMBROLIB_AT91SAM_WATCHDOG_H
 #define AMBROLIB_AT91SAM_WATCHDOG_H
 
+#include <stdint.h>
+
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 
@@ -61,6 +63,32 @@ public:
         TheDebugObject::access(c);
         
         WDT->WDT_CR = WDT_CR_KEY(0xA5) | WDT_CR_WDRSTT;
+    }
+    
+    template <typename TheCommand>
+    static bool check_command (Context c, TheCommand *cmd)
+    {
+        if (cmd->getCmdNumber(c) == 947) {
+            uint8_t rst_type = (RSTC->RSTC_SR >> RSTC_SR_RSTTYP_Pos) & RSTC_SR_RSTTYP_Msk;
+            
+            char const *rst_type_str = "";
+            switch (rst_type) {
+                case 0: rst_type_str = "General";  break;
+                case 1: rst_type_str = "Backup";   break;
+                case 2: rst_type_str = "Watchdog"; break;
+                case 3: rst_type_str = "Software"; break;
+                case 4: rst_type_str = "User";     break;
+            }
+            
+            cmd->reply_append_str(c, "ResetType=");
+            cmd->reply_append_str(c, rst_type_str);
+            cmd->reply_append_ch(c, '\n');
+            cmd->finishCommand(c);
+            
+            return false;
+        }
+        
+        return true;
     }
     
 public:

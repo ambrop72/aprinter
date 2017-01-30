@@ -2351,7 +2351,8 @@ private:
                 default:
                     if (
                         TheConfigManager::checkCommand(c, cmd) &&
-                        ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd)))
+                        ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd))) &&
+                        CallIfExists_check_command::template call_ret<TheWatchdog, bool, true>(c, cmd)
                     ) {
                         goto unknown_command;
                     }
