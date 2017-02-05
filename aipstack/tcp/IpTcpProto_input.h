@@ -566,6 +566,16 @@ private:
             // Just in case, handle the possibility of rcv_ann being zero.
             pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann - APrinter::MinValue(pcb->rcv_ann, (SeqType)1));
             
+            // Go to ESTABLISHED state.
+            pcb->state = TcpState::ESTABLISHED;
+            
+            // Update snd_mss based on the MSS option in this packet (if any).
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(pcb->snd_mss, *tcp_meta.opts, &pcb->snd_mss)) {
+                // Due to ESTABLISHED transition above, the RST will be an ACK.
+                TcpProto::pcb_abort(pcb, true);
+                return false;
+            }
+            
             // Handle the window scale option.
             if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
                 // Remote sent the window scale flag, so store the window scale
@@ -596,9 +606,6 @@ private:
         pcb->cwnd_acked = 0;
         
         if (syn_sent) {
-            // Go to ESTABLISHED state.
-            pcb->state = TcpState::ESTABLISHED;
-            
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con->m_pcb == pcb)
