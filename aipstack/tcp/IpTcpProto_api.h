@@ -545,13 +545,10 @@ public:
         /**
          * Returns the amount of send buffer that could remain unsent
          * indefinitely in the absence of sendPush or endSending.
-         * Note: currently this does not change for for accepted
-         * connections and only possibly decreases for initiated
-         * connections, which is fine from a user perspective. However
-         * when we implement Path-MTU, the issue of the MSS possibly
-         * increasing should be addressed - we shouldn't silently
-         * increase this value after returning a promise to the user.
-         * May only be called in CONNECTED state.
+         * 
+         * For accepted connections, this does not change, and for
+         * initiated connections, it only possibly decreases when the
+         * connection is established.
          */
         inline size_t getSndBufOverhead ()
         {
@@ -559,7 +556,7 @@ public:
             
             // Sending can be delayed for segmentation only when we have
             // less than the MSS data left to send, hence return mss-1.
-            return m_pcb->snd_mss - 1;
+            return m_pcb->base_snd_mss - 1;
         }
         
         /**

@@ -39,6 +39,8 @@ enum class IpErr : uint8_t {
     PKT_TOO_LARGE   = 6,
     NO_PORT_AVAIL   = 7,
     NO_PCB_AVAIL    = 8,
+    NO_IPMTU_AVAIL  = 9,
+    FRAG_NEEDED     = 10,
 };
 
 #include <aipstack/EndNamespace.h>

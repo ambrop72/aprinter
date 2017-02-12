@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 
+#include <aprinter/base/BinaryTools.h>
+
 #include <aipstack/misc/Struct.h>
 
 #include <aipstack/BeginNamespace.h>
@@ -42,6 +44,14 @@ APRINTER_TSTRUCT(Icmp4Header,
 
 static uint8_t const Icmp4TypeEchoReply   = 0;
 static uint8_t const Icmp4TypeEchoRequest = 8;
+static uint8_t const Icmp4TypeDestUnreach = 3;
+
+static uint8_t const Icmp4CodeDestUnreachFragNeeded = 4;
+
+inline static uint16_t const Icmp4GetMtuFromRest (Icmp4RestType rest)
+{
+    return APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>((char const *)rest.data + 2);
+}
 
 #include <aipstack/EndNamespace.h>
 

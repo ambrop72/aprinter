@@ -263,6 +263,11 @@ public:
         *out_mss = mss;
         return true;
     }
+    
+    static uint16_t calc_mss_from_mtu (uint16_t ip_mtu)
+    {
+        return ip_mtu - APrinter::MinValue(ip_mtu, (uint16_t)Tcp4Header::Size);
+    }
 };
 
 #include <aipstack/EndNamespace.h>

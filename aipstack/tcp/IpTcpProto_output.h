@@ -38,6 +38,7 @@
 #include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
+#include <aipstack/ip/IpStack.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -100,8 +101,8 @@ public:
         // Send the segment.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, flags, &tcp_opts};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
-                             pcb);
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
+                             pcb->ip_send_flags, tcp_meta, IpBufRef{}, pcb);
         
         if (err == IpErr::SUCCESS) {
             // Have we sent the SYN for the first time?
@@ -123,8 +124,8 @@ public:
     {
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
-        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, IpBufRef{},
-                 pcb);
+        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
+                 IpSendFlags::DontFragmentNow, tcp_meta, IpBufRef{}, pcb);
     }
     
     // Send an RST for this PCB.
@@ -251,9 +252,13 @@ public:
             return false;
         }
         
+        // Get the cwnd.
+        SeqType cwnd = pcb->cwnd;
+        AMBRO_ASSERT(cwnd >= pcb->snd_mss)
+        
         // Calculate how much more we are allowed to send, according
         // to the receiver window and the congestion window.
-        SeqType full_wnd = APrinter::MinValue(pcb->snd_wnd, pcb_effective_cwnd(pcb));
+        SeqType full_wnd = APrinter::MinValue(pcb->snd_wnd, cwnd);
         SeqType rem_wnd = full_wnd - APrinter::MinValueU(full_wnd, pcb_snd_offset(pcb));
         
         // Will need to know if we sent anything.
@@ -290,6 +295,18 @@ public:
             sent = true;
         }
         
+        // Start or stop the rtx_timer as needed.
+        pcb_update_rtx_timer(pcb);
+        
+        return sent;
+    }
+    
+    // Start or stop the rtx_timer for retransmission or window probe as needed.
+    static void pcb_update_rtx_timer (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        
         if (pcb_need_rtx_timer(pcb)) {
             // Start timer for retransmission or window probe, if not already
             // or if it was running for idle timeout.
@@ -301,8 +318,6 @@ public:
             // Stop the timer.
             pcb->tim(RtxTimer()).unset(Context());
         }
-        
-        return sent;
     }
     
     static void pcb_output_timer_handler (TcpPcb *pcb)
@@ -328,13 +343,20 @@ public:
             // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
             // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
+            AMBRO_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
             
             // Reduce the CWND (RFC 5681 section 4.1).
             // Also reset cwnd_acked to avoid old accumulated value
             // from causing an undesired cwnd increase later.
-            pcb->cwnd = APrinter::MinValue(pcb->cwnd, pcb_calc_initial_cwnd(pcb));
+            SeqType initial_cwnd = calc_initial_cwnd(pcb->snd_mss);
+            if (pcb->cwnd >= initial_cwnd) {
+                pcb->cwnd = initial_cwnd;
+                pcb->setFlag(PcbFlags::CWND_INIT);
+            }
             pcb->cwnd_acked = 0;
+            
+            // This is all, the remainder of this function is for retransmission.
             return;
         }
         
@@ -373,6 +395,7 @@ public:
             // Also reset cwnd_acked to avoid old accumulated value
             // from causing an undesired cwnd increase later.
             pcb->cwnd = pcb->snd_mss;
+            pcb->clearFlag(PcbFlags::CWND_INIT);
             pcb->cwnd_acked = 0;
             
             // Set recover.
@@ -456,7 +479,9 @@ public:
             // If all data up to recover is being ACKed, exit fast recovery.
             if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, pcb->recover, pcb->snd_una)) {
                 // Deflate the CWND.
+                // Note, cwnd>=snd_mss is respected because ssthresh>=snd_mss.
                 SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
+                AMBRO_ASSERT(pcb->ssthresh >= pcb->snd_mss)
                 pcb->cwnd = APrinter::MinValue(pcb->ssthresh,
                     seq_add(APrinter::MaxValue(flight_size, (SeqType)pcb->snd_mss), pcb->snd_mss));
                 
@@ -468,9 +493,8 @@ public:
                 
                 // Deflate CWND by the amount of data ACKed.
                 // Be careful to not bring CWND below snd_mss.
-                if (pcb->cwnd > pcb->snd_mss) {
-                    pcb->cwnd -= APrinter::MinValue(seq_diff(pcb->cwnd, pcb->snd_mss), acked);
-                }
+                AMBRO_ASSERT(pcb->cwnd >= pcb->snd_mss)
+                pcb->cwnd -= APrinter::MinValue(seq_diff(pcb->cwnd, pcb->snd_mss), acked);
                 
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
@@ -520,6 +544,7 @@ public:
         // Update cwnd.
         SeqType three_mss = 3 * (SeqType)pcb->snd_mss;
         pcb->cwnd = (three_mss > UINT32_MAX - pcb->ssthresh) ? UINT32_MAX : (pcb->ssthresh + three_mss);
+        pcb->clearFlag(PcbFlags::CWND_INIT);
         
         // Schedule output due to possible CWND increase.
         pcb->setFlag(PcbFlags::OUT_PENDING);
@@ -560,17 +585,16 @@ public:
     }
     
     // Calculate the initial cwnd based on snd_mss.
-    static SeqType pcb_calc_initial_cwnd (TcpPcb *pcb)
+    static SeqType calc_initial_cwnd (uint16_t snd_mss)
     {
-        SeqType smss = pcb->snd_mss;
-        if (smss > 2190) {
-            return (smss > UINT32_MAX / 2) ? UINT32_MAX : (2 * smss);
+        if (snd_mss > 2190) {
+            return (snd_mss > UINT32_MAX / 2) ? UINT32_MAX : (2 * snd_mss);
         }
-        else if (smss > 1095) {
-            return 3 * smss;
+        else if (snd_mss > 1095) {
+            return 3 * snd_mss;
         }
         else {
-            return 4 * smss;
+            return 4 * snd_mss;
         }
     }
     
@@ -615,6 +639,106 @@ public:
         }
     }
     
+    // Update snd_mss and IpSendFlags::DontFragmentFlag based on the current
+    // mtu_ref information. If check_change is true, it checks if the current
+    // values in the PCB match the computed ones before updating and if so an
+    // update is inhibited. Returns whether an update was done.
+    static bool pcb_update_pmtu_base (TcpPcb *pcb, bool check_change)
+    {
+        AMBRO_ASSERT(pcb->mtu_ref.isSetup())
+        
+        // Get the PMTU and DF flag from the mtu_ref.
+        uint16_t mtu;
+        bool dont_fragment;
+        pcb->mtu_ref.getMtuAndDf(pcb->tcp->m_stack, &mtu, &dont_fragment);
+        AMBRO_ASSERT(mtu >= Ip4MinMtu)
+        
+        // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
+        uint16_t dgram_mtu = mtu - Ip4Header::Size;
+        uint16_t snd_mss = APrinter::MinValue(pcb->base_snd_mss, TcpUtils::calc_mss_from_mtu(dgram_mtu));
+        
+        // We refuse to use snd_mss less than MinAllowedMss.
+        // If the calculated value is less, force no DF flag.
+        // The local interface will have no problems and weird
+        // routers with so low MTU will fragment themselves.
+        if (snd_mss < Constants::MinAllowedMss) {
+            snd_mss = Constants::MinAllowedMss;
+            dont_fragment = false;
+        }
+        
+        // If this is not the initial update or snd_mss and dont_fragment match
+        // the current PCB variables, there is nothing else to do.
+        if (check_change && snd_mss == pcb->snd_mss &&
+            dont_fragment == ((pcb->ip_send_flags & IpSendFlags::DontFragmentFlag) != 0))
+        {
+            return false;
+        }
+        
+        // Update the snd_mss.
+        pcb->snd_mss = snd_mss;
+        
+        // Update IpSendFlags::DontFragmentFlag.
+        if (dont_fragment) {
+            pcb->ip_send_flags |= IpSendFlags::DontFragmentFlag;
+        } else {
+            pcb->ip_send_flags &= ~IpSendFlags::DontFragmentFlag;
+        }
+        
+        return true;
+    }
+    
+    // Update the snd_mss and IpSendFlags::DontFragmentFlag based on the current
+    // mtu_ref information, and possibly do any necessarily fixups like
+    // cwnd and rtx_timer.
+    static void pcb_update_pmtu_from_mtu_ref (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->mtu_ref.isSetup())
+        
+        bool can_output = can_output_in_state(pcb->state);
+        
+        // Update the snd_mss and DF flag based on the mtu_ref information.
+        // In states where data output is not possible, this is called
+        // with check_change==false in order to just set/clear the DF flag
+        // as needed. In this case snd_mss is also set but that does not
+        // matter in these states.
+        bool mtu_updated = pcb_update_pmtu_base(pcb, can_output);
+        
+        // If no update was done or we are not in a state where output
+        // is possible, then there is no need to perform the fixups.
+        if (!mtu_updated || !can_output) {
+            return;
+        }
+        
+        // Make sure that ssthresh does not become lesser than snd_mss.
+        if (pcb->ssthresh < pcb->snd_mss) {
+            pcb->ssthresh = pcb->snd_mss;
+        }
+        
+        if (pcb->hasFlag(PcbFlags::CWND_INIT)) {
+            // Recalculate initial CWND (RFC 5681 page 5).
+            pcb->cwnd = calc_initial_cwnd(pcb->snd_mss);
+        } else {
+            // The standards do not require updating cwnd for the new snd_mss,
+            // but we have to make sure that cwnd does not become less than snd_mss.
+            // We also set cwnd to snd_mss if we have done a retransmission from the
+            // rtx_timer and no new ACK has been received since; since the cwnd would
+            // have been set to snd_mss then, and should not have been changed since
+            // (the latter is not trivial to see though).
+            if (pcb->cwnd < pcb->snd_mss || pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                pcb->cwnd = pcb->snd_mss;
+            }
+        }
+        
+        // The change of snd_mss might have broken the invariant that the
+        // rtx_timer is started if and only if pcb_need_rtx_timer (ignoring
+        // idle timeout). Note that snd_mss affects pcb_need_rtx_timer only
+        // when snd_wnd==0 (to determine if window probing is needed), hence
+        // the condition here.
+        if (pcb_has_snd_outstanding(pcb) && pcb->snd_wnd == 0) {
+            pcb_update_rtx_timer(pcb);
+        }
+    }
+    
     // Send an RST as a reply to a received segment.
     // This conforms to RFC 793 handling of segments not belonging to a known
     // connection.
@@ -645,13 +769,16 @@ public:
     {
         FlagsType flags = Tcp4FlagRst | (ack ? Tcp4FlagAck : 0);
         TcpSegMeta tcp_meta = {local_port, remote_port, seq_num, ack_num, 0, flags};
-        send_tcp(tcp, local_addr, remote_addr, tcp_meta, IpBufRef{}, nullptr);
+        send_tcp(tcp, local_addr, remote_addr, IpSendFlags::DontFragmentNow,
+                 tcp_meta, IpBufRef{}, nullptr);
     }
     
 private:
     // Determine if sending can be delayed in expectation of a larger segment.
     static bool pcb_may_delay_snd (TcpPcb *pcb)
     {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
         return pcb->snd_buf_cur.tot_len < pcb->snd_mss &&
                pcb->snd_psh_index <= pcb_snd_offset(pcb) &&
                snd_open_in_state(pcb->state);
@@ -686,7 +813,8 @@ private:
         SeqType seq_num = seq_add(pcb->snd_una, offset);
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), seg_flags};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta,
+        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
+                             pcb->ip_send_flags, tcp_meta,
                              data.subTo(seg_data_len), pcb);
         
         // These things are needed only when a segment was sent.
@@ -746,29 +874,30 @@ private:
     
     static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
     {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        // Increase cwnd by acked but no more than snd_mss.
         SeqType cwnd_inc = APrinter::MinValueU(acked, pcb->snd_mss);
         pcb_increase_cwnd(pcb, cwnd_inc);
+        
+        // No longer have initial CWND.
+        pcb->clearFlag(PcbFlags::CWND_INIT);
     }
     
     static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
     {
-        pcb->cwnd = (cwnd_inc > UINT32_MAX - pcb->cwnd) ? UINT32_MAX : (pcb->cwnd + cwnd_inc);
+        SeqType cwnd = pcb->cwnd;
+        pcb->cwnd = (cwnd_inc > UINT32_MAX - cwnd) ? UINT32_MAX : (cwnd + cwnd_inc);
     }
     
     // Sets sshthresh according to RFC 5681 equation (4).
     static void pcb_update_ssthresh_for_rtx (TcpPcb *pcb)
     {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
         SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
         SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
         pcb->ssthresh = APrinter::MaxValue(half_flight_size, two_smss);
-    }
-    
-    // Calculate the effective congestion window.
-    static SeqType pcb_effective_cwnd (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(pcb->cwnd > 0)
-        
-        return pcb->cwnd;
     }
     
     static void pcb_start_rtt_measurement (TcpPcb *pcb)
@@ -780,7 +909,7 @@ private:
     }
     
     static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-                           TcpSegMeta const &tcp_meta, IpBufRef data,
+                           uint8_t ip_flags, TcpSegMeta const &tcp_meta, IpBufRef data,
                            IpSendRetry::Request *retryReq)
     {
         // Compute length of TCP options.
@@ -827,9 +956,13 @@ private:
         uint16_t calc_chksum = chksum_accum.getChksum();
         tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
         
+        // Add DontFragmentNow flag since we should never
+        // need to fragment sent segments ourselves.
+        ip_flags |= IpSendFlags::DontFragmentNow;
+        
         // Send the datagram.
         Ip4DgramMeta meta = {local_addr, remote_addr, TcpProto::TcpTTL, Ip4ProtocolTcp};
-        return tcp->m_stack->sendIp4Dgram(meta, dgram, retryReq);
+        return tcp->m_stack->sendIp4Dgram(meta, dgram, retryReq, ip_flags);
     }
 };
 

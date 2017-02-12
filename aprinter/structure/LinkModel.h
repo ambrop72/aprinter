@@ -271,6 +271,12 @@ public:
         : m_link(Link(index)), m_ptr(&entry)
         {}
         
+        // for users not data structures
+        inline IndexType getIndex () const
+        {
+            return m_link.m_index;
+        }
+        
     private:
         Link m_link;
         Entry *m_ptr;

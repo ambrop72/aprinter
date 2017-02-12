@@ -61,7 +61,7 @@ class IpReassembly :
     APRINTER_USE_TIMERS_CLASS(IpReassemblyTimers<Arg>, (PurgeTimer)) 
     
     static_assert(MaxReassEntrys > 0, "");
-    static_assert(MaxReassSize >= 576, "");
+    static_assert(MaxReassSize >= Ip4RequiredRecvSize, "");
     
     static uint16_t const ReassNullLink = UINT16_MAX;
     

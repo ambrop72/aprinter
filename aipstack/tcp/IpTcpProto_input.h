@@ -35,10 +35,13 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/BinaryTools.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
+#include <aipstack/proto/Icmp4Proto.h>
+#include <aipstack/ip/IpStack.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -46,12 +49,12 @@ template <typename TcpProto>
 class IpTcpProto_input
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
-                                   OptionFlags))
+                                   OptionFlags, PortType))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, OosSeg, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer))
+                                   AbrtTimer, RtxTimer, OutputTimer, Ip4DestUnreachMeta))
     APRINTER_USE_ONEOF
     
 public:
@@ -132,6 +135,59 @@ public:
         }
     }
     
+    static void handleIp4DestUnreach (TcpProto *tcp, Ip4DestUnreachMeta const &du_meta,
+                                      Ip4DgramMeta const &ip_meta, IpBufRef dgram_initial)
+    {
+        // We only care about ICMP code "fragmentation needed and DF set".
+        if (du_meta.icmp_code != Icmp4CodeDestUnreachFragNeeded) {
+            return;
+        }
+        
+        // Check that at least the first 8 bytes of the TCP header
+        // are available. This gives us SrcPort, DstPort and SeqNum.
+        if (!dgram_initial.hasHeader(8)) {
+            return;
+        }
+        
+        // Read header fields.
+        // NOTE: No other header fields must be read, that would
+        // be out-of-bound memory access!
+        auto tcp_header = Tcp4Header::MakeRef(dgram_initial.getChunkPtr());
+        PortType local_port  = tcp_header.get(Tcp4Header::SrcPort());
+        PortType remote_port = tcp_header.get(Tcp4Header::DstPort());
+        SeqType seq_num      = tcp_header.get(Tcp4Header::SeqNum());
+        
+        // Look for a PCB associated with these addresses.
+        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.local_addr, local_port, ip_meta.remote_addr, remote_port);
+        if (pcb == nullptr) {
+            return;
+        }
+        
+        // Check that the sequence number is between snd_una and snd_nxt inclusive.
+        if (!seq_lte(seq_num, pcb->snd_nxt, pcb->snd_una)) {
+            return;
+        }
+        
+        // If the mtu_ref is not setup, handle by ensuring the DF flag
+        // is cleared in future sent segment.
+        if (!pcb->mtu_ref.isSetup()) {
+            pcb->ip_send_flags &= ~IpSendFlags::DontFragmentFlag;
+            return;
+        }
+        
+        // Read the field of the ICMP message where the next-hop MTU
+        // is supposed to be.
+        uint16_t mtu_info = Icmp4GetMtuFromRest(du_meta.icmp_rest);
+        
+        // Update the MTU information.
+        if (pcb->mtu_ref.handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
+            // The mtu_ref information has changed, propagate to PCB.
+            Output::pcb_update_pmtu_from_mtu_ref(pcb);
+            
+            // TODO: transmit?
+        }
+    }
+    
     // Get a window size value be put into the segment being sent.
     // This updates pcb->rcv_ann tracking the announced window.
     static uint16_t pcb_ann_wnd (TcpPcb *pcb)
@@ -173,10 +229,10 @@ private:
                 goto refuse;
             }
             
-            // Calculate MSSes.
-            uint16_t iface_mss = TcpProto::get_iface_mss(ip_meta.iface);
-            uint16_t snd_mss;
-            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &snd_mss)) {
+            // Calculate initial MSS.
+            uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(ip_meta.iface->getIp4DgramMtu());
+            uint16_t base_snd_mss;
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &base_snd_mss)) {
                 goto refuse;
             }
             
@@ -192,6 +248,7 @@ private:
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
+            pcb->ip_send_flags = IpSendFlags::DontFragmentNow;
             pcb->lis = lis;
             pcb->local_addr = ip_meta.local_addr;
             pcb->remote_addr = ip_meta.remote_addr;
@@ -206,7 +263,7 @@ private:
             pcb->snd_nxt = iss;
             pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
-            pcb->snd_mss = snd_mss;
+            pcb->base_snd_mss = base_snd_mss;
             pcb->rto = Constants::InitialRtxTime;
             pcb->num_ooseq = 0;
             pcb->num_dupack = 0;
@@ -225,7 +282,12 @@ private:
             }
             
             // These will be initialized at transition to ESTABLISHED:
-            // snd_wnd, snd_wl1, snd_wl2
+            // snd_wnd, snd_wl1, snd_wl2, snd_mss
+            
+            // We also do not setup the mtu_ref now, it will be done at
+            // transition to ESTABLISHED. Note that we also don't have the
+            // IpSendFlags::DontFragmentFlag (yet), since handleIp4DestUnreach
+            // would not be able to handle an ICMP error without the mtu_ref.
             
             // Increment the listener's PCB count.
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
@@ -569,8 +631,10 @@ private:
             // Go to ESTABLISHED state.
             pcb->state = TcpState::ESTABLISHED;
             
-            // Update snd_mss based on the MSS option in this packet (if any).
-            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(pcb->snd_mss, *tcp_meta.opts, &pcb->snd_mss)) {
+            // Update the base_snd_mss based on the MSS option in this packet (if any).
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(
+                pcb->base_snd_mss, *tcp_meta.opts, &pcb->base_snd_mss))
+            {
                 // Due to ESTABLISHED transition above, the RST will be an ACK.
                 TcpProto::pcb_abort(pcb, true);
                 return false;
@@ -589,7 +653,17 @@ private:
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
                 pcb->rcv_wnd_shift = 0;
             }
+        } else {
+            // Setup the MTU reference.
+            if (!pcb->mtu_ref.setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr)) {
+                TcpProto::pcb_abort(pcb, true);
+                return false;
+            }
         }
+        
+        // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
+        // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
+        Output::pcb_update_pmtu_base(pcb, false);
         
         // If this is the end of RTT measurement (there was no retransmission),
         // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
@@ -601,7 +675,8 @@ private:
         }
         
         // Initialize congestion control variables.
-        pcb->cwnd = Output::pcb_calc_initial_cwnd(pcb);
+        pcb->cwnd = Output::calc_initial_cwnd(pcb->snd_mss);
+        pcb->setFlag(PcbFlags::CWND_INIT);
         pcb->ssthresh = Constants::MaxRcvWnd;
         pcb->cwnd_acked = 0;
         
@@ -764,9 +839,13 @@ private:
                 if (pcb->state == TcpState::FIN_WAIT_1) {
                     // FIN is accked in FIN_WAIT_1, transition to FIN_WAIT_2.
                     pcb->state = TcpState::FIN_WAIT_2;
+                    
                     // At this transition output_timer and rtx_timer must be unset
                     // due to assert in their handlers (rtx_timer was unset above).
                     pcb->tim(OutputTimer()).unset(Context());
+                    
+                    // Reset the MTU reference.
+                    pcb->mtu_ref.reset(pcb->tcp->m_stack);
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.

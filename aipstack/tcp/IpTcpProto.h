@@ -80,7 +80,8 @@ class IpTcpProto :
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_ONEOF
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface))
+    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface, Ip4DestUnreachMeta,
+                                     MtuRef))
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
@@ -123,6 +124,7 @@ private:
         RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
         IDLE_TIMER  = 1 << 11, // If rtx_timer is running it is for idle timeout
         WND_SCALE   = 1 << 12, // Window scaling is used
+        CWND_INIT   = 1 << 13, // Current cwnd is the initial cwnd
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -257,8 +259,25 @@ private:
         RttType srtt;
         RttType rto;
         
-        // MSSes
-        uint16_t snd_mss; // NOTE: If updating this, consider invalidation of pcb_need_rtx_timer!
+        // The base send MSS. It is computed based on the interface
+        // MTU and the MTU option provided by the peer.
+        // In the SYN_SENT state this is set based on the interface MTU and
+        // the calculation is completed at the transition to ESTABLISHED.
+        uint16_t base_snd_mss;
+        
+        // The maximum segment size we will send.
+        // This is dynamic based on Path MTU Discovery, but it will always
+        // be between Constants::MinAllowedMss and base_snd_mss.
+        // It is first initialized at the transition to ESTABLISHED state,
+        // before that is is undefined.
+        // Due to invariants and other requirements associated with snd_mss,
+        // fixups must be performed when snd_mss is changed, especially of
+        // cwnd and rtx_timer (see pcb_update_snd_mss).
+        uint16_t snd_mss;
+        
+        // The maximum segment size we are willing to accept. This is
+        // calculated based on the interface MTU and does not change
+        // from when the PCB is initialized in SYN_SENT/SYN_RCVD state.
         uint16_t rcv_mss;
         
         // Flags (see comments in PcbFlags).
@@ -266,6 +285,9 @@ private:
         
         // PCB state.
         TcpState state;
+        
+        // Flags for IpStack::sendIp4Dgram (IpSendFlags).
+        uint8_t ip_send_flags;
         
         // Number of valid elements in ooseq_segs;
         uint8_t num_ooseq : 4;
@@ -276,6 +298,10 @@ private:
         // Window shift values.
         uint8_t snd_wnd_shift : 4;
         uint8_t rcv_wnd_shift : 4;
+        
+        // MTU reference.
+        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
+        MtuRef mtu_ref;
         
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
@@ -340,6 +366,9 @@ public:
             // Initialize the send-retry Request object.
             pcb.IpSendRetry::Request::init();
             
+            // Initialize the MTU reference.
+            pcb.mtu_ref.init();
+            
             // Initialize some PCB variables.
             pcb.tcp = this;
             pcb.state = TcpState::CLOSED;
@@ -364,6 +393,7 @@ public:
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
             AMBRO_ASSERT(pcb.con == nullptr)
+            pcb.mtu_ref.deinit(m_stack);
             pcb.IpSendRetry::Request::deinit();
             pcb.tim(RtxTimer()).deinit(Context());
             pcb.tim(OutputTimer()).deinit(Context());
@@ -374,9 +404,15 @@ public:
     }
     
 private:
-    void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override
+    void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
     {
         Input::recvIp4Dgram(this, ip_meta, dgram);
+    }
+    
+    void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
+                               Ip4DgramMeta const &ip_meta, IpBufRef dgram_initial) override final
+    {
+        Input::handleIp4DestUnreach(this, du_meta, ip_meta, dgram_initial);
     }
     
     TcpPcb * allocate_pcb ()
@@ -464,6 +500,7 @@ private:
         pcb->tim(AbrtTimer()).unset(Context());
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
+        pcb->mtu_ref.reset(pcb->tcp->m_stack);
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
         
@@ -496,6 +533,9 @@ private:
         // Stop these timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
+        
+        // Reset the MTU reference.
+        pcb->mtu_ref.reset(pcb->tcp->m_stack);
         
         // Start the TIME_WAIT timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
@@ -574,6 +614,9 @@ private:
             return pcb_abort(pcb);
         }
         
+        // Reset the MTU reference.
+        pcb->mtu_ref.reset(pcb->tcp->m_stack);
+        
         // Arrange for sending the FIN.
         if (snd_open_in_state(pcb->state)) {
             Output::pcb_end_sending(pcb);
@@ -618,13 +661,6 @@ private:
         action(pcb->con);
         
         return tcp->m_current_pcb != nullptr;
-    }
-    
-    static uint16_t get_iface_mss (Iface *iface)
-    {
-        size_t mtu = iface->getIp4DgramMtu();
-        size_t mss = mtu - APrinter::MinValue(mtu, Tcp4Header::Size);
-        return APrinter::MinValueU((uint16_t)-1, mss);
     }
     
     static inline SeqType make_iss ()
@@ -679,8 +715,8 @@ private:
             return IpErr::NO_PORT_AVAIL;
         }
         
-        // Calculate the initial MSS.
-        uint16_t iface_mss = get_iface_mss(iface);
+        // Calculate the MSS based on the interface MTU.
+        uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(iface->getIp4DgramMtu());
         if (iface_mss < Constants::MinAllowedMss) {
             return IpErr::NO_HEADER_SPACE;
         }
@@ -690,6 +726,15 @@ private:
         if (pcb == nullptr) {
             return IpErr::NO_PCB_AVAIL;
         }
+        
+        // Setup the MTU reference.
+        if (!pcb->mtu_ref.setup(m_stack, remote_addr, iface)) {
+            // PCB is CLOSED, this is not a leak.
+            return IpErr::NO_IPMTU_AVAIL;
+        }
+        
+        // NOTE: If another error case is added after this, make sure
+        // to reset the mtu_ref before abandoning the PCB!
         
         // Remove the PCB from the unreferenced PCBs list.
         m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
@@ -704,9 +749,10 @@ private:
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
         pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
+        pcb->ip_send_flags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
         pcb->con = con;
         pcb->local_addr = local_addr;
-        pcb->remote_addr = remote_addr;
+        pcb->remote_addr;
         pcb->local_port = local_port;
         pcb->remote_port = remote_port;
         pcb->rcv_nxt = 0; // it is sent in the SYN
@@ -718,12 +764,14 @@ private:
         pcb->snd_nxt = iss;
         pcb->snd_buf_cur = IpBufRef{};
         pcb->snd_psh_index = 0;
-        pcb->snd_mss = iface_mss;
+        pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
         pcb->num_ooseq = 0;
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
+        
+        // snd_mss will be initialized at transition to ESTABLISHED
         
         // Add the PCB to the active index.
         m_pcb_index_active.addEntry(link_model_state(), link_model_ref(*pcb));

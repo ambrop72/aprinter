@@ -79,7 +79,10 @@ private:
         EthHeader::Size, // HeaderBeforeIp
         IpTTL,           // IcmpTTL
         Arg::Params::MaxReassPackets,
-        Arg::Params::MaxReassSize
+        Arg::Params::MaxReassSize,
+        Arg::Params::NumMtuEntries,
+        typename Arg::Params::MtuIndexService,
+        Arg::Params::MtuTimeoutMinutes
     >;
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator>))
     
@@ -451,6 +454,9 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     APRINTER_AS_VALUE(int, ArpProtectCount),
     APRINTER_AS_VALUE(int, MaxReassPackets),
     APRINTER_AS_VALUE(uint16_t, MaxReassSize),
+    APRINTER_AS_VALUE(int, NumMtuEntries),
+    APRINTER_AS_TYPE(MtuIndexService),
+    APRINTER_AS_VALUE(uint8_t, MtuTimeoutMinutes),
     APRINTER_AS_VALUE(int, NumTcpPcbs),
     APRINTER_AS_VALUE(int, NumOosSegs),
     APRINTER_AS_VALUE(int, TcpWndUpdThrDiv),

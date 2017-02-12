@@ -103,11 +103,22 @@ class GenState(object):
         return name
     
     def add_int_constant (self, dtype, name, value):
-        m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
-        assert m
-        u = m.group(1)
-        b = m.group(2)
-        self._constants.append({'type':'static {}_t const'.format(dtype), 'name':name, 'value':'{}INT{}_C({})'.format(u.upper(), b, value)})
+        if dtype == 'int':
+            c_type = 'int'
+            c_init = str(value)
+        else:
+            m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
+            assert m
+            u = m.group(1)
+            b = m.group(2)
+            c_type = '{}_t'.format(dtype)
+            c_init = '{}INT{}_C({})'.format(u.upper(), b, value)
+        
+        self._constants.append({
+            'type': 'static {} const'.format(c_type),
+            'name': name,
+            'value': c_init,
+        })
         return name
     
     def add_platform_include (self, inc_file):
@@ -1294,18 +1305,21 @@ def get_letter_number_name(config, key):
     normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
+def get_ip_index(gen, config, key):
+    index_name = config.get_string(key)
+    if index_name not in ('MruListIndex', 'AvlTreeIndex'):
+        config.key_path(key).error('Invalid value.')
+    gen.add_include('aipstack/misc/index/{}.h'.format(index_name))
+    return 'AIpStack::{}Service'.format(index_name)
+
 class NetworkConfigState(object):
     def __init__(self, min_send_buf, min_recv_buf):
         self.min_send_buf = min_send_buf
         self.min_recv_buf = min_recv_buf
-        self._num_listeners = 0
         self._num_connections = 0
-        self._num_queued_connections = 0
     
-    def add_resource_counts(self, listeners=0, connections=0, queued_connections=0):
-        self._num_listeners += listeners
+    def add_resource_counts(self, connections=0):
         self._num_connections += connections
-        self._num_queued_connections += queued_connections
 
 def setup_network(gen, config, key):
     network_sel = selection.Selection()
@@ -1334,6 +1348,10 @@ def setup_network(gen, config, key):
         if not 1480 <= max_reass_size <= 30000:
             network_config.key_path('MaxReassSize').error('Value out of range.')
         
+        mtu_timeout_minutes = network_config.get_int('MtuTimeoutMinutes')
+        if not 1 <= mtu_timeout_minutes <= 255:
+            network_config.key_path('MtuTimeoutMinutes').error('Value out of range.')
+        
         num_tcp_pcbs = network_config.get_int('NumTcpPcbs')
         if not 2 <= num_tcp_pcbs <= 2048:
             network_config.key_path('NumTcpPcbs').error('Value out of range.')
@@ -1343,12 +1361,6 @@ def setup_network(gen, config, key):
             network_config.key_path('NumOosSegs').error('Value out of range.')
         
         tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
-        
-        pcb_index_name = network_config.get_string('PcbIndexService')
-        if pcb_index_name not in ('MruListIndex', 'AvlTreeIndex'):
-            network_config.key_path('PcbIndexService').error('Invalid value.')
-        gen.add_include('aipstack/misc/index/{}.h'.format(pcb_index_name))
-        pcb_index_service = 'AIpStack::{}Service'.format(pcb_index_name)
         
         link_with_array_indices = network_config.get_bool('LinkWithArrayIndices')
         
@@ -1363,10 +1375,13 @@ def setup_network(gen, config, key):
             arp_protect_count,
             max_reass_packets,
             max_reass_size,
+            'IpStackNumMtuEntries',
+            get_ip_index(gen, network_config, 'MtuIndexService'),
+            mtu_timeout_minutes,
             num_tcp_pcbs,
             num_oos_segs,
             tcp_wnd_upd_thr_div,
-            pcb_index_service,
+            get_ip_index(gen, network_config, 'PcbIndexService'),
             link_with_array_indices,
         ])
         service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
@@ -1381,7 +1396,8 @@ def setup_network(gen, config, key):
         gen.register_singleton_object('network', network_state)
         
         def finalize():
-            pass
+            num_mtu_entries = network_state._num_connections
+            gen.add_int_constant('int', 'IpStackNumMtuEntries', num_mtu_entries)
         
         gen.add_finalize_action(finalize)
         
@@ -1532,22 +1548,6 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_aprinter_include('printer/modules/StubCommandModule.h')
                         stub_command_module = gen.add_module()
                         stub_command_module.set_expr('StubCommandModuleService')
-                    
-                    networktest_sel = selection.Selection()
-                    
-                    @networktest_sel.option('Disabled')
-                    def option(networksel_config):
-                        pass
-                    
-                    @networktest_sel.option('Enabled')
-                    def option(networksel_config):
-                        gen.add_aprinter_include('printer/modules/NetworkTestModule.h')
-                        network_test_module = gen.add_module()
-                        network_test_module.set_expr(TemplateExpr('NetworkTestModuleService', [
-                            networksel_config.get_int('BufferSize'),
-                        ]))
-                    
-                    development.do_selection('NetworkTestModule', networktest_sel)
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
@@ -1742,7 +1742,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 gen.add_float_constant('TcpConsoleSendEndTimeout', tcpconsole_config.get_float('SendEndTimeout')),
                             ]))
                             
-                            network.add_resource_counts(listeners=1, connections=console_max_clients)
+                            network.add_resource_counts(connections=console_max_clients)
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
                         
@@ -1825,9 +1825,27 @@ def generate(config_root_data, cfg_name, main_template):
                                 gen.add_float_constant('WebInterfaceGcodeSendBufTimeout', webif_config.get_float('GcodeSendBufTimeout')),
                             ]))
                             
-                            network.add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
+                            network.add_resource_counts(connections=webif_max_clients+webif_queue_size)
                             
                         network_config.do_selection('webinterface', webif_sel)
+                        
+                        for development in board_data.enter_config('development'):
+                            networktest_sel = selection.Selection()
+                            
+                            @networktest_sel.option('Disabled')
+                            def option(networksel_config):
+                                pass
+                            
+                            @networktest_sel.option('Enabled')
+                            def option(networksel_config):
+                                gen.add_aprinter_include('printer/modules/NetworkTestModule.h')
+                                network_test_module = gen.add_module()
+                                network_test_module.set_expr(TemplateExpr('NetworkTestModuleService', [
+                                    networksel_config.get_int('BufferSize'),
+                                ]))
+                                network.add_resource_counts(connections=1)
+                            
+                            development.do_selection('NetworkTestModule', networktest_sel)
                 
                 current_config = board_data.get_config('current_config')
             
