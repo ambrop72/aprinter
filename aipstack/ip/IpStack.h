@@ -33,16 +33,10 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/base/LoopUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/LinkedList.h>
-#include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
@@ -54,6 +48,7 @@
 #include <aipstack/proto/Icmp4Proto.h>
 #include <aipstack/ip/IpIfaceDriver.h>
 #include <aipstack/ip/IpReassembly.h>
+#include <aipstack/ip/IpPathMtuCache.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -76,49 +71,20 @@ struct IpSendFlags {
 };
 
 template <typename Arg>
-class IpStack;
-
-template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(IpStackTimers, typename Arg::Context, IpStack<Arg>, (MtuTimer))
-
-template <typename Arg>
-class IpStack :
-    private IpStackTimers<Arg>::Timers
+class IpStack
 {
-    APRINTER_USE_TYPES1(Arg, (Params))
-    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, NumMtuEntries, MtuTimeoutMinutes))
-    APRINTER_USE_TYPES1(Params, (MtuIndexService))
-    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator))
+    APRINTER_USE_TYPES1(Arg, (Params, Context, BufAllocator))
+    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     
-    static_assert(NumMtuEntries > 0, "");
-    static_assert(MtuTimeoutMinutes > 0, "");
-    
-    APRINTER_USE_TIMERS_CLASS(IpStackTimers<Arg>, (MtuTimer))
-    
     using ReassemblyService = IpReassemblyService<Params::MaxReassEntrys, Params::MaxReassSize>;
     APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<Context>))
     
-    struct MtuEntry;
-    
-    using MtuIndexType = APrinter::ChooseIntForMax<NumMtuEntries, false>;
-    static MtuIndexType const MtuIndexNull = MtuIndexType(-1);
-    
-    using MtuLinkModel = APrinter::ArrayLinkModel<MtuEntry, MtuIndexType, MtuIndexNull>;
-    
-    struct MtuIndexAccessor;
-    using MtuIndexLookupKeyArg = Ip4Addr; // remote_addr
-    struct MtuIndexKeyFuncs;
-    APRINTER_MAKE_INSTANCE(MtuIndex, (MtuIndexService::template Index<
-        MtuIndexAccessor, MtuIndexLookupKeyArg, MtuIndexKeyFuncs, MtuLinkModel>))
-    
-    struct MtuFreeListAccessor;
-    using MtuFreeList = APrinter::LinkedList<MtuFreeListAccessor, MtuLinkModel, false>;
-    
-    // MTU timer expires once per second
-    static TimeType const MtuTimerTicks = 60.0 * (TimeType)Clock::time_freq;
+    using PathMtuCacheService = IpPathMtuCacheService<Params::NumMtuEntries,
+        Params::MtuTimeoutMinutes, typename Params::MtuIndexService>;
+    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<Context, IpStack>))
     
 public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
@@ -129,21 +95,11 @@ public:
     void init ()
     {
         m_reassembly.init();
-        tim(MtuTimer()).init(Context());
+        m_path_mtu_cache.init(this);
         
         m_iface_list.init();
         m_proto_listeners_list.init();
         m_next_id = 0;
-        m_mtu_index.init();
-        m_mtu_free_list.init();
-        
-        tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
-        
-        for (MtuEntry &mtu_entry : m_mtu_entries) {
-            mtu_entry.mtu = 0;
-            mtu_entry.referenced = false;
-            m_mtu_free_list.prepend(mtuRef(mtu_entry), mtuState());
-        }
     }
     
     void deinit ()
@@ -151,7 +107,7 @@ public:
         AMBRO_ASSERT(m_iface_list.isEmpty())
         AMBRO_ASSERT(m_proto_listeners_list.isEmpty())
         
-        tim(MtuTimer()).deinit(Context());
+        m_path_mtu_cache.deinit();
         m_reassembly.deinit();
     }
     
@@ -201,13 +157,16 @@ public:
         // Generate an identification number.
         uint16_t ident = m_next_id++;
         
+        // Compute the common flags.
+        uint16_t common_flags = ((send_flags & IpSendFlags::DontFragmentFlag) != 0) ? Ip4FlagDF : 0;
+        
         // Write IP header fields.
         auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
         ip4_header.set(Ip4Header::VersionIhl(),   (4<<Ip4VersionShift)|5);
         ip4_header.set(Ip4Header::DscpEcn(),      0);
         ip4_header.set(Ip4Header::TotalLen(),     pkt_send_len);
         ip4_header.set(Ip4Header::Ident(),        ident);
-        ip4_header.set(Ip4Header::FlagsOffset(),  more_fragments?Ip4FlagMF:0);
+        ip4_header.set(Ip4Header::FlagsOffset(),  common_flags|(more_fragments?Ip4FlagMF:0));
         ip4_header.set(Ip4Header::TimeToLive(),   meta.ttl);
         ip4_header.set(Ip4Header::Protocol(),     meta.proto);
         ip4_header.set(Ip4Header::HeaderChksum(), 0);
@@ -243,7 +202,7 @@ public:
             
             // Write the fragment-specific IP header fields.
             ip4_header.set(Ip4Header::TotalLen(),     pkt_send_len);
-            ip4_header.set(Ip4Header::FlagsOffset(),  (more_fragments?Ip4FlagMF:0)|(fragment_offset/8));
+            ip4_header.set(Ip4Header::FlagsOffset(),  common_flags|(more_fragments?Ip4FlagMF:0)|(fragment_offset/8));
             ip4_header.set(Ip4Header::HeaderChksum(), 0);
             
             // Calculate the IP header checksum.
@@ -364,165 +323,6 @@ public:
         uint8_t m_proto;
     };
     
-    class MtuRef {
-        friend IpStack;
-        
-    public:
-        void init ()
-        {
-            m_entry_idx = MtuIndexNull;
-        }
-        
-        inline void deinit (IpStack *stack)
-        {
-            reset(stack);
-        }
-        
-        void reset (IpStack *stack)
-        {
-            if (m_entry_idx != MtuIndexNull) {
-                MtuEntry &mtu_entry = stack->m_mtu_entries[m_entry_idx];
-                AMBRO_ASSERT(mtu_entry.mtu > 0)
-                AMBRO_ASSERT(mtu_entry.referenced)
-                AMBRO_ASSERT(mtu_entry.num_refs > 0)
-                
-                if (mtu_entry.num_refs > 1) {
-                    mtu_entry.num_refs--;
-                } else {
-                    mtu_entry.referenced = false;
-                    stack->m_mtu_free_list.prepend(stack->mtuRef(mtu_entry), stack->mtuState());
-                }
-                
-                m_entry_idx = MtuIndexNull;
-            }
-        }
-        
-        inline bool isSetup ()
-        {
-            return m_entry_idx != MtuIndexNull;
-        }
-        
-        bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface)
-        {
-            AMBRO_ASSERT(!isSetup())
-            
-            typename MtuLinkModel::Ref mtu_ref = stack->m_mtu_index.findEntry(stack->mtuState(), remote_addr);
-            
-            if (!mtu_ref.isNull()) {
-                MtuEntry &mtu_entry = *mtu_ref;
-                AMBRO_ASSERT(mtu_entry.mtu > 0)
-                
-                if (mtu_entry.referenced) {
-                    AMBRO_ASSERT(mtu_entry.num_refs > 0)
-                    mtu_entry.num_refs++;
-                } else {
-                    stack->m_mtu_free_list.remove(mtu_ref, stack->mtuState());
-                    mtu_entry.referenced = true;
-                    mtu_entry.num_refs = 1;
-                }
-            } else {
-                if (iface == nullptr) {
-                    Ip4Addr route_addr;
-                    if (!stack->routeIp4(remote_addr, nullptr, &iface, &route_addr)) {
-                        return false;
-                    }
-                }
-                
-                uint16_t iface_mtu = iface->getMtu();
-                AMBRO_ASSERT(iface_mtu > 0)
-                
-                mtu_ref = stack->m_mtu_free_list.first(stack->mtuState());
-                if (mtu_ref.isNull()) {
-                    return false;
-                }
-                
-                MtuEntry &mtu_entry = *mtu_ref;
-                AMBRO_ASSERT(mtu_entry.mtu == 0)
-                AMBRO_ASSERT(!mtu_entry.referenced)
-                
-                stack->m_mtu_free_list.removeFirst(stack->mtuState());
-                
-                mtu_entry.mtu = iface_mtu;
-                mtu_entry.referenced = true;
-                mtu_entry.minutes_old = 0;
-                mtu_entry.num_refs = 1;
-                mtu_entry.remote_addr = remote_addr;
-                
-                stack->m_mtu_index.addEntry(stack->mtuState(), mtu_ref);
-            }
-            
-            m_entry_idx = mtu_ref.getIndex();
-            
-            return true;
-        }
-        
-        void getMtuAndDf (IpStack *stack, uint16_t *out_mtu, bool *out_df)
-        {
-            AMBRO_ASSERT(m_entry_idx != MtuIndexNull)
-            
-            MtuEntry &mtu_entry = stack->m_mtu_entries[m_entry_idx];
-            AMBRO_ASSERT(mtu_entry.mtu > 0)
-            
-            if (mtu_entry.mtu == 1) {
-                *out_mtu = Ip4RequiredRecvSize;
-                *out_df = false;
-            } else {
-                *out_mtu = mtu_entry.mtu;
-                *out_df = true;
-            }
-        }
-        
-        bool handleIcmpPacketTooBig (IpStack *stack, uint16_t mtu_info)
-        {
-            AMBRO_ASSERT(m_entry_idx != MtuIndexNull)
-            
-            MtuEntry &mtu_entry = stack->m_mtu_entries[m_entry_idx];
-            AMBRO_ASSERT(mtu_entry.mtu > 0)
-            AMBRO_ASSERT(mtu_entry.referenced)
-            AMBRO_ASSERT(mtu_entry.num_refs > 0)
-            
-            if (mtu_info < Ip4MinMtu) {
-                // ICMP message lacks next hop MTU.
-                // Assume MTU Ip4RequiredRecvSize and don't set the DF flag
-                // in outgoing packets. This complies with RFC 1191 page 7,
-                // though better but more complex approaches are suggested.
-                // Presumably by now all routers have been upgraded to include
-                // the path MTU in the message and there isn't much reason to
-                // implement those suggestions.
-                
-                // Ignore if already in the desired state.
-                if (mtu_entry.mtu == 1) {
-                    return false;
-                }
-                
-                // We use the special MTU value 1 for this situation.
-                mtu_entry.mtu = 1;
-            } else {
-                // ICMP message includes next hop MTU (mtu_info).
-                
-                // Ignore if the provided MTU is not lesser than our current.
-                // If we are in the special mtu==1 state, nothing is done
-                // since we are not supposed to get MTU errors since we send
-                // without DF flag.
-                if (mtu_info >= mtu_entry.mtu) {
-                    return false;
-                }
-                
-                // Remember this MTU as the new PMTU.
-                mtu_entry.mtu = mtu_info;
-            }
-            
-            // Reset the MTU entry timeout.
-            mtu_entry.minutes_old = 0;
-            
-            return true;
-        }
-        
-    private:
-        MtuIndexType m_entry_idx;
-    };
-    
-public:
     class Iface :
         private IpIfaceDriverCallback<Iface>
     {
@@ -624,12 +424,6 @@ public:
             return m_ip_mtu;
         }
         
-        // NOTE: Assuming no IP options.
-        inline uint16_t getIp4DgramMtu ()
-        {
-            return m_ip_mtu - Ip4Header::Size;
-        }
-        
     private:
         friend IpIfaceDriverCallback<Iface>;
         
@@ -655,43 +449,43 @@ public:
     };
     
 private:
-    using MtuRefCntType = uint16_t;
+    using BaseMtuRef = typename PathMtuCache::MtuRef;
     
-    // Entry for MTU information.
-    struct MtuEntry {
-        typename MtuIndex::Node index_hook;
-        union {
-            APrinter::LinkedListNode<MtuLinkModel> free_list_hook;
-            MtuRefCntType num_refs;
-        };
-        uint16_t mtu; // 0 -> unassociated, 1 -> assume Ip4RequiredRecvSize and inhibit DF flag
-        bool referenced;
-        uint8_t minutes_old;
-        Ip4Addr remote_addr;
-    };
-    
-    // Hook accessors for the MTU data structures.
-    struct MtuIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::index_hook) {};
-    struct MtuFreeListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::free_list_hook) {};
-    
-    // Obtains the key of an MTU entry for the MTU index.
-    struct MtuIndexKeyFuncs {
-        inline static Ip4Addr GetKeyOfEntry (MtuEntry &mtu_entry)
+public:
+    class MtuRef : private BaseMtuRef
+    {
+    public:
+        using BaseMtuRef::init;
+        
+        inline void deinit (IpStack *stack)
         {
-            return mtu_entry.remote_addr;
+            return BaseMtuRef::deinit(&stack->m_path_mtu_cache);
+        }
+        
+        inline void reset (IpStack *stack)
+        {
+            return BaseMtuRef::reset(&stack->m_path_mtu_cache);
+        }
+        
+        using BaseMtuRef::isSetup;
+        
+        inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface)
+        {
+            return BaseMtuRef::setup(&stack->m_path_mtu_cache, remote_addr, iface);
+        }
+        
+        inline void getMtuAndDf (IpStack *stack, uint16_t *out_mtu, bool *out_df)
+        {
+            return BaseMtuRef::getMtuAndDf(&stack->m_path_mtu_cache, out_mtu, out_df);
+        }
+        
+        inline bool handleIcmpPacketTooBig (IpStack *stack, uint16_t mtu_info)
+        {
+            return BaseMtuRef::handleIcmpPacketTooBig(&stack->m_path_mtu_cache, mtu_info);
         }
     };
     
-    inline typename MtuLinkModel::Ref mtuRef (MtuEntry &mtu_entry)
-    {
-        return typename MtuLinkModel::Ref(mtu_entry, &mtu_entry - m_mtu_entries);
-    }
-    
-    inline typename MtuLinkModel::State mtuState ()
-    {
-        return m_mtu_entries;
-    }
-    
+private:
     void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
     {
         // Check base IP header length.
@@ -908,47 +702,6 @@ private:
         return header_length + (((pkt_length - header_length) / 8) * 8);
     }
     
-    void timerExpired (MtuTimer, Context)
-    {
-        // Restart the timer.
-        tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
-        
-        // Update MTU entries.
-        for (MtuEntry &mtu_entry : m_mtu_entries) {
-            if (mtu_entry.mtu > 0) {
-                update_mtu_entry_expiry(mtu_entry);
-            }
-        }
-    }
-    
-    void update_mtu_entry_expiry (MtuEntry &mtu_entry)
-    {
-        AMBRO_ASSERT(mtu_entry.mtu > 0)
-        AMBRO_ASSERT(mtu_entry.minutes_old < MtuTimeoutMinutes)
-        
-        // If the entry is not expired yet, just increment minutes_old.
-        if (mtu_entry.minutes_old < MtuTimeoutMinutes - 1) {
-            mtu_entry.minutes_old++;
-            return;
-        }
-        
-        // Find the route to the destination.
-        Iface *iface;
-        Ip4Addr route_addr;
-        if (!routeIp4(mtu_entry.remote_addr, nullptr, &iface, &route_addr)) {
-            // Couldn't find an interface, will retry next time.
-            return;
-        }
-        
-        // Get the MTU from the interface.
-        uint16_t iface_mtu = iface->getMtu();
-        AMBRO_ASSERT(iface_mtu > 0)
-        
-        // Reset the MTU to that, reset minutes_old.
-        mtu_entry.mtu = iface_mtu;
-        mtu_entry.minutes_old = 0;
-    }
-    
     ProtoListener * find_proto_listener (uint8_t proto)
     {
         for (ProtoListener *lis = m_proto_listeners_list.first(); lis != nullptr; lis = m_proto_listeners_list.next(lis)) {
@@ -964,12 +717,10 @@ private:
     using ProtoListenersList = APrinter::DoubleEndedList<ProtoListener, &ProtoListener::m_listeners_list_node, false>;
     
     Reassembly m_reassembly;
+    PathMtuCache m_path_mtu_cache;
     IfaceList m_iface_list;
     ProtoListenersList m_proto_listeners_list;
     uint16_t m_next_id;
-    typename MtuIndex::Index m_mtu_index;
-    MtuFreeList m_mtu_free_list;
-    MtuEntry m_mtu_entries[NumMtuEntries];
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpStackService, (

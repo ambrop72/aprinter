@@ -38,6 +38,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
+#include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -230,7 +231,7 @@ private:
             }
             
             // Calculate initial MSS.
-            uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(ip_meta.iface->getIp4DgramMtu());
+            uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(ip_meta.iface->getMtu() - Ip4Header::Size);
             uint16_t base_snd_mss;
             if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &base_snd_mss)) {
                 goto refuse;
@@ -248,7 +249,7 @@ private:
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
-            pcb->ip_send_flags = IpSendFlags::DontFragmentNow;
+            pcb->ip_send_flags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
             pcb->lis = lis;
             pcb->local_addr = ip_meta.local_addr;
             pcb->remote_addr = ip_meta.remote_addr;

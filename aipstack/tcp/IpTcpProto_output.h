@@ -125,7 +125,7 @@ public:
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
         send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                 IpSendFlags::DontFragmentNow, tcp_meta, IpBufRef{}, pcb);
+                 pcb->ip_send_flags, tcp_meta, IpBufRef{}, pcb);
     }
     
     // Send an RST for this PCB.

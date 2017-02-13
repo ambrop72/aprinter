@@ -716,7 +716,7 @@ private:
         }
         
         // Calculate the MSS based on the interface MTU.
-        uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(iface->getIp4DgramMtu());
+        uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(iface->getMtu() - Ip4Header::Size);
         if (iface_mss < Constants::MinAllowedMss) {
             return IpErr::NO_HEADER_SPACE;
         }
@@ -752,7 +752,7 @@ private:
         pcb->ip_send_flags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
         pcb->con = con;
         pcb->local_addr = local_addr;
-        pcb->remote_addr;
+        pcb->remote_addr = remote_addr;
         pcb->local_port = local_port;
         pcb->remote_port = remote_port;
         pcb->rcv_nxt = 0; // it is sent in the SYN
