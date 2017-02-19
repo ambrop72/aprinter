@@ -636,11 +636,8 @@ public:
         }
     }
     
-    // Update snd_mss based on the current mtu_ref information.
-    // If check_change is true, it checks if the current snd_mss in the
-    // PCB is equal to the computed value, and if so returns false.
-    // Otherwise it updates the snd_mss and returns true.
-    static bool pcb_update_pmtu_base (TcpPcb *pcb, bool check_change)
+    // Calculate snd_mss based on the current mtu_ref information.
+    static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->mtu_ref.isSetup())
         
@@ -649,44 +646,34 @@ public:
         AMBRO_ASSERT(mtu >= TheIpStack::MinMTU)
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
-        uint16_t snd_mss = APrinter::MinValue(pcb->base_snd_mss, (uint16_t)(mtu - Ip4TcpHeaderSize));
+        uint16_t mtu_mss = mtu - Ip4TcpHeaderSize;
+        uint16_t snd_mss = APrinter::MinValue(pcb->base_snd_mss, mtu_mss);
         
         // This snd_mss cannot be less than MinAllowedMss:
         // - base_snd_mss was explicitly checked in TcpUtils::calc_snd_mss.
         // - mtu-Ip4TcpHeaderSize cannot be less because MinAllowedMss==MinMTU-Ip4TcpHeaderSize.
         AMBRO_ASSERT(snd_mss >= Constants::MinAllowedMss)
         
-        // If this is not the initial update or snd_mss matches the current
-        // value in the PCB, there is nothing else to do.
-        if (check_change && snd_mss == pcb->snd_mss) {
-            return false;
-        }
-        
-        // Update the snd_mss.
-        pcb->snd_mss = snd_mss;
-        
-        return true;
+        return snd_mss;
     }
     
-    // Update the snd_mss and IpSendFlags::DontFragmentFlag based on the current
-    // mtu_ref information, and possibly do any necessarily fixups like
-    // cwnd and rtx_timer.
+    // Update the snd_mss based on the current mtu_ref information, and possibly
+    // do any necessarily fixups like ssthresh, cwnd and rtx_timer.
     static void pcb_update_pmtu (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->mtu_ref.isSetup())
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        // If we are not in a state where output is possible, there is nothing
-        // to be done.
-        if (!can_output_in_state(pcb->state)) {
+        // Calculate the new snd_mss based on the PMTU.
+        uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb);
+        
+        // If the snd_mss did not change, there is no need to do the fixups.
+        if (AMBRO_LIKELY(new_snd_mss == pcb->snd_mss)) {
             return;
         }
         
-        // Update the snd_mss based on the mtu_ref information.
-        // Use check_change==true so we know if the snd_mss changed.
-        if (!pcb_update_pmtu_base(pcb, true)) {
-            // The snd_mss did not change, there is no need to do the fixups.
-            return;
-        }
+        // Update the snd_mss.
+        pcb->snd_mss = new_snd_mss;
         
         // Make sure that ssthresh does not become lesser than snd_mss.
         if (pcb->ssthresh < pcb->snd_mss) {

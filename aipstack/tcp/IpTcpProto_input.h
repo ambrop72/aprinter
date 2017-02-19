@@ -680,7 +680,7 @@ private:
         
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
-        Output::pcb_update_pmtu_base(pcb, false);
+        pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb);
         
         // If this is the end of RTT measurement (there was no retransmission),
         // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
