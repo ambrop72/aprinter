@@ -1375,9 +1375,12 @@ def setup_network(gen, config, key):
             arp_protect_count,
             max_reass_packets,
             max_reass_size,
-            'IpStackNumMtuEntries',
-            get_ip_index(gen, network_config, 'MtuIndexService'),
-            mtu_timeout_minutes,
+            TemplateExpr('AIpStack::IpPathMtuParams', [
+                'IpStackNumMtuEntries',
+                'IpStackNumMtuEntries', # MinMtuEntryRefs: value of NumMtuEntries is sufficient
+                mtu_timeout_minutes,
+                get_ip_index(gen, network_config, 'MtuIndexService'),
+            ]),
             num_tcp_pcbs,
             num_oos_segs,
             tcp_wnd_upd_thr_div,

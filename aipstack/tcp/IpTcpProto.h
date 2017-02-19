@@ -112,19 +112,19 @@ private:
     // PCB flags, see flags in TcpPcb.
     using FlagsType = uint16_t;
     struct PcbFlags { enum : FlagsType {
-        ACK_PENDING = 1 << 0, // ACK is needed; used in input processing
-        OUT_PENDING = 1 << 1, // pcb_output is needed; used in input processing
-        FIN_SENT    = 1 << 2, // A FIN has been sent, and is included in snd_nxt
-        FIN_PENDING = 1 << 3, // A FIN is to be transmitted
-        RTT_PENDING = 1 << 5, // Round-trip-time is being measured
-        RTT_VALID   = 1 << 6, // Round-trip-time is not in initial state
-        OOSEQ_FIN   = 1 << 7, // Out-of-sequence FIN has been received
-        CWND_INCRD  = 1 << 8, // cwnd has been increaded by snd_mss this round-trip
-        RTX_ACTIVE  = 1 << 9, // A segment has been retransmitted and not yet acked
-        RECOVER     = 1 << 10, // The recover variable valid (and >=snd_una)
-        IDLE_TIMER  = 1 << 11, // If rtx_timer is running it is for idle timeout
-        WND_SCALE   = 1 << 12, // Window scaling is used
-        CWND_INIT   = 1 << 13, // Current cwnd is the initial cwnd
+        ACK_PENDING = (FlagsType)1 << 0,  // ACK is needed; used in input processing
+        OUT_PENDING = (FlagsType)1 << 1,  // pcb_output is needed; used in input processing
+        FIN_SENT    = (FlagsType)1 << 2,  // A FIN has been sent, and is included in snd_nxt
+        FIN_PENDING = (FlagsType)1 << 3,  // A FIN is to be transmitted
+        RTT_PENDING = (FlagsType)1 << 4,  // Round-trip-time is being measured
+        RTT_VALID   = (FlagsType)1 << 5,  // Round-trip-time is not in initial state
+        OOSEQ_FIN   = (FlagsType)1 << 6,  // Out-of-sequence FIN has been received
+        CWND_INCRD  = (FlagsType)1 << 7,  // cwnd has been increaded by snd_mss this round-trip
+        RTX_ACTIVE  = (FlagsType)1 << 8,  // A segment has been retransmitted and not yet acked
+        RECOVER     = (FlagsType)1 << 9,  // The recover variable valid (and >=snd_una)
+        IDLE_TIMER  = (FlagsType)1 << 10, // If rtx_timer is running it is for idle timeout
+        WND_SCALE   = (FlagsType)1 << 11, // Window scaling is used
+        CWND_INIT   = (FlagsType)1 << 12, // Current cwnd is the initial cwnd
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -271,8 +271,8 @@ private:
         // It is first initialized at the transition to ESTABLISHED state,
         // before that is is undefined.
         // Due to invariants and other requirements associated with snd_mss,
-        // fixups must be performed when snd_mss is changed, especially of
-        // cwnd and rtx_timer (see pcb_update_snd_mss).
+        // fixups must be performed when snd_mss is changed, specifically of
+        // ssthresh, cwnd and rtx_timer (see pcb_update_pmtu).
         uint16_t snd_mss;
         
         // The maximum segment size we are willing to accept. This is
@@ -285,9 +285,6 @@ private:
         
         // PCB state.
         TcpState state;
-        
-        // Flags for IpStack::sendIp4Dgram (IpSendFlags).
-        uint8_t ip_send_flags;
         
         // Number of valid elements in ooseq_segs;
         uint8_t num_ooseq : 4;
@@ -716,10 +713,7 @@ private:
         }
         
         // Calculate the MSS based on the interface MTU.
-        uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(iface->getMtu() - Ip4Header::Size);
-        if (iface_mss < Constants::MinAllowedMss) {
-            return IpErr::NO_HEADER_SPACE;
-        }
+        uint16_t iface_mss = iface->getMtu() - Ip4TcpHeaderSize;
         
         // Allocate the PCB.
         TcpPcb *pcb = allocate_pcb();
@@ -749,7 +743,6 @@ private:
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
         pcb->flags = PcbFlags::WND_SCALE; // to send the window scale option
-        pcb->ip_send_flags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
         pcb->con = con;
         pcb->local_addr = local_addr;
         pcb->remote_addr = remote_addr;

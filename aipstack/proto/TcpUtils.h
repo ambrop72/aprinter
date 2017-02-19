@@ -264,9 +264,17 @@ public:
         return true;
     }
     
-    static uint16_t calc_mss_from_mtu (uint16_t ip_mtu)
+    static SeqType calc_initial_cwnd (uint16_t snd_mss)
     {
-        return ip_mtu - APrinter::MinValue(ip_mtu, (uint16_t)Tcp4Header::Size);
+        if (snd_mss > 2190) {
+            return (snd_mss > UINT32_MAX / 2) ? UINT32_MAX : (2 * snd_mss);
+        }
+        else if (snd_mss > 1095) {
+            return 3 * snd_mss;
+        }
+        else {
+            return 4 * snd_mss;
+        }
     }
 };
 

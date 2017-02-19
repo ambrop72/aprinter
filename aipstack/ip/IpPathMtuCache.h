@@ -25,12 +25,15 @@
 #ifndef APRINTER_IPSTACK_IP_PATH_MTU_CACHE_H
 #define APRINTER_IPSTACK_IP_PATH_MTU_CACHE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <limits>
+#include <type_traits>
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
@@ -55,16 +58,21 @@ class IpPathMtuCache :
     private IpPathMtuCacheTimers<Arg>::Timers
 {
     APRINTER_USE_TYPES1(Arg, (Params, Context, IpStack))
-    APRINTER_USE_VALS(Params, (NumMtuEntries, MtuTimeoutMinutes))
-    APRINTER_USE_TYPES1(Params, (MtuIndexService))
+    APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MinMtuEntryRefs, MtuTimeoutMinutes))
+    APRINTER_USE_TYPES1(Params::PathMtuParams, (MtuIndexService))
     
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Iface))
+    APRINTER_USE_VALS(IpStack, (MinMTU))
     APRINTER_USE_ONEOF
     
     static_assert(NumMtuEntries > 0, "");
+    static_assert(MinMtuEntryRefs >= NumMtuEntries, "");
     static_assert(MtuTimeoutMinutes > 0, "");
+    
+    // Integer type for MTU entry reference count.
+    using MtuRefCntType = APrinter::ChooseIntForMax<MinMtuEntryRefs, false>;
     
     APRINTER_USE_TIMERS_CLASS(IpPathMtuCacheTimers<Arg>, (MtuTimer))
     
@@ -91,9 +99,6 @@ class IpPathMtuCache :
     // Timeout period for the MTU timer (one minute).
     static TimeType const MtuTimerTicks = 60.0 * (TimeType)Clock::time_freq;
     
-    // Integer type for MTU entry reference count.
-    using MtuRefCntType = uint16_t;
-    
     // MTU entry states.
     struct EntryState {
         enum : uint8_t {
@@ -108,21 +113,20 @@ class IpPathMtuCache :
     
     // MTU entry structure.
     struct MtuEntry {
-        typename MtuIndex::Node index_hook;
+        typename MtuIndex::Node index_node;
         union {
-            APrinter::LinkedListNode<MtuLinkModel> free_list_hook;
+            APrinter::LinkedListNode<MtuLinkModel> free_list_node;
             MtuRefCntType num_refs;
         };
         uint16_t mtu;
-        uint8_t state : 2;
-        bool dont_fragment : 1;
+        uint8_t state;
         uint8_t minutes_old;
         Ip4Addr remote_addr;
     };
     
-    // Hook accessors for the data structures.
-    struct MtuIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::index_hook) {};
-    struct MtuFreeListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::free_list_hook) {};
+    // Node accessors for the data structures.
+    struct MtuIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::index_node) {};
+    struct MtuFreeListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::free_list_node) {};
     
     struct MtuIndexKeyFuncs {
         // Returns the key of an MTU entry for the index.
@@ -259,6 +263,7 @@ public:
                 cache->m_mtu_free_list.removeFirst(cache->mtuState());
                 
                 if (mtu_entry.state == EntryState::Unused) {
+                    AMBRO_ASSERT(mtu_entry.remote_addr != remote_addr)
                     cache->m_mtu_index.removeEntry(cache->mtuState(), mtu_ref);
                 }
                 
@@ -266,7 +271,6 @@ public:
                 mtu_entry.num_refs = 1;
                 mtu_entry.remote_addr = remote_addr;
                 mtu_entry.mtu = iface->getMtu();
-                mtu_entry.dont_fragment = true;
                 mtu_entry.minutes_old = 0;
                 
                 cache->m_mtu_index.addEntry(cache->mtuState(), mtu_ref);
@@ -279,15 +283,14 @@ public:
             return true;
         }
         
-        inline void getMtuAndDf (IpPathMtuCache *cache, uint16_t *out_mtu, bool *out_df)
+        inline uint16_t getPmtu (IpPathMtuCache *cache)
         {
             AMBRO_ASSERT(isSetup())
             
             MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
             assert_entry_referenced(mtu_entry);
             
-            *out_mtu = mtu_entry.mtu;
-            *out_df = mtu_entry.dont_fragment;
+            return mtu_entry.mtu;
         }
         
         bool handleIcmpPacketTooBig (IpPathMtuCache *cache, uint16_t mtu_info)
@@ -297,39 +300,20 @@ public:
             MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
             assert_entry_referenced(mtu_entry);
             
-            if (mtu_info < Ip4MinMtu) {
-                // ICMP message lacks next hop MTU.
-                // Assume MTU Ip4RequiredRecvSize and don't set the DF flag
-                // in outgoing packets. This complies with RFC 1191 page 7,
-                // though better but more complex approaches are suggested.
-                // Presumably by now all routers have been upgraded to include
-                // the path MTU in the message and there isn't much reason to
-                // implement those suggestions.
-                
-                // Ignore if nothing would have changed.
-                // There is no need to compare the mtu field because if dont_fragment
-                // is false then mtu can only be Ip4RequiredRecvSize.
-                if (!mtu_entry.dont_fragment) {
-                    return false;
-                }
-                
-                // Set PMTU to Ip4RequiredRecvSize, clear DF.
-                mtu_entry.mtu = Ip4RequiredRecvSize;
-                mtu_entry.dont_fragment = false;
-            } else {
-                // ICMP message includes next hop MTU (mtu_info).
-                
-                // Ignore if dont_fragment has been cleared already or the
-                // provided MTU is not lesser than the current.
-                if (!mtu_entry.dont_fragment || mtu_info >= mtu_entry.mtu) {
-                    return false;
-                }
-                
-                // Remember this MTU as the new PMTU.
-                mtu_entry.mtu = mtu_info;
+            // If the ICMP message does not include an MTU (mtu_info==0),
+            // we assume the minimum PMTU that we allow. Generally we bump
+            // up the reported next link MTU to be no less than our MinMTU.
+            // This is what Linux does, it must be good enough for us too.
+            uint16_t bump_mtu = APrinter::MaxValue(MinMTU, mtu_info);
+            
+            // If the PMTU would not have changed, don't do anything but let
+            // the caller know.
+            if (bump_mtu >= mtu_entry.mtu) {
+                return false;
             }
             
-            // Reset the MTU entry timeout.
+            // Update PMTU, reset timeout.
+            mtu_entry.mtu = bump_mtu;
             mtu_entry.minutes_old = 0;
             
             return true;
@@ -347,7 +331,7 @@ private:
     inline static void assert_entry_referenced (MtuEntry &mtu_entry)
     {
         AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
-        AMBRO_ASSERT(mtu_entry.mtu >= Ip4MinMtu)
+        AMBRO_ASSERT(mtu_entry.mtu >= MinMTU)
         AMBRO_ASSERT(mtu_entry.num_refs > 0)
     }
     
@@ -391,9 +375,8 @@ private:
         if (!m_ip_stack->routeIp4(mtu_entry.remote_addr, nullptr, &iface, &route_addr)) {
             // Couldn't find an interface, will try again next timeout.
         } else {
-            // Reset the PMTU to that of the interface and clear DF.
+            // Reset the PMTU to that of the interface.
             mtu_entry.mtu = iface->getMtu();
-            mtu_entry.dont_fragment = true;
         }
         
         // Reset the timeout.
@@ -407,10 +390,15 @@ private:
     }
 };
 
-APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
-    APRINTER_AS_VALUE(int, NumMtuEntries),
+APRINTER_ALIAS_STRUCT(IpPathMtuParams, (
+    APRINTER_AS_VALUE(size_t, NumMtuEntries),
+    APRINTER_AS_VALUE(size_t, MinMtuEntryRefs),
     APRINTER_AS_VALUE(uint8_t, MtuTimeoutMinutes),
     APRINTER_AS_TYPE(MtuIndexService)
+))
+
+APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
+    APRINTER_AS_TYPE(PathMtuParams)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),

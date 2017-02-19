@@ -164,15 +164,14 @@ public:
             return;
         }
         
-        // Check that the sequence number is between snd_una and snd_nxt inclusive.
-        if (!seq_lte(seq_num, pcb->snd_nxt, pcb->snd_una)) {
+        // Check that the PCB state is one where output is possible and that the
+        // received sequence number is between snd_una and snd_nxt inclusive.
+        if (!can_output_in_state(pcb->state) || !seq_lte(seq_num, pcb->snd_nxt, pcb->snd_una)) {
             return;
         }
         
-        // If the mtu_ref is not setup, handle by ensuring the DF flag
-        // is cleared in future sent segment.
+        // If the mtu_ref is not setup, ignore (this is when the PCB has been abandoned).
         if (!pcb->mtu_ref.isSetup()) {
-            pcb->ip_send_flags &= ~IpSendFlags::DontFragmentFlag;
             return;
         }
         
@@ -180,12 +179,28 @@ public:
         // is supposed to be.
         uint16_t mtu_info = Icmp4GetMtuFromRest(du_meta.icmp_rest);
         
-        // Update the MTU information.
-        if (pcb->mtu_ref.handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
-            // The mtu_ref information has changed, propagate to PCB.
-            Output::pcb_update_pmtu_from_mtu_ref(pcb);
+        // Update the PMTU information.
+        if (!pcb->mtu_ref.handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
+            // The PMTU has not been lowered, nothing else to do.
+            return;
+        }
+        
+        // Propagate the updated PMTU information to to PCB.
+        Output::pcb_update_pmtu(pcb);
+        
+        // We will retransmit if we have anything unacknowledged data, there
+        // is some window available and and the sequence number in the ICMP
+        // message is equal to the first unacknowledged sequence number.
+        if (Output::pcb_has_snd_unacked(pcb) && pcb->snd_wnd > 0 && seq_num == pcb->snd_una) {
+            // Requeue everything for retransmission.
+            Output::pcb_requeue_everything(pcb);
             
-            // TODO: transmit?
+            // Retransmit using pcb_output_queued.
+            // This will necessarily send something because there is something
+            // outstanding and all queued, snd_wnd is nonzero and we call with
+            // no_delay==true.
+            bool sent = Output::pcb_output_queued(pcb, true);
+            AMBRO_ASSERT(sent)
         }
     }
     
@@ -230,8 +245,10 @@ private:
                 goto refuse;
             }
             
-            // Calculate initial MSS.
-            uint16_t iface_mss = TcpUtils::calc_mss_from_mtu(ip_meta.iface->getMtu() - Ip4Header::Size);
+            // Calculate the MSS based on the interface MTU.
+            uint16_t iface_mss = ip_meta.iface->getMtu() - Ip4TcpHeaderSize;
+            
+            // Calculate the base_snd_mss.
             uint16_t base_snd_mss;
             if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &base_snd_mss)) {
                 goto refuse;
@@ -249,7 +266,6 @@ private:
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
-            pcb->ip_send_flags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
             pcb->lis = lis;
             pcb->local_addr = ip_meta.local_addr;
             pcb->remote_addr = ip_meta.remote_addr;
@@ -676,7 +692,7 @@ private:
         }
         
         // Initialize congestion control variables.
-        pcb->cwnd = Output::calc_initial_cwnd(pcb->snd_mss);
+        pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
         pcb->ssthresh = Constants::MaxRcvWnd;
         pcb->cwnd_acked = 0;

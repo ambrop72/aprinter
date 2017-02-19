@@ -29,6 +29,7 @@
 #include <stddef.h>
 
 #include <aipstack/misc/Struct.h>
+#include <aipstack/proto/Ip4Proto.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -62,6 +63,8 @@ static uint8_t const TcpOptionEnd = 0;
 static uint8_t const TcpOptionNop = 1;
 static uint8_t const TcpOptionMSS = 2;
 static uint8_t const TcpOptionWndScale = 3;
+
+static size_t const Ip4TcpHeaderSize = Ip4Header::Size + Tcp4Header::Size;
 
 #include <aipstack/EndNamespace.h>
 

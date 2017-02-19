@@ -29,8 +29,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <tuple>
-
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
@@ -82,8 +80,7 @@ class IpStack
     using ReassemblyService = IpReassemblyService<Params::MaxReassEntrys, Params::MaxReassSize>;
     APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<Context>))
     
-    using PathMtuCacheService = IpPathMtuCacheService<Params::NumMtuEntries,
-        Params::MtuTimeoutMinutes, typename Params::MtuIndexService>;
+    using PathMtuCacheService = IpPathMtuCacheService<typename Params::PathMtuParams>;
     APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<Context, IpStack>))
     
 public:
@@ -92,6 +89,14 @@ public:
     class Iface;
     
 public:
+    // Minimum permitted MTU and PMTU.
+    // RFC 791 requires that routers can pass through 68 byte packets, so enforcing
+    // this larger value theoreticlaly violates the standard. We need this to
+    // simplify the implementation of TCP, notably so that the TCP headers do not
+    // need to be fragmented and the DF flag never needs to be turned off. Note that
+    // Linux enforces a minimum of 552, this must be perfectly okay in practice.
+    static uint16_t const MinMTU = 256;
+    
     void init ()
     {
         m_reassembly.init();
@@ -143,7 +148,7 @@ public:
         }
         
         // Check if fragmentation is needed.
-        size_t mtu = route_iface->m_ip_mtu;
+        uint16_t mtu = route_iface->getMtu();
         bool more_fragments = pkt.tot_len > mtu;
         
         // If fragmentation is needed check that DontFragmentNow is not set.
@@ -152,7 +157,7 @@ public:
         }
         
         // Calculate the length of the first packet.
-        size_t pkt_send_len = more_fragments ? round_frag_length(Ip4Header::Size, mtu) : pkt.tot_len;
+        uint16_t pkt_send_len = more_fragments ? Ip4RoundFragMength(Ip4Header::Size, mtu) : pkt.tot_len;
         
         // Generate an identification number.
         uint16_t ident = m_next_id++;
@@ -186,19 +191,19 @@ public:
         }
         
         // Calculate the next fragment offset and skip the sent data.
-        size_t fragment_offset = pkt_send_len - Ip4Header::Size;
+        uint16_t fragment_offset = pkt_send_len - Ip4Header::Size;
         dgram.skipBytes(fragment_offset);
         
         // Send remaining fragments.
         while (true) {
             // We must send fragments such that the fragment offset is a multiple of 8.
-            // This is achieved by round_frag_length.
+            // This is achieved by Ip4RoundFragMength.
             AMBRO_ASSERT(fragment_offset % 8 == 0)
             
             // Calculate how much to send and whether we have more fragments.
             size_t rem_pkt_length = Ip4Header::Size + dgram.tot_len;
             more_fragments = rem_pkt_length > mtu;
-            pkt_send_len = more_fragments ? round_frag_length(Ip4Header::Size, mtu) : rem_pkt_length;
+            pkt_send_len = more_fragments ? Ip4RoundFragMength(Ip4Header::Size, mtu) : rem_pkt_length;
             
             // Write the fragment-specific IP header fields.
             ip4_header.set(Ip4Header::TotalLen(),     pkt_send_len);
@@ -223,7 +228,7 @@ public:
             }
             
             // Update the fragment offset and skip the sent data.
-            size_t data_sent = pkt_send_len - Ip4Header::Size;
+            uint16_t data_sent = pkt_send_len - Ip4Header::Size;
             fragment_offset += data_sent;
             dgram.skipBytes(data_sent);
         }
@@ -344,7 +349,7 @@ public:
             
             // Get the MTU.
             m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
-            AMBRO_ASSERT(m_ip_mtu >= Ip4MinMtu)
+            AMBRO_ASSERT(m_ip_mtu >= MinMTU)
             
             // Connect driver callbacks.
             m_driver->setCallback(this);
@@ -427,12 +432,12 @@ public:
     private:
         friend IpIfaceDriverCallback<Iface>;
         
-        IpIfaceIp4Addrs const * getIp4Addrs ()
+        inline IpIfaceIp4Addrs const * getIp4Addrs ()
         {
             return m_have_addr ? &m_addr : nullptr;
         }
         
-        void recvIp4Packet (IpBufRef pkt)
+        inline void recvIp4Packet (IpBufRef pkt)
         {
             m_stack->processRecvedIp4Packet(this, pkt);
         }
@@ -459,29 +464,35 @@ public:
         
         inline void deinit (IpStack *stack)
         {
-            return BaseMtuRef::deinit(&stack->m_path_mtu_cache);
+            return BaseMtuRef::deinit(mtu_cache(stack));
         }
         
         inline void reset (IpStack *stack)
         {
-            return BaseMtuRef::reset(&stack->m_path_mtu_cache);
+            return BaseMtuRef::reset(mtu_cache(stack));
         }
         
         using BaseMtuRef::isSetup;
         
         inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface)
         {
-            return BaseMtuRef::setup(&stack->m_path_mtu_cache, remote_addr, iface);
+            return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface);
         }
         
-        inline void getMtuAndDf (IpStack *stack, uint16_t *out_mtu, bool *out_df)
+        inline uint16_t getPmtu (IpStack *stack)
         {
-            return BaseMtuRef::getMtuAndDf(&stack->m_path_mtu_cache, out_mtu, out_df);
+            return BaseMtuRef::getPmtu(mtu_cache(stack));
         }
         
         inline bool handleIcmpPacketTooBig (IpStack *stack, uint16_t mtu_info)
         {
-            return BaseMtuRef::handleIcmpPacketTooBig(&stack->m_path_mtu_cache, mtu_info);
+            return BaseMtuRef::handleIcmpPacketTooBig(mtu_cache(stack), mtu_info);
+        }
+        
+    private:
+        inline static PathMtuCache * mtu_cache (IpStack *stack)
+        {
+            return &stack->m_path_mtu_cache;
         }
     };
     
@@ -593,10 +604,10 @@ private:
         
         // Read ICMP header fields.
         auto icmp4_header = Icmp4Header::MakeRef(dgram.getChunkPtr());
-        uint8_t type    = icmp4_header.get(Icmp4Header::Type());
-        uint8_t code    = icmp4_header.get(Icmp4Header::Code());
-        uint16_t chksum = icmp4_header.get(Icmp4Header::Chksum());
-        auto rest       = icmp4_header.get(Icmp4Header::Rest());
+        uint8_t type       = icmp4_header.get(Icmp4Header::Type());
+        uint8_t code       = icmp4_header.get(Icmp4Header::Code());
+        uint16_t chksum    = icmp4_header.get(Icmp4Header::Chksum());
+        Icmp4RestType rest = icmp4_header.get(Icmp4Header::Rest());
         
         // Verify ICMP checksum.
         uint16_t calc_chksum = IpChksum(dgram);
@@ -697,11 +708,6 @@ private:
         }
     }
     
-    static size_t round_frag_length (uint8_t header_length, size_t pkt_length)
-    {
-        return header_length + (((pkt_length - header_length) / 8) * 8);
-    }
-    
     ProtoListener * find_proto_listener (uint8_t proto)
     {
         for (ProtoListener *lis = m_proto_listeners_list.first(); lis != nullptr; lis = m_proto_listeners_list.next(lis)) {
@@ -728,9 +734,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
     APRINTER_AS_VALUE(uint8_t, IcmpTTL),
     APRINTER_AS_VALUE(int, MaxReassEntrys),
     APRINTER_AS_VALUE(uint16_t, MaxReassSize),
-    APRINTER_AS_VALUE(int, NumMtuEntries),
-    APRINTER_AS_TYPE(MtuIndexService),
-    APRINTER_AS_VALUE(uint8_t, MtuTimeoutMinutes)
+    APRINTER_AS_TYPE(PathMtuParams)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),

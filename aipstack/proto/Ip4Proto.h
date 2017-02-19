@@ -26,6 +26,7 @@
 #define APRINTER_IPSTACK_IP4_PROTO_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/IpAddr.h>
@@ -59,13 +60,14 @@ static uint8_t const Ip4ProtocolIcmp = 1;
 static uint8_t const Ip4ProtocolTcp  = 6;
 static uint8_t const Ip4ProtocolUdp  = 17;
 
-// The full datagram size which every internet module must be able
-// to forward without further fragmentation (RFC 791 page 25).
-static uint16_t const Ip4MinMtu = 68;
-
 // The full datagram size which every internet destination must be
 // be able to receive either in one piece or in fragments (RFC 791 page 25).
 static uint16_t const Ip4RequiredRecvSize = 576;
+
+static uint16_t Ip4RoundFragMength (uint8_t header_length, uint16_t mtu)
+{
+    return header_length + (((mtu - header_length) / 8) * 8);
+}
 
 #include <aipstack/EndNamespace.h>
 

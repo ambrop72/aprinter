@@ -30,7 +30,9 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
+#include <aipstack/ip/IpStack.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -38,8 +40,20 @@ template <typename TcpProto>
 class IpTcpProto_constants
 {
     APRINTER_USE_TYPES1(TcpUtils, (SeqType))
-    APRINTER_USE_TYPES1(TcpProto, (TimeType, RttType, Clock))
+    APRINTER_USE_TYPES1(TcpProto, (TimeType, RttType, Clock, TheIpStack))
     APRINTER_USE_VALS(TcpProto, (RttTimeFreq, RttTypeMaxDbl))
+    
+    // Make sure the MinMTU permits an unfragmented TCP segment with some data.
+    static_assert(TheIpStack::MinMTU >= Ip4TcpHeaderSize + 32, "");
+    
+public:    
+    // Don't allow the remote host to lower the MSS beyond this.
+    // NOTE: pcb_update_pmtu_base relies on this definition.
+    static uint16_t const MinAllowedMss = TheIpStack::MinMTU - Ip4TcpHeaderSize;
+    
+    // Common flags passed to IpStack::sendIp4Dgram.
+    // We disable fragmentation of TCP segments sent by us, due to PMTUD.
+    static uint8_t const TcpIpSendFlags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
     
 public:
     // Maximum theoreticaly possible receive window.
@@ -50,9 +64,6 @@ public:
     
     // How old at most an ACK may be to be considered acceptable (MAX.SND.WND in RFC 5961).
     static SeqType const MaxAckBefore = UINT32_C(0xFFFF);
-    
-    // Don't allow the remote host to lower the MSS beyond this.
-    static uint16_t const MinAllowedMss = 128;
     
     // SYN_RCVD state timeout.
     static TimeType const SynRcvdTimeoutTicks     = 20.0  * Clock::time_freq;
