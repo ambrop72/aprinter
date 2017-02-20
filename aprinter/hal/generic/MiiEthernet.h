@@ -34,8 +34,11 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
+
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
 #ifdef APRINTER_DEBUG_MII
@@ -108,12 +111,12 @@ public:
         TheMii::activate(c, o->mac_addr.data);
     }
     
-    static bool sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
         
-        if (o->init_state != InitState::RUNNING) {
-            return false;
+        if (AMBRO_UNLIKELY(o->init_state != InitState::RUNNING || !o->link_up)) {
+            return AIpStack::IpErr::LINK_DOWN;
         }
         return TheMii::sendFrame(c, send_buffer);
     }

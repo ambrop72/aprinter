@@ -36,6 +36,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/TcpUtils.h>
 #include <aipstack/ip/IpStack.h>
@@ -157,10 +158,8 @@ public:
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || snd_open_in_state(pcb->state))
         
         if (pcb->state != TcpState::SYN_SENT) {
-            // Start the output timer if not running.
-            if (!pcb->tim(OutputTimer()).isSet(Context())) {
-                pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
-            }
+            // Set the output timer.
+            pcb_set_output_timer_for_output(pcb);
         }
     }
     
@@ -168,8 +167,7 @@ public:
     {
         AMBRO_ASSERT(snd_open_in_state(pcb->state))
         
-        // Make the appropriate state transition, effectively
-        // queuing a FIN for sending.
+        // Make the appropriate state transition.
         if (pcb->state == TcpState::ESTABLISHED) {
             pcb->state = TcpState::FIN_WAIT_1;
         } else {
@@ -196,9 +194,7 @@ public:
             if (pcb == pcb->tcp->m_current_pcb) {
                 pcb->setFlag(PcbFlags::OUT_PENDING);
             } else {
-                if (!pcb->tim(OutputTimer()).isSet(Context())) {
-                    pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
-                }
+                pcb_set_output_timer_for_output(pcb);
             }
         }
     }
@@ -276,7 +272,22 @@ public:
             
             // Send a segment.
             bool fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
-            SeqType seg_seqlen = pcb_output_segment(pcb, pcb->snd_buf_cur, fin, rem_wnd);
+            SeqType seg_seqlen;
+            IpErr err = pcb_output_segment(pcb, pcb->snd_buf_cur, fin, rem_wnd, &seg_seqlen);
+            
+            // If there was an error sending the segment, stop for now.
+            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+                // Set the OutputTimer to retry after OutputRetryTicks. Also set the flag
+                // OUT_RETRY which allows code that typically sets the OutputTimer to
+                // OutputTimerTicks to see that and reset it despite being already set.
+                // This avoids undesired delays.
+                TimeType after = (err == IpErr::BUFFER_FULL) ?
+                    Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
+                pcb->tim(OutputTimer()).appendAfter(Context(), after);
+                pcb->setFlag(PcbFlags::OUT_RETRY);
+                break;
+            }
+            
             AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
             
             // Advance snd_buf_cur over any data just sent.
@@ -343,7 +354,7 @@ public:
             // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
             // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
-            AMBRO_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+            AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
             
             // Reduce the CWND (RFC 5681 section 4.1).
@@ -409,11 +420,7 @@ public:
             pcb_requeue_everything(pcb);
             
             // Retransmit using pcb_output_queued.
-            // This will necessarily send something because there is something
-            // outstanding and all queued, snd_wnd is nonzero and we call with
-            // no_delay==true.
-            bool sent = pcb_output_queued(pcb, true);
-            AMBRO_ASSERT(sent)
+            pcb_output_queued(pcb, true);
         }
     }
     
@@ -705,6 +712,24 @@ public:
         }
     }
     
+    // Sets the OutputTimer to expire after no longer than OutputTimerTicks.
+    static void pcb_set_output_timer_for_output (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        // If the OUT_RETRY flag is set, clear it and ensure that
+        // the OutputTimer is stopped before the check below.
+        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
+            pcb->clearFlag(PcbFlags::OUT_RETRY);
+            pcb->tim(OutputTimer()).unset(Context());
+        }
+        
+        // Set the timer if it is not running already.
+        if (!pcb->tim(OutputTimer()).isSet(Context())) {
+            pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
+        }
+    }
+    
     // Send an RST as a reply to a received segment.
     // This conforms to RFC 793 handling of segments not belonging to a known
     // connection.
@@ -749,7 +774,8 @@ private:
                snd_open_in_state(pcb->state);
     }
     
-    static SeqType pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd)
+    static IpErr pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd,
+                                     SeqType *out_seg_seqlen)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
@@ -782,7 +808,7 @@ private:
                              tcp_meta, data.subTo(seg_data_len), pcb);
         
         // These things are needed only when a segment was sent.
-        if (err == IpErr::SUCCESS) {
+        if (AMBRO_LIKELY(err == IpErr::SUCCESS)) {
             // Calculate the end sequence number of the sent segment.
             SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
             
@@ -812,7 +838,8 @@ private:
             }
         }
         
-        return seg_seqlen;
+        *out_seg_seqlen = seg_seqlen;
+        return err;
     }
     
     /**
@@ -832,8 +859,8 @@ private:
         // Send a segment from the start of the send buffer.
         IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
         bool fin = !snd_open_in_state(pcb->state);
-        SeqType seg_seqlen = pcb_output_segment(pcb, data, fin, rem_wnd);
-        AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
+        SeqType seg_seqlen;
+        pcb_output_segment(pcb, data, fin, rem_wnd, &seg_seqlen);
     }
     
     static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)

@@ -196,11 +196,7 @@ public:
             Output::pcb_requeue_everything(pcb);
             
             // Retransmit using pcb_output_queued.
-            // This will necessarily send something because there is something
-            // outstanding and all queued, snd_wnd is nonzero and we call with
-            // no_delay==true.
-            bool sent = Output::pcb_output_queued(pcb, true);
-            AMBRO_ASSERT(sent)
+            Output::pcb_output_queued(pcb, true);
         }
     }
     

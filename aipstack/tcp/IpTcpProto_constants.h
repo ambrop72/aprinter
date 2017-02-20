@@ -80,6 +80,12 @@ public:
     // Time after the send buffer is extended to calling pcb_output.
     static TimeType const OutputTimerTicks        = 0.0005 * Clock::time_freq;
     
+    // Time to retry after sending failed with error IpErr::BUFFER_FULL.
+    static TimeType const OutputRetryFullTicks    = 0.1 * Clock::time_freq;
+    
+    // Time to retry after sending failed with error other then IpErr::BUFFER_FULL.
+    static TimeType const OutputRetryOtherTicks   = 2.0 * Clock::time_freq;
+    
     // Initial retransmission time, before any round-trip-time measurement.
     static RttType const InitialRtxTime           = 1.0 * RttTimeFreq;
     

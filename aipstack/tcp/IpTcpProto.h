@@ -125,6 +125,7 @@ private:
         IDLE_TIMER  = (FlagsType)1 << 10, // If rtx_timer is running it is for idle timeout
         WND_SCALE   = (FlagsType)1 << 11, // Window scaling is used
         CWND_INIT   = (FlagsType)1 << 12, // Current cwnd is the initial cwnd
+        OUT_RETRY   = (FlagsType)1 << 13, // If OutputTimer is set it is for OutputRetry*Ticks
     }; };
     
     // For retransmission time calculations we right-shift the Clock time

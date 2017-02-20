@@ -340,11 +340,7 @@ private:
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
             
-            if (!TheEthernet::sendFrame(Context(), &frame)) {
-                return IpErr::BUFFER_FULL;
-            }
-            
-            return IpErr::SUCCESS;
+            return TheEthernet::sendFrame(Context(), &frame);
         }
         
     private:

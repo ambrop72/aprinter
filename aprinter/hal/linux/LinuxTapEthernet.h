@@ -48,6 +48,8 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
+
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -115,27 +117,31 @@ public:
         o->activate_event.prependNowNotAlready(c);
     }
     
-    static bool sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
         
         if (o->init_state != InitState::RUNNING || !o->working) {
-            return false;
+            return AIpStack::IpErr::LINK_DOWN;
         }
         
         size_t len = send_buffer->tot_len;
         if (len > o->eth_mtu) {
-            return false;
+            return AIpStack::IpErr::PKT_TOO_LARGE;
         }
         
         send_buffer->takeBytes(len, o->write_buffer);
         
         ssize_t write_res = ::write(o->tap_fd, o->write_buffer, len);
         if (write_res < 0 || write_res != len) {
-            return false;
+            int error = errno;
+            if (error == EAGAIN || error == EWOULDBLOCK) {
+                return AIpStack::IpErr::BUFFER_FULL;
+            }
+            return AIpStack::IpErr::HW_ERROR;
         }
         
-        return true;
+        return AIpStack::IpErr::SUCCESS;
     }
     
     static bool getLinkUp (Context c)

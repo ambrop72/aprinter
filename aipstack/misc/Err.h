@@ -41,6 +41,8 @@ enum class IpErr : uint8_t {
     NO_PCB_AVAIL    = 8,
     NO_IPMTU_AVAIL  = 9,
     FRAG_NEEDED     = 10,
+    HW_ERROR        = 11,
+    LINK_DOWN       = 12,
 };
 
 #include <aipstack/EndNamespace.h>
