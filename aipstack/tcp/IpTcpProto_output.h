@@ -335,6 +335,9 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
+        // Update snd_mss from PMTU.
+        pcb_update_pmtu(pcb);
+        
         // Send any unsent data as permissible.
         pcb_output_queued(pcb);
     }
@@ -356,6 +359,9 @@ public:
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
+            
+            // Update snd_mss from PMTU.
+            pcb_update_pmtu(pcb);
             
             // Reduce the CWND (RFC 5681 section 4.1).
             // Also reset cwnd_acked to avoid old accumulated value
@@ -387,6 +393,9 @@ public:
         // that would have stopped the timer.
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
+        
+        // Update snd_mss from PMTU.
+        pcb_update_pmtu(pcb);
         
         if (pcb->snd_wnd == 0) {
             // Send a window probe.
@@ -639,6 +648,10 @@ public:
             pcb_send_syn(pcb);
         }
         else if (can_output_in_state(pcb->state)) {
+            // Update snd_mss from PMTU.
+            pcb_update_pmtu(pcb);
+            
+            // Output queued data.
             pcb_output_queued(pcb);
         }
     }
@@ -668,8 +681,12 @@ public:
     // do any necessarily fixups like ssthresh, cwnd and rtx_timer.
     inline static void pcb_update_pmtu (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->mtu_ref.isSetup())
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        // If the mtu_ref is not set up, nothing can be done.
+        if (AMBRO_UNLIKELY(!pcb->mtu_ref.isSetup())) {
+            return;
+        }
         
         // Calculate the new snd_mss based on the PMTU.
         uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb);

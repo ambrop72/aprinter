@@ -376,12 +376,19 @@ private:
             pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
         }
         
-        // Try to output if desired.
+        // Output if needed.
         if (pcb->hasFlag(PcbFlags::OUT_PENDING)) {
             pcb->clearFlag(PcbFlags::OUT_PENDING);
+            
+            // Can only output if in the right state.
             if (can_output_in_state(pcb->state)) {
+                // Update snd_mss from PMTU.
+                Output::pcb_update_pmtu(pcb);
+                
+                // Output queued data.
                 bool sent_ack = Output::pcb_output_queued(pcb);
                 if (sent_ack) {
+                    // An ACK was sent, no need for empty ACK.
                     pcb->clearFlag(PcbFlags::ACK_PENDING);
                 }
             }
