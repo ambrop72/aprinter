@@ -666,7 +666,7 @@ public:
     
     // Update the snd_mss based on the current mtu_ref information, and possibly
     // do any necessarily fixups like ssthresh, cwnd and rtx_timer.
-    static void pcb_update_pmtu (TcpPcb *pcb)
+    inline static void pcb_update_pmtu (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->mtu_ref.isSetup())
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -674,11 +674,14 @@ public:
         // Calculate the new snd_mss based on the PMTU.
         uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb);
         
-        // If the snd_mss did not change, there is no need to do the fixups.
-        if (AMBRO_LIKELY(new_snd_mss == pcb->snd_mss)) {
-            return;
+        // Do the updates only if the MSS changed.
+        if (AMBRO_UNLIKELY(new_snd_mss != pcb->snd_mss)) {
+            pcb_update_mss_to(pcb, new_snd_mss);
         }
-        
+    }
+    
+    static void pcb_update_mss_to (TcpPcb *pcb, uint16_t new_snd_mss)
+    {
         // Update the snd_mss.
         pcb->snd_mss = new_snd_mss;
         
