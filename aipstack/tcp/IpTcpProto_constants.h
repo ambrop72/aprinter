@@ -48,7 +48,7 @@ class IpTcpProto_constants
     
 public:    
     // Don't allow the remote host to lower the MSS beyond this.
-    // NOTE: pcb_update_pmtu_base relies on this definition.
+    // NOTE: pcb_calc_snd_mss_from_pmtu relies on this definition.
     static uint16_t const MinAllowedMss = TheIpStack::MinMTU - Ip4TcpHeaderSize;
     
     // Common flags passed to IpStack::sendIp4Dgram.

@@ -199,7 +199,10 @@ private:
         // Send retry request (inherited for efficiency).
         public IpSendRetry::Request,
         // PCB timers.
-        public TcpPcbTimers
+        public TcpPcbTimers,
+        // MTU reference.
+        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
+        public MtuRef
     {
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
@@ -273,7 +276,7 @@ private:
         // before that is is undefined.
         // Due to invariants and other requirements associated with snd_mss,
         // fixups must be performed when snd_mss is changed, specifically of
-        // ssthresh, cwnd and rtx_timer (see pcb_update_pmtu).
+        // ssthresh, cwnd and rtx_timer (see pcb_pmtu_changed).
         uint16_t snd_mss;
         
         // The maximum segment size we are willing to accept. This is
@@ -297,10 +300,6 @@ private:
         uint8_t snd_wnd_shift : 4;
         uint8_t rcv_wnd_shift : 4;
         
-        // MTU reference.
-        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
-        MtuRef mtu_ref;
-        
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
         inline void setFlag (FlagsType flag) { flags |= flag; }
@@ -317,6 +316,9 @@ private:
         
         // Send retry callback.
         void retrySending () override final { Output::pcb_send_retry(this); }
+        
+        // Callback from MtuRef when the PMTU changes.
+        void pmtuChanged () override final { Output::pcb_pmtu_changed(this); }
     };
     
     // Define the hook accessor for the PCB index.
@@ -365,7 +367,7 @@ public:
             pcb.IpSendRetry::Request::init();
             
             // Initialize the MTU reference.
-            pcb.mtu_ref.init();
+            pcb.MtuRef::init();
             
             // Initialize some PCB variables.
             pcb.tcp = this;
@@ -391,7 +393,7 @@ public:
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
             AMBRO_ASSERT(pcb.con == nullptr)
-            pcb.mtu_ref.deinit(m_stack);
+            pcb.MtuRef::deinit(m_stack);
             pcb.IpSendRetry::Request::deinit();
             pcb.tim(RtxTimer()).deinit(Context());
             pcb.tim(OutputTimer()).deinit(Context());
@@ -498,7 +500,7 @@ private:
         pcb->tim(AbrtTimer()).unset(Context());
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
-        pcb->mtu_ref.reset(pcb->tcp->m_stack);
+        pcb->MtuRef::reset(pcb->tcp->m_stack);
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
         
@@ -533,7 +535,7 @@ private:
         pcb->tim(RtxTimer()).unset(Context());
         
         // Reset the MTU reference.
-        pcb->mtu_ref.reset(pcb->tcp->m_stack);
+        pcb->MtuRef::reset(pcb->tcp->m_stack);
         
         // Start the TIME_WAIT timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
@@ -613,7 +615,7 @@ private:
         }
         
         // Reset the MTU reference.
-        pcb->mtu_ref.reset(pcb->tcp->m_stack);
+        pcb->MtuRef::reset(pcb->tcp->m_stack);
         
         // Arrange for sending the FIN.
         if (snd_open_in_state(pcb->state)) {
@@ -723,13 +725,13 @@ private:
         }
         
         // Setup the MTU reference.
-        if (!pcb->mtu_ref.setup(m_stack, remote_addr, iface)) {
+        if (!pcb->MtuRef::setup(m_stack, remote_addr, iface)) {
             // PCB is CLOSED, this is not a leak.
             return IpErr::NO_IPMTU_AVAIL;
         }
         
         // NOTE: If another error case is added after this, make sure
-        // to reset the mtu_ref before abandoning the PCB!
+        // to reset the MtuRef before abandoning the PCB!
         
         // Remove the PCB from the unreferenced PCBs list.
         m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());

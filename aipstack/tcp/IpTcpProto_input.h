@@ -55,7 +55,8 @@ class IpTcpProto_input
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, OosSeg, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer, Ip4DestUnreachMeta))
+                                   AbrtTimer, RtxTimer, OutputTimer, Ip4DestUnreachMeta,
+                                   MtuRef))
     APRINTER_USE_ONEOF
     
 public:
@@ -170,8 +171,8 @@ public:
             return;
         }
         
-        // If the mtu_ref is not setup, ignore (this is when the PCB has been abandoned).
-        if (!pcb->mtu_ref.isSetup()) {
+        // If the MtuRef is not setup, ignore (this is when the PCB has been abandoned).
+        if (!pcb->MtuRef::isSetup()) {
             return;
         }
         
@@ -180,13 +181,13 @@ public:
         uint16_t mtu_info = Icmp4GetMtuFromRest(du_meta.icmp_rest);
         
         // Update the PMTU information.
-        if (!pcb->mtu_ref.handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
+        if (!pcb->MtuRef::handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
             // The PMTU has not been lowered, nothing else to do.
             return;
         }
         
-        // Propagate the updated PMTU information to to PCB.
-        Output::pcb_update_pmtu(pcb);
+        // Note that the above has called TcpPcb::pmtuChanged -> Output::pcb_pmtu_changed
+        // for this PCB (and possibly others), which updated the snd_mss.
         
         // We will retransmit if we have anything unacknowledged data, there
         // is some window available and and the sequence number in the ICMP
@@ -297,10 +298,10 @@ private:
             // These will be initialized at transition to ESTABLISHED:
             // snd_wnd, snd_wl1, snd_wl2, snd_mss
             
-            // We also do not setup the mtu_ref now, it will be done at
+            // We also do not setup the MtuRef now, it will be done at
             // transition to ESTABLISHED. Note that we also don't have the
             // IpSendFlags::DontFragmentFlag (yet), since handleIp4DestUnreach
-            // would not be able to handle an ICMP error without the mtu_ref.
+            // would not be able to handle an ICMP error without the MtuRef::
             
             // Increment the listener's PCB count.
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
@@ -382,9 +383,6 @@ private:
             
             // Can only output if in the right state.
             if (can_output_in_state(pcb->state)) {
-                // Update snd_mss from PMTU.
-                Output::pcb_update_pmtu(pcb);
-                
                 // Output queued data.
                 bool sent_ack = Output::pcb_output_queued(pcb);
                 if (sent_ack) {
@@ -675,7 +673,7 @@ private:
             }
         } else {
             // Setup the MTU reference.
-            if (!pcb->mtu_ref.setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr)) {
+            if (!pcb->MtuRef::setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -865,7 +863,7 @@ private:
                     pcb->tim(OutputTimer()).unset(Context());
                     
                     // Reset the MTU reference.
-                    pcb->mtu_ref.reset(pcb->tcp->m_stack);
+                    pcb->MtuRef::reset(pcb->tcp->m_stack);
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.

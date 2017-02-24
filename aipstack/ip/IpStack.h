@@ -489,6 +489,9 @@ public:
             return BaseMtuRef::handleIcmpPacketTooBig(mtu_cache(stack), mtu_info);
         }
         
+    protected:
+        using BaseMtuRef::pmtuChanged;
+        
     private:
         inline static PathMtuCache * mtu_cache (IpStack *stack)
         {

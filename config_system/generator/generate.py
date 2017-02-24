@@ -1377,7 +1377,6 @@ def setup_network(gen, config, key):
             max_reass_size,
             TemplateExpr('AIpStack::IpPathMtuParams', [
                 'IpStackNumMtuEntries',
-                'IpStackNumMtuEntries', # MinMtuEntryRefs: value of NumMtuEntries is sufficient
                 mtu_timeout_minutes,
                 get_ip_index(gen, network_config, 'MtuIndexService'),
             ]),

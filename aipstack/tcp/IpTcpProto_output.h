@@ -53,7 +53,7 @@ class IpTcpProto_output
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
                                    Input, Clock, TimeType, RttType, RttNextType, Constants,
-                                   OutputTimer, RtxTimer, TheIpStack))
+                                   OutputTimer, RtxTimer, TheIpStack, MtuRef))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -335,9 +335,6 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        // Update snd_mss from PMTU.
-        pcb_update_pmtu(pcb);
-        
         // Send any unsent data as permissible.
         pcb_output_queued(pcb);
     }
@@ -359,9 +356,6 @@ public:
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
-            
-            // Update snd_mss from PMTU.
-            pcb_update_pmtu(pcb);
             
             // Reduce the CWND (RFC 5681 section 4.1).
             // Also reset cwnd_acked to avoid old accumulated value
@@ -393,9 +387,6 @@ public:
         // that would have stopped the timer.
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
-        
-        // Update snd_mss from PMTU.
-        pcb_update_pmtu(pcb);
         
         if (pcb->snd_wnd == 0) {
             // Send a window probe.
@@ -648,21 +639,18 @@ public:
             pcb_send_syn(pcb);
         }
         else if (can_output_in_state(pcb->state)) {
-            // Update snd_mss from PMTU.
-            pcb_update_pmtu(pcb);
-            
             // Output queued data.
             pcb_output_queued(pcb);
         }
     }
     
-    // Calculate snd_mss based on the current mtu_ref information.
+    // Calculate snd_mss based on the current MtuRef information.
     static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->mtu_ref.isSetup())
+        AMBRO_ASSERT(pcb->MtuRef::isSetup())
         
-        // Get the PMTU from the mtu_ref.
-        uint16_t mtu = pcb->mtu_ref.getPmtu(pcb->tcp->m_stack);
+        // Get the PMTU from the MtuRef::
+        uint16_t mtu = pcb->MtuRef::getPmtu(pcb->tcp->m_stack);
         AMBRO_ASSERT(mtu >= TheIpStack::MinMTU)
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
@@ -677,28 +665,27 @@ public:
         return snd_mss;
     }
     
-    // Update the snd_mss based on the current mtu_ref information, and possibly
-    // do any necessarily fixups like ssthresh, cwnd and rtx_timer.
-    inline static void pcb_update_pmtu (TcpPcb *pcb)
+    // This is called when the MtuRef notifies us that the PMTU has
+    // changed. It is very important that we do not reset/deinit any
+    // MtuRef here (including this PCB's, such as through pcb_abort).
+    inline static void pcb_pmtu_changed (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->MtuRef::isSetup())
         
-        // If the mtu_ref is not set up, nothing can be done.
-        if (AMBRO_UNLIKELY(!pcb->mtu_ref.isSetup())) {
+        // If we are not in a state where output is possible,
+        // there is nothing to do.
+        if (!can_output_in_state(pcb->state)) {
             return;
         }
         
         // Calculate the new snd_mss based on the PMTU.
         uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb);
         
-        // Do the updates only if the MSS changed.
-        if (AMBRO_UNLIKELY(new_snd_mss != pcb->snd_mss)) {
-            pcb_update_mss_to(pcb, new_snd_mss);
+        // If the snd_mss has not changed, there is nothing to do.
+        if (AMBRO_UNLIKELY(new_snd_mss == pcb->snd_mss)) {
+            return;
         }
-    }
-    
-    static void pcb_update_mss_to (TcpPcb *pcb, uint16_t new_snd_mss)
-    {
+        
         // Update the snd_mss.
         pcb->snd_mss = new_snd_mss;
         

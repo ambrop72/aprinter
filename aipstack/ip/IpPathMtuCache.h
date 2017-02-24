@@ -58,7 +58,7 @@ class IpPathMtuCache :
     private IpPathMtuCacheTimers<Arg>::Timers
 {
     APRINTER_USE_TYPES1(Arg, (Params, Context, IpStack))
-    APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MinMtuEntryRefs, MtuTimeoutMinutes))
+    APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MtuTimeoutMinutes))
     APRINTER_USE_TYPES1(Params::PathMtuParams, (MtuIndexService))
     
     APRINTER_USE_TYPES1(Context, (Clock))
@@ -68,11 +68,7 @@ class IpPathMtuCache :
     APRINTER_USE_ONEOF
     
     static_assert(NumMtuEntries > 0, "");
-    static_assert(MinMtuEntryRefs >= NumMtuEntries, "");
     static_assert(MtuTimeoutMinutes > 0, "");
-    
-    // Integer type for MTU entry reference count.
-    using MtuRefCntType = APrinter::ChooseIntForMax<MinMtuEntryRefs, false>;
     
     APRINTER_USE_TIMERS_CLASS(IpPathMtuCacheTimers<Arg>, (MtuTimer))
     
@@ -96,6 +92,15 @@ class IpPathMtuCache :
     struct MtuFreeListAccessor;
     using MtuFreeList = APrinter::LinkedList<MtuFreeListAccessor, MtuLinkModel, true>;
     
+public:
+    class MtuRef;
+    
+private:
+    // Linked list data structure for MtuRef's referencing some MTU entry.
+    struct MtuRefListAccessor;
+    using MtuRefLinkModel = APrinter::PointerLinkModel<MtuRef>;
+    using MtuRefList = APrinter::LinkedList<MtuRefListAccessor, MtuRefLinkModel, false>;
+    
     // Timeout period for the MTU timer (one minute).
     static TimeType const MtuTimerTicks = 60.0 * (TimeType)Clock::time_freq;
     
@@ -116,7 +121,7 @@ class IpPathMtuCache :
         typename MtuIndex::Node index_node;
         union {
             APrinter::LinkedListNode<MtuLinkModel> free_list_node;
-            MtuRefCntType num_refs;
+            MtuRefList refs_list;
         };
         uint16_t mtu;
         uint8_t state;
@@ -185,6 +190,7 @@ public:
         
     private:
         MtuIndexType m_entry_idx;
+        APrinter::LinkedListNode<MtuRefLinkModel> m_refs_list_node;
         
     public:
         inline void init ()
@@ -203,9 +209,9 @@ public:
                 MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
                 assert_entry_referenced(mtu_entry);
                 
-                if (mtu_entry.num_refs > 1) {
-                    mtu_entry.num_refs--;
-                } else {
+                mtu_entry.refs_list.remove(*this);
+                
+                if (mtu_entry.refs_list.isEmpty()) {
                     mtu_entry.state = EntryState::Unused;
                     cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), cache->mtuState());
                 }
@@ -228,22 +234,17 @@ public:
             if (!mtu_ref.isNull()) {
                 MtuEntry &mtu_entry = *mtu_ref;
                 
-                if (mtu_entry.state == EntryState::Referenced) {
-                    AMBRO_ASSERT(mtu_entry.num_refs > 0)
-                    
-                    if (mtu_entry.num_refs == std::numeric_limits<MtuRefCntType>::max()) {
-                        return false;
-                    }
-                    
-                    mtu_entry.num_refs++;
-                } else {
-                    AMBRO_ASSERT(mtu_entry.state == EntryState::Unused)
-                    
+                if (mtu_entry.state == EntryState::Unused) {
                     cache->m_mtu_free_list.remove(mtu_ref, cache->mtuState());
                     
                     mtu_entry.state = EntryState::Referenced;
-                    mtu_entry.num_refs = 1;
+                    mtu_entry.refs_list.init();
+                } else {
+                    AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
+                    AMBRO_ASSERT(!mtu_entry.refs_list.isEmpty())
                 }
+                
+                mtu_entry.refs_list.prepend(*this);
             } else {
                 if (iface == nullptr) {
                     Ip4Addr route_addr;
@@ -268,7 +269,8 @@ public:
                 }
                 
                 mtu_entry.state = EntryState::Referenced;
-                mtu_entry.num_refs = 1;
+                mtu_entry.refs_list.init();
+                mtu_entry.refs_list.prepend(*this);
                 mtu_entry.remote_addr = remote_addr;
                 mtu_entry.mtu = iface->getMtu();
                 mtu_entry.minutes_old = 0;
@@ -316,11 +318,24 @@ public:
             mtu_entry.mtu = bump_mtu;
             mtu_entry.minutes_old = 0;
             
+            // Notify all MtuRef referencing this entry.
+            cache->notify_pmtu_changed(mtu_entry);
+            
             return true;
         }
+        
+    protected:
+        // This is called when the PMTU changes.
+        // It MUST NOT reset/deinit this or any other MtuRef object!
+        // This is because the caller is iterating the linked list
+        // of references without considerations for its modification.
+        virtual void pmtuChanged () = 0;
     };
     
 private:
+    // Node accessor for MtuRefList.
+    struct MtuRefListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuRef::m_refs_list_node) {};
+    
     inline MtuEntry & get_entry (MtuIndexType index)
     {
         AMBRO_ASSERT(index < NumMtuEntries)
@@ -332,7 +347,7 @@ private:
     {
         AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
         AMBRO_ASSERT(mtu_entry.mtu >= MinMTU)
-        AMBRO_ASSERT(mtu_entry.num_refs > 0)
+        AMBRO_ASSERT(!mtu_entry.refs_list.isEmpty())
     }
     
     void timerExpired (MtuTimer, Context)
@@ -369,6 +384,13 @@ private:
             return;
         }
         
+        // Reset the timeout.
+        // Here minutes_old is set to 1 not 0, this will allow the next timeout
+        // to occur after exactly MtuTimeoutMinutes. But elsewhere we set
+        // minutes_old to zero to ensure that a timeout does not occurs before
+        // MtuTimeoutMinutes.
+        mtu_entry.minutes_old = 1;
+        
         // Find the route to the destination.
         Iface *iface;
         Ip4Addr route_addr;
@@ -377,22 +399,31 @@ private:
         } else {
             // Reset the PMTU to that of the interface.
             mtu_entry.mtu = iface->getMtu();
+            
+            // Notify all MtuRef referencing this entry.
+            notify_pmtu_changed(mtu_entry);
         }
         
-        // Reset the timeout.
-        // Here minutes_old is set to 1 not 0, this will allow the next timeout
-        // to occur after exactly MtuTimeoutMinutes. But elsewhere we set
-        // minutes_old to zero to ensure that a timeout does not occurs before
-        // MtuTimeoutMinutes.
-        mtu_entry.minutes_old = 1;
-        
         assert_entry_referenced(mtu_entry);
+    }
+    
+    void notify_pmtu_changed (MtuEntry &mtu_entry)
+    {
+        AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
+        
+        MtuRef *ref = mtu_entry.refs_list.first();
+        while (ref != nullptr) {
+            AMBRO_ASSERT(ref->m_entry_idx == mtuRef(mtu_entry).getIndex())
+            ref->pmtuChanged();
+            AMBRO_ASSERT(ref->m_entry_idx == mtuRef(mtu_entry).getIndex())
+            AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
+            ref = mtu_entry.refs_list.next(*ref);
+        }
     }
 };
 
 APRINTER_ALIAS_STRUCT(IpPathMtuParams, (
     APRINTER_AS_VALUE(size_t, NumMtuEntries),
-    APRINTER_AS_VALUE(size_t, MinMtuEntryRefs),
     APRINTER_AS_VALUE(uint8_t, MtuTimeoutMinutes),
     APRINTER_AS_TYPE(MtuIndexService)
 ))
