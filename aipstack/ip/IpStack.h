@@ -68,6 +68,11 @@ struct IpSendFlags {
     };
 };
 
+struct Ip4DestUnreachMeta {
+    uint8_t icmp_code;
+    Icmp4RestType icmp_rest;
+};
+
 template <typename Arg>
 class IpStack
 {
@@ -287,11 +292,6 @@ public:
         }
         return true;
     }
-    
-    struct Ip4DestUnreachMeta {
-        uint8_t icmp_code;
-        Icmp4RestType icmp_rest;
-    };
     
     class ProtoListenerCallback {
     public:

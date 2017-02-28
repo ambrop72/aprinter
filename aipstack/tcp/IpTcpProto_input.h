@@ -55,8 +55,7 @@ class IpTcpProto_input
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, OosSeg, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer, Ip4DestUnreachMeta,
-                                   MtuRef))
+                                   AbrtTimer, RtxTimer, OutputTimer, MtuRef))
     APRINTER_USE_ONEOF
     
 public:

@@ -80,8 +80,7 @@ class IpTcpProto :
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_ONEOF
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface, Ip4DestUnreachMeta,
-                                     MtuRef))
+    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface, MtuRef))
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
