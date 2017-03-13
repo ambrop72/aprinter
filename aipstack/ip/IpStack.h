@@ -29,12 +29,17 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <type_traits>
+
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/Accessor.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/LinkModel.h>
 
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
@@ -47,6 +52,7 @@
 #include <aipstack/ip/IpIfaceDriver.h>
 #include <aipstack/ip/IpReassembly.h>
 #include <aipstack/ip/IpPathMtuCache.h>
+#include <aipstack/ip/hw/IpHwCommon.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -92,6 +98,10 @@ public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
     
     class Iface;
+    class IfaceListener;
+    
+private:
+    using IfaceListenerLinkModel = APrinter::PointerLinkModel<IfaceListener>;
     
 public:
     // Minimum permitted MTU and PMTU.
@@ -328,6 +338,42 @@ public:
         uint8_t m_proto;
     };
     
+    class IfaceListener {
+        friend IpStack;
+        
+    public:
+        void init (Iface *iface, uint8_t proto)
+        {
+            m_iface = iface;
+            m_proto = proto;
+            
+            m_iface->m_listeners_list.prepend(*this);
+        }
+        
+        void deinit ()
+        {
+            m_iface->m_listeners_list.remove(*this);
+        }
+        
+        inline Iface * getIface ()
+        {
+            return m_iface;
+        }
+        
+    private:
+        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
+        
+    private:
+        APrinter::LinkedListNode<IfaceListenerLinkModel> m_list_node;
+        Iface *m_iface;
+        uint8_t m_proto;
+    };
+    
+private:
+    using IfaceListenerList = APrinter::LinkedList<
+        APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node), IfaceListenerLinkModel, false>;
+    
+public:
     class Iface :
         private IpIfaceDriverCallback<Iface>
     {
@@ -344,8 +390,11 @@ public:
             // Initialize stuffs.
             m_stack = stack;
             m_driver = driver;
+            m_hw_type = driver->getHwType();
+            m_hw_iface = driver->getHwIface();
             m_have_addr = false;
             m_have_gateway = false;
+            m_listeners_list.init();
             
             // Get the MTU.
             m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
@@ -360,6 +409,8 @@ public:
         
         void deinit ()
         {
+            AMBRO_ASSERT(m_listeners_list.isEmpty())
+            
             // Unregister interface.
             m_stack->m_iface_list.remove(this);
             
@@ -408,6 +459,17 @@ public:
             return value;
         }
         
+        inline IpHwType getHwType ()
+        {
+            return m_hw_type;
+        }
+        
+        template <typename HwIface>
+        inline HwIface * getHwIface ()
+        {
+            return static_cast<HwIface *>(m_hw_iface);
+        }
+        
     public:
         inline bool ip4AddrIsLocal (Ip4Addr addr)
         {
@@ -444,11 +506,14 @@ public:
         
     private:
         APrinter::DoubleEndedListNode<Iface> m_iface_list_node;
+        IfaceListenerList m_listeners_list;
         IpStack *m_stack;
         IpIfaceDriver<CallbackImpl> *m_driver;
+        void *m_hw_iface;
         uint16_t m_ip_mtu;
         IpIfaceIp4Addrs m_addr;
         Ip4Addr m_gateway;
+        IpHwType m_hw_type;
         bool m_have_addr;
         bool m_have_gateway;
     };
@@ -582,18 +647,36 @@ private:
         // Create the datagram meta-info struct.
         Ip4DgramMeta meta = {dst_addr, src_addr, ttl, proto, iface};
         
-        // Do protocol-specific processing.
+        // Do the real processing now that the datagram is complete and
+        // sanity checked.
         recvIp4Dgram(meta, dgram);
     }
     
     void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
     {
-        if (meta.proto == Ip4ProtocolIcmp) {
+        Iface *iface = meta.iface;
+        uint8_t proto = meta.proto;
+        
+        // Pass to interface listeners. If any listener accepts the
+        // packet, inhibit further processing.
+        for (IfaceListener *lis = iface->m_listeners_list.first();
+             lis != nullptr; lis = iface->m_listeners_list.next(*lis))
+        {
+            if (lis->m_proto == proto) {
+                if (AMBRO_UNLIKELY(lis->recvIp4Dgram(meta, dgram))) {
+                    return;
+                }
+            }
+        }
+        
+        // Handle ICMP packets.
+        if (AMBRO_UNLIKELY(proto == Ip4ProtocolIcmp)) {
             return recvIcmp4Dgram(meta, dgram);
         }
         
-        ProtoListener *lis = find_proto_listener(meta.proto);
-        if (lis != nullptr) {
+        // Handle using a protocol listener if existing.
+        ProtoListener *lis = find_proto_listener(proto);
+        if (AMBRO_LIKELY(lis != nullptr)) {
             return lis->m_callback->recvIp4Dgram(meta, dgram);
         }
     }

@@ -493,6 +493,30 @@ public:
     static size_t const Length = TLength;
     static size_t const Size = Length * ElemSize;
     
+    template <typename ResType>
+    inline static ResType decodeTo (char const *bytes)
+    {
+        static_assert(std::is_base_of<StructIntArray, ResType>::value, "");
+        
+        ResType result;
+        for (size_t i = 0; i < Length; i++) {
+            result.StructIntArray::data[i] = APrinter::ReadBinaryInt<ElemType, APrinter::BinaryBigEndian>(bytes + i * ElemSize);
+        }
+        return result;
+    }
+    
+    inline static StructIntArray decode (char const *bytes)
+    {
+        return decodeTo<StructIntArray>(bytes);
+    }
+    
+    inline void encode (char *bytes) const
+    {
+        for (size_t i = 0; i < Length; i++) {
+            APrinter::WriteBinaryInt<ElemType, APrinter::BinaryBigEndian>(data[i], bytes + i * ElemSize);
+        }
+    }
+    
     inline constexpr bool operator== (StructIntArray const &other) const
     {
         for (size_t i = 0; i < Length; i++) {
@@ -549,18 +573,12 @@ public:
     
     inline static ValType get (char const *data)
     {
-        ValType value;
-        for (size_t i = 0; i < ValType::Length; i++) {
-            value.data[i] = APrinter::ReadBinaryInt<typename ValType::ElemType, APrinter::BinaryBigEndian>(data + i * ValType::ElemSize);
-        }
-        return value;
+        return ValType::template decodeTo<ValType>(data);
     }
     
     inline static void set (char *data, ValType value)
     {
-        for (size_t i = 0; i < ValType::Length; i++) {
-            APrinter::WriteBinaryInt<typename ValType::ElemType, APrinter::BinaryBigEndian>(value.data[i], data + i * ValType::ElemSize);
-        }
+        value.encode(data);
     }
 };
 

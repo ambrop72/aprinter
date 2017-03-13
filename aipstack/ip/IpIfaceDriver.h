@@ -33,6 +33,7 @@
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
+#include <aipstack/ip/hw/IpHwCommon.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -53,6 +54,8 @@ public:
     virtual size_t getIpMtu () = 0;
     virtual IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
                                  IpSendRetry::Request *sendRetryReq) = 0;
+    virtual IpHwType getHwType () = 0;
+    virtual void * getHwIface () = 0;
 };
 
 APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {

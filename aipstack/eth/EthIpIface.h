@@ -45,6 +45,7 @@
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
 #include <aipstack/ip/IpIfaceDriver.h>
+#include <aipstack/ip/hw/IpEthHw.h>
 #include <aipstack/eth/EthIfaceDriver.h>
 
 #include <aipstack/BeginNamespace.h>
@@ -58,7 +59,8 @@ APRINTER_DECL_TIMERS_CLASS(EthIpIfaceTimers, typename Arg::Context, EthIpIface<A
 template <typename Arg>
 class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     private EthIpIfaceTimers<Arg>::Timers,
-    private EthIfaceDriverCallback<EthIpIface<Arg>>
+    private EthIfaceDriverCallback<EthIpIface<Arg>>,
+    private IpEthHw
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, IpCallbackImpl))
@@ -120,19 +122,19 @@ public:
     }
     
 public: // IpIfaceDriver
-    void setCallback (IpIfaceDriverCallback<IpCallbackImpl> *callback) override
+    void setCallback (IpIfaceDriverCallback<IpCallbackImpl> *callback) override final
     {
         m_callback = callback;
     }
     
-    size_t getIpMtu () override
+    size_t getIpMtu () override final
     {
         size_t eth_mtu = m_driver->getEthMtu();
         AMBRO_ASSERT(eth_mtu >= EthHeader::Size)
         return eth_mtu - EthHeader::Size;
     }
     
-    IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr, IpSendRetry::Request *retryReq) override
+    IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr, IpSendRetry::Request *retryReq) override final
     {
         MacAddr dst_mac;
         IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac, retryReq);
@@ -153,6 +155,16 @@ public: // IpIfaceDriver
         return m_driver->sendFrame(frame);
     }
     
+    IpHwType getHwType () override final
+    {
+        return IpHwType::Ethernet;
+    }
+    
+    void * getHwIface () override final
+    {
+        return static_cast<IpEthHw *>(this);
+    }
+    
 private: // EthIfaceDriverCallback
     friend EthIfaceDriverCallback<EthIpIface>;
     
@@ -161,10 +173,11 @@ private: // EthIfaceDriverCallback
         if (!frame.hasHeader(EthHeader::Size)) {
             return;
         }
-        auto eth_header = EthHeader::MakeRef(frame.getChunkPtr());
-        MacAddr dst_mac  = eth_header.get(EthHeader::DstMac());
-        MacAddr src_mac  = eth_header.get(EthHeader::SrcMac());
-        uint16_t ethtype = eth_header.get(EthHeader::EthType());
+        
+        m_rx_eth_header = EthHeader::MakeRef(frame.getChunkPtr());
+        MacAddr dst_mac  = m_rx_eth_header.get(EthHeader::DstMac());
+        MacAddr src_mac  = m_rx_eth_header.get(EthHeader::SrcMac());
+        uint16_t ethtype = m_rx_eth_header.get(EthHeader::EthType());
         
         if (!(dst_mac == *m_mac_addr || dst_mac == MacAddr::BroadcastAddr())) {
             return;
@@ -205,6 +218,17 @@ private: // EthIfaceDriverCallback
                 }
             }
         }
+    }
+    
+private: // IpEthHw
+    MacAddr getMacAddr () override final
+    {
+        return *m_mac_addr;
+    }
+    
+    EthHeader::Ref getRxEthHeader () override final
+    {
+        return m_rx_eth_header;
     }
     
 private:
@@ -452,6 +476,7 @@ private:
     IpIfaceDriverCallback<IpCallbackImpl> *m_callback;
     MacAddr const *m_mac_addr;
     ArpEntryIndexType m_first_arp_entry;
+    EthHeader::Ref m_rx_eth_header;
     ArpEntry m_arp_entries[NumArpEntries];
 };
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,46 +22,32 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ETHERNET_PROTO_H
-#define APRINTER_IPSTACK_ETHERNET_PROTO_H
+#ifndef APRINTER_IPSTACK_IP_ETH_HW_H
+#define APRINTER_IPSTACK_IP_ETH_HW_H
 
-#include <stdint.h>
-
-#include <aipstack/misc/Struct.h>
+#include <aipstack/proto/EthernetProto.h>
 
 #include <aipstack/BeginNamespace.h>
 
-class MacAddr : public StructByteArray<6>
+/**
+ * Hardware-specific interface for Ethernet interfaces.
+ */
+class IpEthHw
 {
 public:
-    static inline constexpr MacAddr ZeroAddr ()
-    {
-        return MacAddr{};
-    }
+    /**
+     * Get the MAC address of the interface.
+     */
+    virtual MacAddr getMacAddr () = 0;
     
-    static inline constexpr MacAddr BroadcastAddr ()
-    {
-        MacAddr result = {};
-        for (int i = 0; i < MacAddr::Size; i++) {
-            result.data[i] = 0xFF;
-        }
-        return result;
-    }
-    
-    inline static MacAddr decode (char const *bytes)
-    {
-        return StructByteArray<6>::template decodeTo<MacAddr>(bytes);
-    }
+    /**
+     * Get a reference to the Ethernet header of the current
+     * frame being processed.
+     * 
+     * This MUST NOT be called outside of processing of received frames.
+     */
+    virtual EthHeader::Ref getRxEthHeader () = 0;
 };
-
-APRINTER_TSTRUCT(EthHeader,
-    (DstMac,  MacAddr)
-    (SrcMac,  MacAddr)
-    (EthType, uint16_t)
-)
-
-static uint16_t const EthTypeIpv4 = UINT16_C(0x0800);
-static uint16_t const EthTypeArp  = UINT16_C(0x0806);
 
 #include <aipstack/EndNamespace.h>
 
