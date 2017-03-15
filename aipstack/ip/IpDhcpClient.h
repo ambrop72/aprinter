@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Ambroz Bizjak
+ * Copyright (c) 20176 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <limits>
+
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
@@ -39,8 +41,10 @@
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
+#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
+#include <aipstack/proto/Udp4Proto.h>
 #include <aipstack/proto/DhcpProto.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/ip/IpStack.h>
@@ -60,10 +64,12 @@ class IpDhcpClient :
     private IpDhcpClientTimers<Arg>::Timers,
     private Arg::IpStack::IfaceListener
 {
-    APRINTER_USE_TYPES1(Arg, (Context, IpStack))
+    APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
+    APRINTER_USE_VALS(Arg::Params, (DhcpTTL))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface))
+    APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
     using TheClockUtils = APrinter::ClockUtils<Context>;
     
@@ -77,12 +83,8 @@ class IpDhcpClient :
         Renewing
     };
     
-    static uint8_t const MaxDnsServers = 4;
-    
     static uint8_t const XidReuseMax = 8;
-    
-    static uint16_t const DhcpServerPort = 67;
-    static uint16_t const DhcpClientPort = 68;
+    static uint8_t const MaxRequests = 4;
     
     static uint32_t const RenewRequestTimeoutSeconds = 20;
     
@@ -92,10 +94,32 @@ class IpDhcpClient :
     
     static uint32_t MaxTimerSeconds = TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq;
     
-    static uint32_t RenewTimeForLeaseTime (uint32_t lease_time)
+    static constexpr uint32_t RenewTimeForLeaseTime (uint32_t lease_time)
     {
         return lease_time / 2;
     }
+    
+    static size_t const UdpDhcpHeaderSize = Udp4Header::Size + DhcpHeader::Size;
+    
+    template <typename OptDataType>
+    static constexpr size_t OptSize (OptDataType)
+    {
+        return DhcpOptionHeader::Size + OptDataType::Size;
+    }
+    
+    static size_t const MaxDhcpSendMsgSize = UdpDhcpHeaderSize +
+        // DHCP message type
+        OptSize(DhcpOptMsgType()) +
+        // requested IP address
+        OptSize(DhcpOptAddr()) +
+        // DHCP server identifier
+        OptSize(DhcpOptServerId()) +
+        // maximum message size
+        OptSize(DhcpOptMaxMsgSize()) +
+        // parameter request list
+        DhcpOptionHeader::Size + 4 +
+        // end
+        1;
     
 private:
     IpStack *m_ipstack;
@@ -159,8 +183,9 @@ private:
         
         m_xid_reuse_count++;
         
-        // TODO: send discover
-        // send_message(o, DHCP_MESSAGE_TYPE_DISCOVER, o->xid, 0, 0, 0, 0);
+        // Send Discover.
+        DhcpSendOptions opts;
+        send_message(DhcpMessageType::Discover, m_xid, opts);
         
         tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
         m_state = DhcpState::SentDiscover;
@@ -176,6 +201,32 @@ private:
                 start_process(force_new_xid);
             } break;
             
+            // Timer is set for retransmitting request.
+            case DhcpState::SentRequest: {
+                AMBRO_ASSERT(m_request_count >= 1)
+                AMBRO_ASSERT(m_request_count <= MaxRequests)
+                
+                // If se sent enough requests, start discovery again.
+                if (m_request_count == MaxRequests) {
+                    start_process(false);
+                    return;
+                }
+                
+                // Send request.
+                DhcpSendOptions opts;
+                opts.have.requested_ip_address = true;
+                opts.have.dhcp_server_identifier = true;
+                opts.requested_ip_address = m_offered.yiaddr;
+                opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
+                send_message(DhcpMessageType::Request, m_xid, opts);
+                
+                // Restart timer.
+                tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
+                
+                // Increment request count.
+                m_request_count++;
+            } break;
+            
             // Timer is set for starting renewal.
             case DhcpState::Finished: {
                 // If we have more time left, restart timer.
@@ -188,8 +239,10 @@ private:
                 m_time_left = m_acked.ip_address_lease_time - RenewTimeForLeaseTime(m_acked.ip_address_lease_time);
                 
                 // Send request.
-                // TODO
-                // send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 0, 0);
+                DhcpSendOptions opts;
+                opts.have.requested_ip_address = true;
+                opts.requested_ip_address = m_offered.yiaddr;
+                send_message(DhcpMessageType::Request, m_xid, opts);
                 
                 // Start timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -207,8 +260,10 @@ private:
                 }
                 
                 // Send request.
-                // TODO
-                // send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 0, 0);
+                DhcpSendOptions opts;
+                opts.have.requested_ip_address = true;
+                opts.requested_ip_address = m_offered.yiaddr;
+                send_message(DhcpMessageType::Request, m_xid, opts);
                 
                 // Restart timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -378,8 +433,12 @@ private:
             m_offered.dhcp_server_identifier = opts.dhcp_server_identifier;
             
             // Send request.
-            // TODO
-            // send_message(o, DHCP_MESSAGE_TYPE_REQUEST, o->xid, 1, o->offered.yiaddr, 1, o->offered.dhcp_server_identifier);
+            DhcpSendOptions opts;
+            opts.have.requested_ip_address = true;
+            opts.have.dhcp_server_identifier = true;
+            opts.requested_ip_address = m_offered.yiaddr;
+            opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
+            send_message(DhcpMessageType::Request, m_xid, opts);
             
             // Start timer for request.
             tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
@@ -453,6 +512,141 @@ private:
         
         // Remove IP address.
         iface->setIp4Addr(IpIfaceIp4AddrSetting{false});
+    }
+    
+    struct DhcpSendOptions {
+        inline DhcpSendOptions ()
+        : have(Have{})
+        {}
+        
+        struct Have {
+            bool requested_ip_address : 1;
+            bool dhcp_server_identifier : 1;
+        } have;
+        
+        Ip4Addr requested_ip_address;
+        uint32_t dhcp_server_identifier;
+    };
+    
+    void send_message (DhcpMessageType msg_type, uint32_t xid, DhcpSendOptions const &opts)
+    {
+        using AllocHelperType = TxAllocHelper<BufAllocator, MaxDhcpSendMsgSize, HeaderBeforeIp4Dgram>;
+        AllocHelperType dgram_alloc(MaxDhcpSendMsgSize);
+        
+        // Write the DHCP header.
+        auto dhcp_header = DhcpHeader::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
+        ::memset(dhcp_header.data, 0, DhcpHeader::Size);
+        dhcp_header.set(DhcpHeader::DhcpOp(),    DhcpOpBootRequest);
+        dhcp_header.set(DhcpHeader::DhcpHtype(), DhcpHwAddrType::Ethernet);
+        dhcp_header.set(DhcpHeader::DhcpHlen(),  MacAddr::Size);
+        dhcp_header.set(DhcpHeader::DhcpXid(),   xid);
+        ethHw()->getMacAddr().encode(dhcp_header.ref(DhcpHeader::DhcpChaddr()));
+        dhcp_header.set(DhcpHeader::DhcpMagic(), DhcpMagicNumber);
+        
+        // Write options.
+        // NOTE: If adding new options, adjust the MaxDhcpSendMsgSize calculation.
+        char *opt_writeptr = dgram_alloc.getPtr() + UdpDhcpHeaderSize;
+        
+        // DHCP message type
+        add_option(opt_writeptr, DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
+            auto opt = DhcpOptMsgType::Ref(opt_data);
+            opt.set(DhcpOptMsgType::MsgType(), msg_type);
+            return opt.Size();
+        });
+        
+        // requested IP address
+        if (opts.have.requested_ip_address) {
+            add_option(opt_writeptr, DhcpOptionType::RequestedIpAddress, [&](char *opt_data) {
+                auto opt = DhcpOptAddr::Ref(opt_data);
+                opt.set(DhcpOptAddr::Addr(), opts.requested_ip_address);
+                return opt.Size();
+            });
+        }
+        
+        // DHCP server identifier
+        if (opts.have.dhcp_server_identifier) {
+            add_option(opt_writeptr, DhcpOptionType::DhcpServerIdentifier, [&](char *opt_data) {
+                auto opt = DhcpOptServerId::Ref(opt_data);
+                opt.set(DhcpOptServerId::ServerId(), opts.dhcp_server_identifier);
+                return opt.Size();
+            });
+        }
+        
+        // maximum message size
+        add_option(opt_writeptr, DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
+            auto opt = DhcpOptMaxMsgSize::Ref(opt_data);
+            opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), IfaceListener::getIface()->getMtu());
+            return opt.Size();
+        });
+        
+        // parameter request list
+        add_option(opt_writeptr, DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
+            uint8_t opt[] = {
+                DhcpOptionType::SubnetMask,
+                DhcpOptionType::Router,
+                DhcpOptionType::DomainNameServer,
+                DhcpOptionType::IpAddressLeaseTime,
+            };
+            ::memcpy(opt_data, opt, sizeof(opt));
+            return sizeof(opt);
+        });
+        
+        // end option
+        {
+            uint8_t end = DhcpOptionType::End;
+            ::memcpy(opt_writeptr, &end, sizeof(end));
+            opt_writeptr += sizeof(end);
+        }
+        
+        // Calculate the UDP length.
+        uint16_t udp_length = opt_writeptr - dgram_alloc.getPtr();
+        AMBRO_ASSERT(udp_length <= MaxDhcpSendMsgSize)
+        
+        // Write the UDP header.
+        auto udp_header = Udp4Header::MakeRef(dgram_alloc.getPtr());
+        udp_header.set(Udp4Header::SrcPort(),  DhcpClientPort);
+        udp_header.set(Udp4Header::DstPort(),  DhcpServerPort);
+        udp_header.set(Udp4Header::Length(),   udp_length);
+        udp_header.set(Udp4Header::Checksum(), 0);
+        
+        // Construct the datagram reference.
+        dgram_alloc.changeSize(udp_length);
+        IpBufRef dgram = dgram_alloc.getBufRef();
+        
+        // Define information for IP.
+        Ip4DgramMeta ip_meta = {
+            Ip4Addr::ZeroAddr(),       // local_addr
+            Ip4Addr::AllOnesAddr(),    // remote_addr
+            DhcpTTL,                   // ttl
+            Ip4ProtocolUdp,            // proto
+            IfaceListener::getIface(), // iface
+        };
+        
+        // Calculate UDP checksum.
+        IpChksumAccumulator chksum_accum;
+        chksum_accum.addWords(&ip_meta.remote_addr.data);
+        chksum_accum.addWords(&ip_meta.local_addr.data);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), ip_meta.proto);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
+        chksum_accum.addIpBuf(dgram);
+        uint16_t checksum = chksum_accum.getChksum();
+        if (checksum == 0) {
+            checksum = std::numeric_limits<uint16_t>::max();
+        }
+        udp_header.set(Udp4Header::Checksum(), checksum);
+        
+        // Send the datagram.
+        m_ipstack->sendIp4Dgram(ip_meta, dgram);
+    }
+    
+    template <typename PayloadFunc>
+    void add_option (char *&out, DhcpOptionType opt_type, PayloadFunc payload_func)
+    {
+        auto oh = DhcpOptionHeader::Ref(out);
+        oh.set(DhcpOptionHeader::OptType(), opt_type);
+        size_t opt_len = payload_func(out + DhcpOptionHeader::Size);
+        oh.set(DhcpOptionHeader::OptLen(), opt_len);
+        out += DhcpOptionHeader::Size + opt_len;
     }
     
     struct DhcpOpts {
@@ -598,11 +792,13 @@ private:
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
-    APRINTER_AS_VALUE(int, ToDo)
+    APRINTER_AS_VALUE(uint8_t, DhcpTTL),
+    APRINTER_AS_VALUE(uint8_t, MaxDnsServers)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(IpStack)
+        APRINTER_AS_TYPE(IpStack),
+        APRINTER_AS_TYPE(BufAllocator)
     ), (
         using Params = IpDhcpClientService;
         APRINTER_DEF_INSTANCE(Compose, IpDhcpClient)

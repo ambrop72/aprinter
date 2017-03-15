@@ -213,7 +213,7 @@ public:
      */
     inline static Ref MakeRef (char *data)
     {
-        return Ref{data};
+        return Ref(data);
     }
     
     /**
@@ -231,14 +231,29 @@ public:
     }
     
     /**
+     * Base class with definitions common to Val and Ref.
+     */
+    class ValRefBase {
+    public:
+        /**
+         * The structure type.
+         * This is the TStructType template parameter of StructBase.
+         */
+        using Struct = StructType;
+        
+        /**
+         * The size of the structure.
+         */
+        static constexpr size_t Size () { return GetStructSize(); };
+    };
+    
+    /**
      * Class which contains structure data.
      * These can be created using StructBase::MakeVal or from
      * the Val conversion operators in Ref.
      */
-    class Val {
+    class Val : public ValRefBase {
     public:
-        using Struct = StructType;
-        
         /**
          * Reads a field.
          * @see StructBase::get
@@ -274,7 +289,7 @@ public:
          */
         inline operator Ref ()
         {
-            return Ref{data};
+            return Ref(data);
         }
         
     public:
@@ -287,11 +302,18 @@ public:
     /**
      * Structure access class referencing external data via
      * char *.
-     * Can be initialized via StructBase::MakeRef or Ref{data}.
+     * Can be initialized via StructBase::MakeRef or Ref(data).
      */
-    class Ref {
+    class Ref : public ValRefBase {
     public:
-        using Struct = StructType;
+        Ref () = default;
+        
+        /**
+         * Returns a Ref referencing the specified memory.
+         */
+        inline Ref (char *data)
+        : data(data)
+        {}
         
         /**
          * Reads a field.

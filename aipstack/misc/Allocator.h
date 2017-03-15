@@ -68,7 +68,7 @@ public:
     {
         m_node = IpBufNode {
             m_alloc.getPtr(),
-            m_alloc.getSize(),
+            size_t(HeaderBefore + size),
             nullptr
         };
         m_tot_len = size;
@@ -79,10 +79,19 @@ public:
         return m_alloc.getPtr() + HeaderBefore;
     }
     
+    inline void changeSize (size_t size)
+    {
+        AMBRO_ASSERT(m_node.next == nullptr)
+        AMBRO_ASSERT(size <= m_alloc.getSize() - HeaderBefore)
+        
+        m_node.len = HeaderBefore + size;
+        m_tot_len = size;
+    }
+    
     inline void setNext (IpBufNode const *next_node, size_t next_len)
     {
         AMBRO_ASSERT(m_node.next == nullptr)
-        AMBRO_ASSERT(m_tot_len == m_alloc.getSize() - HeaderBefore)
+        AMBRO_ASSERT(m_node.len == HeaderBefore + m_tot_len)
         AMBRO_ASSERT(next_node != nullptr)
         
         m_node.next = next_node;

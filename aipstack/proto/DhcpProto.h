@@ -43,6 +43,9 @@ enum class DhcpHwAddrType : uint8_t {
 
 static uint32_t const DhcpMagicNumber = UINT32_C(0x63825363);
 
+static uint16_t const DhcpServerPort = 67;
+static uint16_t const DhcpClientPort = 68;
+
 enum class DhcpOptionType : uint8_t {
     Pad = 0,
     End = 255,
