@@ -57,6 +57,14 @@
 
 #include <aipstack/BeginNamespace.h>
 
+// Interface for status callbacks from the DHCP client.
+class IpDhcpClientCallback {
+public:
+    enum class LeaseEventType {LeaseObtained, LeaseRenewed, LeaseLost};
+    
+    virtual void dhcpLeaseEvent (LeaseEventType event_type) = 0;
+};
+
 template <typename Arg>
 class IpDhcpClient;
 
@@ -74,6 +82,7 @@ class IpDhcpClient :
     APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
+    APRINTER_USE_TYPES2(IpDhcpClientCallback, (LeaseEventType))
     APRINTER_USE_ONEOF
     using TheClockUtils = APrinter::ClockUtils<Context>;
     
@@ -135,35 +144,42 @@ class IpDhcpClient :
     // Maximum packet size that we could possibly transmit.
     static size_t const MaxDhcpSendMsgSize = UdpDhcpHeaderSize + Options::MaxOptionsSendSize;
     
-private:
-    IpStack *m_ipstack;
-    uint32_t m_xid;
-    DhcpState m_state;
-    uint8_t m_xid_reuse_count;
-    uint8_t m_request_count;
-    uint32_t m_time_left;
-    struct {
-        Ip4Addr yiaddr;
+public:
+    // Contains all the information about a lease.
+    struct LeaseInfo {
+        // These two are set already when the offer is received.
+        Ip4Addr ip_address;
         uint32_t dhcp_server_identifier;
-    } m_offered;
-    struct {
-        uint32_t ip_address_lease_time;
+        
+        // The rest are set when the ack is received.
+        uint32_t lease_time_s;
         Ip4Addr subnet_mask;
         MacAddr server_mac;
         bool have_router;
         uint8_t domain_name_servers_count;
         Ip4Addr router;
         Ip4Addr domain_name_servers[MaxDnsServers];
-    } m_acked;
+    };
+    
+private:
+    IpStack *m_ipstack;
+    IpDhcpClientCallback *m_callback;
+    uint32_t m_xid;
+    DhcpState m_state;
+    uint8_t m_xid_reuse_count;
+    uint8_t m_request_count;
+    uint32_t m_time_left;
+    LeaseInfo m_info;
     
 public:
-    void init (IpStack *stack, Iface *iface)
+    void init (IpStack *stack, Iface *iface, IpDhcpClientCallback *callback)
     {
         // We only support Ethernet interfaces.
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
         // Remember stuff.
         m_ipstack = stack;
+        m_callback = callback;
         
         // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
@@ -175,12 +191,24 @@ public:
     
     void deinit ()
     {
-        // Remove any configuration that might have ben done.
-        handle_dhcp_down();
+        // Remove any configuration that might have been done (no callback).
+        handle_dhcp_down(false);
         
         // Deinit resources.
         tim(DhcpTimer()).deinit(Context());
         IfaceListener::deinit();
+    }
+    
+    inline bool hasLease ()
+    {
+        return m_state == OneOf(DhcpState::Finished, DhcpState::Renewing);
+    }
+    
+    inline LeaseInfo const & getLeaseInfoMustHaveLease ()
+    {
+        AMBRO_ASSERT(hasLease())
+        
+        return m_info;
     }
     
 private:
@@ -277,7 +305,7 @@ private:
                 }
                 
                 // Set m_time_left to the time until the lease expires.
-                m_time_left = m_acked.ip_address_lease_time - RenewTimeForLeaseTime(m_acked.ip_address_lease_time);
+                m_time_left = m_info.lease_time_s - RenewTimeForLeaseTime(m_info.lease_time_s);
                 
                 // Send request without server identifier.
                 send_request(false);
@@ -293,7 +321,9 @@ private:
             case DhcpState::Renewing: {
                 // Has the lease expired?
                 if (m_time_left == 0) {
-                    handle_lease_expired();
+                    // Start discovery, remove IP configuration.
+                    start_discovery(true);
+                    handle_dhcp_down(true);
                     return;
                 }
                 
@@ -307,15 +337,6 @@ private:
             default:
                 AMBRO_ASSERT(false);
         }
-    }
-    
-    void handle_lease_expired ()
-    {
-        // Restart discovery.
-        start_discovery(true);
-        
-        // Handle down.
-        handle_dhcp_down();
     }
     
     bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
@@ -427,7 +448,7 @@ private:
             }
             
             // Ignore NAK if the DHCP server identifier does not match.
-            if (opts.dhcp_server_identifier != m_offered.dhcp_server_identifier) {
+            if (opts.dhcp_server_identifier != m_info.dhcp_server_identifier) {
                 return;
             }
             
@@ -441,7 +462,7 @@ private:
             
             // If we had a lease, remove it.
             if (prev_state == OneOf(DhcpState::Finished, DhcpState::Renewing)) {
-                handle_dhcp_down();
+                handle_dhcp_down(true);
             }
             
             // Nothing else to do (further processing is for offer and ack).
@@ -449,10 +470,10 @@ private:
         }
         
         // Get Your IP Address.
-        Ip4Addr yiaddr = dhcp_header.get(DhcpHeader::DhcpYiaddr());
+        Ip4Addr ip_address = dhcp_header.get(DhcpHeader::DhcpYiaddr());
         
         // Sanity check configuration.
-        if (!sanityCheckAddressInfo(yiaddr, opts)) {
+        if (!sanityCheckAddressInfo(ip_address, opts)) {
             return;
         }
         
@@ -461,8 +482,8 @@ private:
             opts.dhcp_message_type == DhcpMessageType::Offer)
         {
             // Remember offer.
-            m_offered.yiaddr = yiaddr;
-            m_offered.dhcp_server_identifier = opts.dhcp_server_identifier;
+            m_info.ip_address = ip_address;
+            m_info.dhcp_server_identifier = opts.dhcp_server_identifier;
             
             // Send request with server identifier.
             send_request(true);
@@ -480,40 +501,33 @@ private:
         else if (m_state == OneOf(DhcpState::SentRequest, DhcpState::Renewing) &&
                  opts.dhcp_message_type == DhcpMessageType::Ack)
         {
-            // Sanity check against the offer.
-            if (yiaddr != m_offered.yiaddr ||
-                opts.dhcp_server_identifier != m_offered.dhcp_server_identifier)
+            // Sanity check against the offer or existing lease.
+            if (ip_address != m_info.ip_address ||
+                opts.dhcp_server_identifier != m_info.dhcp_server_identifier)
             {
                 return;
             }
             
-            // Remember the lease time.
-            m_acked.ip_address_lease_time = opts.ip_address_lease_time;
+            // Remember/update the lease information.
+            m_info.lease_time_s = opts.ip_address_lease_time;
+            m_info.subnet_mask = opts.subnet_mask;
+            m_info.have_router = opts.have.router;
+            m_info.router = opts.have.router ? opts.router : Ip4Addr::ZeroAddr();
+            m_info.domain_name_servers_count = opts.have.dns_servers;
+            ::memcpy(m_info.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
+            m_info.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
             
-            // If we are in SentRequest state, remember lease information.
-            // TODO: Handle possible changes of this info somehow.
-            if (m_state == DhcpState::SentRequest) {
-                m_acked.subnet_mask = opts.subnet_mask;
-                m_acked.have_router = opts.have.router;
-                m_acked.router = opts.have.router ? opts.router : Ip4Addr::ZeroAddr();
-                m_acked.domain_name_servers_count = opts.have.dns_servers;
-                ::memcpy(m_acked.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
-                m_acked.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
-            }
-            
-            DhcpState prev_state = m_state;
+            bool renewed = m_state == DhcpState::Renewing;
             
             // Going to state Finished.
             m_state = DhcpState::Finished;
             
             // Start timeout for renewing.
-            m_time_left = RenewTimeForLeaseTime(m_acked.ip_address_lease_time);
+            m_time_left = RenewTimeForLeaseTime(m_info.lease_time_s);
             set_timer_for_time_left(MaxTimerSeconds);
             
-            // If this is a new lease, apply IP configuration etc.
-            if (prev_state == DhcpState::SentRequest) {
-                handle_dhcp_up();
-            }
+            // Apply IP configuration etc.
+            handle_dhcp_up(renewed);
         }
     }
     
@@ -564,25 +578,34 @@ private:
         return true;
     }
     
-    void handle_dhcp_up ()
+    void handle_dhcp_up (bool renewed)
     {
         // Set IP address with prefix length.
-        uint8_t prefix = m_acked.subnet_mask.countLeadingOnes();
-        iface()->setIp4Addr(IpIfaceIp4AddrSetting{true, prefix, m_offered.yiaddr});
+        uint8_t prefix = m_info.subnet_mask.countLeadingOnes();
+        iface()->setIp4Addr(IpIfaceIp4AddrSetting{true, prefix, m_info.ip_address});
         
-        // Set gateway if provided.
-        if (m_acked.have_router) {
-            iface()->setIp4Gateway(IpIfaceIp4GatewaySetting{true, m_acked.router});
+        // Set gateway (or clear if none).
+        iface()->setIp4Gateway(IpIfaceIp4GatewaySetting{m_info.have_router, m_info.router});
+        
+        // Call the callback if specified.
+        if (m_callback != nullptr) {
+            auto event_type = renewed ? LeaseEventType::LeaseRenewed : LeaseEventType::LeaseObtained;
+            m_callback->dhcpLeaseEvent(event_type);
         }
     }
     
-    void handle_dhcp_down ()
+    void handle_dhcp_down (bool call_callback)
     {
         // Remove gateway.
         iface()->setIp4Gateway(IpIfaceIp4GatewaySetting{false});
         
         // Remove IP address.
         iface()->setIp4Addr(IpIfaceIp4AddrSetting{false});
+        
+        // Call the callback if specified and desired.
+        if (m_callback != nullptr && call_callback) {
+            m_callback->dhcpLeaseEvent(LeaseEventType::LeaseLost);
+        }
     }
     
     // Send a DHCP request message.
@@ -590,10 +613,10 @@ private:
     {
         DhcpSendOptions send_opts;
         send_opts.have.requested_ip_address = true;
-        send_opts.requested_ip_address = m_offered.yiaddr;
+        send_opts.requested_ip_address = m_info.ip_address;
         if (send_server_identifier) {
             send_opts.have.dhcp_server_identifier = true;
-            send_opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
+            send_opts.dhcp_server_identifier = m_info.dhcp_server_identifier;
         }
         send_dhcp_message(DhcpMessageType::Request, m_xid, send_opts);
     }

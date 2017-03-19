@@ -377,8 +377,8 @@ private:
             o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
             
             if (o->config.dhcp_enabled) {
-                o->dhcp_client.init(&o->ip_stack, &o->ip_iface);
                 o->dhcp_enabled = true;
+                o->dhcp_client.init(&o->ip_stack, &o->ip_iface, &o->dhcp_client_callback);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
@@ -444,6 +444,25 @@ private:
         }
     }
     
+    class DhcpClientCallback : public AIpStack::IpDhcpClientCallback
+    {
+        using IpDhcpClientCallback::LeaseEventType;
+        
+        void dhcpLeaseEvent (LeaseEventType event_type) override final
+        {
+            Context c;
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->activation_state == ACTIVATED)
+            AMBRO_ASSERT(o->dhcp_enabled)
+            
+            if (event_type != LeaseEventType::LeaseRenewed) {
+                NetworkEvent event{NetworkEventType::DHCP};
+                event.dhcp.up = o->dhcp_client.hasLease();
+                raise_network_event(c, event);
+            }
+        }
+    };
+    
 public:
     using GetEthernet = TheEthernet;
     
@@ -458,6 +477,7 @@ public:
         TheEthIpIface eth_ip_iface;
         bool dhcp_enabled;
         TheIpDhcpClient dhcp_client;
+        DhcpClientCallback dhcp_client_callback;
         Iface ip_iface;
         NetworkParams config;
     };
