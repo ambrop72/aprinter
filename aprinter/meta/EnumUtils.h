@@ -27,6 +27,8 @@
 #ifndef APRINTER_ENUM_UTILS_H
 #define APRINTER_ENUM_UTILS_H
 
+#include <aprinter/meta/BasicMetaUtils.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename EnumType>
@@ -35,6 +37,44 @@ constexpr inline auto ToUnderlyingType (EnumType e)
     static_assert(std::is_enum<EnumType>::value, "EnumType must be an enum type");
     return std::underlying_type_t<EnumType>(e);
 }
+
+namespace Private {
+    template <bool IsEnum, typename Type, typename BaseType>
+    struct EnumWithBaseTypeHelper {
+        static bool const IsEnumWithBaseType = false;
+    };
+    
+    template <typename Type, typename BaseType>
+    struct EnumWithBaseTypeHelper<true, Type, BaseType> {
+        static bool const IsEnumWithBaseType =
+            std::is_same<std::underlying_type_t<Type>, BaseType>::value;
+    };
+    
+    template <bool IsEnum, typename Type>
+    struct GetSameOrBaseTypeHelper {
+        using ResultType = Type;
+    };
+    
+    template <typename Type>
+    struct GetSameOrBaseTypeHelper<true, Type> {
+        using ResultType = std::underlying_type_t<Type>;
+    };
+};
+
+template <typename Type, typename BaseType>
+constexpr bool IsEnumWithBaseType ()
+{
+    return Private::EnumWithBaseTypeHelper<std::is_enum<Type>::value, Type, BaseType>::IsEnumWithBaseType;
+}
+
+template <typename Type, typename BaseType>
+constexpr bool IsSameOrEnumWithBaseType ()
+{
+    return std::is_same<Type, BaseType>::value || IsEnumWithBaseType<Type, BaseType>();
+}
+
+template <typename Type>
+using GetSameOrEnumBaseType = typename Private::GetSameOrBaseTypeHelper<std::is_enum<Type>::value, Type>::ResultType;
 
 #include <aprinter/EndNamespace.h>
 

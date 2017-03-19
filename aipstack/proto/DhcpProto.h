@@ -76,8 +76,8 @@ enum class DhcpMessageType : uint8_t {
 };
 
 APRINTER_TSTRUCT(DhcpHeader,
-    (DhcpOp,      uint8_t)
-    (DhcpHtype,   uint8_t)
+    (DhcpOp,      AIpStack::DhcpOp)
+    (DhcpHtype,   DhcpHwAddrType)
     (DhcpHlen,    uint8_t)
     (DhcpHops,    uint8_t)
     (DhcpXid,     uint32_t)
@@ -94,12 +94,12 @@ APRINTER_TSTRUCT(DhcpHeader,
 )
 
 APRINTER_TSTRUCT(DhcpOptionHeader,
-    (OptType,     uint8_t)
+    (OptType,     DhcpOptionType)
     (OptLen,      uint8_t)
 )
 
 APRINTER_TSTRUCT(DhcpOptMsgType,
-    (MsgType,     uint8_t)
+    (MsgType,     DhcpMessageType)
 )
 
 APRINTER_TSTRUCT(DhcpOptMaxMsgSize,

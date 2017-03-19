@@ -33,6 +33,7 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/EnumUtils.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/Preprocessor.h>
 
@@ -430,34 +431,40 @@ APRINTER_TSTRUCT__FIELD_1
 
 /**
  * Structure field type handler for integer types using
- * big-endian representaion.
+ * big-endian representaion and also for enum types.
+ * 
  * These type handlers are registered by default for signed and
- * unsigned fixed-width types: intN_t and uintN_t (N=8,16,32,64).
+ * unsigned fixed-width types: intN_t and uintN_t (N=8,16,32,64)
+ * and enums using these as the underlying type.
  * 
  * Relies on ReadBinaryInt and WriteBinaryInt.
  */
 template <typename Type>
 class StructBinaryTypeHandler {
+    using IntType = APrinter::GetSameOrEnumBaseType<Type>;
     using Endian = APrinter::BinaryBigEndian;
     
 public:
-    static size_t const FieldSize = sizeof(Type);
+    static size_t const FieldSize = sizeof(IntType);
     
     using ValType = Type;
     
     inline static ValType get (char const *data)
     {
-        return APrinter::ReadBinaryInt<Type, Endian>(data);
+        return ValType(APrinter::ReadBinaryInt<IntType, Endian>(data));
     }
     
     inline static void set (char *data, ValType value)
     {
-        APrinter::WriteBinaryInt<Type, Endian>(value, data);
+        APrinter::WriteBinaryInt<IntType, Endian>(IntType(value), data);
     }
 };
 
-#define APRINTER_STRUCT_REGISTER_BINARY_TYPE(Type) \
-APRINTER_STRUCT_REGISTER_TYPE(Type, StructBinaryTypeHandler<Type>)
+#define APRINTER_STRUCT_REGISTER_BINARY_TYPE(IntType) \
+template <typename Type> \
+struct StructTypeHandler<Type, std::enable_if_t<APrinter::IsSameOrEnumWithBaseType<Type, IntType>()>> { \
+    using Handler = StructBinaryTypeHandler<Type>; \
+};
 
 APRINTER_STRUCT_REGISTER_BINARY_TYPE(uint8_t)
 APRINTER_STRUCT_REGISTER_BINARY_TYPE(uint16_t)
@@ -500,7 +507,7 @@ public:
 };
 
 template <typename Type>
-struct StructTypeHandler<Type, APrinter::EnableIf<std::is_base_of<StructBase<Type>, Type>::value, void>> {
+struct StructTypeHandler<Type, std::enable_if_t<std::is_base_of<StructBase<Type>, Type>::value>> {
     using Handler = StructNestedTypeHandler<Type>;
 };
 
@@ -645,7 +652,7 @@ public:
  * for field types based on StructByteArray.
  */
 template <typename Type>
-struct StructTypeHandler<Type, APrinter::EnableIf<std::is_base_of<StructIntArray<typename Type::ElemType, Type::Length>, Type>::value, void>> {
+struct StructTypeHandler<Type, std::enable_if_t<std::is_base_of<StructIntArray<typename Type::ElemType, Type::Length>, Type>::value>> {
     using Handler = APrinter::If<
         std::is_base_of<StructByteArray<Type::Length>, Type>::value,
         StructByteArrayTypeHandler<Type>,

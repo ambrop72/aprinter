@@ -446,8 +446,8 @@ private:
         
         // Simple checks before further processing.
         bool sane =
-            dhcp_header.get(DhcpHeader::DhcpOp())    == APrinter::ToUnderlyingType(DhcpOp::BootReply) &&
-            dhcp_header.get(DhcpHeader::DhcpHtype()) == APrinter::ToUnderlyingType(DhcpHwAddrType::Ethernet) &&
+            dhcp_header.get(DhcpHeader::DhcpOp())    == DhcpOp::BootReply &&
+            dhcp_header.get(DhcpHeader::DhcpHtype()) == DhcpHwAddrType::Ethernet &&
             dhcp_header.get(DhcpHeader::DhcpHlen())  == MacAddr::Size &&
             dhcp_header.get(DhcpHeader::DhcpXid())   == m_xid &&
             MacAddr::decode(dhcp_header.ref(DhcpHeader::DhcpChaddr())) == ethHw()->getMacAddr() &&
@@ -663,8 +663,8 @@ private:
         // Write the DHCP header.
         auto dhcp_header = DhcpHeader::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
         ::memset(dhcp_header.data, 0, DhcpHeader::Size);
-        dhcp_header.set(DhcpHeader::DhcpOp(),    APrinter::ToUnderlyingType(DhcpOp::BootRequest));
-        dhcp_header.set(DhcpHeader::DhcpHtype(), APrinter::ToUnderlyingType(DhcpHwAddrType::Ethernet));
+        dhcp_header.set(DhcpHeader::DhcpOp(),    DhcpOp::BootRequest);
+        dhcp_header.set(DhcpHeader::DhcpHtype(), DhcpHwAddrType::Ethernet);
         dhcp_header.set(DhcpHeader::DhcpHlen(),  MacAddr::Size);
         dhcp_header.set(DhcpHeader::DhcpXid(),   xid);
         ethHw()->getMacAddr().encode(dhcp_header.ref(DhcpHeader::DhcpChaddr()));
@@ -677,7 +677,7 @@ private:
         // DHCP message type
         write_option(opt_writeptr, DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
             auto opt = DhcpOptMsgType::Ref(opt_data);
-            opt.set(DhcpOptMsgType::MsgType(), APrinter::ToUnderlyingType(msg_type));
+            opt.set(DhcpOptMsgType::MsgType(), msg_type);
             return opt.Size();
         });
         
@@ -771,7 +771,7 @@ private:
     void write_option (char *&out, DhcpOptionType opt_type, PayloadFunc payload_func)
     {
         auto oh = DhcpOptionHeader::Ref(out);
-        oh.set(DhcpOptionHeader::OptType(), APrinter::ToUnderlyingType(opt_type));
+        oh.set(DhcpOptionHeader::OptType(), opt_type);
         size_t opt_len = payload_func(out + DhcpOptionHeader::Size);
         oh.set(DhcpOptionHeader::OptLen(), opt_len);
         out += DhcpOptionHeader::Size + opt_len;
@@ -828,7 +828,7 @@ private:
                     DhcpOptMsgType::Val val;
                     data.takeBytes(opt_len, val.data);
                     opts.have.dhcp_message_type = true;
-                    opts.dhcp_message_type = DhcpMessageType(val.get(DhcpOptMsgType::MsgType()));
+                    opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
                 } break;
                 
                 case DhcpOptionType::DhcpServerIdentifier: {
