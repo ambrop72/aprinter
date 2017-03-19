@@ -607,16 +607,6 @@ private:
             return;
         }
         
-        // Check destination address.
-        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
-        if (AMBRO_UNLIKELY(
-            !iface->ip4AddrIsLocalAddr(dst_addr) &&
-            !iface->ip4AddrIsLocalBcast(dst_addr) &&
-            dst_addr != Ip4Addr::AllOnesAddr()))
-        {
-            return;
-        }
-        
         // Verify IP header checksum.
         uint16_t calc_chksum = IpChksum(ip4_header.data, header_len);
         if (AMBRO_UNLIKELY(calc_chksum != 0)) {
@@ -667,6 +657,16 @@ private:
                     return;
                 }
             }
+        }
+        
+        // Check destination address.
+        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
+        if (AMBRO_UNLIKELY(
+            !iface->ip4AddrIsLocalAddr(meta.local_addr) &&
+            !iface->ip4AddrIsLocalBcast(meta.local_addr) &&
+            meta.local_addr != Ip4Addr::AllOnesAddr()))
+        {
+            return;
         }
         
         // Handle ICMP packets.

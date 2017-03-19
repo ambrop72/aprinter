@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aipstack/misc/Struct.h>
 
@@ -77,6 +78,52 @@ public:
         }
         
         return res_addr;
+    }
+    
+    template <int PrefixBits>
+    static constexpr AddrType PrefixMask ()
+    {
+        static_assert(PrefixBits <= Bits, "");
+        
+        AddrType res_addr = {};
+        int elem_idx = 0;
+        int bits_left = PrefixBits;
+        
+        while (bits_left >= ElemBits) {
+            res_addr.data[elem_idx++] = (ElemType)-1;
+            bits_left -= ElemBits;
+        }
+        
+        if (bits_left > 0) {
+            ElemType mask = ~(((ElemType)1 << (ElemBits - bits_left)) - 1);
+            res_addr.data[elem_idx++] = mask;
+        }
+        
+        while (elem_idx < Length) {
+            res_addr.data[elem_idx++] = 0;
+        }
+        
+        return res_addr;
+    }
+    
+    static constexpr AddrType FromBytes (uint8_t const bytes[IpGenericAddr::Size])
+    {
+        static_assert(IpGenericAddr::Size == 4, "");
+        AddrType addr = {};
+        int byte_idx = 0;
+        for (int elem_idx = 0; elem_idx < Length; elem_idx++) {
+            for (int i = 0; i < IpGenericAddr::ElemSize; i++) {
+                addr.data[elem_idx] |= (ElemType)bytes[byte_idx] << (8 * (IpGenericAddr::ElemSize - 1 - i));
+                byte_idx++;
+            }
+        }
+        return addr;
+    }
+    
+    static constexpr AddrType Join (
+        IpGenericAddr const &mask, IpGenericAddr const &first, IpGenericAddr const &second)
+    {
+        return (first & mask) | (second & ~mask);
     }
     
     template <typename Func>
@@ -130,7 +177,15 @@ public:
     }
 };
 
-class Ip4Addr : public IpGenericAddr<Ip4Addr, uint32_t, 1> {};
+class Ip4Addr : public IpGenericAddr<Ip4Addr, uint32_t, 1>
+{
+public:
+    static constexpr Ip4Addr FromBytes (uint8_t n1, uint8_t n2, uint8_t n3, uint8_t n4)
+    {
+        uint8_t bytes[] = {n1, n2, n3, n4};
+        return IpGenericAddr::FromBytes(bytes);
+    }
+};
 
 #include <aipstack/EndNamespace.h>
 

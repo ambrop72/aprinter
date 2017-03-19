@@ -438,6 +438,8 @@ APRINTER_TSTRUCT__FIELD_1
  */
 template <typename Type>
 class StructBinaryTypeHandler {
+    using Endian = APrinter::BinaryBigEndian;
+    
 public:
     static size_t const FieldSize = sizeof(Type);
     
@@ -445,12 +447,12 @@ public:
     
     inline static ValType get (char const *data)
     {
-        return APrinter::ReadBinaryInt<Type, APrinter::BinaryBigEndian>(data);
+        return APrinter::ReadBinaryInt<Type, Endian>(data);
     }
     
     inline static void set (char *data, ValType value)
     {
-        APrinter::WriteBinaryInt<Type, APrinter::BinaryBigEndian>(value, data);
+        APrinter::WriteBinaryInt<Type, Endian>(value, data);
     }
 };
 
@@ -609,7 +611,7 @@ public:
  * 
  * It provides:
  * - get() and set() operations using StructByteArrayVal.
- * - ref() operations using uint8_t * and uint8_t const *.
+ * - ref() operation returns char *.
  */
 template <typename TValType>
 class StructByteArrayTypeHandler {
@@ -617,7 +619,7 @@ public:
     static size_t const FieldSize = TValType::Size;
     
     using ValType = TValType;
-    using RefType = uint8_t *;
+    using RefType = char *;
     
     inline static ValType get (char const *data)
     {
@@ -633,7 +635,7 @@ public:
     
     inline static RefType ref (char *data)
     {
-        return (uint8_t *)data;
+        return data;
     }
 };
 

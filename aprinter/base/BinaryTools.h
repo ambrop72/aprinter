@@ -66,7 +66,7 @@ namespace Private {
     template <>
     struct BinaryToolsHelper<true> {
         template <typename Type, bool IsBigEndian>
-        static Type read_it (char const *src)
+        inline static Type read_it (char const *src)
         {
             using TypeInfo = IntTypeInfo<Type>;
             static_assert(TypeInfo::Signed, "");
@@ -77,7 +77,7 @@ namespace Private {
         }
         
         template <typename Type, bool IsBigEndian>
-        static void write_it (Type value, char *dst)
+        inline static void write_it (Type value, char *dst)
         {
             using TypeInfo = IntTypeInfo<Type>;
             static_assert(TypeInfo::Signed, "");
@@ -98,14 +98,14 @@ using BinaryLittleEndian = BinaryEndian<false>;
 using BinaryBigEndian = BinaryEndian<true>;
 
 template <typename Type, typename Endian>
-Type ReadBinaryInt (char const *src)
+inline Type ReadBinaryInt (char const *src)
 {
     using TypeInfo = IntTypeInfo<Type>;
     return Private::BinaryToolsHelper<TypeInfo::Signed>::template read_it<Type, Endian::IsBigEndian>(src);
 }
 
 template <typename Type, typename Endian>
-void WriteBinaryInt (Type value, char *dst)
+inline void WriteBinaryInt (Type value, char *dst)
 {
     using TypeInfo = IntTypeInfo<Type>;
     return Private::BinaryToolsHelper<TypeInfo::Signed>::template write_it<Type, Endian::IsBigEndian>(value, dst);

@@ -25,6 +25,7 @@
 #ifndef APRINTER_IPSTACK_IP_DHCP_CLIENT_H
 #define APRINTER_IPSTACK_IP_DHCP_CLIENT_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -32,10 +33,12 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/EnumUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/LoopUtils.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/system/TimedEventWrapper.h>
 
@@ -61,52 +64,79 @@ APRINTER_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::Context, IpDhcpClie
 
 template <typename Arg>
 class IpDhcpClient :
-    private IpDhcpClientTimers<Arg>::Timers,
-    private Arg::IpStack::IfaceListener
+    private Arg::IpStack::IfaceListener,
+    private IpDhcpClientTimers<Arg>::Timers
 {
     APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
-    APRINTER_USE_VALS(Arg::Params, (DhcpTTL))
+    APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
-    APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface))
+    APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
     using TheClockUtils = APrinter::ClockUtils<Context>;
     
     APRINTER_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     
+    static_assert(MaxDnsServers > 0, "");
+    
+    // DHCP client states
     enum class DhcpState {
+        // Resetting due to NAK after some time
         Resetting,
+        // Send discover, waiting for offer
         SentDiscover,
+        // Sent request after offer, waiting for ack
         SentRequest,
+        // We have a lease, not trying to renew yet
         Finished,
-        Renewing
+        // We have a lease and we're trying to renew it
+        Renewing,
     };
     
+    // Maximum number of discovery attempts before generating a new XID.
     static uint8_t const XidReuseMax = 8;
+    
+    // Maximum number of requests to send after an offer before going back to discovery.
     static uint8_t const MaxRequests = 4;
     
+    // Period for sending renew requests.
     static uint32_t const RenewRequestTimeoutSeconds = 20;
-    
-    static TimeType const ResetTimeoutTicks   = 4.0 * Clock::time_freq;
-    static TimeType const RequestTimeoutTicks = 3.0 * Clock::time_freq;
     static TimeType const RenewRequestTimeoutTicks = RenewRequestTimeoutSeconds * Clock::time_freq;
     
-    static uint32_t MaxTimerSeconds = TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq;
+    // Time after no offer to retransit a discover.
+    // Also time after a NAK to transmit a discover.
+    static TimeType const ResetTimeoutTicks   = 4.0 * Clock::time_freq;
     
+    // Time after no ack to retransmit a request.
+    static TimeType const RequestTimeoutTicks = 3.0 * Clock::time_freq;
+    
+    // Maximum future time in seconds that the timer can be set to,
+    // due to limited span of TimeType. For possibly longer periods
+    // (start of renewal, lease timeout), multiple timer expirations
+    // are used with keeping track of leftover seconds.
+    static uint32_t const MaxTimerSeconds = TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq;
+    
+    static_assert(RenewRequestTimeoutSeconds <= MaxTimerSeconds, "");
+    
+    // Determines the time after which we start trying to renew a lease.
     static constexpr uint32_t RenewTimeForLeaseTime (uint32_t lease_time)
     {
         return lease_time / 2;
     }
     
+    // Combined size of UDP and TCP headers.
     static size_t const UdpDhcpHeaderSize = Udp4Header::Size + DhcpHeader::Size;
     
+    // Helper function for calculating the size of a DHCP option.
+    // OptDataType is the payload type declared with APRINTER_TSTRUCT.
     template <typename OptDataType>
     static constexpr size_t OptSize (OptDataType)
     {
         return DhcpOptionHeader::Size + OptDataType::Size;
     }
     
+    // Maximum packet size that we could possibly transmit.
     static size_t const MaxDhcpSendMsgSize = UdpDhcpHeaderSize +
         // DHCP message type
         OptSize(DhcpOptMsgType()) +
@@ -135,59 +165,128 @@ private:
     struct {
         uint32_t ip_address_lease_time;
         Ip4Addr subnet_mask;
+        MacAddr server_mac;
         bool have_router;
         uint8_t domain_name_servers_count;
         Ip4Addr router;
         Ip4Addr domain_name_servers[MaxDnsServers];
-        MacAddr server_mac;
     } m_acked;
     
 public:
     void init (IpStack *stack, Iface *iface)
     {
+        // We only support Ethernet interfaces.
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
+        // Remember stuff.
         m_ipstack = stack;
         
+        // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
         tim(DhcpTimer()).init(Context());
         
-        start_process(true);
+        // Start discovery.
+        start_discovery(true);
     }
     
     void deinit ()
     {
+        // Remove any configuration that might have ben done.
+        handle_dhcp_down();
+        
+        // Deinit resources.
         tim(DhcpTimer()).deinit(Context());
         IfaceListener::deinit();
     }
     
 private:
-    inline IpEthHw * ethHw ()
+    // Structure representing received DHCP options.
+    struct DhcpRecvOptions {
+        // Which options have been received.
+        struct Have {
+            bool dhcp_message_type : 1;
+            bool dhcp_server_identifier : 1;
+            bool ip_address_lease_time : 1;
+            bool subnet_mask : 1;
+            bool router : 1;
+            uint8_t dns_servers;
+        } have;
+        
+        // The option values (only options set in Have are initialized).
+        DhcpMessageType dhcp_message_type;
+        uint32_t dhcp_server_identifier;
+        uint32_t ip_address_lease_time;
+        Ip4Addr subnet_mask;
+        Ip4Addr router;
+        Ip4Addr dns_servers[MaxDnsServers];
+    };
+    
+    // Structure representing DHCP options to be sent.
+    struct DhcpSendOptions {
+        // Default constructor clears the Have fields.
+        inline DhcpSendOptions ()
+        : have(Have{})
+        {}
+        
+        // Which options to send.
+        struct Have {
+            bool requested_ip_address : 1;
+            bool dhcp_server_identifier : 1;
+        } have;
+        
+        // The option values (only options set in Have are relevant).
+        Ip4Addr requested_ip_address;
+        uint32_t dhcp_server_identifier;
+    };
+    
+    // Return the interface (stored by IfaceListener).
+    inline Iface * iface ()
     {
-        return IfaceListener::getIface()->template getHwIface<IpEthHw>();
+        return IfaceListener::getIface();
     }
     
+    // Return the IpEthHw interface for the interface.
+    inline IpEthHw * ethHw ()
+    {
+        return iface()->template getHwIface<IpEthHw>();
+    }
+    
+    // This is used to achieve longer effective timeouts than
+    // can be achieved with the timers/clock directly.
+    // To start a long timeout, m_time_left is first set to the
+    // desired number of seconds, then this is called to set the
+    // timer. The timer handler checks m_time_left; if it is zero
+    // the desired time is expired, otherwise this is called
+    // again to set the timer again.
     void set_timer_for_time_left (uint32_t max_timer_seconds)
     {
+        AMBRO_ASSERT(max_timer_seconds <= MaxTimerSeconds)
+        
         uint32_t seconds = APrinter::MinValue(m_time_left, max_timer_seconds);
         m_time_left -= seconds;
         tim(DhcpTimer()).appendAfter(Context(), seconds * (TimeType)Clock::time_freq);
     }
     
-    void start_process (bool force_new_xid)
+    // Starts discovery.
+    void start_discovery (bool force_new_xid)
     {
+        // Generate a new XID if forced or the reuse count was reached.
         if (force_new_xid || m_xid_reuse_count >= XidReuseMax) {
             m_xid = Clock::getTime(Context());
             m_xid_reuse_count = 0;
         }
         
+        // Update the XID reuse count.
         m_xid_reuse_count++;
         
-        // Send Discover.
-        DhcpSendOptions opts;
-        send_message(DhcpMessageType::Discover, m_xid, opts);
+        // Send discover.
+        DhcpSendOptions send_opts;
+        send_dhcp_message(DhcpMessageType::Discover, m_xid, send_opts);
         
+        // Set the timer to restart discovery if there is no offer.
         tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
+        
+        // Going to SentDiscover state.
         m_state = DhcpState::SentDiscover;
     }
     
@@ -197,8 +296,10 @@ private:
             // Timer is set for restarting discovery.
             case DhcpState::Resetting:
             case DhcpState::SentDiscover: {
+                // Perform discovery.
+                // If this is after a NAK then force a new XID.
                 bool force_new_xid = m_state == DhcpState::Resetting;
-                start_process(force_new_xid);
+                start_discovery(force_new_xid);
             } break;
             
             // Timer is set for retransmitting request.
@@ -207,18 +308,13 @@ private:
                 AMBRO_ASSERT(m_request_count <= MaxRequests)
                 
                 // If se sent enough requests, start discovery again.
-                if (m_request_count == MaxRequests) {
-                    start_process(false);
+                if (m_request_count >= MaxRequests) {
+                    start_discovery(false);
                     return;
                 }
                 
-                // Send request.
-                DhcpSendOptions opts;
-                opts.have.requested_ip_address = true;
-                opts.have.dhcp_server_identifier = true;
-                opts.requested_ip_address = m_offered.yiaddr;
-                opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
-                send_message(DhcpMessageType::Request, m_xid, opts);
+                // Send request with server identifier.
+                send_request(true);
                 
                 // Restart timer.
                 tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
@@ -238,11 +334,8 @@ private:
                 // Set m_time_left to the time until the lease expires.
                 m_time_left = m_acked.ip_address_lease_time - RenewTimeForLeaseTime(m_acked.ip_address_lease_time);
                 
-                // Send request.
-                DhcpSendOptions opts;
-                opts.have.requested_ip_address = true;
-                opts.requested_ip_address = m_offered.yiaddr;
-                send_message(DhcpMessageType::Request, m_xid, opts);
+                // Send request without server identifier.
+                send_request(false);
                 
                 // Start timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -259,11 +352,8 @@ private:
                     return;
                 }
                 
-                // Send request.
-                DhcpSendOptions opts;
-                opts.have.requested_ip_address = true;
-                opts.requested_ip_address = m_offered.yiaddr;
-                send_message(DhcpMessageType::Request, m_xid, opts);
+                // Send request without server identifier.
+                send_request(false);
                 
                 // Restart timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -277,7 +367,7 @@ private:
     void handle_lease_expired ()
     {
         // Restart discovery.
-        start_process(true);
+        start_discovery(true);
         
         // Handle down.
         handle_dhcp_down();
@@ -285,48 +375,51 @@ private:
     
     bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
     {
-        // Check that there is a UDP header.
-        if (AMBRO_UNLIKELY(!dgram.hasHeader(Udp4Header::Size))) {
-            goto reject;
-        }
-        
-        auto udp_header = Udp4Header::MakeRef(dgram.getChunkPtr());
-        
-        // Check for expected source and destination port.
-        if (AMBRO_LIKELY(udp_header.get(Udp4Header::SrcPort()) != DhcpServerPort)) {
-            goto reject;
-        }
-        if (AMBRO_LIKELY(udp_header.get(Udp4Header::DstPort()) != DhcpClientPort)) {
-            goto reject;
-        }
-        
-        // Check UDP length.
-        uint16_t udp_length = udp_header.get(Udp4Header::Length());
-        if (AMBRO_UNLIKELY(udp_length < Udp4Header::Size || udp_length > dgram.tot_len)) {
-            goto discard;
-        }
-        
-        // Truncate dgram to UDP length.
-        dgram = dgram.subTo(udp_length);
-        
-        // Check checksum.
-        uint16_t checksum = udp_header.get(Udp4Header::Checksum());
-        if (checksum != 0) {
-            IpChksumAccumulator chksum_accum;
-            chksum_accum.addWords(&ip_meta.remote_addr.data);
-            chksum_accum.addWords(&ip_meta.local_addr.data);
-            chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
-            chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
-            chksum_accum.addIpBuf(dgram);
-            if (chksum_accum.getChksum() != 0) {
-                goto discard;
+        {
+            // Check that there is a UDP header.
+            if (AMBRO_UNLIKELY(!dgram.hasHeader(Udp4Header::Size))) {
+                goto reject;
             }
+            
+            auto udp_header = Udp4Header::MakeRef(dgram.getChunkPtr());
+            
+            // Check for expected source and destination port.
+            if (AMBRO_LIKELY(udp_header.get(Udp4Header::SrcPort()) != DhcpServerPort)) {
+                goto reject;
+            }
+            if (AMBRO_LIKELY(udp_header.get(Udp4Header::DstPort()) != DhcpClientPort)) {
+                goto reject;
+            }
+            
+            // Check UDP length.
+            uint16_t udp_length = udp_header.get(Udp4Header::Length());
+            if (AMBRO_UNLIKELY(udp_length < Udp4Header::Size || udp_length > dgram.tot_len)) {
+                goto accept;
+            }
+            
+            // Truncate data to UDP length.
+            dgram = dgram.subTo(udp_length);
+            
+            // Check UDP checksum if provided.
+            uint16_t checksum = udp_header.get(Udp4Header::Checksum());
+            if (checksum != 0) {
+                IpChksumAccumulator chksum_accum;
+                chksum_accum.addWords(&ip_meta.remote_addr.data);
+                chksum_accum.addWords(&ip_meta.local_addr.data);
+                chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
+                chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
+                chksum_accum.addIpBuf(dgram);
+                if (chksum_accum.getChksum() != 0) {
+                    goto accept;
+                }
+            }
+            
+            // Process the DHCP payload.
+            IpBufRef dhcp_msg = dgram.hideHeader(Udp4Header::Size);
+            processReceivedDhcpMessage(ip_meta, dhcp_msg);
         }
         
-        // Process message for DHCP.
-        processReceivedDhcpMessage(ip_meta, dgram.subFrom(Udp4Header::Size));
-        
-    discard:
+    accept:
         // Inhibit further processing of packet.
         return true;
         
@@ -337,6 +430,7 @@ private:
     
     void processReceivedDhcpMessage (Ip4DgramMeta const &ip_meta, IpBufRef msg)
     {
+        // In Resetting state we're not interested in any messages.
         if (m_state == DhcpState::Resetting) {
             return;
         }
@@ -346,32 +440,24 @@ private:
             return;
         }
         
-        // Copy DHCP header to contiguous memory.
+        // Copy the DHCP header to contiguous memory (this moves msg forward).
         DhcpHeader::Val dhcp_header;
         msg.takeBytes(DhcpHeader::Size, dhcp_header.data);
         
-        // Sanity checks.
-        if (dhcp_header.get(DhcpHeader::DhcpOp()) != DhcpOp::BootReply) {
-            return;
-        }
-        if (dhcp_header.get(DhcpHeader::DhcpHtype()) != DhcpHwAddrType::Ethernet) {
-            return;
-        }
-        if (dhcp_header.get(DhcpHeader::DhcpHlen()) != MacAddr::Size) {
-            return;
-        }
-        if (dhcp_header.get(DhcpHeader::DhcpXid()) != m_xid) {
-            return;
-        }
-        if (MacAddr::decode(dhcp_header.ref(DhcpHeader::DhcpChaddr())) != ethHw()->getMacAddr()) {
-            return;
-        }
-        if (dhcp_header.get(DhcpHeader::DhcpMagic()) != DhcpMagicNumber) {
+        // Simple checks before further processing.
+        bool sane =
+            dhcp_header.get(DhcpHeader::DhcpOp())    == APrinter::ToUnderlyingType(DhcpOp::BootReply) &&
+            dhcp_header.get(DhcpHeader::DhcpHtype()) == APrinter::ToUnderlyingType(DhcpHwAddrType::Ethernet) &&
+            dhcp_header.get(DhcpHeader::DhcpHlen())  == MacAddr::Size &&
+            dhcp_header.get(DhcpHeader::DhcpXid())   == m_xid &&
+            MacAddr::decode(dhcp_header.ref(DhcpHeader::DhcpChaddr())) == ethHw()->getMacAddr() &&
+            dhcp_header.get(DhcpHeader::DhcpMagic()) == DhcpMagicNumber;
+        if (!sane) {
             return;
         }
         
         // Parse DHCP options.
-        DhcpOpts opts;
+        DhcpRecvOptions opts;
         if (!parse_dhcp_options(msg, opts)) {
             return;
         }
@@ -383,72 +469,69 @@ private:
             return;
         }
         
-        // Check that there is a server identifier.
+        // Check that there is a DHCP server identifier.
         if (!opts.have.dhcp_server_identifier) {
             return;
         }
         
         // Handle NAK message.
         if (opts.dhcp_message_type == DhcpMessageType::Nak) {
-            if (m_state != OneOf(DhcpState::SentRequest, DhcpState::Finished, DhcpState::Renewing)) {
+            // In Resetting and SentDiscover we do not care about NAK.
+            if (m_state == OneOf(DhcpState::Resetting, DhcpState::SentDiscover)) {
                 return;
             }
             
+            // Ignore NAK if the DHCP server identifier does not match.
             if (opts.dhcp_server_identifier != m_offered.dhcp_server_identifier) {
                 return;
             }
             
             DhcpState prev_state = m_state;
             
+            // Set timeout to start discovery.
             tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
+            
+            // Going to Resetting state.
             m_state = DhcpState::Resetting;
             
+            // If we had a lease, remove it.
             if (prev_state == OneOf(DhcpState::Finished, DhcpState::Renewing)) {
-                // Handle down.
                 handle_dhcp_down();
             }
             
+            // Nothing else to do (further processing is for offer and ack).
             return;
         }
         
-        // Sanity check Your IP Address.
+        // Get Your IP Address.
         Ip4Addr yiaddr = dhcp_header.get(DhcpHeader::DhcpYiaddr());
-        if (yiaddr == Ip4Addr::ZeroAddr()) {
+        
+        // Sanity check configuration.
+        if (!sanityCheckAddressInfo(yiaddr, opts)) {
             return;
         }
         
-        // Check that we have an IP Address lease time.
-        if (!opts.have.ip_address_lease_time) {
-            return;
-        }
-        
-        // Check that we have a subnet mask.
-        if (!opts.have.subnet_mask) {
-            return;
-        }
-        
-        if (m_state == DhcpState::SentDiscover && opts.dhcp_message_type == DhcpMessageType::Offer) {
+        // Handle received offer in SentDiscover state.
+        if (m_state == DhcpState::SentDiscover &&
+            opts.dhcp_message_type == DhcpMessageType::Offer)
+        {
             // Remember offer.
             m_offered.yiaddr = yiaddr;
             m_offered.dhcp_server_identifier = opts.dhcp_server_identifier;
             
-            // Send request.
-            DhcpSendOptions opts;
-            opts.have.requested_ip_address = true;
-            opts.have.dhcp_server_identifier = true;
-            opts.requested_ip_address = m_offered.yiaddr;
-            opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
-            send_message(DhcpMessageType::Request, m_xid, opts);
+            // Send request with server identifier.
+            send_request(true);
             
-            // Start timer for request.
+            // Start timer for retransmitting request or reverting to discovery.
             tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
             
-            // Go to state SentRequest.
+            // Going to state SentRequest.
             m_state = DhcpState::SentRequest;
             
-            // Initialize request count.
+            // Initialize the request count.
             m_request_count = 1;
         }
+        // Handle received Ack in SentRequest or Renewing state.
         else if (m_state == OneOf(DhcpState::SentRequest, DhcpState::Renewing) &&
                  opts.dhcp_message_type == DhcpMessageType::Ack)
         {
@@ -459,104 +542,148 @@ private:
                 return;
             }
             
+            // Remember the lease time.
+            m_acked.ip_address_lease_time = opts.ip_address_lease_time;
+            
+            // If we are in SentRequest state, remember lease information.
+            // TODO: Handle possible changes of this info somehow.
             if (m_state == DhcpState::SentRequest) {
-                // Remember information.
                 m_acked.subnet_mask = opts.subnet_mask;
                 m_acked.have_router = opts.have.router;
-                if (opts.have.router) {
-                    m_acked.router = opts.router;
-                }
+                m_acked.router = opts.have.router ? opts.router : Ip4Addr::ZeroAddr();
                 m_acked.domain_name_servers_count = opts.have.dns_servers;
                 ::memcpy(m_acked.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
                 m_acked.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
             }
             
-            // Remember the lease time.
-            m_acked.ip_address_lease_time = opts.ip_address_lease_time;
-            
-            // Go to state Finished.
             DhcpState prev_state = m_state;
+            
+            // Going to state Finished.
             m_state = DhcpState::Finished;
             
-            // Start renew timeout.
+            // Start timeout for renewing.
             m_time_left = RenewTimeForLeaseTime(m_acked.ip_address_lease_time);
             set_timer_for_time_left(MaxTimerSeconds);
             
-            // If we were in SentRequest state (not renewing), handle up.
+            // If this is a new lease, apply IP configuration etc.
             if (prev_state == DhcpState::SentRequest) {
                 handle_dhcp_up();
             }
         }
     }
     
+    // Checks received address information.
+    // It may modify certain info in the opts that is
+    // considered invalid but not fatal.
+    static bool sanityCheckAddressInfo (Ip4Addr const &addr, DhcpRecvOptions &opts)
+    {
+        // Check that we have an IP Address lease time and a subnet mask.
+        if (!opts.have.ip_address_lease_time || !opts.have.subnet_mask) {
+            return false;
+        }
+        
+        // Check that it's not all zeros or all ones.
+        if (addr == Ip4Addr::ZeroAddr() || addr == Ip4Addr::AllOnesAddr()) {
+            return false;
+        }
+        
+        // Check that the subnet mask is sane.
+        if (opts.subnet_mask != Ip4Addr::PrefixMask(opts.subnet_mask.countLeadingOnes())) {
+            return false;
+        }
+        
+        // Check that it's not a loopback address.
+        if ((addr & Ip4Addr::PrefixMask<8>()) == Ip4Addr::FromBytes(127, 0, 0, 0)) {
+            return false;
+        }
+        
+        // Check that that it's not a multicast address.
+        if ((addr & Ip4Addr::PrefixMask<4>()) == Ip4Addr::FromBytes(224, 0, 0, 0)) {
+            return false;
+        }
+        
+        // Check that it's not the local broadcast address.
+        Ip4Addr local_bcast = Ip4Addr::Join(opts.subnet_mask, addr, Ip4Addr::AllOnesAddr());
+        if (addr == local_bcast) {
+            return false;
+        }
+        
+        // If there is a router, check that it is within the subnet.
+        if (opts.have.router) {
+            if ((opts.router & opts.subnet_mask) != (addr & opts.subnet_mask)) {
+                // Ignore bad router.
+                opts.have.router = false;
+            }
+        }
+        
+        return true;
+    }
+    
     void handle_dhcp_up ()
     {
-        Iface *iface = IfaceListener::getIface();
-        
         // Set IP address with prefix length.
         uint8_t prefix = m_acked.subnet_mask.countLeadingOnes();
-        iface->setIp4Addr(IpIfaceIp4AddrSetting{true, prefix, m_offered.yiaddr});
+        iface()->setIp4Addr(IpIfaceIp4AddrSetting{true, prefix, m_offered.yiaddr});
         
         // Set gateway if provided.
         if (m_acked.have_router) {
-            iface->setIp4Gateway(IpIfaceIp4GatewaySetting{true, m_acked.router});
+            iface()->setIp4Gateway(IpIfaceIp4GatewaySetting{true, m_acked.router});
         }
     }
     
     void handle_dhcp_down ()
     {
-        Iface *iface = IfaceListener::getIface();
-        
         // Remove gateway.
-        iface->setIp4Gateway(IpIfaceIp4GatewaySetting{false});
+        iface()->setIp4Gateway(IpIfaceIp4GatewaySetting{false});
         
         // Remove IP address.
-        iface->setIp4Addr(IpIfaceIp4AddrSetting{false});
+        iface()->setIp4Addr(IpIfaceIp4AddrSetting{false});
     }
     
-    struct DhcpSendOptions {
-        inline DhcpSendOptions ()
-        : have(Have{})
-        {}
-        
-        struct Have {
-            bool requested_ip_address : 1;
-            bool dhcp_server_identifier : 1;
-        } have;
-        
-        Ip4Addr requested_ip_address;
-        uint32_t dhcp_server_identifier;
-    };
-    
-    void send_message (DhcpMessageType msg_type, uint32_t xid, DhcpSendOptions const &opts)
+    // Send a DHCP request message.
+    void send_request (bool send_server_identifier)
     {
+        DhcpSendOptions send_opts;
+        send_opts.have.requested_ip_address = true;
+        send_opts.requested_ip_address = m_offered.yiaddr;
+        if (send_server_identifier) {
+            send_opts.have.dhcp_server_identifier = true;
+            send_opts.dhcp_server_identifier = m_offered.dhcp_server_identifier;
+        }
+        send_dhcp_message(DhcpMessageType::Request, m_xid, send_opts);
+    }
+    
+    // Send a DHCP message.
+    void send_dhcp_message (DhcpMessageType msg_type, uint32_t xid, DhcpSendOptions const &opts)
+    {
+        // Get a buffer for the message.
         using AllocHelperType = TxAllocHelper<BufAllocator, MaxDhcpSendMsgSize, HeaderBeforeIp4Dgram>;
         AllocHelperType dgram_alloc(MaxDhcpSendMsgSize);
         
         // Write the DHCP header.
         auto dhcp_header = DhcpHeader::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
         ::memset(dhcp_header.data, 0, DhcpHeader::Size);
-        dhcp_header.set(DhcpHeader::DhcpOp(),    DhcpOpBootRequest);
-        dhcp_header.set(DhcpHeader::DhcpHtype(), DhcpHwAddrType::Ethernet);
+        dhcp_header.set(DhcpHeader::DhcpOp(),    APrinter::ToUnderlyingType(DhcpOp::BootRequest));
+        dhcp_header.set(DhcpHeader::DhcpHtype(), APrinter::ToUnderlyingType(DhcpHwAddrType::Ethernet));
         dhcp_header.set(DhcpHeader::DhcpHlen(),  MacAddr::Size);
         dhcp_header.set(DhcpHeader::DhcpXid(),   xid);
         ethHw()->getMacAddr().encode(dhcp_header.ref(DhcpHeader::DhcpChaddr()));
         dhcp_header.set(DhcpHeader::DhcpMagic(), DhcpMagicNumber);
         
-        // Write options.
-        // NOTE: If adding new options, adjust the MaxDhcpSendMsgSize calculation.
+        // Write options; opt_writeptr will be incremented as options are written.
+        // NOTE: If adding new options, adjust the MaxDhcpSendMsgSize definition.
         char *opt_writeptr = dgram_alloc.getPtr() + UdpDhcpHeaderSize;
         
         // DHCP message type
-        add_option(opt_writeptr, DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
+        write_option(opt_writeptr, DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
             auto opt = DhcpOptMsgType::Ref(opt_data);
-            opt.set(DhcpOptMsgType::MsgType(), msg_type);
+            opt.set(DhcpOptMsgType::MsgType(), APrinter::ToUnderlyingType(msg_type));
             return opt.Size();
         });
         
-        // requested IP address
+        // Requested IP address
         if (opts.have.requested_ip_address) {
-            add_option(opt_writeptr, DhcpOptionType::RequestedIpAddress, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::RequestedIpAddress, [&](char *opt_data) {
                 auto opt = DhcpOptAddr::Ref(opt_data);
                 opt.set(DhcpOptAddr::Addr(), opts.requested_ip_address);
                 return opt.Size();
@@ -565,23 +692,23 @@ private:
         
         // DHCP server identifier
         if (opts.have.dhcp_server_identifier) {
-            add_option(opt_writeptr, DhcpOptionType::DhcpServerIdentifier, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::DhcpServerIdentifier, [&](char *opt_data) {
                 auto opt = DhcpOptServerId::Ref(opt_data);
                 opt.set(DhcpOptServerId::ServerId(), opts.dhcp_server_identifier);
                 return opt.Size();
             });
         }
         
-        // maximum message size
-        add_option(opt_writeptr, DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
+        // Maximum message size
+        write_option(opt_writeptr, DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
             auto opt = DhcpOptMaxMsgSize::Ref(opt_data);
-            opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), IfaceListener::getIface()->getMtu());
+            opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), iface()->getMtu());
             return opt.Size();
         });
         
-        // parameter request list
-        add_option(opt_writeptr, DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
-            uint8_t opt[] = {
+        // Parameter request list
+        write_option(opt_writeptr, DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
+            DhcpOptionType opt[] = {
                 DhcpOptionType::SubnetMask,
                 DhcpOptionType::Router,
                 DhcpOptionType::DomainNameServer,
@@ -593,7 +720,7 @@ private:
         
         // end option
         {
-            uint8_t end = DhcpOptionType::End;
+            DhcpOptionType end = DhcpOptionType::End;
             ::memcpy(opt_writeptr, &end, sizeof(end));
             opt_writeptr += sizeof(end);
         }
@@ -615,17 +742,17 @@ private:
         
         // Define information for IP.
         Ip4DgramMeta ip_meta = {
-            Ip4Addr::ZeroAddr(),       // local_addr
-            Ip4Addr::AllOnesAddr(),    // remote_addr
-            DhcpTTL,                   // ttl
-            Ip4ProtocolUdp,            // proto
-            IfaceListener::getIface(), // iface
+            Ip4Addr::ZeroAddr(),    // local_addr
+            Ip4Addr::AllOnesAddr(), // remote_addr
+            DhcpTTL,                // ttl
+            Ip4ProtocolUdp,         // proto
+            iface(),                // iface
         };
         
         // Calculate UDP checksum.
         IpChksumAccumulator chksum_accum;
-        chksum_accum.addWords(&ip_meta.remote_addr.data);
         chksum_accum.addWords(&ip_meta.local_addr.data);
+        chksum_accum.addWords(&ip_meta.remote_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), ip_meta.proto);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
         chksum_accum.addIpBuf(dgram);
@@ -639,44 +766,29 @@ private:
         m_ipstack->sendIp4Dgram(ip_meta, dgram);
     }
     
+    // Helper function for encoding DHCP options.
     template <typename PayloadFunc>
-    void add_option (char *&out, DhcpOptionType opt_type, PayloadFunc payload_func)
+    void write_option (char *&out, DhcpOptionType opt_type, PayloadFunc payload_func)
     {
         auto oh = DhcpOptionHeader::Ref(out);
-        oh.set(DhcpOptionHeader::OptType(), opt_type);
+        oh.set(DhcpOptionHeader::OptType(), APrinter::ToUnderlyingType(opt_type));
         size_t opt_len = payload_func(out + DhcpOptionHeader::Size);
         oh.set(DhcpOptionHeader::OptLen(), opt_len);
         out += DhcpOptionHeader::Size + opt_len;
     }
     
-    struct DhcpOpts {
-        struct Have {
-            bool dhcp_message_type : 1;
-            bool dhcp_server_identifier : 1;
-            bool ip_address_lease_time : 1;
-            bool subnet_mask : 1;
-            bool router : 1;
-            uint8_t dns_servers;
-        } have;
-        
-        uint8_t dhcp_message_type;
-        uint32_t dhcp_server_identifier;
-        uint32_t ip_address_lease_time;
-        Ip4Addr subnet_mask;
-        Ip4Addr router;
-        Ip4Addr dns_servers[MaxDnsServers];
-    };
-    
-    static bool parse_dhcp_options (IpBufRef data, DhcpOpts &opts)
+    // Parse DHCP options from a buffer into DhcpRecvOptions.
+    static bool parse_dhcp_options (IpBufRef data, DhcpRecvOptions &opts)
     {
         // Clear all the "have" fields.
-        opts.have = DhcpOpts::Have{};
+        opts.have = typename DhcpRecvOptions::Have{};
         
+        // Whether we have seen the end option.
         bool have_end = false;
         
         while (data.tot_len > 0) {
             // Read option type.
-            uint8_t opt_type = data.takeByte();
+            DhcpOptionType opt_type = DhcpOptionType(data.takeByte());
             
             // Pad option?
             if (opt_type == DhcpOptionType::Pad) {
@@ -716,7 +828,7 @@ private:
                     DhcpOptMsgType::Val val;
                     data.takeBytes(opt_len, val.data);
                     opts.have.dhcp_message_type = true;
-                    opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
+                    opts.dhcp_message_type = DhcpMessageType(val.get(DhcpOptMsgType::MsgType()));
                 } break;
                 
                 case DhcpOptionType::DhcpServerIdentifier: {
@@ -764,7 +876,8 @@ private:
                         goto skip_data;
                     }
                     uint8_t num_servers = opt_len / DhcpOptAddr::Size;
-                    for (uint8_t i = 0; i < num_servers; i++) {
+                    for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
+                        // Must consume all servers from data even if we can't save them.
                         DhcpOptAddr::Val val;
                         data.takeBytes(DhcpOptAddr::Size, val.data);
                         if (opts.have.dns_servers < MaxDnsServers) {
@@ -773,9 +886,9 @@ private:
                     }
                 } break;
                 
+                // Unknown or bad option, consume the option data.
                 skip_data:
                 default: {
-                    // Unknown or bad option, skip over the option data.
                     data.skipBytes(opt_len);
                 } break;
             }
@@ -788,7 +901,6 @@ private:
         
         return true;
     }
-    
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (

@@ -42,6 +42,7 @@
 #include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
+#include <aipstack/ip/IpDhcpClient.h>
 #include <aipstack/tcp/IpTcpProto.h>
 #include <aipstack/eth/EthIpIface.h>
 
@@ -110,6 +111,12 @@ private:
     >;
     APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator, typename Iface::CallbackImpl>))
     
+    using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
+        64, // DhcpTTL
+        2   // MaxDnsServers
+    >;
+    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack, TheBufAllocator>))
+    
 public:
     using TcpProto = TheIpTcpProto;
     
@@ -142,10 +149,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->event_listeners.isEmpty())
         
-        if (o->activation_state == ACTIVATED) {
-            o->ip_iface.deinit();
-            o->eth_ip_iface.deinit();
-        }
+        deinit_iface();
         o->ip_tcp_proto.deinit();
         o->ip_stack.deinit();
         TheEthernet::deinit(c);
@@ -168,10 +172,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state != NOT_ACTIVATED)
         
-        if (o->activation_state == ACTIVATED) {
-            o->ip_iface.deinit();
-            o->eth_ip_iface.deinit();
-        }
+        deinit_iface();
         TheEthernet::reset(c);
         o->activation_state = NOT_ACTIVATED;
         o->driver_proxy.clear();
@@ -210,6 +211,7 @@ public:
         if (o->activation_state == ACTIVATED) {
             memcpy(status.mac_addr, TheEthernet::getMacAddr(c)->data, 6);
             status.link_up = TheEthernet::getLinkUp(c);
+            status.dhcp_enabled = o->dhcp_enabled;
             
             auto addr_setting = o->ip_iface.getIp4Addr();
             if (addr_setting.present) {
@@ -303,6 +305,19 @@ public:
     static_assert(TcpWndUpdThrDiv >= 2, "");
     
 private:
+    static void deinit_iface ()
+    {
+        auto *o = Object::self(Context());
+        
+        if (o->activation_state == ACTIVATED) {
+            if (o->dhcp_enabled) {
+                o->dhcp_client.deinit();
+            }
+            o->ip_iface.deinit();
+            o->eth_ip_iface.deinit();
+        }
+    }
+    
     using DriverCallbackImpl = typename TheEthIpIface::CallbackImpl;
     
     class EthDriverProxy : public AIpStack::EthIfaceDriver<DriverCallbackImpl> {
@@ -356,11 +371,15 @@ private:
             o->activation_state = ACTIVATE_FAILED;
         } else {
             o->activation_state = ACTIVATED;
+            o->dhcp_enabled = false;
             
             o->eth_ip_iface.init(&o->driver_proxy);
             o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
             
-            if (!o->config.dhcp_enabled) {
+            if (o->config.dhcp_enabled) {
+                o->dhcp_client.init(&o->ip_stack, &o->ip_iface);
+                o->dhcp_enabled = true;
+            } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
                 Ip4Addr gateway = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
@@ -437,6 +456,8 @@ public:
         EthActivateState activation_state;
         EthDriverProxy driver_proxy;
         TheEthIpIface eth_ip_iface;
+        bool dhcp_enabled;
+        TheIpDhcpClient dhcp_client;
         Iface ip_iface;
         NetworkParams config;
     };
