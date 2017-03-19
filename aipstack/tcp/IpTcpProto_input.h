@@ -61,8 +61,8 @@ class IpTcpProto_input
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
-        // The local address must be the address of the incoming interface.
-        if (!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.local_addr)) {
+        // The destination address must be the address of the incoming interface.
+        if (!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr)) {
             return;
         }
         
@@ -90,8 +90,8 @@ public:
         
         // Check TCP checksum.
         IpChksumAccumulator chksum_accum;
-        chksum_accum.addWords(&ip_meta.local_addr.data);
-        chksum_accum.addWords(&ip_meta.remote_addr.data);
+        chksum_accum.addWords(&ip_meta.src_addr.data);
+        chksum_accum.addWords(&ip_meta.dst_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         chksum_accum.addIpBuf(dgram);
@@ -111,7 +111,7 @@ public:
         tcp_meta.opts = &tcp_opts;
         
         // Try to handle using a PCB.
-        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.local_addr, tcp_meta.local_port, ip_meta.remote_addr, tcp_meta.remote_port);
+        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.dst_addr, tcp_meta.local_port, ip_meta.src_addr, tcp_meta.remote_port);
         if (pcb != nullptr) {
             AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
             tcp->m_current_pcb = pcb;
@@ -124,7 +124,7 @@ public:
         for (TcpListener *lis = tcp->m_listeners_list.first(); lis != nullptr; lis = tcp->m_listeners_list.next(lis)) {
             AMBRO_ASSERT(lis->m_listening)
             if (lis->m_port == tcp_meta.local_port &&
-                (lis->m_addr == ip_meta.local_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
+                (lis->m_addr == ip_meta.dst_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
             {
                 return listen_input(lis, ip_meta, tcp_meta, tcp_data.tot_len);
             }
@@ -159,7 +159,7 @@ public:
         SeqType seq_num      = tcp_header.get(Tcp4Header::SeqNum());
         
         // Look for a PCB associated with these addresses.
-        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.local_addr, local_port, ip_meta.remote_addr, remote_port);
+        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.src_addr, local_port, ip_meta.dst_addr, remote_port);
         if (pcb == nullptr) {
             return;
         }
@@ -263,8 +263,8 @@ private:
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
             pcb->lis = lis;
-            pcb->local_addr = ip_meta.local_addr;
-            pcb->remote_addr = ip_meta.remote_addr;
+            pcb->local_addr = ip_meta.dst_addr;
+            pcb->remote_addr = ip_meta.src_addr;
             pcb->local_port = tcp_meta.local_port;
             pcb->remote_port = tcp_meta.remote_port;
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);

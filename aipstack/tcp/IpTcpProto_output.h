@@ -756,7 +756,7 @@ public:
             rst_ack_num = tcp_meta.seq_num + tcplen(tcp_meta.flags, tcp_data_len);
         }
         
-        send_rst(tcp, ip_meta.local_addr, ip_meta.remote_addr,
+        send_rst(tcp, ip_meta.dst_addr, ip_meta.src_addr,
                  tcp_meta.local_port, tcp_meta.remote_port,
                  rst_seq_num, rst_ack, rst_ack_num);
     }

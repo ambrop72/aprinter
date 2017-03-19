@@ -133,8 +133,8 @@ public:
     
 public:
     struct Ip4DgramMeta {
-        Ip4Addr local_addr;
-        Ip4Addr remote_addr;
+        Ip4Addr src_addr;
+        Ip4Addr dst_addr;
         uint8_t ttl;
         uint8_t proto;
         Iface *iface;
@@ -153,7 +153,7 @@ public:
         // Find an interface and address for output.
         Iface *route_iface;
         Ip4Addr route_addr;
-        if (!routeIp4(meta.remote_addr, meta.iface, &route_iface, &route_addr)) {
+        if (!routeIp4(meta.dst_addr, meta.iface, &route_iface, &route_addr)) {
             return IpErr::NO_IP_ROUTE;
         }
         
@@ -190,8 +190,8 @@ public:
         ip4_header.set(Ip4Header::TimeToLive(),   meta.ttl);
         ip4_header.set(Ip4Header::Protocol(),     meta.proto);
         ip4_header.set(Ip4Header::HeaderChksum(), 0);
-        ip4_header.set(Ip4Header::SrcAddr(),      meta.local_addr);
-        ip4_header.set(Ip4Header::DstAddr(),      meta.remote_addr);
+        ip4_header.set(Ip4Header::SrcAddr(),      meta.src_addr);
+        ip4_header.set(Ip4Header::DstAddr(),      meta.dst_addr);
         
         // Calculate the IP header checksum.
         uint16_t calc_chksum = IpChksum(ip4_header.data, Ip4Header::Size);
@@ -635,7 +635,7 @@ private:
         }
         
         // Create the datagram meta-info struct.
-        Ip4DgramMeta meta = {dst_addr, src_addr, ttl, proto, iface};
+        Ip4DgramMeta meta = {src_addr, dst_addr, ttl, proto, iface};
         
         // Do the real processing now that the datagram is complete and
         // sanity checked.
@@ -662,9 +662,9 @@ private:
         // Check destination address.
         // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
         if (AMBRO_UNLIKELY(
-            !iface->ip4AddrIsLocalAddr(meta.local_addr) &&
-            !iface->ip4AddrIsLocalBcast(meta.local_addr) &&
-            meta.local_addr != Ip4Addr::AllOnesAddr()))
+            !iface->ip4AddrIsLocalAddr(meta.dst_addr) &&
+            !iface->ip4AddrIsLocalBcast(meta.dst_addr) &&
+            meta.dst_addr != Ip4Addr::AllOnesAddr()))
         {
             return;
         }
@@ -706,7 +706,7 @@ private:
         
         if (type == Icmp4TypeEchoRequest) {
             // Got echo request, send echo reply.
-            sendIcmp4EchoReply(rest, icmp_data, meta.remote_addr, meta.iface);
+            sendIcmp4EchoReply(rest, icmp_data, meta.src_addr, meta.iface);
         }
         else if (type == Icmp4TypeDestUnreach) {
             handleIcmp4DestUnreach(code, rest, icmp_data, meta.iface);

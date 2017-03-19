@@ -349,8 +349,8 @@ private:
             uint16_t checksum = udp_header.get(Udp4Header::Checksum());
             if (checksum != 0) {
                 IpChksumAccumulator chksum_accum;
-                chksum_accum.addWords(&ip_meta.remote_addr.data);
-                chksum_accum.addWords(&ip_meta.local_addr.data);
+                chksum_accum.addWords(&ip_meta.src_addr.data);
+                chksum_accum.addWords(&ip_meta.dst_addr.data);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
                 chksum_accum.addIpBuf(dgram);
@@ -361,7 +361,7 @@ private:
             
             // Process the DHCP payload.
             IpBufRef dhcp_msg = dgram.hideHeader(Udp4Header::Size);
-            processReceivedDhcpMessage(ip_meta, dhcp_msg);
+            processReceivedDhcpMessage(dhcp_msg);
         }
         
     accept:
@@ -373,7 +373,7 @@ private:
         return false;
     }
     
-    void processReceivedDhcpMessage (Ip4DgramMeta const &ip_meta, IpBufRef msg)
+    void processReceivedDhcpMessage (IpBufRef msg)
     {
         // In Resetting state we're not interested in any messages.
         if (m_state == DhcpState::Resetting) {
@@ -636,8 +636,8 @@ private:
         
         // Define information for IP.
         Ip4DgramMeta ip_meta = {
-            Ip4Addr::ZeroAddr(),    // local_addr
-            Ip4Addr::AllOnesAddr(), // remote_addr
+            Ip4Addr::ZeroAddr(),    // src_addr
+            Ip4Addr::AllOnesAddr(), // dst_addr
             DhcpTTL,                // ttl
             Ip4ProtocolUdp,         // proto
             iface(),                // iface
@@ -645,8 +645,8 @@ private:
         
         // Calculate UDP checksum.
         IpChksumAccumulator chksum_accum;
-        chksum_accum.addWords(&ip_meta.local_addr.data);
-        chksum_accum.addWords(&ip_meta.remote_addr.data);
+        chksum_accum.addWords(&ip_meta.src_addr.data);
+        chksum_accum.addWords(&ip_meta.dst_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), ip_meta.proto);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
         chksum_accum.addIpBuf(dgram);
