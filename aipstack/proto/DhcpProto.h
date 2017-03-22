@@ -83,7 +83,7 @@ enum class DhcpMessageType : uint8_t {
     Release = 7,
 };
 
-APRINTER_TSTRUCT(DhcpHeader,
+APRINTER_TSTRUCT(DhcpHeader1,
     (DhcpOp,      AIpStack::DhcpOp)
     (DhcpHtype,   DhcpHwAddrType)
     (DhcpHlen,    uint8_t)
@@ -96,10 +96,18 @@ APRINTER_TSTRUCT(DhcpHeader,
     (DhcpSiaddr,  Ip4Addr)
     (DhcpGiaddr,  Ip4Addr)
     (DhcpChaddr,  StructByteArray<16>)
+)
+
+APRINTER_TSTRUCT(DhcpHeader2,
     (DhcpSname,   StructByteArray<64>)
     (DhcpFile,    StructByteArray<128>)
+)
+
+APRINTER_TSTRUCT(DhcpHeader3,
     (DhcpMagic,   uint32_t)
 )
+
+static size_t const DhcpHeaderSize = DhcpHeader1::Size + DhcpHeader2::Size + DhcpHeader3::Size;
 
 APRINTER_TSTRUCT(DhcpOptionHeader,
     (OptType,     DhcpOptionType)

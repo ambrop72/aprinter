@@ -429,6 +429,21 @@ struct IpBufRef {
             new_tot_len
         };
     }
+    
+    /**
+     * Return a sub-range of the buffer reference from the given
+     * offset of the given length.
+     * 
+     * This is implemented by calling skipBytes(offset) on a copy
+     * of this object then returning subTo(len) of this copy.
+     */
+    inline IpBufRef subFromTo (size_t offset, size_t len) const
+    {
+        IpBufRef buf = *this;
+        buf.skipBytes(offset);
+        buf = buf.subTo(len);
+        return buf;
+    }
 };
 
 #include <aipstack/EndNamespace.h>

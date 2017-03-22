@@ -33,6 +33,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/Assert.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Struct.h>
@@ -132,10 +133,9 @@ public:
     };
     
     // Parse DHCP options from a buffer into DhcpRecvOptions.
-    static bool parseOptions (DhcpHeader::Ref header, IpBufRef data, DhcpRecvOptions &opts)
+    static bool parseOptions (IpBufRef dhcp_header2, IpBufRef data, DhcpRecvOptions &opts)
     {
-        // Buffer node for the header, used for parsing options from header regions.
-        IpBufNode header_node = {header.data, DhcpHeader::Size};
+        AMBRO_ASSERT(dhcp_header2.tot_len == DhcpHeader2::Size)
         
         // Clear all the "have" fields.
         opts.have = typename DhcpRecvOptions::Have{};
@@ -289,7 +289,7 @@ public:
             {
                 // Parse options in file.
                 region = OptionRegion::File;
-                data = IpBufRef{&header_node, DhcpHeader::getOffset(DhcpHeader::DhcpFile()), 128};
+                data = dhcp_header2.subFromTo(64, 128);
             }
             else if (
                 (region == OptionRegion::Options && option_overload == DhcpOptionOverload::SnameOptions) ||
@@ -297,7 +297,7 @@ public:
             ) {
                 // Parse options in sname.
                 region = OptionRegion::Sname;
-                data = IpBufRef{&header_node, DhcpHeader::getOffset(DhcpHeader::DhcpSname()), 64};
+                data = dhcp_header2.subFromTo(0, 64);
             }
             else {
                 // Done parsing options.

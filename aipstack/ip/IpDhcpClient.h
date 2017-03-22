@@ -160,7 +160,7 @@ class IpDhcpClient :
     }
     
     // Combined size of UDP and TCP headers.
-    static size_t const UdpDhcpHeaderSize = Udp4Header::Size + DhcpHeader::Size;
+    static size_t const UdpDhcpHeaderSize = Udp4Header::Size + DhcpHeaderSize;
     
     // Maximum packet size that we could possibly transmit.
     static size_t const MaxDhcpSendMsgSize = UdpDhcpHeaderSize + Options::MaxOptionsSendSize;
@@ -426,30 +426,44 @@ private:
             return;
         }
         
-        // Check that there is a DHCP header.
-        if (msg.tot_len < DhcpHeader::Size) {
+        // Check that there is a DHCP header and that the first portion is contiguous.
+        if (msg.tot_len < DhcpHeaderSize || !msg.hasHeader(DhcpHeader1::Size)) {
             return;
         }
         
-        // Copy the DHCP header to contiguous memory (this moves msg forward).
-        DhcpHeader::Val dhcp_header;
-        msg.takeBytes(DhcpHeader::Size, dhcp_header.data);
+        // Reference the first header part.
+        auto dhcp_header1 = DhcpHeader1::MakeRef(msg.getChunkPtr());
         
         // Simple checks before further processing.
         bool sane =
-            dhcp_header.get(DhcpHeader::DhcpOp())    == DhcpOp::BootReply &&
-            dhcp_header.get(DhcpHeader::DhcpHtype()) == DhcpHwAddrType::Ethernet &&
-            dhcp_header.get(DhcpHeader::DhcpHlen())  == MacAddr::Size &&
-            dhcp_header.get(DhcpHeader::DhcpXid())   == m_xid &&
-            MacAddr::decode(dhcp_header.ref(DhcpHeader::DhcpChaddr())) == ethHw()->getMacAddr() &&
-            dhcp_header.get(DhcpHeader::DhcpMagic()) == DhcpMagicNumber;
+            dhcp_header1.get(DhcpHeader1::DhcpOp())    == DhcpOp::BootReply &&
+            dhcp_header1.get(DhcpHeader1::DhcpHtype()) == DhcpHwAddrType::Ethernet &&
+            dhcp_header1.get(DhcpHeader1::DhcpHlen())  == MacAddr::Size &&
+            dhcp_header1.get(DhcpHeader1::DhcpXid())   == m_xid &&
+            MacAddr::decode(dhcp_header1.ref(DhcpHeader1::DhcpChaddr())) == ethHw()->getMacAddr();
         if (!sane) {
+            return;
+        }
+        
+        // Skip the first header part.
+        msg = msg.hideHeader(DhcpHeader1::Size);
+        
+        // Get and skip the middle header part (sname and file).
+        IpBufRef dhcp_header2 = msg.subTo(DhcpHeader2::Size);
+        msg.skipBytes(DhcpHeader2::Size);
+        
+        // Read and skip the final header part (magic number).
+        DhcpHeader3::Val dhcp_header3;
+        msg.takeBytes(DhcpHeader3::Size, dhcp_header3.data);
+        
+        // Check the magic number.
+        if (dhcp_header3.get(DhcpHeader3::DhcpMagic()) != DhcpMagicNumber) {
             return;
         }
         
         // Parse DHCP options.
         DhcpRecvOptions opts;
-        if (!Options::parseOptions(dhcp_header, msg, opts)) {
+        if (!Options::parseOptions(dhcp_header2, msg, opts)) {
             return;
         }
         
@@ -495,7 +509,7 @@ private:
         }
         
         // Get Your IP Address.
-        Ip4Addr ip_address = dhcp_header.get(DhcpHeader::DhcpYiaddr());
+        Ip4Addr ip_address = dhcp_header1.get(DhcpHeader1::DhcpYiaddr());
         
         // Sanity check configuration.
         if (!sanityCheckAddressInfo(ip_address, opts)) {
@@ -670,15 +684,16 @@ private:
         AllocHelperType dgram_alloc(MaxDhcpSendMsgSize);
         
         // Write the DHCP header.
-        auto dhcp_header = DhcpHeader::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
-        ::memset(dhcp_header.data, 0, DhcpHeader::Size);
-        dhcp_header.set(DhcpHeader::DhcpOp(),     DhcpOp::BootRequest);
-        dhcp_header.set(DhcpHeader::DhcpHtype(),  DhcpHwAddrType::Ethernet);
-        dhcp_header.set(DhcpHeader::DhcpHlen(),   MacAddr::Size);
-        dhcp_header.set(DhcpHeader::DhcpXid(),    m_xid);
-        dhcp_header.set(DhcpHeader::DhcpCiaddr(), ciaddr);
-        ethHw()->getMacAddr().encode(dhcp_header.ref(DhcpHeader::DhcpChaddr()));
-        dhcp_header.set(DhcpHeader::DhcpMagic(),  DhcpMagicNumber);
+        auto dhcp_header1 = DhcpHeader1::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
+        ::memset(dhcp_header1.data, 0, DhcpHeaderSize); // zero entire DHCP header
+        dhcp_header1.set(DhcpHeader1::DhcpOp(),     DhcpOp::BootRequest);
+        dhcp_header1.set(DhcpHeader1::DhcpHtype(),  DhcpHwAddrType::Ethernet);
+        dhcp_header1.set(DhcpHeader1::DhcpHlen(),   MacAddr::Size);
+        dhcp_header1.set(DhcpHeader1::DhcpXid(),    m_xid);
+        dhcp_header1.set(DhcpHeader1::DhcpCiaddr(), ciaddr);
+        ethHw()->getMacAddr().encode(dhcp_header1.ref(DhcpHeader1::DhcpChaddr()));
+        auto dhcp_header3 = DhcpHeader3::MakeRef(dhcp_header1.data + DhcpHeader1::Size + DhcpHeader2::Size);
+        dhcp_header3.set(DhcpHeader3::DhcpMagic(),  DhcpMagicNumber);
         
         // Write the DHCP options.
         char *opt_startptr = dgram_alloc.getPtr() + UdpDhcpHeaderSize;
