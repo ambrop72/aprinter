@@ -169,6 +169,19 @@ public:
     }
     
     /**
+     * Get the offset of a field.
+     * 
+     * @tparam Field field identifier
+     * @return field offset in bytes
+     */
+    template <typename Field>
+    inline static size_t getOffset (Field)
+    {
+        using Info = GetFieldInfo<Field>;
+        return Info::FieldOffset;
+    }
+    
+    /**
      * Reads a field.
      * 
      * @tparam Field field identifier

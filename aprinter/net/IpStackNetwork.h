@@ -113,7 +113,9 @@ private:
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
         64, // DhcpTTL
-        2   // MaxDnsServers
+        2,  // MaxDnsServers
+        0,  // MaxClientIdSize
+        0   // MaxVendorClassIdSize
     >;
     APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack, TheBufAllocator>))
     
@@ -378,7 +380,8 @@ private:
             
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
-                o->dhcp_client.init(&o->ip_stack, &o->ip_iface, &o->dhcp_client_callback);
+                AIpStack::IpDhcpClientInitOptions dhcp_opts;
+                o->dhcp_client.init(&o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);

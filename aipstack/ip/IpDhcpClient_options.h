@@ -29,7 +29,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/LoopUtils.h>
+#include <aprinter/base/MemRef.h>
+#include <aprinter/base/OneOf.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Struct.h>
@@ -39,31 +42,49 @@
 #include <aipstack/BeginNamespace.h>
 
 template <
-    uint8_t MaxDnsServers
+    uint8_t MaxDnsServers,
+    uint8_t MaxClientIdSize,
+    uint8_t MaxVendorClassIdSize
 >
 class IpDhcpClient_options
 {
-    // Helper function for calculating the size of a DHCP option.
+    APRINTER_USE_ONEOF
+    
+    // Calculates option size for given option data size.
+    static constexpr size_t OptSize (size_t data_size)
+    {
+        return DhcpOptionHeader::Size + data_size;
+    }
+    
+    // Calculates the size of a DHCP option.
     // OptDataType is the payload type declared with APRINTER_TSTRUCT.
     template <typename OptDataType>
-    static constexpr size_t OptSize (OptDataType)
+    static constexpr size_t OptSize ()
     {
-        return DhcpOptionHeader::Size + OptDataType::Size;
+        return OptSize(OptDataType::Size);
     }
+    
+    
+    // Possible regions where options can be located from.
+    enum class OptionRegion {Options, File, Sname};
     
 public:
     // Maximum packet size that we could possibly transmit.
     static size_t const MaxOptionsSendSize =
         // DHCP message type
-        OptSize(DhcpOptMsgType()) +
+        OptSize<DhcpOptMsgType>() +
         // requested IP address
-        OptSize(DhcpOptAddr()) +
+        OptSize<DhcpOptAddr>() +
         // DHCP server identifier
-        OptSize(DhcpOptServerId()) +
+        OptSize<DhcpOptServerId>() +
         // maximum message size
-        OptSize(DhcpOptMaxMsgSize()) +
+        OptSize<DhcpOptMaxMsgSize>() +
         // parameter request list
-        DhcpOptionHeader::Size + 4 +
+        OptSize(4) +
+        // client identifier
+        OptSize(MaxClientIdSize) +
+        // vendor class identifier
+        OptSize(MaxVendorClassIdSize) +
         // end
         1;
     
@@ -99,133 +120,189 @@ public:
         struct Have {
             bool requested_ip_address : 1;
             bool dhcp_server_identifier : 1;
+            bool client_identifier : 1;
+            bool vendor_class_identifier : 1;
         } have;
         
         // The option values (only options set in Have are relevant).
         Ip4Addr requested_ip_address;
         uint32_t dhcp_server_identifier;
+        APrinter::MemRef client_identifier;
+        APrinter::MemRef vendor_class_identifier;
     };
     
     // Parse DHCP options from a buffer into DhcpRecvOptions.
-    static bool parseOptions (IpBufRef data, DhcpRecvOptions &opts)
+    static bool parseOptions (DhcpHeader::Ref header, IpBufRef data, DhcpRecvOptions &opts)
     {
+        // Buffer node for the header, used for parsing options from header regions.
+        IpBufNode header_node = {header.data, DhcpHeader::Size};
+        
         // Clear all the "have" fields.
         opts.have = typename DhcpRecvOptions::Have{};
         
-        // Whether we have seen the end option.
-        bool have_end = false;
+        // The region of options we are currently parsing.
+        // We start by parsing the "options" region which the data
+        // argument initially refers to.
+        OptionRegion region = OptionRegion::Options;
         
-        while (data.tot_len > 0) {
-            // Read option type.
-            DhcpOptionType opt_type = DhcpOptionType(data.takeByte());
+        // The option overload mode (defined by the OptionOverload option).
+        DhcpOptionOverload option_overload = DhcpOptionOverload::None;
+        
+        // This loop is for parsing different regions of options.
+        while (true) {
+            // Whether we have seen the end option (in this region).
+            bool have_end = false;
             
-            // Pad option?
-            if (opt_type == DhcpOptionType::Pad) {
-                continue;
-            }
-            
-            // It is an error for options other than pad to follow
-            // the end option.
-            if (have_end) {
-                return false;
-            }
-            
-            // End option?
-            if (opt_type == DhcpOptionType::End) {
-                // Skip over any following pad options.
-                have_end = true;
-                continue;
-            }
-            
-            // Read option length.
-            if (data.tot_len == 0) {
-                return false;
-            }
-            uint8_t opt_len = data.takeByte();
-            
-            // Check option length.
-            if (opt_len > data.tot_len) {
-                return false;
-            }
-            
-            // Handle different options.
-            switch (opt_type) {
-                case DhcpOptionType::DhcpMessageType: {
-                    if (opt_len != DhcpOptMsgType::Size) {
-                        goto skip_data;
-                    }
-                    DhcpOptMsgType::Val val;
-                    data.takeBytes(opt_len, val.data);
-                    opts.have.dhcp_message_type = true;
-                    opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
-                } break;
+            while (data.tot_len > 0) {
+                // Read option type.
+                DhcpOptionType opt_type = DhcpOptionType(data.takeByte());
                 
-                case DhcpOptionType::DhcpServerIdentifier: {
-                    if (opt_len != DhcpOptServerId::Size) {
-                        goto skip_data;
-                    }
-                    DhcpOptServerId::Val val;
-                    data.takeBytes(opt_len, val.data);
-                    opts.have.dhcp_server_identifier = true;
-                    opts.dhcp_server_identifier = val.get(DhcpOptServerId::ServerId());
-                } break;
+                // Pad option?
+                if (opt_type == DhcpOptionType::Pad) {
+                    continue;
+                }
                 
-                case DhcpOptionType::IpAddressLeaseTime: {
-                    if (opt_len != DhcpOptTime::Size) {
-                        goto skip_data;
-                    }
-                    DhcpOptTime::Val val;
-                    data.takeBytes(opt_len, val.data);
-                    opts.have.ip_address_lease_time = true;
-                    opts.ip_address_lease_time = val.get(DhcpOptTime::Time());
-                } break;
+                // It is an error for options other than pad to follow
+                // the end option.
+                if (have_end) {
+                    return false;
+                }
                 
-                case DhcpOptionType::SubnetMask: {
-                    if (opt_len != DhcpOptAddr::Size) {
-                        goto skip_data;
-                    }
-                    DhcpOptAddr::Val val;
-                    data.takeBytes(opt_len, val.data);
-                    opts.have.subnet_mask = true;
-                    opts.subnet_mask = val.get(DhcpOptAddr::Addr());
-                } break;
+                // End option?
+                if (opt_type == DhcpOptionType::End) {
+                    // Skip over any following pad options.
+                    have_end = true;
+                    continue;
+                }
                 
-                case DhcpOptionType::Router: {
-                    if (opt_len != DhcpOptAddr::Size) {
-                        goto skip_data;
-                    }
-                    DhcpOptAddr::Val val;
-                    data.takeBytes(opt_len, val.data);
-                    opts.have.router = true;
-                    opts.router = val.get(DhcpOptAddr::Addr());
-                } break;
+                // Read option length.
+                if (data.tot_len == 0) {
+                    return false;
+                }
+                uint8_t opt_len = data.takeByte();
                 
-                case DhcpOptionType::DomainNameServer: {
-                    if (opt_len % DhcpOptAddr::Size != 0) {
-                        goto skip_data;
-                    }
-                    uint8_t num_servers = opt_len / DhcpOptAddr::Size;
-                    for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
-                        // Must consume all servers from data even if we can't save them.
+                // Check option length.
+                if (opt_len > data.tot_len) {
+                    return false;
+                }
+                
+                // Handle different options.
+                switch (opt_type) {
+                    case DhcpOptionType::DhcpMessageType: {
+                        if (opt_len != DhcpOptMsgType::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptMsgType::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.dhcp_message_type = true;
+                        opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
+                    } break;
+                    
+                    case DhcpOptionType::DhcpServerIdentifier: {
+                        if (opt_len != DhcpOptServerId::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptServerId::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.dhcp_server_identifier = true;
+                        opts.dhcp_server_identifier = val.get(DhcpOptServerId::ServerId());
+                    } break;
+                    
+                    case DhcpOptionType::IpAddressLeaseTime: {
+                        if (opt_len != DhcpOptTime::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptTime::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.ip_address_lease_time = true;
+                        opts.ip_address_lease_time = val.get(DhcpOptTime::Time());
+                    } break;
+                    
+                    case DhcpOptionType::SubnetMask: {
+                        if (opt_len != DhcpOptAddr::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptAddr::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.subnet_mask = true;
+                        opts.subnet_mask = val.get(DhcpOptAddr::Addr());
+                    } break;
+                    
+                    case DhcpOptionType::Router: {
+                        // We only care about the first router.
+                        if (opt_len % DhcpOptAddr::Size != 0 || opt_len == 0 || opts.have.router) {
+                            goto skip_data;
+                        }
                         DhcpOptAddr::Val val;
                         data.takeBytes(DhcpOptAddr::Size, val.data);
-                        if (opts.have.dns_servers < MaxDnsServers) {
-                            opts.dns_servers[opts.have.dns_servers++] = val.get(DhcpOptAddr::Addr());
+                        opts.have.router = true;
+                        opts.router = val.get(DhcpOptAddr::Addr());
+                        data.skipBytes(opt_len - DhcpOptAddr::Size);
+                    } break;
+                    
+                    case DhcpOptionType::DomainNameServer: {
+                        if (opt_len % DhcpOptAddr::Size != 0) {
+                            goto skip_data;
                         }
-                    }
-                } break;
-                
-                // Unknown or bad option, consume the option data.
-                skip_data:
-                default: {
-                    data.skipBytes(opt_len);
-                } break;
+                        uint8_t num_servers = opt_len / DhcpOptAddr::Size;
+                        for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
+                            // Must consume all servers from data even if we can't save them.
+                            DhcpOptAddr::Val val;
+                            data.takeBytes(DhcpOptAddr::Size, val.data);
+                            if (opts.have.dns_servers < MaxDnsServers) {
+                                opts.dns_servers[opts.have.dns_servers++] = val.get(DhcpOptAddr::Addr());
+                            }
+                        }
+                    } break;
+                    
+                    case DhcpOptionType::OptionOverload: {
+                        // Ignore if it appears in the file or sname region.
+                        if (opt_len != DhcpOptOptionOverload::Size || region != OptionRegion::Options) {
+                            goto skip_data;
+                        }
+                        DhcpOptOptionOverload::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        DhcpOptionOverload overload_val = val.get(DhcpOptOptionOverload::Overload());
+                        if (overload_val == OneOf(DhcpOptionOverload::FileOptions,
+                            DhcpOptionOverload::SnameOptions, DhcpOptionOverload::FileSnameOptions))
+                        {
+                            option_overload = overload_val;
+                        }
+                    } break;
+                    
+                    // Unknown or bad option, consume the option data.
+                    skip_data:
+                    default: {
+                        data.skipBytes(opt_len);
+                    } break;
+                }
             }
-        }
-        
-        // Check that the end option was found.
-        if (!have_end) {
-            return false;
+            
+            // Check that the end option was found.
+            if (!have_end) {
+                return false;
+            }
+            
+            // Check if we need to continue parsing options from another region.
+            if (region == OptionRegion::Options &&
+                option_overload == OneOf(DhcpOptionOverload::FileOptions, DhcpOptionOverload::FileSnameOptions))
+            {
+                // Parse options in file.
+                region = OptionRegion::File;
+                data = IpBufRef{&header_node, DhcpHeader::getOffset(DhcpHeader::DhcpFile()), 128};
+            }
+            else if (
+                (region == OptionRegion::Options && option_overload == DhcpOptionOverload::SnameOptions) ||
+                (region == OptionRegion::File && option_overload == DhcpOptionOverload::FileSnameOptions)
+            ) {
+                // Parse options in sname.
+                region = OptionRegion::Sname;
+                data = IpBufRef{&header_node, DhcpHeader::getOffset(DhcpHeader::DhcpSname()), 64};
+            }
+            else {
+                // Done parsing options.
+                break;
+            }
         }
         
         return true;
@@ -291,6 +368,24 @@ public:
             ::memcpy(opt_data, opt, sizeof(opt));
             return sizeof(opt);
         });
+        
+        // Client identifier
+        if (opts.have.client_identifier) {
+            uint8_t eff_len = APrinter::MinValueU(MaxClientIdSize, opts.client_identifier.len);
+            write_option(DhcpOptionType::ClientIdentifier, [&](char *opt_data) {
+                ::memcpy(opt_data, opts.client_identifier.ptr, eff_len);
+                return eff_len;
+            });
+        }
+        
+        // Vendor class identifier
+        if (opts.have.vendor_class_identifier) {
+            uint8_t eff_len = APrinter::MinValueU(MaxVendorClassIdSize, opts.vendor_class_identifier.len);
+            write_option(DhcpOptionType::VendorClassIdentifier, [&](char *opt_data) {
+                ::memcpy(opt_data, opts.vendor_class_identifier.ptr, eff_len);
+                return eff_len;
+            });
+        }
         
         // end option
         WriteSingleField<DhcpOptionType>(opt_writeptr++, DhcpOptionType::End);

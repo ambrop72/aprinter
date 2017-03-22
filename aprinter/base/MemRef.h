@@ -48,6 +48,11 @@ struct MemRef {
     {
     }
     
+    inline static MemRef Null ()
+    {
+        return MemRef(nullptr, 0);
+    }
+    
     inline char at (size_t pos) const
     {
         AMBRO_ASSERT(ptr)

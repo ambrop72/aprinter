@@ -41,6 +41,13 @@ enum class DhcpHwAddrType : uint8_t {
     Ethernet = 1,
 };
 
+enum class DhcpOptionOverload : uint8_t {
+    None = 0, // used internally only
+    FileOptions = 1,
+    SnameOptions = 2,
+    FileSnameOptions = 3,
+};
+
 static uint32_t const DhcpMagicNumber = UINT32_C(0x63825363);
 
 static uint16_t const DhcpServerPort = 67;
@@ -55,6 +62,7 @@ enum class DhcpOptionType : uint8_t {
     HostName = 12,
     RequestedIpAddress = 50,
     IpAddressLeaseTime = 51,
+    OptionOverload = 52,
     DhcpMessageType = 53,
     DhcpServerIdentifier = 54,
     ParameterRequestList = 55,
@@ -116,6 +124,10 @@ APRINTER_TSTRUCT(DhcpOptTime,
 
 APRINTER_TSTRUCT(DhcpOptAddr,
     (Addr,        Ip4Addr)
+)
+
+APRINTER_TSTRUCT(DhcpOptOptionOverload,
+    (Overload,    DhcpOptionOverload)
 )
 
 #include <aipstack/EndNamespace.h>

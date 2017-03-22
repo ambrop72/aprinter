@@ -38,6 +38,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/MemRef.h>
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/system/TimedEventWrapper.h>
 
@@ -65,6 +66,26 @@ public:
     virtual void dhcpLeaseEvent (LeaseEventType event_type) = 0;
 };
 
+// Initialization options for DHCP client.
+class IpDhcpClientInitOptions {
+public:
+    // Constructor which sets default values.
+    inline IpDhcpClientInitOptions ()
+    : client_id(APrinter::MemRef::Null()),
+      vendor_class_id(APrinter::MemRef::Null())
+    {}
+    
+    // Client identifier, empty/null to not send.
+    // If given, the pointed-to memory must be valid
+    // as long as the DHCP client is initialized.
+    APrinter::MemRef client_id;
+    
+    // Vendor class identifier, empty/null to not send.
+    // If given, the pointed-to memory must be valid
+    // as long as the DHCP client is initialized.
+    APrinter::MemRef vendor_class_id;
+};
+
 template <typename Arg>
 class IpDhcpClient;
 
@@ -77,7 +98,7 @@ class IpDhcpClient :
     private IpDhcpClientTimers<Arg>::Timers
 {
     APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
-    APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers))
+    APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener))
@@ -88,7 +109,7 @@ class IpDhcpClient :
     
     APRINTER_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     
-    using Options = IpDhcpClient_options<MaxDnsServers>;
+    using Options = IpDhcpClient_options<MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize>;
     APRINTER_USE_TYPES1(Options, (DhcpRecvOptions, DhcpSendOptions))
     
     static_assert(MaxDnsServers > 0, "");
@@ -164,6 +185,8 @@ public:
 private:
     IpStack *m_ipstack;
     IpDhcpClientCallback *m_callback;
+    APrinter::MemRef m_client_id;
+    APrinter::MemRef m_vendor_class_id;
     uint32_t m_xid;
     DhcpState m_state;
     uint8_t m_xid_reuse_count;
@@ -172,7 +195,7 @@ private:
     LeaseInfo m_info;
     
 public:
-    void init (IpStack *stack, Iface *iface, IpDhcpClientCallback *callback)
+    void init (IpStack *stack, Iface *iface, IpDhcpClientInitOptions const &opts, IpDhcpClientCallback *callback)
     {
         // We only support Ethernet interfaces.
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
@@ -180,6 +203,8 @@ public:
         // Remember stuff.
         m_ipstack = stack;
         m_callback = callback;
+        m_client_id = opts.client_id;
+        m_vendor_class_id = opts.vendor_class_id;
         
         // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
@@ -254,7 +279,7 @@ private:
         
         // Send discover.
         DhcpSendOptions send_opts;
-        send_dhcp_message(DhcpMessageType::Discover, m_xid, send_opts);
+        send_dhcp_message(DhcpMessageType::Discover, send_opts, Ip4Addr::ZeroAddr());
         
         // Set the timer to restart discovery if there is no offer.
         tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
@@ -286,8 +311,8 @@ private:
                     return;
                 }
                 
-                // Send request with server identifier.
-                send_request(true);
+                // Send request.
+                send_request(false);
                 
                 // Restart timer.
                 tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
@@ -307,8 +332,8 @@ private:
                 // Set m_time_left to the time until the lease expires.
                 m_time_left = m_info.lease_time_s - RenewTimeForLeaseTime(m_info.lease_time_s);
                 
-                // Send request without server identifier.
-                send_request(false);
+                // Send request.
+                send_request(true);
                 
                 // Start timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -327,8 +352,8 @@ private:
                     return;
                 }
                 
-                // Send request without server identifier.
-                send_request(false);
+                // Send request.
+                send_request(true);
                 
                 // Restart timer for sending request or lease timeout.
                 set_timer_for_time_left(RenewRequestTimeoutSeconds);
@@ -424,7 +449,7 @@ private:
         
         // Parse DHCP options.
         DhcpRecvOptions opts;
-        if (!Options::parseOptions(msg, opts)) {
+        if (!Options::parseOptions(dhcp_header, msg, opts)) {
             return;
         }
         
@@ -485,8 +510,8 @@ private:
             m_info.ip_address = ip_address;
             m_info.dhcp_server_identifier = opts.dhcp_server_identifier;
             
-            // Send request with server identifier.
-            send_request(true);
+            // Send request.
+            send_request(false);
             
             // Start timer for retransmitting request or reverting to discovery.
             tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
@@ -609,21 +634,37 @@ private:
     }
     
     // Send a DHCP request message.
-    void send_request (bool send_server_identifier)
+    void send_request (bool have_lease)
     {
         DhcpSendOptions send_opts;
+        Ip4Addr ciaddr = Ip4Addr::ZeroAddr();
+        
         send_opts.have.requested_ip_address = true;
         send_opts.requested_ip_address = m_info.ip_address;
-        if (send_server_identifier) {
+        
+        if (have_lease) {
+            ciaddr = m_info.ip_address;
+        } else {
             send_opts.have.dhcp_server_identifier = true;
             send_opts.dhcp_server_identifier = m_info.dhcp_server_identifier;
         }
-        send_dhcp_message(DhcpMessageType::Request, m_xid, send_opts);
+        
+        send_dhcp_message(DhcpMessageType::Request, send_opts, ciaddr);
     }
     
     // Send a DHCP message.
-    void send_dhcp_message (DhcpMessageType msg_type, uint32_t xid, DhcpSendOptions const &opts)
+    void send_dhcp_message (DhcpMessageType msg_type, DhcpSendOptions &opts, Ip4Addr ciaddr)
     {
+        // Add client identifier and vendor class identifier if configured.
+        if (m_client_id.len > 0) {
+            opts.have.client_identifier = true;
+            opts.client_identifier = m_client_id;
+        }
+        if (m_vendor_class_id.len > 0) {
+            opts.have.vendor_class_identifier = true;
+            opts.vendor_class_identifier = m_vendor_class_id;
+        }
+        
         // Get a buffer for the message.
         using AllocHelperType = TxAllocHelper<BufAllocator, MaxDhcpSendMsgSize, HeaderBeforeIp4Dgram>;
         AllocHelperType dgram_alloc(MaxDhcpSendMsgSize);
@@ -631,12 +672,13 @@ private:
         // Write the DHCP header.
         auto dhcp_header = DhcpHeader::MakeRef(dgram_alloc.getPtr() + Udp4Header::Size);
         ::memset(dhcp_header.data, 0, DhcpHeader::Size);
-        dhcp_header.set(DhcpHeader::DhcpOp(),    DhcpOp::BootRequest);
-        dhcp_header.set(DhcpHeader::DhcpHtype(), DhcpHwAddrType::Ethernet);
-        dhcp_header.set(DhcpHeader::DhcpHlen(),  MacAddr::Size);
-        dhcp_header.set(DhcpHeader::DhcpXid(),   xid);
+        dhcp_header.set(DhcpHeader::DhcpOp(),     DhcpOp::BootRequest);
+        dhcp_header.set(DhcpHeader::DhcpHtype(),  DhcpHwAddrType::Ethernet);
+        dhcp_header.set(DhcpHeader::DhcpHlen(),   MacAddr::Size);
+        dhcp_header.set(DhcpHeader::DhcpXid(),    m_xid);
+        dhcp_header.set(DhcpHeader::DhcpCiaddr(), ciaddr);
         ethHw()->getMacAddr().encode(dhcp_header.ref(DhcpHeader::DhcpChaddr()));
-        dhcp_header.set(DhcpHeader::DhcpMagic(), DhcpMagicNumber);
+        dhcp_header.set(DhcpHeader::DhcpMagic(),  DhcpMagicNumber);
         
         // Write the DHCP options.
         char *opt_startptr = dgram_alloc.getPtr() + UdpDhcpHeaderSize;
@@ -659,7 +701,7 @@ private:
         
         // Define information for IP.
         Ip4DgramMeta ip_meta = {
-            Ip4Addr::ZeroAddr(),    // src_addr
+            ciaddr,                 // src_addr
             Ip4Addr::AllOnesAddr(), // dst_addr
             DhcpTTL,                // ttl
             Ip4ProtocolUdp,         // proto
@@ -686,7 +728,9 @@ private:
 
 APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
     APRINTER_AS_VALUE(uint8_t, DhcpTTL),
-    APRINTER_AS_VALUE(uint8_t, MaxDnsServers)
+    APRINTER_AS_VALUE(uint8_t, MaxDnsServers),
+    APRINTER_AS_VALUE(uint8_t, MaxClientIdSize),
+    APRINTER_AS_VALUE(uint8_t, MaxVendorClassIdSize)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
