@@ -156,8 +156,9 @@ class IpDhcpClient :
     
     static_assert(MaxTimerSeconds >= 255, "");
     
-    // Determines the time after which we start trying to renew a lease.
-    static constexpr uint32_t RenewTimeForLeaseTime (uint32_t lease_time_s)
+    // Determines the time after which we start trying to renew a lease,
+    // if the server did not specify it.
+    static constexpr uint32_t DefaultRenewTimeForLeaseTime (uint32_t lease_time_s)
     {
         return lease_time_s / 2;
     }
@@ -564,8 +565,8 @@ private:
         // Get Your IP Address.
         Ip4Addr ip_address = dhcp_header1.get(DhcpHeader1::DhcpYiaddr());
         
-        // Sanity check configuration.
-        if (!sanityCheckAddressInfo(ip_address, opts)) {
+        // Sanity check and fixup configuration.
+        if (!checkAndFixupAddressInfo(ip_address, opts)) {
             return;
         }
         
@@ -615,10 +616,10 @@ private:
             // Going to state Finished.
             m_state = DhcpState::Finished;
             
-            // Set time left until least timeout and renewing.
+            // Set time left until lease timeout and renewing.
             m_lease_time_left = m_info.lease_time_s;
-            m_time_left = RenewTimeForLeaseTime(m_info.lease_time_s);
-            AMBRO_ASSERT(m_time_left <= m_lease_time_left)
+            m_time_left = opts.renewal_time;
+            AMBRO_ASSERT(m_time_left <= m_lease_time_left) // assured in checkAndFixupAddressInfo
             
             // Start timeout for renewing.
             set_timer_for_time_left_dec(&m_lease_time_left);
@@ -631,7 +632,7 @@ private:
     // Checks received address information.
     // It may modify certain info in the opts that is
     // considered invalid but not fatal.
-    static bool sanityCheckAddressInfo (Ip4Addr const &addr, DhcpRecvOptions &opts)
+    static bool checkAndFixupAddressInfo (Ip4Addr const &addr, DhcpRecvOptions &opts)
     {
         // Check that we have an IP Address lease time.
         if (!opts.have.ip_address_lease_time) {
@@ -690,6 +691,15 @@ private:
                 // Ignore bad router.
                 opts.have.router = false;
             }
+        }
+        
+        // If there is no renewal time, assume a default.
+        if (!opts.have.renewal_time) {
+            opts.renewal_time = DefaultRenewTimeForLeaseTime(opts.ip_address_lease_time);
+        }
+        // Make sure the renewal time does not exceed the lease time.
+        if (opts.renewal_time > opts.ip_address_lease_time) {
+            opts.renewal_time = opts.ip_address_lease_time;
         }
         
         return true;

@@ -81,7 +81,7 @@ public:
         // maximum message size
         OptSize<DhcpOptMaxMsgSize>() +
         // parameter request list
-        OptSize(4) +
+        OptSize(5) +
         // client identifier
         OptSize(MaxClientIdSize) +
         // vendor class identifier
@@ -96,6 +96,7 @@ public:
             bool dhcp_message_type : 1;
             bool dhcp_server_identifier : 1;
             bool ip_address_lease_time : 1;
+            bool renewal_time : 1;
             bool subnet_mask : 1;
             bool router : 1;
             uint8_t dns_servers;
@@ -105,6 +106,7 @@ public:
         DhcpMessageType dhcp_message_type;
         uint32_t dhcp_server_identifier;
         uint32_t ip_address_lease_time;
+        uint32_t renewal_time;
         Ip4Addr subnet_mask;
         Ip4Addr router;
         Ip4Addr dns_servers[MaxDnsServers];
@@ -216,6 +218,16 @@ public:
                         data.takeBytes(opt_len, val.data);
                         opts.have.ip_address_lease_time = true;
                         opts.ip_address_lease_time = val.get(DhcpOptTime::Time());
+                    } break;
+                    
+                    case DhcpOptionType::RenewalTimeValue: {
+                        if (opt_len != DhcpOptTime::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptTime::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.renewal_time = true;
+                        opts.renewal_time = val.get(DhcpOptTime::Time());
                     } break;
                     
                     case DhcpOptionType::SubnetMask: {
@@ -359,11 +371,13 @@ public:
         
         // Parameter request list
         write_option(DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
+            // NOTE: If changing options here then adjust MaxOptionsSendSize.
             DhcpOptionType opt[] = {
                 DhcpOptionType::SubnetMask,
                 DhcpOptionType::Router,
                 DhcpOptionType::DomainNameServer,
                 DhcpOptionType::IpAddressLeaseTime,
+                DhcpOptionType::RenewalTimeValue,
             };
             ::memcpy(opt_data, opt, sizeof(opt));
             return sizeof(opt);
