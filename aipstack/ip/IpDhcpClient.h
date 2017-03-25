@@ -132,31 +132,34 @@ class IpDhcpClient :
     static uint8_t const XidReuseMax = 8;
     
     // Maximum number of requests to send after an offer before going back to discovery.
-    static uint8_t const MaxRequests = 4;
+    static uint8_t const MaxRequests = 3;
     
-    // Period for sending renew requests.
-    static uint32_t const RenewRequestTimeoutSeconds = 20;
-    static TimeType const RenewRequestTimeoutTicks = RenewRequestTimeoutSeconds * Clock::time_freq;
+    // Base retransmission timeout.
+    static uint8_t const BaseRtxTimeoutSeconds = 3;
     
-    // Time after no offer to retransit a discover.
-    // Also time after a NAK to transmit a discover.
-    static TimeType const ResetTimeoutTicks   = 4.0 * Clock::time_freq;
+    // Maximum retransmission timeout.
+    static uint8_t const MaxRtxTimeoutSeconds = 64;
     
-    // Time after no ack to retransmit a request.
-    static TimeType const RequestTimeoutTicks = 3.0 * Clock::time_freq;
+    // Time after a NAK to transmit a discover.
+    static uint8_t const ResetTimeoutSeconds = 3;
+    
+    // Minimum request retransmission time when renewing.
+    static uint8_t const MinRenewRtxTimeoutSeconds = 60;
     
     // Maximum future time in seconds that the timer can be set to,
     // due to limited span of TimeType. For possibly longer periods
     // (start of renewal, lease timeout), multiple timer expirations
     // are used with keeping track of leftover seconds.
-    static uint32_t const MaxTimerSeconds = TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq;
+    static uint32_t const MaxTimerSeconds = APrinter::MinValueU(
+        std::numeric_limits<uint32_t>::max(),
+        TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq);
     
-    static_assert(RenewRequestTimeoutSeconds <= MaxTimerSeconds, "");
+    static_assert(MaxTimerSeconds >= 255, "");
     
     // Determines the time after which we start trying to renew a lease.
-    static constexpr uint32_t RenewTimeForLeaseTime (uint32_t lease_time)
+    static constexpr uint32_t RenewTimeForLeaseTime (uint32_t lease_time_s)
     {
-        return lease_time / 2;
+        return lease_time_s / 2;
     }
     
     // Combined size of UDP and TCP headers.
@@ -188,10 +191,12 @@ private:
     APrinter::MemRef m_client_id;
     APrinter::MemRef m_vendor_class_id;
     uint32_t m_xid;
+    uint8_t m_rtx_timeout;
     DhcpState m_state;
     uint8_t m_xid_reuse_count;
     uint8_t m_request_count;
     uint32_t m_time_left;
+    uint32_t m_lease_time_left;
     LeaseInfo m_info;
     
 public:
@@ -211,7 +216,7 @@ public:
         tim(DhcpTimer()).init(Context());
         
         // Start discovery.
-        start_discovery(true);
+        start_discovery(true, true);
     }
     
     void deinit ()
@@ -249,6 +254,13 @@ private:
         return iface()->template getHwIface<IpEthHw>();
     }
     
+    // Convert seconds (no more than MaxTimerSeconds) to ticks.
+    inline static TimeType SecondsToTicks (uint32_t seconds)
+    {
+        AMBRO_ASSERT(seconds <= MaxTimerSeconds)
+        return seconds * (TimeType)Clock::time_freq;
+    }
+    
     // This is used to achieve longer effective timeouts than
     // can be achieved with the timers/clock directly.
     // To start a long timeout, m_time_left is first set to the
@@ -256,17 +268,38 @@ private:
     // timer. The timer handler checks m_time_left; if it is zero
     // the desired time is expired, otherwise this is called
     // again to set the timer again.
-    void set_timer_for_time_left (uint32_t max_timer_seconds)
+    uint32_t set_timer_for_time_left ()
     {
-        AMBRO_ASSERT(max_timer_seconds <= MaxTimerSeconds)
-        
-        uint32_t seconds = APrinter::MinValue(m_time_left, max_timer_seconds);
+        uint32_t seconds = APrinter::MinValue(m_time_left, MaxTimerSeconds);
         m_time_left -= seconds;
-        tim(DhcpTimer()).appendAfter(Context(), seconds * (TimeType)Clock::time_freq);
+        tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(seconds));
+        return seconds;
     }
     
-    // Starts discovery.
-    void start_discovery (bool force_new_xid)
+    // Like set_timer_for_time_left above but decrements *decrement_seconds
+    // by the number of seconds the timer has been set to.
+    void set_timer_for_time_left_dec (uint32_t *decrement_seconds)
+    {
+        uint32_t timer_seconds = set_timer_for_time_left();
+        AMBRO_ASSERT(*decrement_seconds >= timer_seconds)
+        *decrement_seconds -= timer_seconds;
+    }
+    
+    // Set the retransmission timeout to BaseRtxTimeoutSeconds.
+    void reset_rtx_timeout ()
+    {
+        m_rtx_timeout = BaseRtxTimeoutSeconds;
+    }
+    
+    // Double the retransmission timeout, but to no more than MaxRtxTimeoutSeconds.
+    void double_rtx_timeout ()
+    {
+        m_rtx_timeout = (m_rtx_timeout > MaxRtxTimeoutSeconds / 2) ?
+            MaxRtxTimeoutSeconds : (2 * m_rtx_timeout);
+    }
+    
+    // Send a discover and manage the XID and retransmission timeout.
+    void start_discovery (bool force_new_xid, bool do_reset_rtx_timeout)
     {
         // Generate a new XID if forced or the reuse count was reached.
         if (force_new_xid || m_xid_reuse_count >= XidReuseMax) {
@@ -274,18 +307,25 @@ private:
             m_xid_reuse_count = 0;
         }
         
-        // Update the XID reuse count.
+        // Increment the XID reuse count.
         m_xid_reuse_count++;
+        
+        // Update the retransmission timeout.
+        if (do_reset_rtx_timeout) {
+            reset_rtx_timeout();
+        } else {
+            double_rtx_timeout();
+        }
         
         // Send discover.
         DhcpSendOptions send_opts;
         send_dhcp_message(DhcpMessageType::Discover, send_opts, Ip4Addr::ZeroAddr());
         
-        // Set the timer to restart discovery if there is no offer.
-        tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
-        
         // Going to SentDiscover state.
         m_state = DhcpState::SentDiscover;
+        
+        // Set the timer to send another discover if there is no offer.
+        tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
     }
     
     void timerExpired (DhcpTimer, Context)
@@ -294,10 +334,11 @@ private:
             // Timer is set for restarting discovery.
             case DhcpState::Resetting:
             case DhcpState::SentDiscover: {
-                // Perform discovery.
-                // If this is after a NAK then force a new XID.
-                bool force_new_xid = m_state == DhcpState::Resetting;
-                start_discovery(force_new_xid);
+                // Send a discover.
+                // If this is after a NAK then force a new XID and reset the
+                // retransmission timeout.
+                bool resetting = m_state == DhcpState::Resetting;
+                start_discovery(resetting, resetting);
             } break;
             
             // Timer is set for retransmitting request.
@@ -307,61 +348,73 @@ private:
                 
                 // If se sent enough requests, start discovery again.
                 if (m_request_count >= MaxRequests) {
-                    start_discovery(false);
+                    start_discovery(false, true);
                     return;
                 }
                 
                 // Send request.
                 send_request(false);
                 
-                // Restart timer.
-                tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
-                
                 // Increment request count.
                 m_request_count++;
+                
+                // Restart timer with doubled retransmission timeout.
+                double_rtx_timeout();
+                tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
             } break;
             
             // Timer is set for starting renewal.
             case DhcpState::Finished: {
-                // If we have more time left, restart timer.
+                // If we have more time left until renewal, restart timer.
                 if (m_time_left > 0) {
-                    set_timer_for_time_left(MaxTimerSeconds);
+                    set_timer_for_time_left_dec(&m_lease_time_left);
                     return;
                 }
                 
-                // Set m_time_left to the time until the lease expires.
-                m_time_left = m_info.lease_time_s - RenewTimeForLeaseTime(m_info.lease_time_s);
-                
-                // Send request.
-                send_request(true);
-                
-                // Start timer for sending request or lease timeout.
-                set_timer_for_time_left(RenewRequestTimeoutSeconds);
-                
                 // Go to state Renewing.
                 m_state = DhcpState::Renewing;
+                
+                // Send request, update timouts.
+                request_renewal();
             } break;
             
             // Timer is set for sending another reqnewal request.
             case DhcpState::Renewing: {
+                // If we have more time until retransmission/renewal, restart timer.
+                if (m_time_left > 0) {
+                    set_timer_for_time_left_dec(&m_lease_time_left);
+                    return;
+                }
+                
                 // Has the lease expired?
-                if (m_time_left == 0) {
+                if (m_lease_time_left == 0) {
                     // Start discovery, remove IP configuration.
-                    start_discovery(true);
+                    start_discovery(true, true);
                     handle_dhcp_down(true);
                     return;
                 }
                 
-                // Send request.
-                send_request(true);
-                
-                // Restart timer for sending request or lease timeout.
-                set_timer_for_time_left(RenewRequestTimeoutSeconds);
+                // Send request, update timouts.
+                request_renewal();
             } break;
             
             default:
                 AMBRO_ASSERT(false);
         }
+    }
+    
+    void request_renewal ()
+    {
+        // Send request.
+        send_request(true);
+        
+        // Set m_time_left to the time for retransmission or lease timeout.
+        m_time_left = APrinter::MinValue(
+            APrinter::MaxValue((uint32_t)MinRenewRtxTimeoutSeconds, (uint32_t)(m_lease_time_left / 2)),
+            m_lease_time_left);
+        
+        // Start timeout.
+        set_timer_for_time_left_dec(&m_lease_time_left);
     }
     
     bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
@@ -493,11 +546,11 @@ private:
             
             DhcpState prev_state = m_state;
             
-            // Set timeout to start discovery.
-            tim(DhcpTimer()).appendAfter(Context(), ResetTimeoutTicks);
-            
             // Going to Resetting state.
             m_state = DhcpState::Resetting;
+            
+            // Set timeout to start discovery.
+            tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ResetTimeoutSeconds));
             
             // If we had a lease, remove it.
             if (prev_state == OneOf(DhcpState::Finished, DhcpState::Renewing)) {
@@ -527,14 +580,15 @@ private:
             // Send request.
             send_request(false);
             
-            // Start timer for retransmitting request or reverting to discovery.
-            tim(DhcpTimer()).appendAfter(Context(), RequestTimeoutTicks);
-            
             // Going to state SentRequest.
             m_state = DhcpState::SentRequest;
             
             // Initialize the request count.
             m_request_count = 1;
+            
+            // Start timer for retransmitting request or reverting to discovery.
+            reset_rtx_timeout();
+            tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
         }
         // Handle received Ack in SentRequest or Renewing state.
         else if (m_state == OneOf(DhcpState::SentRequest, DhcpState::Renewing) &&
@@ -561,9 +615,13 @@ private:
             // Going to state Finished.
             m_state = DhcpState::Finished;
             
-            // Start timeout for renewing.
+            // Set time left until least timeout and renewing.
+            m_lease_time_left = m_info.lease_time_s;
             m_time_left = RenewTimeForLeaseTime(m_info.lease_time_s);
-            set_timer_for_time_left(MaxTimerSeconds);
+            AMBRO_ASSERT(m_time_left <= m_lease_time_left)
+            
+            // Start timeout for renewing.
+            set_timer_for_time_left_dec(&m_lease_time_left);
             
             // Apply IP configuration etc.
             handle_dhcp_up(renewed);
