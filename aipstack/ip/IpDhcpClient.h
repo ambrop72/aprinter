@@ -633,9 +633,29 @@ private:
     // considered invalid but not fatal.
     static bool sanityCheckAddressInfo (Ip4Addr const &addr, DhcpRecvOptions &opts)
     {
-        // Check that we have an IP Address lease time and a subnet mask.
-        if (!opts.have.ip_address_lease_time || !opts.have.subnet_mask) {
+        // Check that we have an IP Address lease time.
+        if (!opts.have.ip_address_lease_time) {
             return false;
+        }
+        
+        // If there is no subnet mask, choose one based on the address class.
+        if (!opts.have.subnet_mask) {
+            if (addr < Ip4Addr::FromBytes(128, 0, 0, 0)) {
+                // Class A.
+                opts.subnet_mask = Ip4Addr::FromBytes(255, 0, 0, 0);
+            }
+            else if (addr < Ip4Addr::FromBytes(192, 0, 0, 0)) {
+                // Class C.
+                opts.subnet_mask = Ip4Addr::FromBytes(255, 255, 0, 0);
+            }
+            else if (addr < Ip4Addr::FromBytes(224, 0, 0, 0)) {
+                // Class D.
+                opts.subnet_mask = Ip4Addr::FromBytes(255, 255, 255, 0);
+            }
+            else {
+                // Class D or E, considered invalid.
+                return false;
+            }
         }
         
         // Check that it's not all zeros or all ones.

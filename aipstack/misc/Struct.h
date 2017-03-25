@@ -589,6 +589,21 @@ public:
         return false;
     }
     
+    inline constexpr bool operator> (StructIntArray const &other) const
+    {
+        return other.operator<(*this);
+    }
+    
+    inline constexpr bool operator<= (StructIntArray const &other) const
+    {
+        return !other.operator<(*this);
+    }
+    
+    inline constexpr bool operator>= (StructIntArray const &other) const
+    {
+        return !operator<(other);
+    }
+    
 public:
     ElemType data[Length];
 };
