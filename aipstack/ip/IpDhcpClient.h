@@ -119,11 +119,11 @@ class IpDhcpClient :
         // Resetting due to NAK after some time
         Resetting,
         // Send discover, waiting for offer
-        SentDiscover,
+        Selecting,
         // Sent request after offer, waiting for ack
-        SentRequest,
+        Requesting,
         // We have a lease, not trying to renew yet
-        Finished,
+        Bound,
         // We have a lease and we're trying to renew it
         Renewing,
     };
@@ -232,7 +232,7 @@ public:
     
     inline bool hasLease ()
     {
-        return m_state == OneOf(DhcpState::Finished, DhcpState::Renewing);
+        return m_state == OneOf(DhcpState::Bound, DhcpState::Renewing);
     }
     
     inline LeaseInfo const & getLeaseInfoMustHaveLease ()
@@ -322,8 +322,8 @@ private:
         DhcpSendOptions send_opts;
         send_dhcp_message(DhcpMessageType::Discover, send_opts, Ip4Addr::ZeroAddr());
         
-        // Going to SentDiscover state.
-        m_state = DhcpState::SentDiscover;
+        // Going to Selecting state.
+        m_state = DhcpState::Selecting;
         
         // Set the timer to send another discover if there is no offer.
         tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
@@ -334,7 +334,7 @@ private:
         switch (m_state) {
             // Timer is set for restarting discovery.
             case DhcpState::Resetting:
-            case DhcpState::SentDiscover: {
+            case DhcpState::Selecting: {
                 // Send a discover.
                 // If this is after a NAK then force a new XID and reset the
                 // retransmission timeout.
@@ -343,7 +343,7 @@ private:
             } break;
             
             // Timer is set for retransmitting request.
-            case DhcpState::SentRequest: {
+            case DhcpState::Requesting: {
                 AMBRO_ASSERT(m_request_count >= 1)
                 AMBRO_ASSERT(m_request_count <= MaxRequests)
                 
@@ -365,7 +365,7 @@ private:
             } break;
             
             // Timer is set for starting renewal.
-            case DhcpState::Finished: {
+            case DhcpState::Bound: {
                 // If we have more time left until renewal, restart timer.
                 if (m_time_left > 0) {
                     set_timer_for_time_left_dec(&m_lease_time_left);
@@ -535,8 +535,8 @@ private:
         
         // Handle NAK message.
         if (opts.dhcp_message_type == DhcpMessageType::Nak) {
-            // In Resetting and SentDiscover we do not care about NAK.
-            if (m_state == OneOf(DhcpState::Resetting, DhcpState::SentDiscover)) {
+            // In Resetting and Selecting we do not care about NAK.
+            if (m_state == OneOf(DhcpState::Resetting, DhcpState::Selecting)) {
                 return;
             }
             
@@ -554,7 +554,7 @@ private:
             tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ResetTimeoutSeconds));
             
             // If we had a lease, remove it.
-            if (prev_state == OneOf(DhcpState::Finished, DhcpState::Renewing)) {
+            if (prev_state == OneOf(DhcpState::Bound, DhcpState::Renewing)) {
                 handle_dhcp_down(true);
             }
             
@@ -570,8 +570,8 @@ private:
             return;
         }
         
-        // Handle received offer in SentDiscover state.
-        if (m_state == DhcpState::SentDiscover &&
+        // Handle received offer in Selecting state.
+        if (m_state == DhcpState::Selecting &&
             opts.dhcp_message_type == DhcpMessageType::Offer)
         {
             // Remember offer.
@@ -581,8 +581,8 @@ private:
             // Send request.
             send_request(false);
             
-            // Going to state SentRequest.
-            m_state = DhcpState::SentRequest;
+            // Going to state Requesting.
+            m_state = DhcpState::Requesting;
             
             // Initialize the request count.
             m_request_count = 1;
@@ -591,8 +591,8 @@ private:
             reset_rtx_timeout();
             tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
         }
-        // Handle received Ack in SentRequest or Renewing state.
-        else if (m_state == OneOf(DhcpState::SentRequest, DhcpState::Renewing) &&
+        // Handle received Ack in Requesting or Renewing state.
+        else if (m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing) &&
                  opts.dhcp_message_type == DhcpMessageType::Ack)
         {
             // Sanity check against the offer or existing lease.
@@ -613,8 +613,8 @@ private:
             
             bool renewed = m_state == DhcpState::Renewing;
             
-            // Going to state Finished.
-            m_state = DhcpState::Finished;
+            // Going to state Bound.
+            m_state = DhcpState::Bound;
             
             // Set time left until lease timeout and renewing.
             m_lease_time_left = m_info.lease_time_s;
