@@ -69,16 +69,27 @@ public:
                 m_observer = static_cast<Observer *>(observable.m_first);
             }
             
+            template <bool RemoveNotified>
             Observer * beginNotify ()
             {
                 if (m_observer == nullptr) {
                     return nullptr;
                 }
                 
-                m_temp_node.m_prev = &m_observer->m_next;
                 m_temp_node.m_next = m_observer->m_next;
                 
-                m_observer->m_next = &m_temp_node;
+                if (RemoveNotified) {
+                    m_temp_node.m_prev = m_observer->m_prev;
+                    
+                    m_observer->m_prev = nullptr;
+                    
+                    AMBRO_ASSERT(*m_temp_node.m_prev == m_observer)
+                    *m_temp_node.m_prev = &m_temp_node;
+                } else {
+                    m_temp_node.m_prev = &m_observer->m_next;
+                    
+                    m_observer->m_next = &m_temp_node;
+                }
                 
                 if (m_temp_node.m_next != nullptr) {
                     AMBRO_ASSERT(m_temp_node.m_next->m_prev == &m_observer->m_next)
@@ -96,14 +107,22 @@ public:
             }
         };
         
-        template <typename NotifyFunc>
+        template <bool RemoveNotified, typename NotifyFunc>
         void notifyObservers (NotifyFunc notify)
         {
             NotificationIterator iter(*this);
             
-            while (Observer *observer = iter.beginNotify()) {
+            while (Observer *observer = iter.template beginNotify<RemoveNotified>()) {
                 notify(*observer);
                 iter.endNotify();
+            }
+        }
+        
+        template <typename EnumerateFunc>
+        void enumerateObservers (EnumerateFunc enumerate)
+        {
+            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
+                enumerate(static_cast<Observer &>(*node));
             }
         }
         
