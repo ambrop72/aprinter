@@ -336,6 +336,10 @@ private:
                 return GetArpEntryRes::BroadcastAddr;
             }
             
+            if (ip_addr == Ip4Addr::ZeroAddr()) {
+                return GetArpEntryRes::InvalidAddr;
+            }
+            
             IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
             if (ifaddr == nullptr) {
                 return GetArpEntryRes::InvalidAddr;
