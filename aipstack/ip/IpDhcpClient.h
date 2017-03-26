@@ -45,6 +45,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Udp4Proto.h>
@@ -95,7 +96,8 @@ APRINTER_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::Context, IpDhcpClie
 template <typename Arg>
 class IpDhcpClient :
     private Arg::IpStack::IfaceListener,
-    private IpDhcpClientTimers<Arg>::Timers
+    private IpDhcpClientTimers<Arg>::Timers,
+    private IpSendRetry::Request
 {
     APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
     APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize))
@@ -126,6 +128,8 @@ class IpDhcpClient :
         Bound,
         // We have a lease and we're trying to renew it
         Renewing,
+        // Like Renewing but requests are broadcast
+        Rebinding,
     };
     
     // Maximum number of discovery attempts before generating a new XID.
@@ -156,11 +160,16 @@ class IpDhcpClient :
     
     static_assert(MaxTimerSeconds >= 255, "");
     
-    // Determines the time after which we start trying to renew a lease,
-    // if the server did not specify it.
+    // Determines the default renewal time if the server did not specify it.
     static constexpr uint32_t DefaultRenewTimeForLeaseTime (uint32_t lease_time_s)
     {
         return lease_time_s / 2;
+    }
+    
+    // Determines the default rebinding time if the server did not specify it.
+    static constexpr uint32_t DefaultRebindingTimeForLeaseTime (uint32_t lease_time_s)
+    {
+        return (uint64_t)lease_time_s * 7 / 8;
     }
     
     // Combined size of UDP and TCP headers.
@@ -173,11 +182,14 @@ public:
     // Contains all the information about a lease.
     struct LeaseInfo {
         // These two are set already when the offer is received.
+        Ip4Addr dhcp_server_addr;
         Ip4Addr ip_address;
         uint32_t dhcp_server_identifier;
         
         // The rest are set when the ack is received.
         uint32_t lease_time_s;
+        uint32_t renewal_time_s;
+        uint32_t rebinding_time_s;
         Ip4Addr subnet_mask;
         MacAddr server_mac;
         bool have_router;
@@ -215,6 +227,7 @@ public:
         // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
         tim(DhcpTimer()).init(Context());
+        IpSendRetry::Request::init();
         
         // Start discovery.
         start_discovery(true, true);
@@ -226,13 +239,14 @@ public:
         handle_dhcp_down(false);
         
         // Deinit resources.
+        IpSendRetry::Request::deinit();
         tim(DhcpTimer()).deinit(Context());
         IfaceListener::deinit();
     }
     
     inline bool hasLease ()
     {
-        return m_state == OneOf(DhcpState::Bound, DhcpState::Renewing);
+        return m_state == OneOf(DhcpState::Bound, DhcpState::Renewing, DhcpState::Rebinding);
     }
     
     inline LeaseInfo const & getLeaseInfoMustHaveLease ()
@@ -318,12 +332,11 @@ private:
             double_rtx_timeout();
         }
         
-        // Send discover.
-        DhcpSendOptions send_opts;
-        send_dhcp_message(DhcpMessageType::Discover, send_opts, Ip4Addr::ZeroAddr());
-        
         // Going to Selecting state.
         m_state = DhcpState::Selecting;
+        
+        // Send discover.
+        send_discover();
         
         // Set the timer to send another discover if there is no offer.
         tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
@@ -354,7 +367,7 @@ private:
                 }
                 
                 // Send request.
-                send_request(false);
+                send_request();
                 
                 // Increment request count.
                 m_request_count++;
@@ -364,39 +377,36 @@ private:
                 tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
             } break;
             
-            // Timer is set for starting renewal.
-            case DhcpState::Bound: {
-                // If we have more time left until renewal, restart timer.
+            // Timer is set for ...
+            case DhcpState::Bound: // transition to Renewing
+            case DhcpState::Renewing: // retransmitting a request or transition to Rebinding
+            case DhcpState::Rebinding: // retransmitting a request or lease timeout
+            {
+                // If we have more time until timeout, restart timer.
                 if (m_time_left > 0) {
-                    set_timer_for_time_left_dec(&m_lease_time_left);
-                    return;
+                    return set_timer_for_time_left_dec(&m_lease_time_left);
                 }
                 
-                // Go to state Renewing.
-                m_state = DhcpState::Renewing;
-                
-                // Send request, update timouts.
-                request_renewal();
-            } break;
-            
-            // Timer is set for sending another reqnewal request.
-            case DhcpState::Renewing: {
-                // If we have more time until retransmission/renewal, restart timer.
-                if (m_time_left > 0) {
-                    set_timer_for_time_left_dec(&m_lease_time_left);
-                    return;
+                if (m_state == DhcpState::Bound) {
+                    // Go to state Renewing.
+                    m_state = DhcpState::Renewing;
+                }
+                else if (m_state == DhcpState::Renewing) {
+                    // If the rebinding time has expired, go to state Rebinding.
+                    if (m_lease_time_left <= m_info.lease_time_s - m_info.rebinding_time_s) {
+                        m_state = DhcpState::Rebinding;
+                    }
+                }
+                else { // m_state == DhcpState::Rebinding
+                    // Has the lease expired?
+                    if (m_lease_time_left == 0) {
+                        handle_lease_expired();
+                        return;
+                    }
                 }
                 
-                // Has the lease expired?
-                if (m_lease_time_left == 0) {
-                    // Start discovery, remove IP configuration.
-                    start_discovery(true, true);
-                    handle_dhcp_down(true);
-                    return;
-                }
-                
-                // Send request, update timouts.
-                request_renewal();
+                // Send request, update timeouts.
+                request_in_renewing_or_rebinding();
             } break;
             
             default:
@@ -404,18 +414,62 @@ private:
         }
     }
     
-    void request_renewal ()
+    void retrySending () override final
     {
-        // Send request.
-        send_request(true);
+        // Retry sending a message after a send error, probably due to ARP cache miss.
+        // To be complete we support retrying for all message types even broadcasts.
         
-        // Set m_time_left to the time for retransmission or lease timeout.
-        m_time_left = APrinter::MinValue(
-            APrinter::MaxValue((uint32_t)MinRenewRtxTimeoutSeconds, (uint32_t)(m_lease_time_left / 2)),
-            m_lease_time_left);
+        // Note that send_dhcp_message calls IpSendRetry::Request::reset before
+        // trying to send a message. This is enough to avoid spurious retransmissions,
+        // because entry to all states which we handle here involves send_dhcp_message,
+        // and we ignore this callback in other states.
+        
+        if (m_state == DhcpState::Selecting) {
+            send_discover();
+        }
+        else if (m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding)) {
+            send_request();
+        }
+    }
+    
+    void request_in_renewing_or_rebinding ()
+    {
+        AMBRO_ASSERT(m_state == OneOf(DhcpState::Renewing, DhcpState::Rebinding))
+        
+        // Send request.
+        send_request();
+        
+        // Calculate the time to the next state transition.
+        uint32_t next_state_time;
+        if (m_state == DhcpState::Renewing) {
+            // Time to Rebinding.
+            AMBRO_ASSERT(m_info.lease_time_s >= m_lease_time_left)
+            uint32_t time_since_lease = m_info.lease_time_s - m_lease_time_left;
+            AMBRO_ASSERT(m_info.rebinding_time_s >= time_since_lease)
+            next_state_time = m_info.rebinding_time_s - time_since_lease;
+        } else {
+            // Time to lease timeout.
+            next_state_time = m_lease_time_left;
+        }
+        
+        // Calculate the time to request retransmission.
+        uint32_t time_to_rtx =
+            APrinter::MaxValue((uint32_t)MinRenewRtxTimeoutSeconds, (uint32_t)(next_state_time / 2));
+        
+        // Set m_time_left to the shortest of the two.
+        m_time_left = APrinter::MinValue(next_state_time, time_to_rtx);
         
         // Start timeout.
         set_timer_for_time_left_dec(&m_lease_time_left);
+    }
+    
+    void handle_lease_expired ()
+    {
+        // Start discovery.
+        start_discovery(true, true);
+        
+        // Remove IP configuration.
+        handle_dhcp_down(true);
     }
     
     bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
@@ -461,7 +515,7 @@ private:
             
             // Process the DHCP payload.
             IpBufRef dhcp_msg = dgram.hideHeader(Udp4Header::Size);
-            processReceivedDhcpMessage(dhcp_msg);
+            processReceivedDhcpMessage(ip_meta.src_addr, dhcp_msg);
         }
         
     accept:
@@ -473,7 +527,7 @@ private:
         return false;
     }
     
-    void processReceivedDhcpMessage (IpBufRef msg)
+    void processReceivedDhcpMessage (Ip4Addr src_addr, IpBufRef msg)
     {
         // In Resetting state we're not interested in any messages.
         if (m_state == DhcpState::Resetting) {
@@ -535,8 +589,8 @@ private:
         
         // Handle NAK message.
         if (opts.dhcp_message_type == DhcpMessageType::Nak) {
-            // In Resetting and Selecting we do not care about NAK.
-            if (m_state == OneOf(DhcpState::Resetting, DhcpState::Selecting)) {
+            // A NAK is only valid in states where we are expecting a reply.
+            if (m_state != OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding)) {
                 return;
             }
             
@@ -545,7 +599,7 @@ private:
                 return;
             }
             
-            DhcpState prev_state = m_state;
+            bool had_lease = hasLease();
             
             // Going to Resetting state.
             m_state = DhcpState::Resetting;
@@ -554,7 +608,7 @@ private:
             tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ResetTimeoutSeconds));
             
             // If we had a lease, remove it.
-            if (prev_state == OneOf(DhcpState::Bound, DhcpState::Renewing)) {
+            if (had_lease) {
                 handle_dhcp_down(true);
             }
             
@@ -571,18 +625,19 @@ private:
         }
         
         // Handle received offer in Selecting state.
-        if (m_state == DhcpState::Selecting &&
-            opts.dhcp_message_type == DhcpMessageType::Offer)
+        if (opts.dhcp_message_type == DhcpMessageType::Offer &&
+            m_state == DhcpState::Selecting)
         {
             // Remember offer.
+            m_info.dhcp_server_addr = src_addr;
             m_info.ip_address = ip_address;
             m_info.dhcp_server_identifier = opts.dhcp_server_identifier;
             
-            // Send request.
-            send_request(false);
-            
             // Going to state Requesting.
             m_state = DhcpState::Requesting;
+            
+            // Send request.
+            send_request();
             
             // Initialize the request count.
             m_request_count = 1;
@@ -591,19 +646,23 @@ private:
             reset_rtx_timeout();
             tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
         }
-        // Handle received Ack in Requesting or Renewing state.
-        else if (m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing) &&
-                 opts.dhcp_message_type == DhcpMessageType::Ack)
+        // Handle received ACK in Requesting, Renewing or Rebinding state.
+        else if (opts.dhcp_message_type == DhcpMessageType::Ack &&
+                 m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
         {
-            // Sanity check against the offer or existing lease.
-            if (ip_address != m_info.ip_address ||
-                opts.dhcp_server_identifier != m_info.dhcp_server_identifier)
+            // In Requesting state, sanity check against the offer or existing lease.
+            if (m_state == DhcpState::Requesting && (
+                    ip_address != m_info.ip_address ||
+                    opts.dhcp_server_identifier != m_info.dhcp_server_identifier))
             {
                 return;
             }
             
             // Remember/update the lease information.
+            m_info.dhcp_server_addr = src_addr;
             m_info.lease_time_s = opts.ip_address_lease_time;
+            m_info.renewal_time_s = opts.renewal_time;
+            m_info.rebinding_time_s = opts.rebinding_time;
             m_info.subnet_mask = opts.subnet_mask;
             m_info.have_router = opts.have.router;
             m_info.router = opts.have.router ? opts.router : Ip4Addr::ZeroAddr();
@@ -611,21 +670,21 @@ private:
             ::memcpy(m_info.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
             m_info.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
             
-            bool renewed = m_state == DhcpState::Renewing;
+            bool had_lease = hasLease();
             
             // Going to state Bound.
             m_state = DhcpState::Bound;
             
             // Set time left until lease timeout and renewing.
             m_lease_time_left = m_info.lease_time_s;
-            m_time_left = opts.renewal_time;
+            m_time_left = m_info.renewal_time_s;
             AMBRO_ASSERT(m_time_left <= m_lease_time_left) // assured in checkAndFixupAddressInfo
             
             // Start timeout for renewing.
             set_timer_for_time_left_dec(&m_lease_time_left);
             
             // Apply IP configuration etc.
-            handle_dhcp_up(renewed);
+            handle_dhcp_up(had_lease);
         }
     }
     
@@ -698,9 +757,16 @@ private:
             opts.renewal_time = DefaultRenewTimeForLeaseTime(opts.ip_address_lease_time);
         }
         // Make sure the renewal time does not exceed the lease time.
-        if (opts.renewal_time > opts.ip_address_lease_time) {
-            opts.renewal_time = opts.ip_address_lease_time;
+        opts.renewal_time = APrinter::MinValue(opts.ip_address_lease_time, opts.renewal_time);
+        
+        // If there is no rebinding time, assume a default.
+        if (!opts.have.rebinding_time) {
+            opts.rebinding_time = DefaultRebindingTimeForLeaseTime(opts.ip_address_lease_time);
         }
+        // Make sure the rebinding time is between the renewal time and the lease time.
+        opts.rebinding_time =
+            APrinter::MaxValue(opts.renewal_time,
+            APrinter::MinValue(opts.ip_address_lease_time, opts.rebinding_time));
         
         return true;
     }
@@ -735,28 +801,46 @@ private:
         }
     }
     
-    // Send a DHCP request message.
-    void send_request (bool have_lease)
+    // Send a DHCP discover message.
+    void send_discover ()
     {
+        AMBRO_ASSERT(m_state == DhcpState::Selecting)
+        
+        DhcpSendOptions send_opts;
+        send_dhcp_message(DhcpMessageType::Discover, send_opts, Ip4Addr::ZeroAddr(), Ip4Addr::AllOnesAddr());
+    }
+    
+    // Send a DHCP request message.
+    void send_request ()
+    {
+        AMBRO_ASSERT(m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
+        
         DhcpSendOptions send_opts;
         Ip4Addr ciaddr = Ip4Addr::ZeroAddr();
+        Ip4Addr dst_addr = Ip4Addr::AllOnesAddr();
         
-        send_opts.have.requested_ip_address = true;
-        send_opts.requested_ip_address = m_info.ip_address;
-        
-        if (have_lease) {
-            ciaddr = m_info.ip_address;
-        } else {
+        if (m_state == DhcpState::Requesting) {
             send_opts.have.dhcp_server_identifier = true;
             send_opts.dhcp_server_identifier = m_info.dhcp_server_identifier;
+            send_opts.have.requested_ip_address = true;
+            send_opts.requested_ip_address = m_info.ip_address;
+        }
+        else {
+            ciaddr = m_info.ip_address;
+            if (m_state == DhcpState::Renewing) {
+                dst_addr = m_info.dhcp_server_addr;
+            }
         }
         
-        send_dhcp_message(DhcpMessageType::Request, send_opts, ciaddr);
+        send_dhcp_message(DhcpMessageType::Request, send_opts, ciaddr, dst_addr);
     }
     
     // Send a DHCP message.
-    void send_dhcp_message (DhcpMessageType msg_type, DhcpSendOptions &opts, Ip4Addr ciaddr)
+    void send_dhcp_message (DhcpMessageType msg_type, DhcpSendOptions &opts, Ip4Addr ciaddr, Ip4Addr dst_addr)
     {
+        // Reset send-retry (not interested in retrying sending previous messages).
+        IpSendRetry::Request::reset();
+        
         // Add client identifier and vendor class identifier if configured.
         if (m_client_id.len > 0) {
             opts.have.client_identifier = true;
@@ -805,7 +889,7 @@ private:
         // Define information for IP.
         Ip4DgramMeta ip_meta = {
             ciaddr,                 // src_addr
-            Ip4Addr::AllOnesAddr(), // dst_addr
+            dst_addr,               // dst_addr
             DhcpTTL,                // ttl
             Ip4ProtocolUdp,         // proto
             iface(),                // iface
@@ -825,7 +909,7 @@ private:
         udp_header.set(Udp4Header::Checksum(), checksum);
         
         // Send the datagram.
-        m_ipstack->sendIp4Dgram(ip_meta, dgram);
+        m_ipstack->sendIp4Dgram(ip_meta, dgram, this);
     }
 };
 

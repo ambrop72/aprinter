@@ -69,6 +69,9 @@ class IpDhcpClient_options
     // Possible regions where options can be located from.
     enum class OptionRegion {Options, File, Sname};
     
+    // Number of parameters requested in the "parameter request list" option.
+    static size_t const ParameterRequestListSize = 6;
+    
 public:
     // Maximum packet size that we could possibly transmit.
     static size_t const MaxOptionsSendSize =
@@ -81,7 +84,7 @@ public:
         // maximum message size
         OptSize<DhcpOptMaxMsgSize>() +
         // parameter request list
-        OptSize(5) +
+        OptSize(ParameterRequestListSize) +
         // client identifier
         OptSize(MaxClientIdSize) +
         // vendor class identifier
@@ -97,6 +100,7 @@ public:
             bool dhcp_server_identifier : 1;
             bool ip_address_lease_time : 1;
             bool renewal_time : 1;
+            bool rebinding_time : 1;
             bool subnet_mask : 1;
             bool router : 1;
             uint8_t dns_servers;
@@ -107,6 +111,7 @@ public:
         uint32_t dhcp_server_identifier;
         uint32_t ip_address_lease_time;
         uint32_t renewal_time;
+        uint32_t rebinding_time;
         Ip4Addr subnet_mask;
         Ip4Addr router;
         Ip4Addr dns_servers[MaxDnsServers];
@@ -228,6 +233,16 @@ public:
                         data.takeBytes(opt_len, val.data);
                         opts.have.renewal_time = true;
                         opts.renewal_time = val.get(DhcpOptTime::Time());
+                    } break;
+                    
+                    case DhcpOptionType::RebindingTimeValue: {
+                        if (opt_len != DhcpOptTime::Size) {
+                            goto skip_data;
+                        }
+                        DhcpOptTime::Val val;
+                        data.takeBytes(opt_len, val.data);
+                        opts.have.rebinding_time = true;
+                        opts.rebinding_time = val.get(DhcpOptTime::Time());
                     } break;
                     
                     case DhcpOptionType::SubnetMask: {
@@ -371,14 +386,16 @@ public:
         
         // Parameter request list
         write_option(DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
-            // NOTE: If changing options here then adjust MaxOptionsSendSize.
+            // NOTE: If changing options here then adjust ParameterRequestListSize.
             DhcpOptionType opt[] = {
                 DhcpOptionType::SubnetMask,
                 DhcpOptionType::Router,
                 DhcpOptionType::DomainNameServer,
                 DhcpOptionType::IpAddressLeaseTime,
                 DhcpOptionType::RenewalTimeValue,
+                DhcpOptionType::RebindingTimeValue,
             };
+            static_assert(sizeof(opt) == ParameterRequestListSize, "");
             ::memcpy(opt_data, opt, sizeof(opt));
             return sizeof(opt);
         });
