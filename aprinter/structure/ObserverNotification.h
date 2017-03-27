@@ -57,6 +57,15 @@ public:
             return m_first != nullptr;
         }
         
+        void removeObservers ()
+        {
+            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
+                AMBRO_ASSERT(node->m_prev != nullptr)
+                node->m_prev = nullptr;
+            }
+            m_first = nullptr;
+        }
+        
         class NotificationIterator
         {
         private:
@@ -165,6 +174,11 @@ public:
             reset();
         }
         
+        inline bool isObserving ()
+        {
+            return m_prev != nullptr;
+        }
+        
         void reset ()
         {
             if (m_prev != nullptr) {
@@ -175,7 +189,7 @@ public:
         
         void observe (Observable &observable)
         {
-            AMBRO_ASSERT(m_prev == nullptr)
+            AMBRO_ASSERT(!isObserving())
             
             observable.prepend_node(*this);
         }

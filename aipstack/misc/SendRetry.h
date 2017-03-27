@@ -25,55 +25,40 @@
 #ifndef APRINTER_IPSTACK_SEND_RETRY_H
 #define APRINTER_IPSTACK_SEND_RETRY_H
 
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/structure/LinkedList.h>
-#include <aprinter/structure/LinkModel.h>
+#include <aprinter/base/Preprocessor.h>
+#include <aprinter/structure/ObserverNotification.h>
 
 #include <aipstack/BeginNamespace.h>
 
 class IpSendRetry {
 private:
-    struct ListEntry;
-    
-    using LinkModel = APrinter::PointerLinkModel<ListEntry>;
-    
-    using ListNode = APrinter::LinkedListNode<LinkModel>;
-    
-    struct ListEntry : public ListNode {};
-    
-    using ListNodeAccessor = APrinter::BaseClassAccessor<ListEntry, ListNode>;
-    
-    using ListStructure = APrinter::AnonymousLinkedList<ListNodeAccessor, LinkModel>;
+    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
     
 public:
     class Request :
-        private ListEntry
+        private Observer
     {
         friend IpSendRetry;
         
     public:
         inline void init ()
         {
-            ListStructure::markRemoved(*this);
+            Observer::init();
         }
         
         inline void deinit ()
         {
-            reset();
+            Observer::deinit();
         }
         
         inline bool isQueued ()
         {
-            return !ListStructure::isRemoved(*this);
+            return Observer::isObserving();
         }
         
-        void reset ()
+        inline void reset ()
         {
-            if (!ListStructure::isRemoved(*this)) {
-                ListStructure::remove(*this);
-                ListStructure::markRemoved(*this);
-            }
+            Observer::reset();
         }
         
     protected:
@@ -81,65 +66,38 @@ public:
     };
     
     class List :
-        private ListEntry
+        private Observable
     {
-        friend IpSendRetry;
-        
     public:
         inline void init ()
         {
-            ListStructure::initLonely(*this);
+            Observable::init();
         }
         
         inline void deinit ()
         {
-            reset();
+            Observable::removeObservers();
         }
         
-        void reset ()
+        inline void reset ()
         {
-            ListEntry *e = ListStructure::next(*this);
-            while (e != nullptr) {
-                AMBRO_ASSERT(!ListStructure::isRemoved(*e))
-                ListEntry *next = ListStructure::next(*e);
-                ListStructure::markRemoved(*e);
-                e = next;
-            }
-            ListStructure::initLonely(*this);
+            Observable::removeObservers();
         }
         
         void addRequest (Request *req)
         {
             if (req != nullptr) {
-                if (!ListStructure::isRemoved(*req)) {
-                    ListStructure::remove(*req);
-                }
-                ListStructure::initAfter(*req, *this);
+                req->Observer::reset();
+                req->Observer::observe(*this);
             }
         }
         
         void dispatchRequests ()
         {
-            // Move the requests to a temporary list and clear the main list.
-            ListEntry temp_head;
-            ListStructure::replaceFirst(temp_head, *this);
-            ListStructure::initLonely(*this);
-            
-            // Dispatch the requests from the temporary list.
-            // We do it this way to avoid any issues if the callback adds the request
-            // back or adds or removes other requests. We can safely consume the
-            // temporary list from the front, as it is not possible that any request
-            // be added back to it.
-            ListEntry *e;
-            while ((e = ListStructure::next(temp_head)) != nullptr) {
-                AMBRO_ASSERT(!ListStructure::isRemoved(*e))
-                ListStructure::remove(*e);
-                ListStructure::markRemoved(*e);
-                Request *req = static_cast<Request *>(e);
-                req->retrySending();
-            }
-            
-            AMBRO_ASSERT(ListStructure::prev(temp_head).isNull())
+            Observable::template notifyObservers<true>([&](Observer &observer) {
+                Request &request = static_cast<Request &>(observer);
+                request.retrySending();
+            });
         }
     };
 };
