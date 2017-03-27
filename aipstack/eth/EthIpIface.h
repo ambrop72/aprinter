@@ -231,6 +231,39 @@ private: // IpEthHw
         return m_rx_eth_header;
     }
     
+    IpErr startArpQuery (IpEthHwArpQuery &query, Ip4Addr ip_addr) override final
+    {
+        // Find or allocate an ARP entry for this IP address.
+        ArpEntry *entry;
+        GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
+        
+        // Error can be only due to invalid IP address.
+        if (get_res != GetArpEntryRes::GotArpEntry) {
+            return IpErr::NO_HW_ROUTE;
+        }
+        
+        // Set the ARP entry state to QUERY and reset the timeout.
+        // This is so we start sending periodic broadcast queries.
+        // Note that if the entry was VALID or REFRESHING it now
+        // becomes unable to provide the MAC address. This may seem
+        // like a problem but should not be, since the use case for
+        // this is in DHCP to verify the IP address is in fact unused.
+        // In the future we can improve this but it would need extra
+        // state.
+        entry->state = ArpEntryState::QUERY;
+        entry->time_left = ArpQueryTimeout;
+        
+        // Send an ARP query.
+        // More queries will be sent from the timer.
+        send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
+        
+        // Queue the query reuest to the retry list.
+        // If a response arrives it will be provided in dispatchRetryList.
+        entry->retry_list.addSpecialRequest(query);
+        
+        return IpErr::SUCCESS;
+    }
+    
 private:
     struct ArpEntryState { enum : uint8_t {FREE, QUERY, VALID, REFRESHING}; };
     
@@ -287,8 +320,21 @@ private:
             entry->state = ArpEntryState::VALID;
             entry->time_left = ArpValidTimeout;
             entry->mac_addr = mac_addr;
-            entry->retry_list.dispatchRequests();
+            dispatchRetryList(*entry, mac_addr);
         }
+    }
+    
+    void dispatchRetryList (ArpEntry &entry, MacAddr mac_addr)
+    {
+        auto dispatch_special_request =
+        [&](IpSendRetry::BaseSpecialRequest &request, IpSendRetry::RequestType request_type)
+        {
+            AMBRO_ASSERT(request_type == IpSendRetry::RequestTypeIpEthHwArpQuery)
+            IpEthHwArpQuery &query = static_cast<IpEthHwArpQuery &>(request);
+            IpEthHw::reportArpQueryResponse(query, mac_addr);
+        };
+        
+        entry.retry_list.dispatchRequests(dispatch_special_request);
     }
     
     enum class GetArpEntryRes { GotArpEntry, BroadcastAddr, InvalidAddr };

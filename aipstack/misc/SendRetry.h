@@ -35,34 +35,67 @@ private:
     APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
     
 public:
+    enum RequestType {
+        RequestTypeNormal = 0,
+        RequestTypeIpEthHwArpQuery = 1,
+    };
+    
+private:
+    class BaseRequest : public Observer
+    {
+        friend IpSendRetry;
+        
+    private:
+        virtual RequestType getRequestType () = 0;
+    };
+    
+public:
     class Request :
-        private Observer
+        private BaseRequest
     {
         friend IpSendRetry;
         
     public:
-        inline void init ()
-        {
-            Observer::init();
-        }
-        
-        inline void deinit ()
-        {
-            Observer::deinit();
-        }
-        
-        inline bool isQueued ()
-        {
-            return Observer::isObserving();
-        }
-        
-        inline void reset ()
-        {
-            Observer::reset();
-        }
+        using BaseRequest::init;
+        using BaseRequest::deinit;
+        using BaseRequest::reset;
+        using BaseRequest::isActive;
         
     protected:
         virtual void retrySending () = 0;
+        
+    private:
+        RequestType getRequestType () override final
+        {
+            return RequestTypeNormal;
+        }
+    };
+    
+    class BaseSpecialRequest :
+        private BaseRequest
+    {
+        friend IpSendRetry;
+        
+    private:
+        BaseSpecialRequest() = default;
+    };
+    
+    template <RequestType SpecialRequestType>
+    class SpecialRequest : public BaseSpecialRequest
+    {
+        static_assert(SpecialRequestType != RequestTypeNormal, "");
+        
+    public:
+        using BaseRequest::init;
+        using BaseRequest::deinit;
+        using BaseRequest::reset;
+        using BaseRequest::isActive;
+        
+    private:
+        RequestType getRequestType () override final
+        {
+            return SpecialRequestType;
+        }
     };
     
     class List :
@@ -92,11 +125,27 @@ public:
             }
         }
         
-        void dispatchRequests ()
+        void addSpecialRequest (BaseSpecialRequest &req)
+        {
+            AMBRO_ASSERT(req.getRequestType() != RequestTypeNormal)
+            
+            req.Observer::reset();
+            req.Observer::observe(*this);
+        }
+        
+        template <typename DispatchSpecialRequest>
+        void dispatchRequests (DispatchSpecialRequest dispatch_special_request)
         {
             Observable::template notifyObservers<true>([&](Observer &observer) {
-                Request &request = static_cast<Request &>(observer);
-                request.retrySending();
+                BaseRequest &base_request = static_cast<BaseRequest &>(observer);
+                RequestType request_type = base_request.getRequestType();
+                if (request_type == RequestTypeNormal) {
+                    Request &request = static_cast<Request &>(base_request);
+                    request.retrySending();
+                } else {
+                    BaseSpecialRequest &special_request = static_cast<BaseSpecialRequest &>(base_request);
+                    dispatch_special_request(special_request, request_type);
+                }
             });
         }
     };

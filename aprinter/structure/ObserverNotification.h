@@ -174,11 +174,6 @@ public:
             reset();
         }
         
-        inline bool isObserving ()
-        {
-            return m_prev != nullptr;
-        }
-        
         void reset ()
         {
             if (m_prev != nullptr) {
@@ -187,9 +182,14 @@ public:
             }
         }
         
+        inline bool isActive ()
+        {
+            return m_prev != nullptr;
+        }
+        
         void observe (Observable &observable)
         {
-            AMBRO_ASSERT(!isObserving())
+            AMBRO_ASSERT(!isActive())
             
             observable.prepend_node(*this);
         }
