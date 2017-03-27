@@ -63,7 +63,7 @@ inline uint16_t IpChksumInverted (char const *data, size_t len)
 
 #include <aipstack/BeginNamespace.h>
 
-inline static uint16_t IpChksum (char const *data, size_t len)
+inline uint16_t IpChksum (char const *data, size_t len)
 {
     return ~IpChksumInverted(data, len);
 }
@@ -75,7 +75,7 @@ public:
       m_swapped(false)
     {}
     
-    inline void addChksum (uint16_t chksum_inverted, size_t len)
+    void addChksum (uint16_t chksum_inverted, size_t len)
     {
         // Add the current 16-bit sum and the 16-bit sum of this data.
         uint32_t sum32 = (uint32_t)m_sum + chksum_inverted;
@@ -162,7 +162,7 @@ private:
     bool m_swapped;
 };
 
-static uint16_t IpChksum (IpBufRef buf)
+inline uint16_t IpChksum (IpBufRef buf)
 {
     IpChksumAccumulator accum;
     accum.addIpBuf(buf);

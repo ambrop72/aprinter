@@ -138,7 +138,7 @@ struct IpBufRef {
      * whether there is any more data in the (now modified) memory
      * range, that is (tot_len > 0).
      */
-    inline bool nextChunk ()
+    bool nextChunk ()
     {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(offset <= node->len)
@@ -255,7 +255,7 @@ struct IpBufRef {
      * support this operation otherwise. The returned IpBufRef
      * will be valid only so long as out_node remains valid.
      */
-    inline IpBufRef subHeaderToContinuedBy (size_t header_len, IpBufNode const *cont,
+    IpBufRef subHeaderToContinuedBy (size_t header_len, IpBufNode const *cont,
                                             size_t total_len, IpBufNode *out_node) const
     {
         AMBRO_ASSERT(node != nullptr)
@@ -275,7 +275,7 @@ struct IpBufRef {
      * 
      * This moves to subsequent buffers eagerly (see processBytes).
      */
-    inline void skipBytes (size_t amount)
+    void skipBytes (size_t amount)
     {
         processBytes(amount, [](char *, size_t) {});
     }
@@ -289,7 +289,7 @@ struct IpBufRef {
      * 
      * This moves to subsequent buffers eagerly (see processBytes).
      */
-    inline void takeBytes (size_t amount, char *dst)
+    void takeBytes (size_t amount, char *dst)
     {
         processBytes(amount, [&](char *data, size_t len) {
             ::memcpy(dst, data, len);
@@ -306,7 +306,7 @@ struct IpBufRef {
      * 
      * This moves to subsequent buffers eagerly (see processBytes).
      */
-    inline void giveBytes (size_t amount, char const *src)
+    void giveBytes (size_t amount, char const *src)
     {
         processBytes(amount, [&](char *data, size_t len) {
             ::memcpy(data, src, len);
@@ -325,7 +325,7 @@ struct IpBufRef {
      * 
      * This moves to subsequent buffers eagerly (see processBytes).
      */
-    inline void giveBuf (IpBufRef src)
+    void giveBuf (IpBufRef src)
     {
         processBytes(src.tot_len, [&](char *data, size_t len) {
             src.takeBytes(len, data);
@@ -340,7 +340,7 @@ struct IpBufRef {
      * 
      * This moves to subsequent buffers eagerly (see processBytes).
      */
-    inline char takeByte ()
+    char takeByte ()
     {
         AMBRO_ASSERT(tot_len > 0)
         
@@ -373,7 +373,7 @@ struct IpBufRef {
      * equal.
      */
     template <typename Func>
-    inline void processBytes (size_t amount, Func func)
+    void processBytes (size_t amount, Func func)
     {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(amount <= tot_len)
