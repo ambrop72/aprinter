@@ -440,7 +440,7 @@ private:
         AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet(Context()))
         AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet(Context()))
         AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet(Context()))
-        AMBRO_ASSERT(!pcb->IpSendRetry::Request::isActive())
+        AMBRO_ASSERT(!pcb->IpSendRetry::Request::isQueued())
         AMBRO_ASSERT(pcb->tcp == this)
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
         AMBRO_ASSERT(pcb->con == nullptr)
