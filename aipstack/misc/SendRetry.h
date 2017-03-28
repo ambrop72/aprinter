@@ -51,9 +51,9 @@ public:
             Observer::deinit();
         }
         
-        inline bool isQueued ()
+        inline bool isActive ()
         {
-            return Observer::isObserving();
+            return Observer::isActive();
         }
         
         inline void reset ()

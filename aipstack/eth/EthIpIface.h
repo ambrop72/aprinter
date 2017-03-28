@@ -287,6 +287,12 @@ private:
             entry->state = ArpEntryState::VALID;
             entry->time_left = ArpValidTimeout;
             entry->mac_addr = mac_addr;
+            
+            // Dispatch send-retry requests.
+            // NOTE: The handlers called may end up changing this ARP entry, including
+            // reusing it for a different IP address. In that case retry_list.reset()
+            // would be called from reset_arp_entry, but that is safe since SentRetry::List
+            // supports it (actually ObserverNotification::Observable).
             entry->retry_list.dispatchRequests();
         }
     }

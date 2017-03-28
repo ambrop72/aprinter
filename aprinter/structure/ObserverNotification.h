@@ -110,6 +110,15 @@ public:
             
             void endNotify ()
             {
+                // It is possible that removeObservers was called while notifying.
+                // In that case m_temp_node.m_prev was set to null. We have to check
+                // this otherwise very bad things would happen.
+                
+                if (m_temp_node.m_prev == nullptr) {
+                    m_observer = nullptr;
+                    return;
+                }
+                
                 m_observer = static_cast<Observer *>(m_temp_node.m_next);
                 
                 remove_node(m_temp_node);
@@ -174,7 +183,7 @@ public:
             reset();
         }
         
-        inline bool isObserving ()
+        inline bool isActive ()
         {
             return m_prev != nullptr;
         }
@@ -187,9 +196,10 @@ public:
             }
         }
         
+    protected:
         void observe (Observable &observable)
         {
-            AMBRO_ASSERT(!isObserving())
+            AMBRO_ASSERT(!isActive())
             
             observable.prepend_node(*this);
         }
