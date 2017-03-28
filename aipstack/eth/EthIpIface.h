@@ -35,12 +35,14 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/structure/ObserverNotification.h>
 #include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
@@ -60,10 +62,12 @@ template <typename Arg>
 class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     private EthIpIfaceTimers<Arg>::Timers,
     private EthIfaceDriverCallback<EthIpIface<Arg>>,
-    private IpEthHw
+    private IpEthHw::HwIface
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, IpCallbackImpl))
+    
+    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
@@ -92,6 +96,7 @@ public:
     void init (EthIfaceDriver<CallbackImpl> *driver)
     {
         tim(ArpTimer()).init(Context());
+        m_arp_observable.init();
         m_driver = driver;
         m_callback = nullptr;
         
@@ -113,6 +118,8 @@ public:
     
     void deinit ()
     {
+        AMBRO_ASSERT(!m_arp_observable.hasObservers())
+        
         for (auto &e : m_arp_entries) {
             e.retry_list.deinit();
         }
@@ -162,7 +169,7 @@ public: // IpIfaceDriver
     
     void * getHwIface () override final
     {
-        return static_cast<IpEthHw *>(this);
+        return static_cast<IpEthHw::HwIface *>(this);
     }
     
 private: // EthIfaceDriverCallback
@@ -220,7 +227,7 @@ private: // EthIfaceDriverCallback
         }
     }
     
-private: // IpEthHw
+private: // IpEthHw::HwIface
     MacAddr getMacAddr () override final
     {
         return *m_mac_addr;
@@ -229,6 +236,16 @@ private: // IpEthHw
     EthHeader::Ref getRxEthHeader () override final
     {
         return m_rx_eth_header;
+    }
+    
+    IpErr sendArpQuery (Ip4Addr ip_addr) override final
+    {
+        return send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
+    }
+    
+    Observable & getArpObservable () override final
+    {
+        return m_arp_observable;
     }
     
 private:
@@ -294,6 +311,17 @@ private:
             // would be called from reset_arp_entry, but that is safe since SentRetry::List
             // supports it (actually ObserverNotification::Observable).
             entry->retry_list.dispatchRequests();
+        }
+        
+        // Notify the ARP observers so long as the address is not
+        // obviously bad. It is important to do this even if no ARP
+        // entry was obtained, since that will not happen if the
+        // interface has no IP address configured, which is exactly
+        // when DHCP needs to be notified.
+        if (ip_addr != Ip4Addr::AllOnesAddr() && ip_addr != Ip4Addr::ZeroAddr()) {
+            m_arp_observable.template notifyObservers<false>([&](Observer &observer) {
+                IpEthHw::HwIface::notifyArpObserver(observer, ip_addr, mac_addr);
+            });
         }
     }
     
@@ -403,7 +431,7 @@ private:
         e->retry_list.reset();
     }
     
-    void send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
+    IpErr send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
     {
         TxAllocHelper<BufAllocator, EthArpPktSize, HeaderBeforeEth> frame_alloc(EthArpPktSize);
         
@@ -426,7 +454,7 @@ private:
         arp_header.set(ArpIp4Header::DstHwAddr(),    dst_mac);
         arp_header.set(ArpIp4Header::DstProtoAddr(), dst_ipaddr);
         
-        m_driver->sendFrame(frame_alloc.getBufRef());
+        return m_driver->sendFrame(frame_alloc.getBufRef());
     }
     
     void timerExpired (ArpTimer, Context)
@@ -482,6 +510,7 @@ private:
     }
     
 private:
+    Observable m_arp_observable;
     EthIfaceDriver<CallbackImpl> *m_driver;
     IpIfaceDriverCallback<IpCallbackImpl> *m_callback;
     MacAddr const *m_mac_addr;

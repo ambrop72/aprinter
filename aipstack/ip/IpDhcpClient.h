@@ -97,10 +97,12 @@ template <typename Arg>
 class IpDhcpClient :
     private Arg::IpStack::IfaceListener,
     private IpDhcpClientTimers<Arg>::Timers,
-    private IpSendRetry::Request
+    private IpSendRetry::Request,
+    private IpEthHw::ArpObserver
 {
     APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
     APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize))
+    APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener))
@@ -111,7 +113,11 @@ class IpDhcpClient :
     
     APRINTER_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     
-    using Options = IpDhcpClient_options<MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize>;
+    static char const DeclineMessageArpResponse[]; // needs to be defined outside of class...
+    static uint8_t const MaxMessageSize = sizeof(DeclineMessageArpResponse) - 1;
+    
+    using Options = IpDhcpClient_options<
+        MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize, MaxMessageSize>;
     APRINTER_USE_TYPES1(Options, (DhcpRecvOptions, DhcpSendOptions))
     
     static_assert(MaxDnsServers > 0, "");
@@ -124,6 +130,8 @@ class IpDhcpClient :
         Selecting,
         // Sent request after offer, waiting for ack
         Requesting,
+        // Checking the address is available using ARP
+        Checking,
         // We have a lease, not trying to renew yet
         Bound,
         // We have a lease and we're trying to renew it
@@ -149,6 +157,12 @@ class IpDhcpClient :
     
     // Minimum request retransmission time when renewing.
     static uint8_t const MinRenewRtxTimeoutSeconds = 60;
+    
+    // How long to wait for ARP query response when checking the address.
+    static uint8_t const ArpResponseTimeoutSeconds = 1;
+    
+    // Numeber of ARP queries to send.
+    static uint8_t const NumArpQueries = 2;
     
     // Maximum future time in seconds that the timer can be set to,
     // due to limited span of TimeType. For possibly longer periods
@@ -228,6 +242,7 @@ public:
         IfaceListener::init(iface, Ip4ProtocolUdp);
         tim(DhcpTimer()).init(Context());
         IpSendRetry::Request::init();
+        ArpObserver::init();
         
         // Start discovery.
         start_discovery(true, true);
@@ -239,6 +254,7 @@ public:
         handle_dhcp_down(false);
         
         // Deinit resources.
+        ArpObserver::deinit();
         IpSendRetry::Request::deinit();
         tim(DhcpTimer()).deinit(Context());
         IfaceListener::deinit();
@@ -264,9 +280,9 @@ private:
     }
     
     // Return the IpEthHw interface for the interface.
-    inline IpEthHw * ethHw ()
+    inline IpEthHw::HwIface * ethHw ()
     {
-        return iface()->template getHwIface<IpEthHw>();
+        return iface()->template getHwIface<IpEthHw::HwIface>();
     }
     
     // Convert seconds (no more than MaxTimerSeconds) to ticks.
@@ -375,6 +391,26 @@ private:
                 // Restart timer with doubled retransmission timeout.
                 double_rtx_timeout();
                 tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
+            } break;
+            
+            // Timer is set to continue after no response to ARP query.
+            case DhcpState::Checking: {
+                if (m_request_count < NumArpQueries) {
+                    // Increment the ARP query counter.
+                    m_request_count++;
+                    
+                    // Start the timeout.
+                    tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ArpResponseTimeoutSeconds));
+                    
+                    // Send an ARP query.
+                    ethHw()->sendArpQuery(m_info.ip_address);
+                } else {
+                    // Unsubscribe from ARP updates.
+                    ArpObserver::reset();
+                    
+                    // Bind the lease.
+                    go_bound();
+                }
             } break;
             
             // Timer is set for ...
@@ -599,18 +635,8 @@ private:
                 return;
             }
             
-            bool had_lease = hasLease();
-            
-            // Going to Resetting state.
-            m_state = DhcpState::Resetting;
-            
-            // Set timeout to start discovery.
-            tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ResetTimeoutSeconds));
-            
-            // If we had a lease, remove it.
-            if (had_lease) {
-                handle_dhcp_down(true);
-            }
+            // Go to Resetting state, set timer, remove lease.
+            go_resetting();
             
             // Nothing else to do (further processing is for offer and ack).
             return;
@@ -650,7 +676,7 @@ private:
         else if (opts.dhcp_message_type == DhcpMessageType::Ack &&
                  m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
         {
-            // In Requesting state, sanity check against the offer or existing lease.
+            // In Requesting state, sanity check against the offer.
             if (m_state == DhcpState::Requesting && (
                     ip_address != m_info.ip_address ||
                     opts.dhcp_server_identifier != m_info.dhcp_server_identifier))
@@ -660,6 +686,8 @@ private:
             
             // Remember/update the lease information.
             m_info.dhcp_server_addr = src_addr;
+            m_info.ip_address = ip_address;
+            m_info.dhcp_server_identifier = opts.dhcp_server_identifier;
             m_info.lease_time_s = opts.ip_address_lease_time;
             m_info.renewal_time_s = opts.renewal_time;
             m_info.rebinding_time_s = opts.rebinding_time;
@@ -670,21 +698,14 @@ private:
             ::memcpy(m_info.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
             m_info.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
             
-            bool had_lease = hasLease();
+            // In Requesting state, we need to do the ARP check first.
+            if (m_state == DhcpState::Requesting) {
+                go_checking();
+                return;
+            }
             
-            // Going to state Bound.
-            m_state = DhcpState::Bound;
-            
-            // Set time left until lease timeout and renewing.
-            m_lease_time_left = m_info.lease_time_s;
-            m_time_left = m_info.renewal_time_s;
-            AMBRO_ASSERT(m_time_left <= m_lease_time_left) // assured in checkAndFixupAddressInfo
-            
-            // Start timeout for renewing.
-            set_timer_for_time_left_dec(&m_lease_time_left);
-            
-            // Apply IP configuration etc.
-            handle_dhcp_up(had_lease);
+            // Bind the lease.
+            go_bound();
         }
     }
     
@@ -771,6 +792,61 @@ private:
         return true;
     }
     
+    void go_resetting ()
+    {
+        bool had_lease = hasLease();
+        
+        // Going to Resetting state.
+        m_state = DhcpState::Resetting;
+        
+        // Set timeout to start discovery.
+        tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ResetTimeoutSeconds));
+        
+        // If we had a lease, remove it.
+        if (had_lease) {
+            handle_dhcp_down(true);
+        }
+    }
+    
+    void go_checking ()
+    {
+        // Go to state Checking.
+        m_state = DhcpState::Checking;
+        
+        // Initialize counter of ARP queries.
+        m_request_count = 1;
+        
+        // Subscribe to receive ARP updates.
+        // NOTE: This must not be called if already registered,
+        // so we reset it when we no longer need it.
+        ArpObserver::observe(*ethHw());
+        
+        // Start the timeout.
+        tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(ArpResponseTimeoutSeconds));
+        
+        // Send an ARP query.
+        ethHw()->sendArpQuery(m_info.ip_address);
+    }
+    
+    void go_bound ()
+    {
+        bool had_lease = hasLease();
+        
+        // Going to state Bound.
+        m_state = DhcpState::Bound;
+        
+        // Set time left until lease timeout and renewing.
+        m_lease_time_left = m_info.lease_time_s;
+        m_time_left = m_info.renewal_time_s;
+        AMBRO_ASSERT(m_time_left <= m_lease_time_left) // assured in checkAndFixupAddressInfo
+        
+        // Start timeout for renewing.
+        set_timer_for_time_left_dec(&m_lease_time_left);
+        
+        // Apply IP configuration etc.
+        handle_dhcp_up(had_lease);
+    }
+    
     void handle_dhcp_up (bool renewed)
     {
         // Set IP address with prefix length.
@@ -835,20 +911,60 @@ private:
         send_dhcp_message(DhcpMessageType::Request, send_opts, ciaddr, dst_addr);
     }
     
+    void arpInfoReceived (Ip4Addr ip_addr, MacAddr mac_addr) override final
+    {
+        AMBRO_ASSERT(m_state == DhcpState::Checking)
+        
+        // Is this an ARP message from the IP address we are checking?
+        if (ip_addr == m_info.ip_address) {
+            // Send a Decline.
+            send_decline();
+            
+            // Unsubscribe from ARP updates.
+            ArpObserver::reset();
+            
+            // Restart via Resetting state after a timeout.
+            go_resetting();
+        }
+    }
+    
+    void send_decline ()
+    {
+        AMBRO_ASSERT(m_state == DhcpState::Checking)
+        
+        DhcpSendOptions send_opts;            
+        send_opts.have.dhcp_server_identifier = true;
+        send_opts.dhcp_server_identifier = m_info.dhcp_server_identifier;
+        send_opts.have.requested_ip_address = true;
+        send_opts.requested_ip_address = m_info.ip_address;
+        send_opts.have.message = true;
+        send_opts.message = DeclineMessageArpResponse;
+        
+        send_dhcp_message(DhcpMessageType::Decline, send_opts, Ip4Addr::ZeroAddr(), Ip4Addr::AllOnesAddr());
+    }
+    
     // Send a DHCP message.
     void send_dhcp_message (DhcpMessageType msg_type, DhcpSendOptions &opts, Ip4Addr ciaddr, Ip4Addr dst_addr)
     {
         // Reset send-retry (not interested in retrying sending previous messages).
         IpSendRetry::Request::reset();
         
-        // Add client identifier and vendor class identifier if configured.
+        // Add client identifier if configured.
         if (m_client_id.len > 0) {
             opts.have.client_identifier = true;
             opts.client_identifier = m_client_id;
         }
-        if (m_vendor_class_id.len > 0) {
+        
+        // Add vendor class identifier if configured and not for Decline.
+        if (m_vendor_class_id.len > 0 && msg_type != DhcpMessageType::Decline) {
             opts.have.vendor_class_identifier = true;
             opts.vendor_class_identifier = m_vendor_class_id;
+        }
+        
+        // These options are present except for Decline.
+        if (msg_type != DhcpMessageType::Decline) {
+            opts.have.max_dhcp_message_size = true;
+            opts.have.parameter_request_list = true;
         }
         
         // Get a buffer for the message.
@@ -912,6 +1028,9 @@ private:
         m_ipstack->sendIp4Dgram(ip_meta, dgram, this);
     }
 };
+
+template <typename Arg>
+char const IpDhcpClient<Arg>::DeclineMessageArpResponse[] = "ArpResponse";
 
 APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
     APRINTER_AS_VALUE(uint8_t, DhcpTTL),

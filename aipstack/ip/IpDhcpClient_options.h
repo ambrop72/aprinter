@@ -45,7 +45,8 @@
 template <
     uint8_t MaxDnsServers,
     uint8_t MaxClientIdSize,
-    uint8_t MaxVendorClassIdSize
+    uint8_t MaxVendorClassIdSize,
+    uint8_t MaxMessageSize
 >
 class IpDhcpClient_options
 {
@@ -89,6 +90,8 @@ public:
         OptSize(MaxClientIdSize) +
         // vendor class identifier
         OptSize(MaxVendorClassIdSize) +
+        // message
+        OptSize(MaxMessageSize) +
         // end
         1;
     
@@ -130,6 +133,9 @@ public:
             bool dhcp_server_identifier : 1;
             bool client_identifier : 1;
             bool vendor_class_identifier : 1;
+            bool max_dhcp_message_size : 1;
+            bool parameter_request_list : 1;
+            bool message : 1;
         } have;
         
         // The option values (only options set in Have are relevant).
@@ -137,6 +143,7 @@ public:
         uint32_t dhcp_server_identifier;
         APrinter::MemRef client_identifier;
         APrinter::MemRef vendor_class_identifier;
+        APrinter::MemRef message;
     };
     
     // Parse DHCP options from a buffer into DhcpRecvOptions.
@@ -378,27 +385,31 @@ public:
         }
         
         // Maximum message size
-        write_option(DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
-            auto opt = DhcpOptMaxMsgSize::Ref(opt_data);
-            opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), max_msg_size);
-            return opt.Size();
-        });
+        if (opts.have.max_dhcp_message_size) {
+            write_option(DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
+                auto opt = DhcpOptMaxMsgSize::Ref(opt_data);
+                opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), max_msg_size);
+                return opt.Size();
+            });
+        }
         
         // Parameter request list
-        write_option(DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
-            // NOTE: If changing options here then adjust ParameterRequestListSize.
-            DhcpOptionType opt[] = {
-                DhcpOptionType::SubnetMask,
-                DhcpOptionType::Router,
-                DhcpOptionType::DomainNameServer,
-                DhcpOptionType::IpAddressLeaseTime,
-                DhcpOptionType::RenewalTimeValue,
-                DhcpOptionType::RebindingTimeValue,
-            };
-            static_assert(sizeof(opt) == ParameterRequestListSize, "");
-            ::memcpy(opt_data, opt, sizeof(opt));
-            return sizeof(opt);
-        });
+        if (opts.have.parameter_request_list) {
+            write_option(DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
+                // NOTE: If changing options here then adjust ParameterRequestListSize.
+                DhcpOptionType opt[] = {
+                    DhcpOptionType::SubnetMask,
+                    DhcpOptionType::Router,
+                    DhcpOptionType::DomainNameServer,
+                    DhcpOptionType::IpAddressLeaseTime,
+                    DhcpOptionType::RenewalTimeValue,
+                    DhcpOptionType::RebindingTimeValue,
+                };
+                static_assert(sizeof(opt) == ParameterRequestListSize, "");
+                ::memcpy(opt_data, opt, sizeof(opt));
+                return sizeof(opt);
+            });
+        }
         
         // Client identifier
         if (opts.have.client_identifier) {
@@ -414,6 +425,15 @@ public:
             uint8_t eff_len = APrinter::MinValueU(MaxVendorClassIdSize, opts.vendor_class_identifier.len);
             write_option(DhcpOptionType::VendorClassIdentifier, [&](char *opt_data) {
                 ::memcpy(opt_data, opts.vendor_class_identifier.ptr, eff_len);
+                return eff_len;
+            });
+        }
+        
+        // Message
+        if (opts.have.message) {
+            uint8_t eff_len = APrinter::MinValueU(MaxMessageSize, opts.message.len);
+            write_option(DhcpOptionType::Message, [&](char *opt_data) {
+                ::memcpy(opt_data, opts.message.ptr, eff_len);
                 return eff_len;
             });
         }

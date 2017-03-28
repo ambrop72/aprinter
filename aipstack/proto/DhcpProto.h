@@ -66,6 +66,7 @@ enum class DhcpOptionType : uint8_t {
     DhcpMessageType = 53,
     DhcpServerIdentifier = 54,
     ParameterRequestList = 55,
+    Message = 56,
     MaximumMessageSize = 57,
     RenewalTimeValue = 58,
     RebindingTimeValue = 59,
