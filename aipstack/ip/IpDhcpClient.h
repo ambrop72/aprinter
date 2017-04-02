@@ -697,7 +697,7 @@ private:
             if (m_state == DhcpState::Requesting) {
                 // In Requesting state, sanity check against the offer.
                 if (ip_address != m_info.ip_address ||
-                    opts.dhcp_server_identifier != m_info.dhcp_server_identifier))
+                    opts.dhcp_server_identifier != m_info.dhcp_server_identifier)
                 {
                     return;
                 }
