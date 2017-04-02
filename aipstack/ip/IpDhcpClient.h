@@ -224,6 +224,8 @@ private:
     uint8_t m_request_count;
     uint32_t m_time_left;
     uint32_t m_lease_time_left;
+    TimeType m_request_send_time;
+    uint32_t m_request_send_time_left;
     LeaseInfo m_info;
     
 public:
@@ -292,6 +294,11 @@ private:
         return seconds * (TimeType)Clock::time_freq;
     }
     
+    inline TimeType getTimSetTime ()
+    {
+        return tim(DhcpTimer()).getSetTime(Context());
+    }
+    
     // This is used to achieve longer effective timeouts than
     // can be achieved with the timers/clock directly.
     // To start a long timeout, m_time_left is first set to the
@@ -299,19 +306,16 @@ private:
     // timer. The timer handler checks m_time_left; if it is zero
     // the desired time is expired, otherwise this is called
     // again to set the timer again.
-    uint32_t set_timer_for_time_left ()
+    // Also decrements *decrement_seconds by the number of seconds
+    // the timer has been set to.
+    void set_timer_for_time_left (uint32_t *decrement_seconds, TimeType base_time)
     {
-        uint32_t seconds = APrinter::MinValue(m_time_left, MaxTimerSeconds);
-        m_time_left -= seconds;
-        tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(seconds));
-        return seconds;
-    }
-    
-    // Like set_timer_for_time_left above but decrements *decrement_seconds
-    // by the number of seconds the timer has been set to.
-    void set_timer_for_time_left_dec (uint32_t *decrement_seconds)
-    {
-        uint32_t timer_seconds = set_timer_for_time_left();
+        uint32_t timer_seconds = APrinter::MinValue(m_time_left, MaxTimerSeconds);
+        m_time_left -= timer_seconds;
+        
+        TimeType set_time = base_time + SecondsToTicks(timer_seconds);
+        tim(DhcpTimer()).appendAt(Context(), set_time);
+        
         AMBRO_ASSERT(*decrement_seconds >= timer_seconds)
         *decrement_seconds -= timer_seconds;
     }
@@ -382,6 +386,11 @@ private:
                     return;
                 }
                 
+                // NOTE: We do not update m_request_send_time, it remains set
+                // to when the first request was sent. This is so that that times
+                // for renewing, rebinding and lease timeout will be relative to
+                // when the first request was sent.
+                
                 // Send request.
                 send_request();
                 
@@ -420,7 +429,7 @@ private:
             {
                 // If we have more time until timeout, restart timer.
                 if (m_time_left > 0) {
-                    return set_timer_for_time_left_dec(&m_lease_time_left);
+                    return set_timer_for_time_left(&m_lease_time_left, getTimSetTime());
                 }
                 
                 if (m_state == DhcpState::Bound) {
@@ -495,8 +504,14 @@ private:
         // Set m_time_left to the shortest of the two.
         m_time_left = APrinter::MinValue(next_state_time, time_to_rtx);
         
+        // Remember when the request was sent.
+        // Record the m_time_left to allow checking if m_request_send_time_left
+        // is still usable when the ACK is received.
+        m_request_send_time = getTimSetTime();
+        m_request_send_time_left = m_time_left;
+        
         // Start timeout.
-        set_timer_for_time_left_dec(&m_lease_time_left);
+        set_timer_for_time_left(&m_lease_time_left, getTimSetTime());
     }
     
     void handle_lease_expired ()
@@ -662,6 +677,9 @@ private:
             // Going to state Requesting.
             m_state = DhcpState::Requesting;
             
+            // Remember when the first request was sent.
+            m_request_send_time = Clock::getTime(Context());
+            
             // Send request.
             send_request();
             
@@ -676,12 +694,26 @@ private:
         else if (opts.dhcp_message_type == DhcpMessageType::Ack &&
                  m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
         {
-            // In Requesting state, sanity check against the offer.
-            if (m_state == DhcpState::Requesting && (
-                    ip_address != m_info.ip_address ||
+            if (m_state == DhcpState::Requesting) {
+                // In Requesting state, sanity check against the offer.
+                if (ip_address != m_info.ip_address ||
                     opts.dhcp_server_identifier != m_info.dhcp_server_identifier))
-            {
-                return;
+                {
+                    return;
+                }
+            } else {
+                // In Renewing/Rebinding, check that not too much time has passed
+                // that would make m_request_send_time invalid.
+                // This check effectively means that the timer is still set for the
+                // first expiration as set in request_in_renewing_or_rebinding and
+                // not for a subsequent expiration due to needing a large delay.
+                AMBRO_ASSERT(m_request_send_time_left >= m_time_left)
+                if (m_request_send_time_left - m_time_left > MaxTimerSeconds) {
+                    // Ignore the ACK. This should not be a problem because
+                    // an ACK really should not arrive that long (MaxTimerSeconds)
+                    // after a request was sent.
+                    return;
+                }
             }
             
             // Remember/update the lease information.
@@ -698,14 +730,13 @@ private:
             ::memcpy(m_info.domain_name_servers, opts.dns_servers, opts.have.dns_servers * sizeof(Ip4Addr));
             m_info.server_mac = ethHw()->getRxEthHeader().get(EthHeader::SrcMac());
             
-            // In Requesting state, we need to do the ARP check first.
             if (m_state == DhcpState::Requesting) {
+                // In Requesting state, we need to do the ARP check first.
                 go_checking();
-                return;
+            } else {
+                // Bind the lease.
+                go_bound();
             }
-            
-            // Bind the lease.
-            go_bound();
         }
     }
     
@@ -830,6 +861,8 @@ private:
     
     void go_bound ()
     {
+        AMBRO_ASSERT(m_state == OneOf(DhcpState::Checking, DhcpState::Renewing, DhcpState::Rebinding))
+        
         bool had_lease = hasLease();
         
         // Going to state Bound.
@@ -840,8 +873,8 @@ private:
         m_time_left = m_info.renewal_time_s;
         AMBRO_ASSERT(m_time_left <= m_lease_time_left) // assured in checkAndFixupAddressInfo
         
-        // Start timeout for renewing.
-        set_timer_for_time_left_dec(&m_lease_time_left);
+        // Start timeout for renewing (relative to when a request was sent).
+        set_timer_for_time_left(&m_lease_time_left, m_request_send_time);
         
         // Apply IP configuration etc.
         handle_dhcp_up(had_lease);
