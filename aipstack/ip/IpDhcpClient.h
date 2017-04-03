@@ -96,6 +96,7 @@ APRINTER_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::Context, IpDhcpClie
 template <typename Arg>
 class IpDhcpClient :
     private Arg::IpStack::IfaceListener,
+    private Arg::IpStack::IfaceStateObserver,
     private IpDhcpClientTimers<Arg>::Timers,
     private IpSendRetry::Request,
     private IpEthHw::ArpObserver
@@ -105,7 +106,7 @@ class IpDhcpClient :
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
-    APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener))
+    APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener, IfaceStateObserver))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_TYPES2(IpDhcpClientCallback, (LeaseEventType))
     APRINTER_USE_ONEOF
@@ -242,9 +243,13 @@ public:
         
         // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
+        IfaceStateObserver::init();
         tim(DhcpTimer()).init(Context());
         IpSendRetry::Request::init();
         ArpObserver::init();
+        
+        // Start observing interface state.
+        IfaceStateObserver::observe(*iface);
         
         // Start discovery.
         start_discovery(true, true);
@@ -259,6 +264,7 @@ public:
         ArpObserver::deinit();
         IpSendRetry::Request::deinit();
         tim(DhcpTimer()).deinit(Context());
+        IfaceStateObserver::deinit();
         IfaceListener::deinit();
     }
     
@@ -738,6 +744,14 @@ private:
                 go_bound();
             }
         }
+    }
+    
+    void ifaceStateChanged () override final
+    {
+        IpIfaceDriverState driver_state = iface()->getDriverState();
+        
+        // TODO
+        //printf("ifaceStateChanged link=%d\n", (int)driver_state.link_up);
     }
     
     // Checks received address information.

@@ -45,6 +45,10 @@ struct IpIfaceIp4Addrs {
     uint8_t prefix;
 };
 
+struct IpIfaceDriverState {
+    bool link_up;
+};
+
 APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback);
 
 template <typename CallbackImpl>
@@ -56,11 +60,13 @@ public:
                                  IpSendRetry::Request *sendRetryReq) = 0;
     virtual IpHwType getHwType () = 0;
     virtual void * getHwIface () = 0;
+    virtual IpIfaceDriverState getState () = 0;
 };
 
 APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
     APRINTER_IFACE_FUNC(IpIfaceIp4Addrs const *, getIp4Addrs, ())
     APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef pkt))
+    APRINTER_IFACE_FUNC(void, stateChanged, ())
 };
 
 #include <aipstack/EndNamespace.h>

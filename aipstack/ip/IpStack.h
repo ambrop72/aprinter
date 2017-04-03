@@ -40,6 +40,7 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
+#include <aprinter/structure/ObserverNotification.h>
 
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
@@ -84,6 +85,8 @@ class IpStack
 {
     APRINTER_USE_TYPES1(Arg, (Params, Context, BufAllocator))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
+    
+    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
@@ -369,6 +372,24 @@ public:
         uint8_t m_proto;
     };
     
+    class IfaceStateObserver : private Observer {
+        friend IpStack;
+        
+    public:
+        using Observer::init;
+        using Observer::deinit;
+        using Observer::reset;
+        using Observer::isActive;
+        
+        inline void observe (Iface &iface)
+        {
+            Observer::observe(iface.m_state_observable);
+        }
+        
+    private:
+        virtual void ifaceStateChanged () = 0;
+    };
+    
 private:
     using IfaceListenerList = APrinter::LinkedList<
         APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node), IfaceListenerLinkModel, false>;
@@ -395,6 +416,7 @@ public:
             m_have_addr = false;
             m_have_gateway = false;
             m_listeners_list.init();
+            m_state_observable.init();
             
             // Get the MTU.
             m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
@@ -410,6 +432,7 @@ public:
         void deinit ()
         {
             AMBRO_ASSERT(m_listeners_list.isEmpty())
+            AMBRO_ASSERT(!m_state_observable.hasObservers())
             
             // Unregister interface.
             m_stack->m_iface_list.remove(this);
@@ -491,6 +514,11 @@ public:
             return m_ip_mtu;
         }
         
+        inline IpIfaceDriverState getDriverState ()
+        {
+            return m_driver->getState();
+        }
+        
     private:
         friend IpIfaceDriverCallback<Iface>;
         
@@ -504,9 +532,18 @@ public:
             m_stack->processRecvedIp4Packet(this, pkt);
         }
         
+        void stateChanged ()
+        {
+            m_state_observable.template notifyObservers<false>([&](Observer &observer_base) {
+                IfaceStateObserver &observer = static_cast<IfaceStateObserver &>(observer_base);
+                observer.ifaceStateChanged();
+            });
+        }
+        
     private:
         APrinter::DoubleEndedListNode<Iface> m_iface_list_node;
         IfaceListenerList m_listeners_list;
+        Observable m_state_observable;
         IpStack *m_stack;
         IpIfaceDriver<CallbackImpl> *m_driver;
         void *m_hw_iface;

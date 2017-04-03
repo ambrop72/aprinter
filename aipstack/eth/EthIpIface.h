@@ -172,6 +172,15 @@ public: // IpIfaceDriver
         return static_cast<IpEthHw::HwIface *>(this);
     }
     
+    IpIfaceDriverState getState () override final
+    {
+        EthIfaceState eth_state = m_driver->getState();
+        
+        IpIfaceDriverState state = {};
+        state.link_up = eth_state.link_up;
+        return state;
+    }
+    
 private: // EthIfaceDriverCallback
     friend EthIfaceDriverCallback<EthIpIface>;
     
@@ -225,6 +234,11 @@ private: // EthIfaceDriverCallback
                 }
             }
         }
+    }
+    
+    void stateChanged ()
+    {
+        m_callback->stateChanged();
     }
     
 private: // IpEthHw::HwIface

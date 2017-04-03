@@ -34,6 +34,10 @@
 
 #include <aipstack/BeginNamespace.h>
 
+struct EthIfaceState {
+    bool link_up;
+};
+
 APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback);
 
 template <typename CallbackImpl>
@@ -43,10 +47,12 @@ public:
     virtual MacAddr const * getMacAddr () = 0;
     virtual size_t getEthMtu () = 0;
     virtual IpErr sendFrame (IpBufRef frame) = 0;
+    virtual EthIfaceState getState () = 0;
 };
 
 APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback) {
     APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef frame))
+    APRINTER_IFACE_FUNC(void, stateChanged, ())
 };
 
 #include <aipstack/EndNamespace.h>

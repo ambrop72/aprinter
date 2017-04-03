@@ -53,7 +53,7 @@ class IpStackNetwork {
     APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
     
     APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, StackBufAllocator,
-                                   IpBufRef, IpBufNode, MacAddr, IpErr, Ip4Addr))
+                                   IpBufRef, IpBufNode, MacAddr, IpErr, Ip4Addr, EthIfaceState))
     
     APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService))
     APRINTER_USE_VALS(Params, (NumArpEntries, ArpProtectCount, NumTcpPcbs, NumOosSegs,
@@ -331,12 +331,12 @@ private:
         }
         
     public:
-        void setCallback (AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *callback) override
+        void setCallback (AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *callback) override final
         {
             m_callback = callback;
         }
         
-        MacAddr const * getMacAddr () override
+        MacAddr const * getMacAddr () override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -344,7 +344,7 @@ private:
             return TheEthernet::getMacAddr(Context());
         }
         
-        size_t getEthMtu () override
+        size_t getEthMtu () override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -352,12 +352,22 @@ private:
             return EthMTU;
         }
         
-        IpErr sendFrame (IpBufRef frame) override
+        IpErr sendFrame (IpBufRef frame) override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
             
             return TheEthernet::sendFrame(Context(), &frame);
+        }
+        
+        EthIfaceState getState () override final
+        {
+            auto *o = Object::self(Context());
+            AMBRO_ASSERT(o->activation_state == ACTIVATED)
+            
+            EthIfaceState state = {};
+            state.link_up = TheEthernet::getLinkUp(Context());
+            return state;
         }
         
     private:
@@ -376,6 +386,8 @@ private:
             o->dhcp_enabled = false;
             
             o->eth_ip_iface.init(&o->driver_proxy);
+            AMBRO_ASSERT(o->driver_proxy.m_callback != nullptr)
+            
             o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
             
             if (o->config.dhcp_enabled) {
@@ -407,7 +419,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-        // TODO: Inform IP stack about link.
+        o->driver_proxy.m_callback->stateChanged();
         
         NetworkEvent event{NetworkEventType::LINK};
         event.link.up = link_status;
@@ -419,7 +431,6 @@ private:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
-        AMBRO_ASSERT(o->driver_proxy.m_callback != nullptr)
         AMBRO_ASSERT(size2 == 0 || size1 > 0)
         
         if (size1 == 0) {
