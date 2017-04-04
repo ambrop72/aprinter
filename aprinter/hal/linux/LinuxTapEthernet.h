@@ -72,13 +72,17 @@ public:
     struct Object;
     
 public:
+    struct HasSimulatedLinkStatus {};
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
         o->activate_event.init(c, APRINTER_CB_STATFUNC_T(&LinuxTapEthernet::activate_event_handler));
+        o->link_event.init(c, APRINTER_CB_STATFUNC_T(&LinuxTapEthernet::link_event_handler));
         o->fd_event.init(c, APRINTER_CB_STATFUNC_T(&LinuxTapEthernet::fd_event_handler));
         o->init_state = InitState::INACTIVE;
+        o->simulated_link_up = true;
     }
     
     static void deinit (Context c)
@@ -87,6 +91,7 @@ public:
         
         reset(c);
         o->fd_event.deinit(c);
+        o->link_event.deinit(c);
         o->activate_event.deinit(c);
     }
     
@@ -104,6 +109,7 @@ public:
         }
         
         o->activate_event.unset(c);
+        o->link_event.unset(c);
         o->init_state = InitState::INACTIVE;
     }
     
@@ -148,7 +154,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        return o->init_state == InitState::RUNNING && o->working;
+        return o->init_state == InitState::RUNNING && o->working && o->simulated_link_up;
     }
     
     static AIpStack::MacAddr const * getMacAddr (Context c)
@@ -159,6 +165,14 @@ public:
             return nullptr;
         }
         return &o->mac_addr;
+    }
+    
+    static void setSimulatedLinkUp (Context c, bool link_up)
+    {
+        auto *o = Object::self(c);
+        
+        o->simulated_link_up = link_up;
+        o->link_event.prependNow(c);
     }
     
 private:
@@ -250,6 +264,15 @@ private:
         return ActivateHandler::call(c, error);
     }
     
+    static void link_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->init_state == InitState::RUNNING && o->working) {
+            return ClientParams::LinkHandler::call(c, o->simulated_link_up);
+        }
+    }
+    
     static void fd_event_handler (Context c, int events)
     {
         auto *o = Object::self(c);
@@ -280,6 +303,7 @@ private:
 public:
     struct Object : public ObjBase<LinuxTapEthernet, ParentObject, EmptyTypeList> {
         typename Context::EventLoop::QueuedEvent activate_event;
+        typename Context::EventLoop::QueuedEvent link_event;
         typename Context::EventLoop::FdEvent fd_event;
         size_t eth_mtu;
         char *read_buffer;
@@ -287,6 +311,7 @@ public:
         int tap_fd;
         InitState init_state;
         bool working;
+        bool simulated_link_up;
         AIpStack::MacAddr mac_addr;
     };
 };

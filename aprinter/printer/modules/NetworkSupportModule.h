@@ -30,6 +30,9 @@
 #include <inttypes.h>
 
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/FunctionIf.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
@@ -43,12 +46,18 @@ template <typename ModuleArg>
 class NetworkSupportModule {
     APRINTER_UNPACK_MODULE_ARG(ModuleArg)
     
+    APRINTER_DEFINE_MEMBER_TYPE(MemberHasSimulatedLinkStatus, HasSimulatedLinkStatus)
+    
 public:
     struct Object;
     
 private:
     using Config = typename ThePrinterMain::Config;
+    using TheCommand = typename ThePrinterMain::TheCommand;
     using TheNetwork = typename Context::Network;
+    
+    static bool const HasSimulatedLinkStatus =
+        FuncCall<typename MemberHasSimulatedLinkStatus::Has, typename TheNetwork::GetEthernet>::Value;
     
     using CNetEnabled = decltype(Config::e(Params::NetEnabled::i()));
     using CMacAddress = decltype(Config::e(Params::MacAddress::i()));
@@ -120,17 +129,17 @@ public:
         }
     }
     
-    static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static bool check_command (Context c, TheCommand *cmd)
     {
         if (cmd->getCmdNumber(c) == 940) {
             handle_status_command(c, cmd);
             return false;
         }
-        return true;
+        return check_simulated_link_command(c, cmd);
     }
     
 private:
-    static void handle_status_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static void handle_status_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("Network: "));
         
@@ -169,7 +178,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void print_mac_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    static void print_mac_addr (Context c, TheCommand *cmd, uint8_t const *addr)
     {
         for (auto i : LoopRange<int>(6)) {
             if (i > 0) {
@@ -181,7 +190,7 @@ private:
         }
     }
     
-    static void print_ip_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    static void print_ip_addr (Context c, TheCommand *cmd, uint8_t const *addr)
     {
         for (auto i : LoopRange<int>(4)) {
             if (i > 0) {
@@ -212,6 +221,20 @@ private:
             } break;
         }
     }
+    
+    APRINTER_FUNCTION_IF_ELSE_EXT(HasSimulatedLinkStatus, static, bool, check_simulated_link_command(Context c, TheCommand *cmd), {
+        if (cmd->getCmdNumber(c) == 941) {
+            uint32_t link_up_arg;
+            if (cmd->find_command_param_uint32(c, 'L', &link_up_arg)) {
+                TheNetwork::GetEthernet::setSimulatedLinkUp(c, link_up_arg != 0);
+            }
+            cmd->finishCommand(c);
+            return false;
+        }
+        return true;
+    }, {
+        return true;
+    })
     
 public:
     using ConfigExprs = MakeTypeList<CNetEnabled, CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;

@@ -748,6 +748,17 @@ public:
         }
         
         APRINTER_NO_INLINE
+        bool find_command_param_uint32 (Context c, char code, uint32_t *out)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return false;
+            }
+            *out = getPartUint32Value(c, part);
+            return true;
+        }
+        
+        APRINTER_NO_INLINE
         bool find_command_param_fp (Context c, char code, FpType *out)
         {
             PartRef part;
