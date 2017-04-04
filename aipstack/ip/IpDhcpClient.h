@@ -125,6 +125,8 @@ class IpDhcpClient :
     
     // DHCP client states
     enum class DhcpState {
+        // Link is down
+        LinkDown,
         // Resetting due to NAK after some time
         Resetting,
         // Send discover, waiting for offer
@@ -251,8 +253,13 @@ public:
         // Start observing interface state.
         IfaceStateObserver::observe(*iface);
         
-        // Start discovery.
-        start_discovery(true, true);
+        if (iface->getDriverState().link_up) {
+            // Start discovery.
+            start_discovery(true, true);
+        } else {
+            // Remain inactive until the link is up.
+            m_state = DhcpState::LinkDown;
+        }
     }
     
     void deinit ()
@@ -750,8 +757,30 @@ private:
     {
         IpIfaceDriverState driver_state = iface()->getDriverState();
         
-        // TODO
-        //printf("ifaceStateChanged link=%d\n", (int)driver_state.link_up);
+        if (m_state == DhcpState::LinkDown) {
+            // If the link is now up, start discovery.
+            if (driver_state.link_up) {
+                start_discovery(true, true);
+            }
+        } else {
+            // If the link is no longer up, revert everything.
+            if (!driver_state.link_up) {
+                bool had_lease = hasLease();
+                
+                // Go to state LinkDown.
+                m_state = DhcpState::LinkDown;
+                
+                // Reset resources.
+                ArpObserver::reset();
+                IpSendRetry::Request::reset();
+                tim(DhcpTimer()).unset(Context());
+                
+                // If we had a lease, unbind and notify user.
+                if (had_lease) {
+                    handle_dhcp_down(true);
+                }
+            }
+        }
     }
     
     // Checks received address information.
