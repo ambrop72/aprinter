@@ -73,7 +73,8 @@ public:
     // Constructor which sets default values.
     inline IpDhcpClientInitOptions ()
     : client_id(APrinter::MemRef::Null()),
-      vendor_class_id(APrinter::MemRef::Null())
+      vendor_class_id(APrinter::MemRef::Null()),
+      request_ip_address(Ip4Addr::ZeroAddr())
     {}
     
     // Client identifier, empty/null to not send.
@@ -85,6 +86,10 @@ public:
     // If given, the pointed-to memory must be valid
     // as long as the DHCP client is initialized.
     APrinter::MemRef vendor_class_id;
+    
+    // If this is not zero, the DHCP client will
+    // request this address using the REBOOTING state.
+    Ip4Addr request_ip_address;
 };
 
 template <typename Arg>
@@ -129,6 +134,8 @@ class IpDhcpClient :
         LinkDown,
         // Resetting due to NAK after some time
         Resetting,
+        // Trying to request a specific IP address
+        Rebooting,
         // Send discover, waiting for offer
         Selecting,
         // Sent request after offer, waiting for ack
@@ -148,6 +155,9 @@ class IpDhcpClient :
     
     // Maximum number of requests to send after an offer before going back to discovery.
     static uint8_t const MaxRequests = 3;
+    
+    // Maximum number of requests in Rebooting state to send before revering to discovery.
+    static uint8_t const MaxRebootRequests = 2;
     
     // Base retransmission timeout.
     static uint8_t const BaseRtxTimeoutSeconds = 3;
@@ -200,7 +210,7 @@ public:
     struct LeaseInfo {
         // These two are set already when the offer is received.
         Ip4Addr dhcp_server_addr;
-        Ip4Addr ip_address;
+        Ip4Addr ip_address; // in LinkDown defines the address to reboot with or none
         uint32_t dhcp_server_identifier;
         
         // The rest are set when the ack is received.
@@ -252,9 +262,12 @@ public:
         // Start observing interface state.
         IfaceStateObserver::observe(*iface);
         
+        // Remember any requested IP address for Rebooting.
+        m_info.ip_address = opts.request_ip_address;
+        
         if (iface->getDriverState().link_up) {
-            // Start discovery.
-            start_discovery();
+            // Start discovery/rebooting.
+            start_discovery_or_rebooting();
         } else {
             // Remain inactive until the link is up.
             m_state = DhcpState::LinkDown;
@@ -346,23 +359,44 @@ private:
     }
     
     // Start discovery process.
-    void start_discovery ()
+    void start_discovery_or_rebooting ()
     {
         // Generate an XID.
         new_xid();
         
-        // Going to Selecting state.
-        m_state = DhcpState::Selecting;
-        
-        // Initialize the counter of discover messages.
+        // Initialize the counter of discover/request messages.
         m_request_count = 1;
         
-        // Send discover.
-        send_discover();
+        if (m_info.ip_address == Ip4Addr::ZeroAddr()) {
+            // Going to Selecting state.
+            m_state = DhcpState::Selecting;
+            
+            // Send discover.
+            send_discover();
+        } else {
+            // Go to Rebooting state.
+            m_state = DhcpState::Rebooting;
+            
+            // Remember when the first request was sent.
+            m_request_send_time = Clock::getTime(Context());
+            
+            // Send request.
+            send_request();
+        }
         
-        // Set the timer to send another discover if there is no offer.
+        // Set the timer for retransmission (or reverting from Rebooting to discovery).
         reset_rtx_timeout();
         tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
+    }
+    
+    // Start discovery (never rebooting).
+    void start_discovery ()
+    {
+        // Clear ip_address to prevent Rebooting.
+        m_info.ip_address = Ip4Addr::ZeroAddr();
+        
+        // Delegate to start_discovery_or_rebooting.
+        start_discovery_or_rebooting();
     }
     
     void timerExpired (DhcpTimer, Context)
@@ -392,12 +426,11 @@ private:
             } break;
             
             // Timer is set for retransmitting request.
+            case DhcpState::Rebooting:
             case DhcpState::Requesting: {
-                AMBRO_ASSERT(m_request_count >= 1)
-                AMBRO_ASSERT(m_request_count <= MaxRequests)
-                
-                // If we sent enough requests, start discovery again.
-                if (m_request_count >= MaxRequests) {
+                // If we sent enough requests, start discovery.
+                auto limit = (m_state == DhcpState::Rebooting) ? MaxRebootRequests : MaxRequests;
+                if (m_request_count >= limit) {
                     start_discovery();
                     return;
                 }
@@ -495,7 +528,8 @@ private:
         if (m_state == DhcpState::Selecting) {
             send_discover();
         }
-        else if (m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding)) {
+        else if (m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing,
+                                  DhcpState::Rebinding, DhcpState::Rebooting)) {
             send_request();
         }
     }
@@ -663,14 +697,17 @@ private:
         
         // Handle NAK message.
         if (opts.dhcp_message_type == DhcpMessageType::Nak) {
-            // A NAK is only valid in states where we are expecting a reply.
-            if (m_state != OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding)) {
+            // A NAK is only valid in states where we are expecting a reply to a request.
+            if (m_state != OneOf(DhcpState::Requesting, DhcpState::Renewing,
+                                 DhcpState::Rebinding, DhcpState::Rebooting)) {
                 return;
             }
             
-            // Ignore NAK if the DHCP server identifier does not match.
-            if (opts.dhcp_server_identifier != m_info.dhcp_server_identifier) {
-                return;
+            // In Requesting state, verify the DHCP server identifier.
+            if (m_state == DhcpState::Requesting) {
+                if (opts.dhcp_server_identifier != m_info.dhcp_server_identifier) {
+                    return;
+                }
             }
             
             // Go to Resetting state, set timer, remove lease.
@@ -716,9 +753,10 @@ private:
             reset_rtx_timeout();
             tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
         }
-        // Handle received ACK in Requesting, Renewing or Rebinding state.
+        // Handle received ACK in Requesting/Renewing/Rebinding/Rebooting state.
         else if (opts.dhcp_message_type == DhcpMessageType::Ack &&
-                 m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
+                 m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing,
+                                  DhcpState::Rebinding, DhcpState::Rebooting))
         {
             if (m_state == DhcpState::Requesting) {
                 // In Requesting state, sanity check against the offer.
@@ -727,7 +765,8 @@ private:
                 {
                     return;
                 }
-            } else {
+            }
+            else if (m_state != DhcpState::Rebooting) {
                 // In Renewing/Rebinding, check that not too much time has passed
                 // that would make m_request_send_time invalid.
                 // This check effectively means that the timer is still set for the
@@ -771,14 +810,20 @@ private:
         IpIfaceDriverState driver_state = iface()->getDriverState();
         
         if (m_state == DhcpState::LinkDown) {
-            // If the link is now up, start discovery.
+            // If the link is now up, start discovery/rebooting.
             if (driver_state.link_up) {
-                start_discovery();
+                start_discovery_or_rebooting();
             }
         } else {
             // If the link is no longer up, revert everything.
             if (!driver_state.link_up) {
                 bool had_lease = hasLease();
+                
+                // In certain states we reset the ip_address to prevent
+                // later requesting it via the Rebooting state.
+                if (!(had_lease || m_state == DhcpState::Rebooting)) {
+                    m_info.ip_address = Ip4Addr::ZeroAddr();
+                }
                 
                 // Go to state LinkDown.
                 m_state = DhcpState::LinkDown;
@@ -917,7 +962,8 @@ private:
     
     void go_bound ()
     {
-        AMBRO_ASSERT(m_state == OneOf(DhcpState::Checking, DhcpState::Renewing, DhcpState::Rebinding))
+        AMBRO_ASSERT(m_state == OneOf(DhcpState::Checking, DhcpState::Renewing,
+                                      DhcpState::Rebinding, DhcpState::Rebooting))
         
         bool had_lease = hasLease();
         
@@ -978,7 +1024,8 @@ private:
     // Send a DHCP request message.
     void send_request ()
     {
-        AMBRO_ASSERT(m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing, DhcpState::Rebinding))
+        AMBRO_ASSERT(m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing,
+                                      DhcpState::Rebinding, DhcpState::Rebooting))
         
         DhcpSendOptions send_opts;
         Ip4Addr ciaddr = Ip4Addr::ZeroAddr();
@@ -987,14 +1034,17 @@ private:
         if (m_state == DhcpState::Requesting) {
             send_opts.have.dhcp_server_identifier = true;
             send_opts.dhcp_server_identifier = m_info.dhcp_server_identifier;
-            send_opts.have.requested_ip_address = true;
-            send_opts.requested_ip_address = m_info.ip_address;
-        }
-        else {
-            ciaddr = m_info.ip_address;
+        } else {
             if (m_state == DhcpState::Renewing) {
                 dst_addr = m_info.dhcp_server_addr;
             }
+        }
+        
+        if (m_state == OneOf(DhcpState::Requesting, DhcpState::Rebooting)) {
+            send_opts.have.requested_ip_address = true;
+            send_opts.requested_ip_address = m_info.ip_address;
+        } else {
+            ciaddr = m_info.ip_address;
         }
         
         send_dhcp_message(DhcpMessageType::Request, send_opts, ciaddr, dst_addr);
