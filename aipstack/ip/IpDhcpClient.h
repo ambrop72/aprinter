@@ -144,7 +144,7 @@ class IpDhcpClient :
     };
     
     // Maximum number of discovery attempts before generating a new XID.
-    static uint8_t const XidReuseMax = 8;
+    static uint8_t const XidReuseMax = 3;
     
     // Maximum number of requests to send after an offer before going back to discovery.
     static uint8_t const MaxRequests = 3;
@@ -223,7 +223,6 @@ private:
     uint32_t m_xid;
     uint8_t m_rtx_timeout;
     DhcpState m_state;
-    uint8_t m_xid_reuse_count;
     uint8_t m_request_count;
     uint32_t m_time_left;
     uint32_t m_lease_time_left;
@@ -255,7 +254,7 @@ public:
         
         if (iface->getDriverState().link_up) {
             // Start discovery.
-            start_discovery(true, true);
+            start_discovery();
         } else {
             // Remain inactive until the link is up.
             m_state = DhcpState::LinkDown;
@@ -346,32 +345,23 @@ private:
             MaxRtxTimeoutSeconds : (2 * m_rtx_timeout);
     }
     
-    // Send a discover and manage the XID and retransmission timeout.
-    void start_discovery (bool force_new_xid, bool do_reset_rtx_timeout)
+    // Start discovery process.
+    void start_discovery ()
     {
-        // Generate a new XID if forced or the reuse count was reached.
-        if (force_new_xid || m_xid_reuse_count >= XidReuseMax) {
-            m_xid = Clock::getTime(Context());
-            m_xid_reuse_count = 0;
-        }
-        
-        // Increment the XID reuse count.
-        m_xid_reuse_count++;
-        
-        // Update the retransmission timeout.
-        if (do_reset_rtx_timeout) {
-            reset_rtx_timeout();
-        } else {
-            double_rtx_timeout();
-        }
+        // Generate an XID.
+        new_xid();
         
         // Going to Selecting state.
         m_state = DhcpState::Selecting;
+        
+        // Initialize the counter of discover messages.
+        m_request_count = 1;
         
         // Send discover.
         send_discover();
         
         // Set the timer to send another discover if there is no offer.
+        reset_rtx_timeout();
         tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
     }
     
@@ -379,13 +369,26 @@ private:
     {
         switch (m_state) {
             // Timer is set for restarting discovery.
-            case DhcpState::Resetting:
+            case DhcpState::Resetting: {
+                start_discovery();
+            } break;
+            
+            // Timer is set for retransmitting discover.
             case DhcpState::Selecting: {
-                // Send a discover.
-                // If this is after a NAK then force a new XID and reset the
-                // retransmission timeout.
-                bool resetting = m_state == DhcpState::Resetting;
-                start_discovery(resetting, resetting);
+                // Update request count, generate new XID if needed.
+                if (m_request_count >= XidReuseMax) {
+                    m_request_count = 1;
+                    new_xid();
+                } else {
+                    m_request_count++;
+                }
+                
+                // Send discover.
+                send_discover();
+                
+                // Set the timer for another retransmission.
+                double_rtx_timeout();
+                tim(DhcpTimer()).appendAfter(Context(), SecondsToTicks(m_rtx_timeout));
             } break;
             
             // Timer is set for retransmitting request.
@@ -393,9 +396,9 @@ private:
                 AMBRO_ASSERT(m_request_count >= 1)
                 AMBRO_ASSERT(m_request_count <= MaxRequests)
                 
-                // If se sent enough requests, start discovery again.
+                // If we sent enough requests, start discovery again.
                 if (m_request_count >= MaxRequests) {
-                    start_discovery(false, true);
+                    start_discovery();
                     return;
                 }
                 
@@ -448,11 +451,18 @@ private:
                 if (m_state == DhcpState::Bound) {
                     // Go to state Renewing.
                     m_state = DhcpState::Renewing;
+                    
+                    // Generate an XID.
+                    new_xid();
                 }
                 else if (m_state == DhcpState::Renewing) {
-                    // If the rebinding time has expired, go to state Rebinding.
+                    // Has the rebinding time expired?
                     if (m_lease_time_left <= m_info.lease_time_s - m_info.rebinding_time_s) {
+                        // Go to state Rebinding.
                         m_state = DhcpState::Rebinding;
+                        
+                        // Generate an XID.
+                        new_xid();
                     }
                 }
                 else { // m_state == DhcpState::Rebinding
@@ -530,7 +540,7 @@ private:
     void handle_lease_expired ()
     {
         // Start discovery.
-        start_discovery(true, true);
+        start_discovery();
         
         // Remove IP configuration.
         handle_dhcp_down(true);
@@ -690,6 +700,9 @@ private:
             // Going to state Requesting.
             m_state = DhcpState::Requesting;
             
+            // Generate an XID.
+            new_xid();
+            
             // Remember when the first request was sent.
             m_request_send_time = Clock::getTime(Context());
             
@@ -760,7 +773,7 @@ private:
         if (m_state == DhcpState::LinkDown) {
             // If the link is now up, start discovery.
             if (driver_state.link_up) {
-                start_discovery(true, true);
+                start_discovery();
             }
         } else {
             // If the link is no longer up, revert everything.
@@ -1102,6 +1115,11 @@ private:
         
         // Send the datagram.
         m_ipstack->sendIp4Dgram(ip_meta, dgram, this);
+    }
+    
+    void new_xid ()
+    {
+        m_xid = Clock::getTime(Context());
     }
 };
 
