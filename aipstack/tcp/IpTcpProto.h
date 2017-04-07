@@ -307,18 +307,22 @@ private:
         // from when the PCB is initialized in SYN_SENT/SYN_RCVD state.
         uint16_t rcv_mss;
         
+        // NOTE: The following 5 fields are uint32_t to encourage compilers
+        // to pack them into a single 32-bit word, if they were narrower
+        // they may be packed less efficiently.
+        
         // Flags (see comments in PcbFlags).
-        FlagsType flags : 14;
+        uint32_t flags : 14;
         
         // PCB state.
-        uint8_t state : 4;
+        uint32_t state : 4;
         
         // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
-        uint8_t num_dupack : Constants::DupAckBits;
+        uint32_t num_dupack : Constants::DupAckBits;
         
         // Window shift values.
-        uint8_t snd_wnd_shift : 4;
-        uint8_t rcv_wnd_shift : 4;
+        uint32_t snd_wnd_shift : 4;
+        uint32_t rcv_wnd_shift : 4;
         
         // Convenience functions for flags.
         inline bool hasFlag (FlagsType flag) { return (flags & flag) != 0; }
