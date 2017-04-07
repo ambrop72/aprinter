@@ -117,14 +117,14 @@ private:
         FIN_PENDING = (FlagsType)1 << 3,  // A FIN is to be transmitted
         RTT_PENDING = (FlagsType)1 << 4,  // Round-trip-time is being measured
         RTT_VALID   = (FlagsType)1 << 5,  // Round-trip-time is not in initial state
-        OOSEQ_FIN   = (FlagsType)1 << 6,  // Out-of-sequence FIN has been received
-        CWND_INCRD  = (FlagsType)1 << 7,  // cwnd has been increaded by snd_mss this round-trip
-        RTX_ACTIVE  = (FlagsType)1 << 8,  // A segment has been retransmitted and not yet acked
-        RECOVER     = (FlagsType)1 << 9,  // The recover variable valid (and >=snd_una)
-        IDLE_TIMER  = (FlagsType)1 << 10, // If rtx_timer is running it is for idle timeout
-        WND_SCALE   = (FlagsType)1 << 11, // Window scaling is used
-        CWND_INIT   = (FlagsType)1 << 12, // Current cwnd is the initial cwnd
-        OUT_RETRY   = (FlagsType)1 << 13, // If OutputTimer is set it is for OutputRetry*Ticks
+        CWND_INCRD  = (FlagsType)1 << 6,  // cwnd has been increaded by snd_mss this round-trip
+        RTX_ACTIVE  = (FlagsType)1 << 7,  // A segment has been retransmitted and not yet acked
+        RECOVER     = (FlagsType)1 << 8,  // The recover variable valid (and >=snd_una)
+        IDLE_TIMER  = (FlagsType)1 << 9,  // If rtx_timer is running it is for idle timeout
+        WND_SCALE   = (FlagsType)1 << 10, // Window scaling is used
+        CWND_INIT   = (FlagsType)1 << 11, // Current cwnd is the initial cwnd
+        OUT_RETRY   = (FlagsType)1 << 12, // If OutputTimer is set it is for OutputRetry*Ticks
+        // NOTE: If adding new flags check bit width in TcpPcb::flags.
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
@@ -155,6 +155,31 @@ private:
     struct OosSeg {
         SeqType start;
         SeqType end;
+        
+        // Entry with start==end+1 marks the end of segments.
+        inline bool isEnd () { return start == seq_add(end, 1); }
+        
+        // Make an end segment.
+        inline static OosSeg MakeEnd ()
+        {
+            return OosSeg{1, 0};
+        }
+        
+        // Entry with start==end represents a FIN.
+        // For a FIN, start/end will be the FIN sequence number plus 1.
+        // This simplifies algorithms because a FIN cannot touch any
+        // data segment preceding it with this definition.
+        inline bool isFin () { return start == end; }
+        
+        // Get the FIN sequence number of a FIN segment.
+        inline SeqType getFinSeq () { return seq_diff(start, 1); }
+        
+        // Make a FIN segment.
+        inline static OosSeg MakeFin (SeqType fin_seq)
+        {
+            SeqType start_end_seq = seq_add(fin_seq, 1);
+            return OosSeg{start_end_seq, start_end_seq};
+        }
     };
     
     // PCB key for the PCB index.
@@ -253,7 +278,6 @@ private:
         
         // Out-of-sequence segment information.
         OosSeg ooseq[NumOosSegs];
-        SeqType ooseq_fin;
         
         // Round-trip-time and retransmission time management.
         SeqType rtt_test_seq;
@@ -284,13 +308,10 @@ private:
         uint16_t rcv_mss;
         
         // Flags (see comments in PcbFlags).
-        FlagsType flags;
+        FlagsType flags : 14;
         
         // PCB state.
-        TcpState state;
-        
-        // Number of valid elements in ooseq_segs;
-        uint8_t num_ooseq : 4;
+        uint8_t state : 4;
         
         // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
         uint8_t num_dupack : Constants::DupAckBits;
@@ -761,7 +782,7 @@ private:
         pcb->snd_psh_index = 0;
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
-        pcb->num_ooseq = 0;
+        pcb->ooseq[0] = OosSeg::MakeEnd();
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = Constants::RcvWndShift;

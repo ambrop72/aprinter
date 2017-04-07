@@ -49,7 +49,7 @@ public:
     // Note, FIN_WAIT_2_TIME_WAIT is used transiently when we
     // were in FIN_WAIT_2 and have just received a FIN, but we
     // we will only go to TIME_WAIT after calling callbacks.
-    enum class TcpState : uint8_t {
+    enum TcpState : uint8_t {
         CLOSED,
         SYN_SENT,
         SYN_RCVD,
@@ -114,26 +114,26 @@ public:
         return tcp_data_len + ((flags & Tcp4SeqFlags) != 0);
     }
     
-    static inline bool state_is_active (TcpState state)
+    static inline bool state_is_active (uint8_t state)
     {
         return state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT,
                               TcpState::SYN_RCVD, TcpState::TIME_WAIT);
     }
     
-    static inline bool accepting_data_in_state (TcpState state)
+    static inline bool accepting_data_in_state (uint8_t state)
     {
         return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
                               TcpState::FIN_WAIT_2);
     }
     
-    static inline bool can_output_in_state (TcpState state)
+    static inline bool can_output_in_state (uint8_t state)
     {
         return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
                               TcpState::CLOSING, TcpState::CLOSE_WAIT,
                               TcpState::LAST_ACK);
     }
     
-    static inline bool snd_open_in_state (TcpState state)
+    static inline bool snd_open_in_state (uint8_t state)
     {
         return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
     }
