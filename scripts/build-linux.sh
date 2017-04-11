@@ -14,7 +14,7 @@ configure_linux() {
     FLAGS_C_CXX_LD=(
         "${FLAGS_OPT[@]}"
         -fno-math-errno -fno-trapping-math
-        -fsanitize=address,undefined
+        #-fsanitize=address,undefined
     )
     FLAGS_CXX_LD=(
         -fno-rtti -fno-exceptions
