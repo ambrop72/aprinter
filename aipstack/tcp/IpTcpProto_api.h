@@ -34,7 +34,7 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
-#include <aipstack/proto/TcpUtils.h>
+#include <aipstack/tcp/TcpUtils.h>
 
 #include <aipstack/BeginNamespace.h>
 

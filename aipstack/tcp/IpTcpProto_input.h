@@ -40,9 +40,9 @@
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
-#include <aipstack/proto/TcpUtils.h>
 #include <aipstack/proto/Icmp4Proto.h>
 #include <aipstack/ip/IpStack.h>
+#include <aipstack/tcp/TcpUtils.h>
 
 #include <aipstack/BeginNamespace.h>
 

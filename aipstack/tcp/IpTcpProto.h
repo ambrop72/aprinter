@@ -53,8 +53,8 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
-#include <aipstack/proto/TcpUtils.h>
 #include <aipstack/ip/IpStack.h>
+#include <aipstack/tcp/TcpUtils.h>
 
 #include "IpTcpProto_constants.h"
 #include "IpTcpProto_api.h"
