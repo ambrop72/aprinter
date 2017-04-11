@@ -27,22 +27,38 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+
+#include <algorithm>
 
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
+
 #include <aipstack/tcp/TcpUtils.h>
 
 #include <aipstack/BeginNamespace.h>
 
+/**
+ * Implements maintaining information about received
+ * out-of-sequence TCP data or FIN.
+ * 
+ * It keeps information about up to a statically
+ * configured number of received contiguous ranges
+ * of data or FIN.
+ */
 template <typename Arg>
 class TcpOosBuffer
 {
-    APRINTER_USE_VALS(Arg, (NumOosSegs))
     APRINTER_USE_TYPES1(TcpUtils, (SeqType))
     APRINTER_USE_VALS(TcpUtils, (seq_diff, seq_add, seq_lte, seq_lt))
     
+    static_assert(Arg::NumOosSegs > 0, "");
+    using IndexType = APrinter::ChooseIntForMax<Arg::NumOosSegs, false>;
+    static IndexType const NumOosSegs = Arg::NumOosSegs;
+    
+    // Represents one contiguous region of buffered data or
+    // a FIN or an end marker.
     struct OosSeg {
         // First sequence number (for data segments).
         SeqType start;
@@ -53,7 +69,10 @@ class TcpOosBuffer
         // Entry with start==end+1 marks the end of segments.
         // In reality only {1, 0} will be used but checking this
         // more general property is probably more efficient.
-        inline bool isEnd () const { return start == seq_add(end, 1); }
+        inline bool isEnd () const
+        {
+            return start == seq_add(end, 1);
+        }
         
         // Make an end segment.
         inline static OosSeg MakeEnd ()
@@ -62,48 +81,85 @@ class TcpOosBuffer
         }
         
         // Entry with start==end represents a FIN.
-        // For a FIN, start/end will be the FIN sequence number plus 1.
-        // This simplifies algorithms because a FIN cannot touch any
-        // data segment preceding it with this definition.
-        inline bool isFin () const { return start == end; }
+        // For a FIN, start and end will be the FIN sequence number
+        // plus 1. This simplifies algorithms because a FIN is not
+        // considerded to touch any preceding segment, just as data
+        // segments never touch each other.
+        inline bool isFin () const
+        {
+            return start == end;
+        }
         
         // Get the FIN sequence number of a FIN segment.
-        inline SeqType getFinSeq () const { return seq_diff(start, 1); }
+        // It is only valid to call this on an isFin segment.
+        inline SeqType getFinSeq () const
+        {
+            return seq_diff(start, 1);
+        }
         
-        // Make a FIN segment.
+        // Make a FIN segment, with the given FIN sequence number.
         inline static OosSeg MakeFin (SeqType fin_seq)
         {
-            SeqType start_end_seq = seq_add(fin_seq, 1);
-            return OosSeg{start_end_seq, start_end_seq};
+            SeqType seg_seq = seq_add(fin_seq, 1);
+            return OosSeg{seg_seq, seg_seq};
+        }
+        
+        // Check if segment is an end of FIN.
+        // This is supposed to be more efficient than isEnd||isFin.
+        inline bool isEndOrFin () const
+        {
+            return seq_diff(start, end) <= 1;
         }
     };
     
 private:
     // List of buffered segments.
     // If there are less than NumOosSegs used, then the first
-    // end-segment (isEnd()) marks the end. The end-segment is
+    // end segment (isEnd()) marks the end. The end segment is
     // not logically a valid segment, and segments following
     // the end segment are undefined.
     OosSeg m_ooseq[NumOosSegs];
     
 public:
-    // Initialize the out-of-sequence information.
+    /**
+     * Initialize (clear) the out-of-sequence information.
+     */
     inline void init ()
     {
-        // Set the first element to an end-segment.
+        // Set the first element to an end segment.
         m_ooseq[0] = OosSeg::MakeEnd();
     }
     
-    // Check if there is no out-of-sequence data or FIN buffered.
+    /**
+     * Check if there is no out-of-sequence data or FIN buffered.
+     * 
+     * @return Whether neither data nor FIN is buffered.
+     */
     inline bool isNothingBuffered ()
     {
-        // Check if the first element is an end-segment.
+        // Check if the first element is an end segment.
         return m_ooseq[0].isEnd();
     }
     
-    // Updates out-of-sequence information due to arrival of a new segment.
-    // The segment is assumed to fit within the receive window, this is assured
-    // in pcb_input_core before calling this.
+    /**
+     * Update out-of-sequence information due to arrival of a new segment.
+     * 
+     * The segment must already have been checked to fit within
+     * the available receive window. After this is called,
+     * shiftAvailable will typicall be called to remove any available
+     * data (but this is not strictly required).
+     * 
+     * @param rcv_nxt The first sequence number that has not been received,
+     *                i.e. the rcv_nxt of the PCB before it was updated due
+     *                to arrival of this segment.
+     * @param seg_start The sequence number of this segment.
+     * @param seg_datalen The data length of this segment (possibly zero).
+     * @param seg_fin Whether this segment is a FIN.
+     * @param need_ack This will be set to whether an ACK is needed because
+     *                 the segment filled a gap.
+     * @return True on success, false in case of FIN inconsistency
+     *         (no updates done).
+     */
     bool updateForSegmentReceived (SeqType rcv_nxt, SeqType seg_start, size_t seg_datalen,
                                    bool seg_fin, bool &need_ack)
     {
@@ -116,20 +172,20 @@ public:
         SeqType seg_end = seq_add(seg_start, seg_datalen);
         
         // Count the number of valid segments (this may include a FIN segment).
-        uint8_t num_ooseq = count_ooseq();
+        IndexType num_ooseq = count_ooseq();
         
         // Check for FIN-related inconsistencies.
         if (num_ooseq > 0 && m_ooseq[num_ooseq - 1].isFin()) {
             // Have a buffered FIN, get its sequence number.
-            SeqType ooseq_fin_seq = m_ooseq[num_ooseq - 1].getFinSeq();
+            SeqType fin_seq = m_ooseq[num_ooseq - 1].getFinSeq();
             
             // Check if we just received data beyond the buffered FIN. (A)
-            if (seg_datalen > 0 && !seq_lte(seg_end, ooseq_fin_seq, rcv_nxt)) {
+            if (seg_datalen > 0 && !seq_lte(seg_end, fin_seq, rcv_nxt)) {
                 return false;
             }
             
             // Check if we just received a FIN at a different position.
-            if (seg_fin && seg_end != ooseq_fin_seq) {
+            if (seg_fin && seg_end != fin_seq) {
                 return false;
             }
         } else {
@@ -140,11 +196,11 @@ public:
             }
         }
         
-        // If the new segment has any data, update the ooseq segments.
+        // If the new segment has any data, update the segments.
         if (seg_datalen > 0) {
             // Skip over segments strictly before this one.
             // Note: we would never skip over a FIN segment due to check (A) above.
-            uint8_t pos = 0;
+            IndexType pos = 0;
             while (pos < num_ooseq && seq_lt(m_ooseq[pos].end, seg_start, rcv_nxt)) {
                 pos++;
             }
@@ -172,7 +228,7 @@ public:
                 if (num_ooseq < NumOosSegs) {
                     if (pos < num_ooseq) {
                         need_ack = true;
-                        ::memmove(&m_ooseq[pos + 1], &m_ooseq[pos], (num_ooseq - pos) * sizeof(OosSeg));
+                        std::move_backward(&m_ooseq[pos], &m_ooseq[num_ooseq], &m_ooseq[num_ooseq + 1]);
                     }
                     m_ooseq[pos] = OosSeg{seg_start, seg_end};
                     num_ooseq++;
@@ -198,7 +254,7 @@ public:
                     
                     // Merge the extended segment [pos] with any subsequent segments
                     // that it now intersects or touches.
-                    uint8_t merge_pos = pos + 1;
+                    IndexType merge_pos = pos + 1;
                     while (merge_pos < num_ooseq && !seq_lt(seg_end, m_ooseq[merge_pos].start, rcv_nxt)) {
                         // Segment at [merge_pos] cannot be a FIN, for similar reasons that
                         // [pos] could not be above.
@@ -221,10 +277,10 @@ public:
                     // If we merged [pos] with any subsequent segments, move any
                     // remaining segments left over those merged segments and adjust
                     // num_ooseq.
-                    uint8_t num_merged = merge_pos - (pos + 1);
+                    IndexType num_merged = merge_pos - (pos + 1);
                     if (num_merged > 0) {
                         if (merge_pos < num_ooseq) {
-                            ::memmove(&m_ooseq[pos+1], &m_ooseq[merge_pos], (num_ooseq - merge_pos) * sizeof(OosSeg));
+                            std::move(&m_ooseq[merge_pos], &m_ooseq[num_ooseq], &m_ooseq[pos + 1]);
                         }
                         num_ooseq -= num_merged;
                     }
@@ -247,20 +303,31 @@ public:
         return true;
     }
     
-    // Shifts any available data or FIN from the out-of-sequence
-    // information buffer.
+    /**
+     * Shifts any available data or FIN from the front of the
+     * out-of-sequence information buffer.
+     * 
+     * @param rcv_nxt The first sequence number that has not been shifted
+     *                out, i.e. the rcv_nxt of the PCB before it was updated
+     *                due any shifted out data.
+     * @param datalen This will be set to the length of shifted-out data,
+     *                or zero if none. Any shifted out data begins with
+     *                sequence number rcv_nxt.
+     * @param fin This will be set to whether a FIN follows the shifted-out
+     *            data (or follows rcv_nxt if there is no shifted-out data).
+     */
     void shiftAvailable (SeqType rcv_nxt, size_t &datalen, bool &fin)
     {
         // Check if we have a data segment starting at rcv_nxt.
-        if (!m_ooseq[0].isEnd() && !m_ooseq[0].isFin() && m_ooseq[0].start == rcv_nxt) {
+        if (!m_ooseq[0].isEndOrFin() && m_ooseq[0].start == rcv_nxt) {
             // Return the data length to the caller.
             SeqType seq_end = m_ooseq[0].end;
             datalen = seq_diff(seq_end, m_ooseq[0].start);
             
             // Shift the segment out of the buffer.
-            uint8_t num_ooseq = count_ooseq();
+            IndexType num_ooseq = count_ooseq();
             if (num_ooseq > 1) {
-                ::memmove(&m_ooseq[0], &m_ooseq[1], (num_ooseq - 1) * sizeof(OosSeg));
+                std::move(&m_ooseq[1], &m_ooseq[num_ooseq], &m_ooseq[0]);
             }
             num_ooseq--;
             m_ooseq[num_ooseq] = OosSeg::MakeEnd();
@@ -268,7 +335,7 @@ public:
             // The next segment is not supposed to have any data that we
             // could immediately consume since there are always gaps
             // between segments.
-            AMBRO_ASSERT(m_ooseq[0].isEnd() || m_ooseq[0].isFin() ||
+            AMBRO_ASSERT(m_ooseq[0].isEndOrFin() ||
                          !seq_lte(m_ooseq[0].start, seq_end, rcv_nxt))
         } else {
             // Not returning any data.
@@ -284,9 +351,9 @@ public:
 private:
     // Return the number of out-of-sequence segments by counting
     // until an end marker is found or the end of segments is reached.
-    uint8_t count_ooseq ()
+    IndexType count_ooseq ()
     {
-        uint8_t num_ooseq = 0;
+        IndexType num_ooseq = 0;
         while (num_ooseq < NumOosSegs && !m_ooseq[num_ooseq].isEnd()) {
             num_ooseq++;
         }
@@ -295,7 +362,7 @@ private:
 };
 
 APRINTER_ALIAS_STRUCT_EXT(TcpOosBufferService, (
-    APRINTER_AS_VALUE(uint8_t, NumOosSegs)
+    APRINTER_AS_VALUE(size_t, NumOosSegs)
 ), (
     APRINTER_DEF_INSTANCE(TcpOosBufferService, TcpOosBuffer)
 ))
