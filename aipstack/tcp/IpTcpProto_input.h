@@ -54,7 +54,7 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
-                                   TcpPcb, PcbFlags, Output, OosSeg, Constants,
+                                   TcpPcb, PcbFlags, Output, Constants,
                                    AbrtTimer, RtxTimer, OutputTimer, MtuRef))
     APRINTER_USE_VALS(TcpProto, (NumOosSegs))
     APRINTER_USE_ONEOF
@@ -279,7 +279,7 @@ private:
             pcb->snd_psh_index = 0;
             pcb->base_snd_mss = base_snd_mss;
             pcb->rto = Constants::InitialRtxTime;
-            pcb->ooseq[0] = OosSeg::MakeEnd();
+            pcb->ooseq.init();
             pcb->num_dupack = 0;
             pcb->snd_wnd_shift = 0;
             pcb->rcv_wnd_shift = 0;
@@ -976,7 +976,7 @@ private:
         
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        if (AMBRO_LIKELY(data_offset == 0 && pcb->ooseq[0].isEnd())) {
+        if (AMBRO_LIKELY(data_offset == 0 && pcb->ooseq.isNothingBuffered())) {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
@@ -988,12 +988,19 @@ private:
             }
         } else {
             // Remember information about out-of-sequence data and FIN.
-            bool update_ok = update_ooseq(pcb, eff_seq, tcp_data.tot_len, seg_fin);
+            bool need_ack;
+            bool update_ok = pcb->ooseq.updateForSegmentReceived(
+                pcb->rcv_nxt, eff_seq, tcp_data.tot_len, seg_fin, need_ack);
             
             // If there was an inconsistency, abort.
             if (AMBRO_UNLIKELY(!update_ok)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
+            }
+            
+            // If the ACK is needed, set the ACK-pending flag.
+            if (need_ack) {
+                pcb->setFlag(PcbFlags::ACK_PENDING);
             }
             
             // Copy any received data into the receive buffer.
@@ -1005,7 +1012,7 @@ private:
             }
             
             // Get data or FIN from the out-of-sequence buffer.
-            pop_ooseq(pcb, rcv_datalen, rcv_fin);
+            pcb->ooseq.shiftAvailable(pcb->rcv_nxt, rcv_datalen, rcv_fin);
             
             // If we got any data out of OOS buffering here then the receive buffer
             // can necessarily be shifted by that much. This is because the data was
@@ -1091,202 +1098,6 @@ private:
         }
         
         return true;
-    }
-    
-    // Updates out-of-sequence information due to arrival of a new segment.
-    // The segment is assumed to fit within the receive window, this is assured
-    // in pcb_input_core before calling this.
-    static bool update_ooseq (TcpPcb *pcb, SeqType seg_start, size_t seg_datalen, bool seg_fin)
-    {
-        // Calculate sequence number for end of data.
-        SeqType seg_end = seq_add(seg_start, seg_datalen);
-        
-        // Count the number of valid segments (this may include a FIN segment).
-        uint8_t num_ooseq = count_ooseq(pcb);
-        
-        // Check for FIN-related inconsistencies.
-        if (num_ooseq > 0 && pcb->ooseq[num_ooseq - 1].isFin()) {
-            // Have a buffered FIN, get its sequence number.
-            SeqType ooseq_fin_seq = pcb->ooseq[num_ooseq - 1].getFinSeq();
-            
-            // Check if we just received data beyond the buffered FIN. (A)
-            if (seg_datalen > 0 && !seq_lte(seg_end, ooseq_fin_seq, pcb->rcv_nxt)) {
-                return false;
-            }
-            
-            // Check if we just received a FIN at a different position.
-            if (seg_fin && seg_end != ooseq_fin_seq) {
-                return false;
-            }
-        } else {
-            // Check if we just received a FIN that is before already received data.
-            if (seg_fin && num_ooseq > 0 &&
-                !seq_lte(pcb->ooseq[num_ooseq - 1].end, seg_end, pcb->rcv_nxt)) {
-                return false;
-            }
-        }
-        
-        // If the new segment has any data, update the ooseq segments.
-        if (seg_datalen > 0) {
-            // Skip over segments strictly before this one.
-            // Note: we would never skip over a FIN segment due to check (A) above.
-            uint8_t pos = 0;
-            while (pos < num_ooseq && seq_lt(pcb->ooseq[pos].end, seg_start, pcb->rcv_nxt)) {
-                pos++;
-            }
-            
-            // Need to send an ACK if the segment fills in all or part of
-            // a gap in the sequence space (RFC 5681).
-            bool need_ack = false;
-            
-            // If there are no more segments or the segment [pos] is strictly
-            // after the new segment, we insert a new segment here. Otherwise
-            // the new segment intersects or touches [pos] and we merge the
-            // new segment with [pos] and possibly subsequent segments.
-            // No special accomodation of FIN segments is needed because a FIN
-            // appears with start==end equal to the FIN sequence number plus one.
-            if (pos == num_ooseq || seq_lt(seg_end, pcb->ooseq[pos].start, pcb->rcv_nxt)) {
-                // If all segment slots are used and we are not inserting to the end,
-                // release the last slot. This ensures that we can always accept
-                // in-sequence data, and not stall after all slots are exhausted.
-                // More generally, it means that if all slots are used we will
-                // discard existing data in favor of newly received data that
-                // precedes the existing data in terms of sequence numbers.
-                // Note that we may discard a FIN here, this is not a problem
-                // other than missing a chance to detect a FIN inconsistency.
-                if (num_ooseq == NumOosSegs && pos < NumOosSegs) {
-                    num_ooseq--;
-                }
-                
-                // Insert a segment to this spot only if there is space.
-                if (num_ooseq < NumOosSegs) {
-                    if (pos < num_ooseq) {
-                        need_ack = true;
-                        ::memmove(&pcb->ooseq[pos + 1], &pcb->ooseq[pos], (num_ooseq - pos) * sizeof(OosSeg));
-                    }
-                    pcb->ooseq[pos] = OosSeg{seg_start, seg_end};
-                    num_ooseq++;
-                }
-            } else {
-                // The segment at [pos] cannot be a FIN.
-                // Proof: else branch implies seg_end >= [pos].start, therefore
-                // seg_end > [pos].start - 1 which is equivalent to the consistency
-                // check (A) assuming [pos] is the FIN, therefore the check would
-                // have failed and we wouldn't be here.
-                AMBRO_ASSERT(!pcb->ooseq[pos].isFin())
-                
-                // Extend the existing segment to the left if needed.
-                if (seq_lt(seg_start, pcb->ooseq[pos].start, pcb->rcv_nxt)) {
-                    need_ack = true;
-                    pcb->ooseq[pos].start = seg_start;
-                }
-                
-                // Extend the existing segment to the right if needed.
-                if (!seq_lte(seg_end, pcb->ooseq[pos].end, pcb->rcv_nxt)) {
-                    need_ack = true;
-                    pcb->ooseq[pos].end = seg_end;
-                    
-                    // Merge the extended segment [pos] with any subsequent segments
-                    // that it now intersects or touches.
-                    uint8_t merge_pos = pos + 1;
-                    while (merge_pos < num_ooseq && !seq_lt(seg_end, pcb->ooseq[merge_pos].start, pcb->rcv_nxt)) {
-                        // Segment at [merge_pos] cannot be a FIN, for similar reasons that
-                        // [pos] could not be above.
-                        AMBRO_ASSERT(!pcb->ooseq[merge_pos].isFin())
-                        
-                        // If the extended segment [pos] extends no more than to the end
-                        // of [merge_pos], then [merge_pos] is the last segment to be merged.
-                        if (seq_lte(seg_end, pcb->ooseq[merge_pos].end, pcb->rcv_nxt)) {
-                            // Make sure [pos] includes the entire [merge_pos].
-                            pcb->ooseq[pos].end = pcb->ooseq[merge_pos].end;
-                            merge_pos++;
-                            break;
-                        }
-                        
-                        // The segment [merge_pos] is extends strictly over the end of
-                        // [merge_pos], continue looking for segments to merge.
-                        merge_pos++;
-                    }
-                    
-                    // If we merged [pos] with any subsequent segments, move any
-                    // remaining segments left over those merged segments and adjust
-                    // num_ooseq.
-                    uint8_t num_merged = merge_pos - (pos + 1);
-                    if (num_merged > 0) {
-                        if (merge_pos < num_ooseq) {
-                            ::memmove(&pcb->ooseq[pos+1], &pcb->ooseq[merge_pos], (num_ooseq - merge_pos) * sizeof(OosSeg));
-                        }
-                        num_ooseq -= num_merged;
-                    }
-                }
-            }
-            
-            // If the ACK is needed, set the ACK-pending flag.
-            if (need_ack) {
-                pcb->setFlag(PcbFlags::ACK_PENDING);
-            }
-        }
-        
-        // If we got a FIN, remember it if not already and there is space.
-        if (seg_fin && (num_ooseq == 0 || !pcb->ooseq[num_ooseq - 1].isFin()) && num_ooseq < NumOosSegs) {
-            pcb->ooseq[num_ooseq] = OosSeg::MakeFin(seg_end);
-            num_ooseq++;
-        }
-        
-        // If not all segments are used, terminate the list.
-        if (num_ooseq < NumOosSegs) {
-            pcb->ooseq[num_ooseq] = OosSeg::MakeEnd();
-        }
-        AMBRO_ASSERT(num_ooseq == count_ooseq(pcb))
-        
-        return true;
-    }
-    
-    // Shifts any available data or FIN from the out-of-sequence
-    // information buffer.
-    static void pop_ooseq (TcpPcb *pcb, size_t &datalen, bool &fin)
-    {
-        // Check if we have a data segment starting at rcv_nxt.
-        if (!pcb->ooseq[0].isEnd() && !pcb->ooseq[0].isFin() &&
-            pcb->ooseq[0].start == pcb->rcv_nxt)
-        {
-            // Return the data length to the caller.
-            SeqType seq_end = pcb->ooseq[0].end;
-            datalen = seq_diff(seq_end, pcb->ooseq[0].start);
-            
-            // Shift the segment out of the buffer.
-            uint8_t num_ooseq = count_ooseq(pcb);
-            if (num_ooseq > 1) {
-                ::memmove(&pcb->ooseq[0], &pcb->ooseq[1], (num_ooseq - 1) * sizeof(OosSeg));
-            }
-            num_ooseq--;
-            pcb->ooseq[num_ooseq] = OosSeg::MakeEnd();
-            
-            // The next segment is not supposed to have any data that we
-            // could immediately consume since there are always gaps
-            // between segments.
-            AMBRO_ASSERT(pcb->ooseq[0].isEnd() || pcb->ooseq[0].isFin() ||
-                         !seq_lte(pcb->ooseq[0].start, seq_end, pcb->rcv_nxt))
-        } else {
-            // Not returning any data.
-            datalen = 0;
-        }
-        
-        // Check if we have a FIN with sequence number rcv_nxt+datalen.
-        // Note: no need to check !isEnd because isFin implies !isEnd.
-        // There is no need to consume the FIN.
-        fin = pcb->ooseq[0].isFin() && pcb->ooseq[0].getFinSeq() == seq_add(pcb->rcv_nxt, datalen);
-    }
-    
-    // Return the number of out-of-sequence segments by counting
-    // until an end marker is found or the end of segments is reached.
-    static uint8_t count_ooseq (TcpPcb *pcb)
-    {
-        uint8_t num_ooseq = 0;
-        while (num_ooseq < NumOosSegs && !pcb->ooseq[num_ooseq].isEnd()) {
-            num_ooseq++;
-        }
-        return num_ooseq;
     }
     
     inline static SeqType pcb_decode_wnd_size (TcpPcb *pcb, uint16_t rx_wnd_size)

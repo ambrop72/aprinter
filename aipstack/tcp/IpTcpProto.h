@@ -55,6 +55,7 @@
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
+#include <aipstack/tcp/TcpOosBuffer.h>
 
 #include "IpTcpProto_constants.h"
 #include "IpTcpProto_api.h"
@@ -104,7 +105,7 @@ private:
     APRINTER_USE_TYPES1(TcpUtils, (TcpState))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
-                                 seq_diff, seq_add))
+                                 seq_diff))
     
     struct TcpPcb;
     
@@ -151,36 +152,8 @@ private:
     using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, false>;
     static PcbIndexType const PcbIndexNull = PcbIndexType(-1);
     
-    // Represents a segment of contiguous out-of-sequence data.
-    struct OosSeg {
-        SeqType start;
-        SeqType end;
-        
-        // Entry with start==end+1 marks the end of segments.
-        inline bool isEnd () { return start == seq_add(end, 1); }
-        
-        // Make an end segment.
-        inline static OosSeg MakeEnd ()
-        {
-            return OosSeg{1, 0};
-        }
-        
-        // Entry with start==end represents a FIN.
-        // For a FIN, start/end will be the FIN sequence number plus 1.
-        // This simplifies algorithms because a FIN cannot touch any
-        // data segment preceding it with this definition.
-        inline bool isFin () { return start == end; }
-        
-        // Get the FIN sequence number of a FIN segment.
-        inline SeqType getFinSeq () { return seq_diff(start, 1); }
-        
-        // Make a FIN segment.
-        inline static OosSeg MakeFin (SeqType fin_seq)
-        {
-            SeqType start_end_seq = seq_add(fin_seq, 1);
-            return OosSeg{start_end_seq, start_end_seq};
-        }
-    };
+    // Instantiate the out-of-sequence buffering.
+    APRINTER_MAKE_INSTANCE(OosBuffer, (TcpOosBufferService<NumOosSegs>))
     
     // PCB key for the PCB index.
     using PcbKey = std::tuple<
@@ -277,7 +250,7 @@ private:
         SeqType rcv_ann_thres;
         
         // Out-of-sequence segment information.
-        OosSeg ooseq[NumOosSegs];
+        OosBuffer ooseq;
         
         // Round-trip-time and retransmission time management.
         SeqType rtt_test_seq;
@@ -786,7 +759,7 @@ private:
         pcb->snd_psh_index = 0;
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
-        pcb->ooseq[0] = OosSeg::MakeEnd();
+        pcb->ooseq.init();
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
