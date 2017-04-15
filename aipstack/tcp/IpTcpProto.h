@@ -46,7 +46,7 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/system/TimedEventWrapper.h>
+#include <aprinter/system/MultiTimer.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -185,7 +185,12 @@ private:
      * OutputTimer: for pcb_output after send buffer extension
      * RtxTimer: for retransmission, window probe and cwnd idle reset
      */
-    APRINTER_DECL_TIMERS(TcpPcbTimers, typename Context, TcpPcb, (AbrtTimer, OutputTimer, RtxTimer))
+    struct AbrtTimer {};
+    struct OutputTimer {};
+    struct RtxTimer {};
+    using PcbMultiTimer = APrinter::MultiTimer<
+        typename Context::EventLoop::TimedEventNew, TcpPcb,
+        AbrtTimer, OutputTimer, RtxTimer>;
     
     /**
      * A TCP Protocol Control Block.
@@ -196,7 +201,7 @@ private:
         // Send retry request (inherited for efficiency).
         public IpSendRetry::Request,
         // PCB timers.
-        public TcpPcbTimers,
+        public PcbMultiTimer,
         // MTU reference.
         // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
         public MtuRef
@@ -356,9 +361,7 @@ public:
         
         for (TcpPcb &pcb : m_pcbs) {
             // Initialize the PCB timers.
-            pcb.tim(AbrtTimer()).init(Context());
-            pcb.tim(OutputTimer()).init(Context());
-            pcb.tim(RtxTimer()).init(Context());
+            pcb.PcbMultiTimer::init(Context());
             
             // Initialize the send-retry Request object.
             pcb.IpSendRetry::Request::init();
@@ -392,9 +395,7 @@ public:
             AMBRO_ASSERT(pcb.con == nullptr)
             pcb.MtuRef::deinit(m_stack);
             pcb.IpSendRetry::Request::deinit();
-            pcb.tim(RtxTimer()).deinit(Context());
-            pcb.tim(OutputTimer()).deinit(Context());
-            pcb.tim(AbrtTimer()).deinit(Context());
+            pcb.PcbMultiTimer::deinit(Context());
         }
         
         m_proto_listener.deinit();
@@ -494,9 +495,7 @@ private:
         }
         
         // Reset other relevant fields to initial state.
-        pcb->tim(AbrtTimer()).unset(Context());
-        pcb->tim(OutputTimer()).unset(Context());
-        pcb->tim(RtxTimer()).unset(Context());
+        pcb->PcbMultiTimer::unsetAll(Context());
         pcb->MtuRef::reset(pcb->tcp->m_stack);
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
