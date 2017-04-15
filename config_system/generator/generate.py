@@ -2535,6 +2535,7 @@ def main():
     parser.add_argument('--config', help='JSON configuration file to use.')
     parser.add_argument('--cfg-name', help='Build this configuration instead of the one specified in the configuration file.')
     parser.add_argument('--output', default='-', help='File to write the output to (C++ code or Nix expression).')
+    parser.add_argument('--system', help='Pass system to nixpkgs (build on that platform).')
     args = parser.parse_args()
     
     # Determine directories.
@@ -2554,7 +2555,7 @@ def main():
     
     # Build the Nix expression.
     nix_expr = (
-        'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
+        'with ((import (builtins.toPath {})) {{ pkgs = import <nixpkgs> {{ {} }}; }}); aprinterFunc {{\n'
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
         '    optimizeLibcForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
@@ -2564,6 +2565,7 @@ def main():
         '}}\n'
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
+        '' if args.system is None else 'system = {};'.format(nix_utils.escape_string_for_nix(args.system)),
         nix_utils.escape_string_for_nix(result['board_for_build']),
         nix_utils.convert_for_nix(result['output_types']),
         nix_utils.convert_bool_for_nix(result['optimize_for_size']),
