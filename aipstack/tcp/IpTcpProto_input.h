@@ -1018,8 +1018,6 @@ private:
         
         // We only get here if the segment fits into the receive window.
         size_t data_offset = seq_diff(eff_seq, pcb->rcv_nxt);
-        //AMBRO_ASSERT(data_offset <= pcb->rcv_wnd)
-        //AMBRO_ASSERT(tcp_data.tot_len + seg_fin <= pcb->rcv_wnd - data_offset)
         
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
