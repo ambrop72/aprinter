@@ -201,12 +201,37 @@ public:
         }
     }
     
-    // Get a window size value be put into the segment being sent.
-    // This updates pcb->rcv_ann tracking the announced window.
+    // Get a scaled window size value to be put into the segment being sent.
     static uint16_t pcb_ann_wnd (TcpPcb *pcb)
     {
-        uint16_t hdr_wnd;
-        pcb_calc_window_update(pcb, pcb->rcv_ann, hdr_wnd);
+        // Note that empty ACK segments sent in SYN_SENT state will
+        // contain a scaled window value. This is how it should be
+        // if reading RFC 1323 literally, and it seems reasonable since
+        // if it was an unscaled value it might be misinterpreted as
+        // a much larger window than intended.
+        
+        // Try to announce as much window as is available, even if a
+        // window update would otherwise be inhibited due to rcv_ann_thres.
+        if (accepting_data_in_state(pcb->state)) {
+            SeqType ann_wnd = pcb_calc_wnd_update(pcb);
+            if (ann_wnd > pcb->rcv_ann_wnd) {
+                pcb->rcv_ann_wnd = ann_wnd;
+            }
+        }
+        
+        // Calculate the window value by right-shifting rcv_ann_thres
+        // according to the receive window scaling.
+        uint32_t hdr_wnd = pcb->rcv_ann_wnd >> pcb->rcv_wnd_shift;
+        
+        // This must fit into 16-bits because: invariant
+        // - In SYN_SENT/SYN_RCVD, rcv_ann_wnd will itself not exceed
+        //   UINT16_MAX, so it will also not after right-shifting.
+        // - In other states, rcv_ann_wnd would never be set to more
+        //   than the maximum window that can be advertised (see
+        //   max_rcv_wnd_ann), and could only be decreased upon
+        //   receiving ACKs.
+        AMBRO_ASSERT(hdr_wnd <= UINT16_MAX)
+        
         return hdr_wnd;
     }
     
@@ -215,9 +240,39 @@ public:
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
         AMBRO_ASSERT(pcb->con != nullptr)
         
-        // If we haven't received a FIN yet, update the receive window.
-        if (accepting_data_in_state(pcb->state)) {
-            pcb_update_rcv_wnd(pcb);
+        if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
+            // Calculate how much window we could announce.
+            SeqType ann_wnd = pcb_calc_wnd_update(pcb);
+            
+            // If we can announce at least rcv_ann_thres more than
+            // the last announced window, force sending an ACK.
+            // We don't need to actually update rcv_ann_wnd, that
+            // will be done by pcb_ann_wnd when the ACK (or data)
+            // segment is sent.
+            if (ann_wnd >= pcb->rcv_ann_wnd + pcb->rcv_ann_thres) {
+                Output::pcb_need_ack(pcb);
+            }
+        }
+    }
+    
+    static void pcb_update_rcv_wnd_after_abandoned (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        
+        // Our heuristic is to raise the window up to to max(rcv_mss,rcv_ann_thres).
+        SeqType min_window = APrinter::MaxValue((SeqType)pcb->rcv_mss, pcb->rcv_ann_thres);
+        
+        // Round up to the nearest window that can be advertised.
+        SeqType scale_mask = ((SeqType)1 << pcb->rcv_wnd_shift) - 1;
+        min_window = (min_window + scale_mask) & ~scale_mask;
+        
+        // Make sure we do not set rcv_ann_wnd to more than can be announced.
+        min_window = APrinter::MinValue(min_window, max_rcv_wnd_ann(pcb));
+        
+        // Announce more window if needed.
+        if (pcb->rcv_ann_wnd < min_window) {
+            pcb->rcv_ann_wnd = min_window;
+            Output::pcb_need_ack(pcb);
         }
     }
     
@@ -260,6 +315,10 @@ private:
             // Generate an initial sequence number.
             SeqType iss = TcpProto::make_iss();
             
+            // Initially advertised receive window, at most 16-bit wide since
+            // SYN-ACK segments have unscaled window.
+            SeqType rcv_wnd = APrinter::MinValueU((uint16_t)UINT16_MAX, lis->m_initial_rcv_wnd);
+            
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
@@ -269,8 +328,7 @@ private:
             pcb->local_port = tcp_meta.local_port;
             pcb->remote_port = tcp_meta.remote_port;
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
-            pcb->rcv_wnd = lis->m_initial_rcv_wnd;
-            pcb->rcv_ann = pcb->rcv_nxt;
+            pcb->rcv_ann_wnd = rcv_wnd;
             pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
             pcb->rcv_mss = iface_mss;
             pcb->snd_una = iss;
@@ -408,9 +466,6 @@ private:
         // Sequence length of segment (data+flags).
         size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
         
-        // Get right edge of receive window.
-        SeqType nxt_wnd = seq_add(pcb->rcv_nxt, pcb->rcv_wnd);
-        
         // Get the RST, SYN and ACK flags.
         FlagsType flags_rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
         
@@ -434,8 +489,15 @@ private:
                     if (tcp_meta.seq_num == pcb->rcv_nxt) {
                         TcpProto::pcb_abort(pcb, false);
                     }
-                    // We're slightly violating RFC 5961 by allowing seq_num at nxt_wnd.
-                    else if (seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt)) {
+                    // NOTE: We check simply against rcv_ann_wnd and don't bother calculating
+                    // the formally correct rcv_wnd based on rcvBufLen. This means that we
+                    // would ignore an RST that is outside the announced window but still
+                    // within the actual window for which we would accept data. This is not
+                    // a problem.
+                    // NOTE: But we are slightly violating RFC 5961 by allowing seq_num at
+                    // exactly the right edge of the receive window, I see no reason this should
+                    // not be allowed, and such ACK may even be normally.
+                    else if (seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= pcb->rcv_ann_wnd) {
                         Output::pcb_send_empty_ack(pcb);
                     }
                 }
@@ -505,6 +567,13 @@ private:
             // considered to be a new ACK.
             new_ack = true;
         } else {
+            // Calculate the right edge of the receive window.
+            SeqType rcv_wnd = pcb->rcv_ann_wnd;
+            if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD)) {
+                SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxRcvWnd);
+                rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
+            }
+            
             // Determine acceptability of segment.
             bool acceptable;
             bool left_edge_in_window;
@@ -513,14 +582,14 @@ private:
                 // Empty segment is acceptable if the sequence number is within or at
                 // the right edge of the receive window. Allowing the latter with
                 // nonzero receive window violates RFC 793, but seems to make sense.
-                acceptable = seq_lte(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
+                acceptable = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= rcv_wnd;
             } else {
                 // Nonzero-length segment is acceptable if its left or right edge
                 // is within the receive window. Except for SYN_RCVD, we are not expecting
                 // any data to the left.
                 SeqType last_seq = seq_add(tcp_meta.seq_num, seq_add(seqlen, -1));
-                left_edge_in_window = seq_lt(tcp_meta.seq_num, nxt_wnd, pcb->rcv_nxt);
-                right_edge_in_window = seq_lt(last_seq, nxt_wnd, pcb->rcv_nxt);
+                left_edge_in_window = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) < rcv_wnd;
+                right_edge_in_window = seq_diff(last_seq, pcb->rcv_nxt) < rcv_wnd;
                 if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
                     acceptable = left_edge_in_window;
                 } else {
@@ -550,10 +619,11 @@ private:
                     // and FIN could not be trimmed because left_trim < seqlen.
                     tcp_data.skipBytes(left_trim);
                 }
-                else if (AMBRO_UNLIKELY(seqlen > (left_keep = seq_diff(nxt_wnd, tcp_meta.seq_num)))) {
+                else if (AMBRO_UNLIKELY(!right_edge_in_window)) {
                     // The segment contains some extra data beyond the receive window.
+                    SeqType left_keep = seq_diff(seq_add(pcb->rcv_nxt, rcv_wnd), tcp_meta.seq_num);
                     AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
-                    AMBRO_ASSERT(left_keep < seqlen) // because of condition
+                    AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
                     seqlen = left_keep;
                     seg_fin = false; // a FIN would be outside the window
                     tcp_data.tot_len = left_keep;
@@ -634,17 +704,11 @@ private:
         pcb->snd_wl2 = tcp_meta.ack_num;
         
         if (syn_sent) {
-            // Set correct rcv_nxt now that we have received the SYN.
+            // Update rcv_nxt and rcv_ann_wnd now that we have received the SYN.
             AMBRO_ASSERT(pcb->rcv_nxt == 0)
+            AMBRO_ASSERT(pcb->rcv_ann_wnd > 0)
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
-            
-            // Decrement rcv_wnd by the SYN which has been received.
-            AMBRO_ASSERT(pcb->rcv_wnd > 0)
-            pcb->rcv_wnd--;
-            
-            // Update rcv_ann according to the new rcv_nxt.
-            // Just in case, handle the possibility of rcv_ann being zero.
-            pcb->rcv_ann = seq_add(pcb->rcv_nxt, pcb->rcv_ann - APrinter::MinValue(pcb->rcv_ann, (SeqType)1));
+            pcb->rcv_ann_wnd--;
             
             // Go to ESTABLISHED state.
             pcb->state = TcpState::ESTABLISHED;
@@ -907,7 +971,7 @@ private:
             // Compare sequence and ack numbers with respect to nxt_wnd+1
             // and snd_nxt+1 as the minimum value, respectively.
             // Note that we use the original non-trimmed sequence number.
-            SeqType wnd_seq_ref = seq_add(pcb->rcv_nxt, pcb->rcv_wnd+1);
+            SeqType wnd_seq_ref = seq_add(pcb->rcv_nxt, Constants::MaxRcvWnd+1);
             SeqType wnd_seq_seg = seq_diff(tcp_meta.seq_num, wnd_seq_ref);
             SeqType wnd_seq_old = seq_diff(pcb->snd_wl1, wnd_seq_ref);
             if (wnd_seq_seg > wnd_seq_old || (wnd_seq_seg == wnd_seq_old &&
@@ -954,8 +1018,8 @@ private:
         
         // We only get here if the segment fits into the receive window.
         size_t data_offset = seq_diff(eff_seq, pcb->rcv_nxt);
-        AMBRO_ASSERT(data_offset <= pcb->rcv_wnd)
-        AMBRO_ASSERT(tcp_data.tot_len + seg_fin <= pcb->rcv_wnd - data_offset)
+        //AMBRO_ASSERT(data_offset <= pcb->rcv_wnd)
+        //AMBRO_ASSERT(tcp_data.tot_len + seg_fin <= pcb->rcv_wnd - data_offset)
         
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
@@ -1033,19 +1097,15 @@ private:
         if (rcv_datalen > 0 || rcv_fin) {
             // Compute the amount of processed sequence numbers.
             SeqType rcv_seqlen = rcv_datalen + rcv_fin;
-            AMBRO_ASSERT(rcv_seqlen <= pcb->rcv_wnd)
             
-            // Adjust rcv_nxt and rcv_wnd due to newly received data.
-            SeqType old_rcv_nxt = pcb->rcv_nxt;
+            // Adjust rcv_nxt due to newly received data.
             pcb->rcv_nxt = seq_add(pcb->rcv_nxt, rcv_seqlen);
-            pcb->rcv_wnd -= rcv_seqlen;
             
-            // Make sure we're not leaving rcv_ann behind rcv_nxt.
-            // This can happen when the peer sends data before receiving
-            // a window update permitting that.
-            if (rcv_seqlen > seq_diff(pcb->rcv_ann, old_rcv_nxt)) {
-                pcb->rcv_ann = pcb->rcv_nxt;
-            }
+            // Adjust rcv_ann_wnd which is relative to rcv_nxt.
+            // Note, it is possible that rcv_seqlen is greater than rcv_ann_wnd
+            // in case the peer send data before receiving a window update
+            // permitting that.
+            pcb->rcv_ann_wnd -= APrinter::MinValue(pcb->rcv_ann_wnd, rcv_seqlen);
             
             // Send an ACK later.
             pcb->setFlag(PcbFlags::ACK_PENDING);
@@ -1065,11 +1125,6 @@ private:
                     // the dataReceived callback below.
                     pcb->state = TcpState::FIN_WAIT_2_TIME_WAIT;
                 }
-            }
-            // It may be possible to enlarge rcv_wnd as it may have been bounded to MaxRcvWnd.
-            else if (AMBRO_UNLIKELY(pcb->rcv_wnd < pcb->rcvBufLen())) {
-                // The if is redundant but reduces overhead since this is needed rarely.
-                pcb_update_rcv_wnd(pcb);
             }
             
             if (rcv_datalen > 0) {
@@ -1105,49 +1160,33 @@ private:
         return (SeqType)rx_wnd_size << pcb->snd_wnd_shift;
     }
     
-    // Determine how much new window would be anounced if we sent a window update.
-    static SeqType pcb_get_wnd_ann_incr (TcpPcb *pcb)
+    // Return the maximum receive window that can be announced
+    // with respect to window scaling.
+    static SeqType max_rcv_wnd_ann (TcpPcb *pcb)
     {
-        // Calculate what can be announced.
-        SeqType rcv_ann;
-        uint16_t hdr_wnd;
-        pcb_calc_window_update(pcb, rcv_ann, hdr_wnd);
-        
-        // It is possible that we would announce less than already announced,
-        // due to window scaling. If so inhibit window update by returning zero.
-        if (seq_lt(rcv_ann, pcb->rcv_ann, pcb->rcv_nxt)) {
-            return 0;
-        }
-        
-        // Return the difference from the already announced window.
-        return seq_diff(rcv_ann, pcb->rcv_ann);
+        return (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
     }
     
-    // Window update calculation, returns:
-    // - rcv_ann: sequence number for newly announced window,
-    // - hdr_wnd: window size value to put into the segment.
-    static void pcb_calc_window_update (TcpPcb *pcb, SeqType &rcv_ann, uint16_t &hdr_wnd)
-    {
-        SeqType max_ann_wnd = (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
-        SeqType wnd_to_ann = APrinter::MinValue(pcb->rcv_wnd, max_ann_wnd);
-        hdr_wnd = wnd_to_ann >> pcb->rcv_wnd_shift;
-        rcv_ann = seq_add(pcb->rcv_nxt, (SeqType)hdr_wnd << pcb->rcv_wnd_shift);
-    }
-    
-    static void pcb_update_rcv_wnd (TcpPcb *pcb)
+    // Calculate how much window would be announced if sent an ACK now.
+    static SeqType pcb_calc_wnd_update (TcpPcb *pcb)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
-        // Update the receive window based on the receive buffer.
-        SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxRcvWnd);
-        if (pcb->rcv_wnd < avail_wnd) {
-            pcb->rcv_wnd = avail_wnd;
-        }
+        // Calculate the maximum window that can be announced with the the
+        // current window scale factor.
+        SeqType max_ann = max_rcv_wnd_ann(pcb);
         
-        // Generate a window update if needed.
-        if (pcb_get_wnd_ann_incr(pcb) >= pcb->rcv_ann_thres) {
-            Output::pcb_need_ack(pcb);
-        }
+        // Calculate the minimum of the available buffer space and the maximum
+        // window that can be announced. There is no need to also clamp to
+        // MaxRcvWnd since max_ann will be less than MaxRcvWnd.
+        SeqType bounded_wnd = APrinter::MinValueU(pcb->rcvBufLen(), max_ann);
+        
+        // Clear the lowest order bits which cannot be sent with the current
+        // window scale factor. The already calculated max_ann is suitable
+        // as a mask for this (consider that bounded_wnd<=max_ann).
+        SeqType ann_wnd = bounded_wnd & max_ann;
+        
+        return ann_wnd;
     }
 };
 

@@ -38,6 +38,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Callback.h>
@@ -250,8 +251,7 @@ private:
         
         // Receiver variables.
         SeqType rcv_nxt;
-        SeqType rcv_wnd;
-        SeqType rcv_ann;
+        SeqType rcv_ann_wnd;
         SeqType rcv_ann_thres;
         
         // Out-of-sequence segment information.
@@ -308,8 +308,8 @@ private:
         inline void clearFlag (FlagsType flag) { flags &= ~flag; }
         
         // Convenience functions for buffer length.
-        inline size_t sndBufLen () { return (con != nullptr) ? con->m_snd_buf.tot_len : 0; }
-        inline size_t rcvBufLen () { return (con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
+        inline size_t sndBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_snd_buf.tot_len : 0; }
+        inline size_t rcvBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
         
         // Trampolines for timer handlers.
         inline void timerExpired (AbrtTimer, Context) { pcb_abrt_timer_handler(this); }
@@ -618,15 +618,10 @@ private:
             Output::pcb_end_sending(pcb);
         }
         
-        // If we haven't received a FIN, ensure that at least rcv_mss
-        // window is advertised.
+        // If we haven't received a FIN, possibly announce more window
+        // to encourage the peer to send its outstanding data/FIN.
         if (accepting_data_in_state(pcb->state)) {
-            if (pcb->rcv_wnd < pcb->rcv_mss) {
-                pcb->rcv_wnd = pcb->rcv_mss;
-            }
-            if (seq_diff(pcb->rcv_ann, pcb->rcv_nxt) < pcb->rcv_mss) {
-                Output::pcb_need_ack(pcb);
-            }
+            Input::pcb_update_rcv_wnd_after_abandoned(pcb);
         }
         
         // Start the abort timeout.
@@ -735,9 +730,9 @@ private:
         // Generate an initial sequence number.
         SeqType iss = make_iss();
         
-        // The initial receive window will be at least one
-        // because we must be prepared to accept the SYN.
-        SeqType rcv_wnd = 1 + APrinter::MinValueU(seq_diff(Constants::MaxRcvWnd, 1), user_rcv_wnd);
+        // The initial receive window will be at least one for the SYN and
+        // at most 16-bit wide since SYN segments have unscaled window.
+        SeqType rcv_wnd = 1 + APrinter::MinValueU((uint16_t)(UINT16_MAX - 1), user_rcv_wnd);
         
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
@@ -748,8 +743,7 @@ private:
         pcb->local_port = local_port;
         pcb->remote_port = remote_port;
         pcb->rcv_nxt = 0; // it is sent in the SYN
-        pcb->rcv_wnd = rcv_wnd;
-        pcb->rcv_ann = pcb->rcv_nxt;
+        pcb->rcv_ann_wnd = rcv_wnd;
         pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
         pcb->rcv_mss = iface_mss;
         pcb->snd_una = iss;

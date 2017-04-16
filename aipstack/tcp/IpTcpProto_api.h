@@ -46,7 +46,7 @@ template <typename TcpProto>
 class IpTcpProto_api
 {
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
-    APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
+    APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
     APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
                                    PcbFlags))
     
@@ -195,9 +195,10 @@ public:
          * 
          * Note that the initial receive window is applied to a new connection when
          * the SYN is received, not when the connectionEstablished callback is called.
-         * Hence the user should generaly use getReceiveWindow to determine the actual
-         * receive window of a new connection. Further, the TCP may still use a
-         * smaller initial receive window than configued with this function.
+         * Hence the user should generaly use getAnnouncedRcvWnd to determine the
+         * initially announced receive window of a new connection. Further, the TCP
+         * may still use a smaller initial receive window than configued with this
+         * function.
          */
         void setInitialReceiveWindow (size_t rcv_wnd)
         {
@@ -453,25 +454,26 @@ public:
         }
         
         /**
-         * Returns the current receive window.
+         * Returns the last announced receive window.
          * May only be called in CONNECTED state.
          * This is intended to be used when a connection is accepted to determine
          * the minimum amount of receive buffer which must be available.
          */
-        inline size_t getReceiveWindow ()
+        size_t getAnnouncedRcvWnd ()
         {
             assert_connected();
             
-            // In SYN_SENT we use one less because one was added
+            SeqType ann_wnd = m_pcb->rcv_ann_wnd;
+            
+            // In SYN_SENT we subtract one because one was added
             // by create_connection for receiving the SYN.
-            SeqType rcv_wnd = m_pcb->rcv_wnd;
             if (m_pcb->state == TcpState::SYN_SENT) {
-                AMBRO_ASSERT(rcv_wnd > 0)
-                rcv_wnd--;
+                AMBRO_ASSERT(ann_wnd > 0)
+                ann_wnd--;
             }
             
-            AMBRO_ASSERT(rcv_wnd <= SIZE_MAX)
-            return rcv_wnd;
+            AMBRO_ASSERT(ann_wnd <= SIZE_MAX)
+            return ann_wnd;
         }
         
         /**
@@ -490,8 +492,7 @@ public:
             m_rcv_buf = rcv_buf;
             
             if (m_pcb != nullptr) {
-                // Inform the input code, so it can update rcv_wnd
-                // and possibly send a window update.
+                // Inform the input code, so it can send a window update.
                 Input::pcb_rcv_buf_extended(m_pcb);
             }
         }
@@ -509,8 +510,7 @@ public:
             m_rcv_buf.tot_len += amount;
             
             if (m_pcb != nullptr) {
-                // Inform the input code, so it can update rcv_wnd
-                // and possibly send a window update.
+                // Inform the input code, so it can send a window update.
                 Input::pcb_rcv_buf_extended(m_pcb);
             }
         }

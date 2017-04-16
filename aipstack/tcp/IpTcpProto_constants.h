@@ -103,6 +103,7 @@ public:
     
     // Window scale shift count to send and use in outgoing ACKs.
     static uint8_t const RcvWndShift = 6;
+    static_assert(RcvWndShift <= 14, "");
     
 public:
     static int const DupAckBits = APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;

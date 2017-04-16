@@ -90,10 +90,8 @@ public:
         }
         
         // The SYN and SYN-ACK must always have non-scaled window size.
-        auto saved_rcv_wnd_shift = pcb->rcv_wnd_shift;
-        pcb->rcv_wnd_shift = 0;
-        uint16_t window_size = Input::pcb_ann_wnd(pcb);
-        pcb->rcv_wnd_shift = saved_rcv_wnd_shift;
+        AMBRO_ASSERT(pcb->rcv_ann_wnd <= UINT16_MAX) // see create_connection, listen_input
+        uint16_t window_size = pcb->rcv_ann_wnd;
         
         // Send SYN or SYN-ACK flags depending on the state.
         FlagsType flags = Tcp4FlagSyn |
@@ -123,8 +121,12 @@ public:
     // Send an empty ACK (which may be a window update).
     static void pcb_send_empty_ack (TcpPcb *pcb)
     {
+        // Get the window size value.
+        uint16_t window_size = Input::pcb_ann_wnd(pcb);
+        
+        // Send it.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
-                               Input::pcb_ann_wnd(pcb), Tcp4FlagAck};
+                               window_size, Tcp4FlagAck};
         send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                  tcp_meta, IpBufRef{}, pcb);
     }
