@@ -262,6 +262,12 @@ public:
         // Our heuristic is to raise the window up to to max(rcv_mss,rcv_ann_thres).
         SeqType min_window = APrinter::MaxValue((SeqType)pcb->rcv_mss, pcb->rcv_ann_thres);
         
+        // Make sure it fits in size_t (relevant if size_t is 16-bit),
+        // to ensure the invariant that rcv_ann_wnd always fits in size_t.
+        if (SIZE_MAX < UINT32_MAX) {
+            min_window = APrinter::MinValueU(min_window, (size_t)SIZE_MAX);
+        }
+        
         // Round up to the nearest window that can be advertised.
         SeqType scale_mask = ((SeqType)1 << pcb->rcv_wnd_shift) - 1;
         min_window = (min_window + scale_mask) & ~scale_mask;
@@ -317,6 +323,9 @@ private:
             
             // Initially advertised receive window, at most 16-bit wide since
             // SYN-ACK segments have unscaled window.
+            // NOTE: rcv_ann_wnd fits into size_t as required since m_initial_rcv_wnd
+            // also does (TcpListener::setInitialReceiveWindow).
+            AMBRO_ASSERT(lis->m_initial_rcv_wnd <= SIZE_MAX)
             SeqType rcv_wnd = APrinter::MinValueU((uint16_t)UINT16_MAX, lis->m_initial_rcv_wnd);
             
             // Initialize most of the PCB.
@@ -495,8 +504,7 @@ private:
                     // within the actual window for which we would accept data. This is not
                     // a problem.
                     // NOTE: But we are slightly violating RFC 5961 by allowing seq_num at
-                    // exactly the right edge of the receive window, I see no reason this should
-                    // not be allowed, and such ACK may even be normally.
+                    // exactly the right edge (same as we do for ACK, see below).
                     else if (seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= pcb->rcv_ann_wnd) {
                         Output::pcb_send_empty_ack(pcb);
                     }
@@ -581,7 +589,10 @@ private:
             if (seqlen == 0) {
                 // Empty segment is acceptable if the sequence number is within or at
                 // the right edge of the receive window. Allowing the latter with
-                // nonzero receive window violates RFC 793, but seems to make sense.
+                // nonzero receive window violates RFC 793, but seems to make sense,
+                // since such segments may be generated normally when the sender
+                // exhausts our receive window and may be useful window updates or
+                // ACKs.
                 acceptable = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= rcv_wnd;
             } else {
                 // Nonzero-length segment is acceptable if its left or right edge
@@ -1016,8 +1027,16 @@ private:
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
-        // We only get here if the segment fits into the receive window.
-        size_t data_offset = seq_diff(eff_seq, pcb->rcv_nxt);
+        // We only get here if the segment fits into the receive window,
+        // this is assured by pcb_input_basic_processing.
+        // It is also ensured that pcb->rcv_ann_wnd fits into size_t
+        // and we need this here to avoid oveflows.
+        SeqType data_offset_seqtype = seq_diff(eff_seq, pcb->rcv_nxt);
+        if (SIZE_MAX < UINT32_MAX) {
+            AMBRO_ASSERT(data_offset_seqtype <= SIZE_MAX)
+            AMBRO_ASSERT(tcp_data.tot_len <= SIZE_MAX - data_offset_seqtype)
+        }
+        size_t data_offset = data_offset_seqtype;
         
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
@@ -1184,6 +1203,9 @@ private:
         // as a mask for this (consider that bounded_wnd<=max_ann).
         SeqType ann_wnd = bounded_wnd & max_ann;
         
+        // Result which may be assigned to pcb->rcv_ann_wnd is guaranteed
+        // to fit into size_t as required since it is <=rcvBufLen which is
+        // a size_t.
         return ann_wnd;
     }
 };

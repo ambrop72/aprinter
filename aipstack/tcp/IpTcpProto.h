@@ -251,7 +251,7 @@ private:
         
         // Receiver variables.
         SeqType rcv_nxt;
-        SeqType rcv_ann_wnd;
+        SeqType rcv_ann_wnd; // ensured to fit in size_t (in case size_t is 16-bit)
         SeqType rcv_ann_thres;
         
         // Out-of-sequence segment information.
@@ -732,6 +732,8 @@ private:
         
         // The initial receive window will be at least one for the SYN and
         // at most 16-bit wide since SYN segments have unscaled window.
+        // NOTE: rcv_ann_wnd after SYN-ACKSYN reception (-1) fits into size_t
+        // as required since user_rcv_wnd is size_t.
         SeqType rcv_wnd = 1 + APrinter::MinValueU((uint16_t)(UINT16_MAX - 1), user_rcv_wnd);
         
         // Initialize most of the PCB.
