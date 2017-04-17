@@ -158,10 +158,15 @@ private:
         bool have_time = false;
         TimeType min_time;
         
+        // Get a time far in the past to use as a reference for comparing times.
+        // This just flips the most significant bit of getEventTime.
+        TimeType half_span = ((TimeType)-1 / 2) + 1;
+        TimeType past_ref = Context::EventLoop::getEventTime(c) + half_span;
+        
         ListFor<TimerIdsList>([&] APRINTER_TL(TimerId, {
             if ((m_state & MultiTimer::TimerBit(TimerId())) != 0) {
                 TimeType timer_time = m_times[MultiTimer::TimerIndex(TimerId())];
-                if (!have_time || !TheClockUtils::timeGreaterOrEqual(timer_time, min_time)) {
+                if (!have_time || (TimeType)(timer_time - past_ref) < (TimeType)(min_time - past_ref)) {
                     have_time = true;
                     min_time = timer_time;
                 }

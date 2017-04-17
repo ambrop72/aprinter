@@ -85,6 +85,7 @@ public:
         for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
             Delay::extra(c)->m_fast_events[i].not_triggered = true;
         }
+        o->m_now = Clock::getTime(c);
 #ifdef EVENTLOOP_BENCHMARK
         o->m_bench_time = 0;
 #endif
@@ -127,13 +128,13 @@ public:
                 sei();
             }
             
-            TimeType now = Clock::getTime(c);
+            o->m_now = Clock::getTime(c);
             
             for (TimedEventNew *tev = o->m_timed_event_list.first(); tev; tev = o->m_timed_event_list.next(*tev)) {
                 tev->debugAccess(c);
                 AMBRO_ASSERT(!TimedEventList::isRemoved(*tev))
                 
-                if (TheClockUtils::timeGreaterOrEqual(now, tev->m_time)) {
+                if (TheClockUtils::timeGreaterOrEqual(o->m_now, tev->m_time)) {
                     o->m_timed_event_list.remove(*tev);
                     TimedEventList::markRemoved(*tev);
                     bench_start_measuring(c);
@@ -145,6 +146,12 @@ public:
                 }
             }
         }
+    }
+    
+    inline static TimeType getEventTime (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->m_now;
     }
     
 #ifdef EVENTLOOP_BENCHMARK
@@ -239,6 +246,7 @@ public:
     struct Object : public ObjBase<BusyEventLoop, ParentObject, MakeTypeList<TheDebugObject>> {
         QueuedEventList m_queued_event_list;
         TimedEventList m_timed_event_list;
+        TimeType m_now;
 #ifdef EVENTLOOP_BENCHMARK
         TimeType m_bench_time;
         TimeType m_bench_enter_time;

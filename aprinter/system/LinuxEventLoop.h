@@ -303,6 +303,12 @@ public:
         }
     }
     
+    inline static TimeType getEventTime (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->timers_now;
+    }
+    
     template <typename Id>
     struct FastEventSpec {};
     
