@@ -51,7 +51,7 @@ class IpTcpProto_input
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
                                    OptionFlags, PortType))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
+    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
@@ -540,17 +540,13 @@ private:
                 }
             } else {
                 // Nonzero-length segment is acceptable if its left or right edge
-                // is within the receive window. Except for SYN_RCVD, we are not expecting
-                // any data to the left.
+                // is within the receive window. In SYN_RCVD we could be more strict
+                // and not allow data before the SYN, but for performance reasons
+                // we check that later in pcb_input_syn_sent_rcvd_processing.
                 SeqType last_seq = seq_add(eff_seq, seq_add(seqlen, -1));
                 bool left_edge_in_window = seq_diff(eff_seq, pcb->rcv_nxt) < rcv_wnd;
                 bool right_edge_in_window = seq_diff(last_seq, pcb->rcv_nxt) < rcv_wnd;
-                bool acceptable;
-                if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
-                    acceptable = left_edge_in_window;
-                } else {
-                    acceptable = left_edge_in_window || right_edge_in_window;
-                }
+                bool acceptable = left_edge_in_window || right_edge_in_window;
                 
                 // If not acceptable, send any appropriate response and drop.
                 if (AMBRO_UNLIKELY(!acceptable)) {
@@ -682,10 +678,17 @@ private:
         
         bool proceed = true;
         
+        // In SYN_RCVD check that the sequence number is not less than
+        // rcv_nxt. Note that if it was less, the segment was trimmed in
+        // pcb_input_basic_processing, so we could do without this check.
+        if (!syn_sent && seq_lt2(tcp_meta.seq_num, pcb->rcv_nxt)) {
+            Output::pcb_send_empty_ack(pcb);
+            proceed = false;
+        }
         // If our SYN is not acknowledged, send RST and drop. In SYN_RCVD,
         // RFC 793 seems to allow ack_num==snd_una which doesn't make sense.
         // Note that in SYN_SENT, new_ack is always true here.
-        if (!new_ack) {
+        else if (!new_ack) {
             Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                              pcb->local_port, pcb->remote_port,
                              tcp_meta.ack_num, false, 0);

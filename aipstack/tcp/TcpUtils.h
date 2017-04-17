@@ -89,6 +89,8 @@ public:
         uint8_t wnd_scale;
     };
     
+    static SeqType const SeqMSB = (SeqType)1 << 31;
+    
     static inline SeqType seq_add (SeqType op1, SeqType op2)
     {
         return (SeqType)(op1 + op2);
@@ -107,6 +109,11 @@ public:
     static inline bool seq_lt (SeqType op1, SeqType op2, SeqType ref)
     {
         return (seq_diff(op1, ref) < seq_diff(op2, ref));
+    }
+    
+    static inline bool seq_lt2 (SeqType op1, SeqType op2)
+    {
+        return seq_diff(op1, op2) >= SeqMSB;
     }
     
     static inline size_t tcplen (FlagsType flags, size_t tcp_data_len)
