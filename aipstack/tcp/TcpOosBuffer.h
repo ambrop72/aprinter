@@ -156,17 +156,16 @@ public:
      * @param seg_datalen The data length of this segment (possibly zero).
      * @param seg_fin Whether this segment is a FIN.
      * @param need_ack This will be set to whether an ACK is needed because
-     *                 the segment filled a gap.
+     *                 the segment is out of sequence or filled a gap.
      * @return True on success, false in case of FIN inconsistency
      *         (no updates done).
      */
     bool updateForSegmentReceived (SeqType rcv_nxt, SeqType seg_start, size_t seg_datalen,
                                    bool seg_fin, bool &need_ack)
     {
-        // Need to send an ACK if the segment fills in all or part of
-        // a gap in the sequence space (RFC 5681). This will be set to
-        // true when a gap is found to be filled in.
-        need_ack = false;
+        // Initialize need_ack to whether the segment is out of sequence.
+        // If the segment fills in a gap this will be set to true below.
+        need_ack = seg_start != rcv_nxt;
         
         // Calculate sequence number for end of data.
         SeqType seg_end = seq_add(seg_start, seg_datalen);

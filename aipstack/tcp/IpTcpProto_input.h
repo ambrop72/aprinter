@@ -1046,11 +1046,6 @@ private:
             return false;
         }
         
-        // If this is an out-of-sequence segment, an ACK needs to be sent.
-        if (AMBRO_UNLIKELY(data_offset > 0)) {
-            pcb->setFlag(PcbFlags::ACK_PENDING);
-        }
-        
         // This will be the in-sequence data or FIN that we will process.
         size_t rcv_datalen;
         bool rcv_fin;
