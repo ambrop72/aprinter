@@ -155,29 +155,37 @@ public:
 private:
     void updateTimer (Context c)
     {
-        bool have_time = false;
-        TimeType min_time;
+        StateType state = m_state;
         
-        // Get a time far in the past to use as a reference for comparing times.
-        // This just flips the most significant bit of getEventTime.
-        TimeType half_span = ((TimeType)-1 / 2) + 1;
-        TimeType past_ref = Context::EventLoop::getEventTime(c) + half_span;
+        if (state == 0) {
+            // No user timer is set, unset the underlying timer.
+            TimedEvent::unset(c);
+            return;
+        }
         
+        // This is the value with the most significant bit one and others zero.
+        constexpr TimeType msb = ((TimeType)-1 / 2) + 1;
+        
+        // We use this as the base time to compare timers to. We will also
+        // be computing the minium time relative to this time for efficiency.
+        TimeType ref_time = Context::EventLoop::getEventTime(c) - msb;
+        
+        // State for the minimum calculation.
+        TimeType min_time_rel = (TimeType)-1;
+        
+        // Go through all timers to find the minimum time.
         ListFor<TimerIdsList>([&] APRINTER_TL(TimerId, {
-            if ((m_state & MultiTimer::TimerBit(TimerId())) != 0) {
-                TimeType timer_time = m_times[MultiTimer::TimerIndex(TimerId())];
-                if (!have_time || (TimeType)(timer_time - past_ref) < (TimeType)(min_time - past_ref)) {
-                    have_time = true;
-                    min_time = timer_time;
+            if ((state & MultiTimer::TimerBit(TimerId())) != 0) {
+                TimeType time_rel = m_times[MultiTimer::TimerIndex(TimerId())] - ref_time;
+                if (time_rel < min_time_rel) {
+                    min_time_rel = time_rel;
                 }
             }
         }));
         
-        if (have_time) {
-            TimedEvent::appendAt(c, min_time);
-        } else {
-            TimedEvent::unset(c);
-        }
+        // Set the underlying timer to the minimum time.
+        TimeType min_time = min_time_rel + ref_time;
+        TimedEvent::appendAt(c, min_time);
     }
     
     void handleTimerExpired (Context c) override final
