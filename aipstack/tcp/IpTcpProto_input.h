@@ -856,7 +856,11 @@ private:
         
         // Handle new acknowledgments.
         if (new_ack) {
-            // We can only get here if there was anything pending acknowledgement.
+            // We can only get here if there was anything pending acknowledgement
+            // (snd_una!=snd_nxt), this is assured in pcb_input_basic_processing
+            // when calculating new_ack. Further, it is assured that snd_una==snd_nxt
+            // in FIN_WAIT_2 and TIME_WAIT (additional states we are asserting we are
+            // not in).
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             
@@ -930,7 +934,7 @@ private:
                 // Possible transitions in callback (except to CLOSED): none.
                 
                 if (pcb->state == TcpState::FIN_WAIT_1) {
-                    // FIN is accked in FIN_WAIT_1, transition to FIN_WAIT_2.
+                    // FIN is acked in FIN_WAIT_1, transition to FIN_WAIT_2.
                     pcb->state = TcpState::FIN_WAIT_2;
                     
                     // At this transition output_timer and rtx_timer must be unset

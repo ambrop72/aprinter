@@ -308,6 +308,8 @@ private:
         inline void clearFlag (FlagsType flag) { flags &= ~flag; }
         
         // Convenience functions for buffer length.
+        // WARNING: Must not be called in SYN_RCVD state because in
+        // that case the "lis" union memeber is valid not "con".
         inline size_t sndBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_snd_buf.tot_len : 0; }
         inline size_t rcvBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
         

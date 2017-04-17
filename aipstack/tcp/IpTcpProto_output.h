@@ -68,6 +68,7 @@ public:
     // Calculate the offset of the current send buffer position.
     static size_t pcb_snd_offset (TcpPcb *pcb)
     {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->sndBufLen())
         
         return pcb->sndBufLen() - pcb->snd_buf_cur.tot_len;
