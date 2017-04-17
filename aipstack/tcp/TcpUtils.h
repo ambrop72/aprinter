@@ -127,6 +127,11 @@ public:
                               TcpState::SYN_RCVD, TcpState::TIME_WAIT);
     }
     
+    static inline bool state_is_closed_synsent_synrcvd (uint8_t state)
+    {
+        return state <= TcpState::SYN_RCVD;
+    }
+    
     static inline bool accepting_data_in_state (uint8_t state)
     {
         return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,

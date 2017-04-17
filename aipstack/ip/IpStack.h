@@ -320,6 +320,7 @@ public:
         void init (IpStack *stack, uint8_t proto, ProtoListenerCallback *callback)
         {
             AMBRO_ASSERT(stack != nullptr)
+            AMBRO_ASSERT(proto != Ip4ProtocolIcmp)
             AMBRO_ASSERT(callback != nullptr)
             
             m_stack = stack;
@@ -696,32 +697,32 @@ private:
             }
         }
         
-        // Check destination address.
-        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
-        if (AMBRO_UNLIKELY(
-            !iface->ip4AddrIsLocalAddr(meta.dst_addr) &&
-            !iface->ip4AddrIsLocalBcast(meta.dst_addr) &&
-            meta.dst_addr != Ip4Addr::AllOnesAddr()))
-        {
-            return;
-        }
-        
-        // Handle ICMP packets.
-        if (AMBRO_UNLIKELY(proto == Ip4ProtocolIcmp)) {
-            return recvIcmp4Dgram(meta, dgram);
-        }
-        
         // Handle using a protocol listener if existing.
         ProtoListener *lis = find_proto_listener(proto);
         if (AMBRO_LIKELY(lis != nullptr)) {
             return lis->m_callback->recvIp4Dgram(meta, dgram);
         }
+        
+        // Handle ICMP packets.
+        if (proto == Ip4ProtocolIcmp) {
+            return recvIcmp4Dgram(meta, dgram);
+        }
     }
     
     void recvIcmp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
     {
+        // Check destination address.
+        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
+        if (AMBRO_UNLIKELY(
+            !meta.iface->ip4AddrIsLocalAddr(meta.dst_addr) &&
+            !meta.iface->ip4AddrIsLocalBcast(meta.dst_addr) &&
+            meta.dst_addr != Ip4Addr::AllOnesAddr()))
+        {
+            return;
+        }
+        
         // Check ICMP header length.
-        if (!dgram.hasHeader(Icmp4Header::Size)) {
+        if (AMBRO_UNLIKELY(!dgram.hasHeader(Icmp4Header::Size))) {
             return;
         }
         
@@ -734,7 +735,7 @@ private:
         
         // Verify ICMP checksum.
         uint16_t calc_chksum = IpChksum(dgram);
-        if (calc_chksum != 0) {
+        if (AMBRO_UNLIKELY(calc_chksum != 0)) {
             return;
         }
         

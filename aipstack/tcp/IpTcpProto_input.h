@@ -52,7 +52,8 @@ class IpTcpProto_input
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
                                    OptionFlags, PortType))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
-                                 can_output_in_state, accepting_data_in_state))
+                                 can_output_in_state, accepting_data_in_state,
+                                 state_is_closed_synsent_synrcvd))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
                                    AbrtTimer, RtxTimer, OutputTimer, MtuRef))
@@ -63,12 +64,12 @@ public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
         // The destination address must be the address of the incoming interface.
-        if (!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr)) {
+        if (AMBRO_UNLIKELY(!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr))) {
             return;
         }
         
         // Check header size, must fit in first buffer.
-        if (!dgram.hasHeader(Tcp4Header::Size)) {
+        if (AMBRO_UNLIKELY(!dgram.hasHeader(Tcp4Header::Size))) {
             return;
         }
         
@@ -85,7 +86,7 @@ public:
         
         // Check data offset.
         uint8_t data_offset = (tcp_meta.flags >> TcpOffsetShift) * 4;
-        if (data_offset < Tcp4Header::Size || data_offset > dgram.tot_len) {
+        if (AMBRO_UNLIKELY(data_offset < Tcp4Header::Size || data_offset > dgram.tot_len)) {
             return;
         }
         
@@ -96,7 +97,7 @@ public:
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         chksum_accum.addIpBuf(dgram);
-        if (chksum_accum.getChksum() != 0) {
+        if (AMBRO_UNLIKELY(chksum_accum.getChksum() != 0)) {
             return;
         }
         
@@ -113,7 +114,7 @@ public:
         
         // Try to handle using a PCB.
         TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.dst_addr, tcp_meta.local_port, ip_meta.src_addr, tcp_meta.remote_port);
-        if (pcb != nullptr) {
+        if (AMBRO_LIKELY(pcb != nullptr)) {
             AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
             tcp->m_current_pcb = pcb;
             pcb_input(pcb, tcp_meta, tcp_data);
@@ -415,7 +416,8 @@ private:
             return;
         }
         
-        if (AMBRO_UNLIKELY(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))) {
+        // This checks is a simple comparison for speed.
+        if (AMBRO_UNLIKELY(state_is_closed_synsent_synrcvd(pcb->state))) {
             // Do SYN_SENT or SYN_RCVD specific processing.
             // Normally we transition to ESTABLISHED state here.
             if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, new_ack)) {
