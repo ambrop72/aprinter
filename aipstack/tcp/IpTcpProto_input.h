@@ -472,80 +472,12 @@ private:
                                             IpBufRef &tcp_data, SeqType &eff_seq,
                                             bool &seg_fin, bool &new_ack)
     {
-        // Sequence length of segment (data+flags).
-        size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
-        
         // Get the RST, SYN and ACK flags.
         FlagsType flags_rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
         
         // Handle uncommon flags (RST set, SYN set or ACK not set).
         if (AMBRO_UNLIKELY(flags_rst_syn_ack != Tcp4FlagAck)) {
-            bool syn_sent = pcb->state == TcpState::SYN_SENT;
-            bool stop_processing = true;
-            
-            if ((flags_rst_syn_ack & Tcp4FlagRst) != 0) {
-                // RST, handle as per RFC 5961.
-                if (syn_sent) {
-                    // The RFC says the reset is acceptable if it acknowledges
-                    // the SYN. But due to the possibility that we sent an empty
-                    // ACK with seq_num==snd_una, accept also ack_num==snd_una.
-                    if ((flags_rst_syn_ack & Tcp4FlagAck) != 0 &&
-                        seq_lte(tcp_meta.ack_num, pcb->snd_nxt, pcb->snd_una))
-                    {
-                        TcpProto::pcb_abort(pcb, false);
-                    }
-                } else {
-                    if (tcp_meta.seq_num == pcb->rcv_nxt) {
-                        TcpProto::pcb_abort(pcb, false);
-                    }
-                    // NOTE: We check simply against rcv_ann_wnd and don't bother calculating
-                    // the formally correct rcv_wnd based on rcvBufLen. This means that we
-                    // would ignore an RST that is outside the announced window but still
-                    // within the actual window for which we would accept data. This is not
-                    // a problem.
-                    // NOTE: But we are slightly violating RFC 5961 by allowing seq_num at
-                    // exactly the right edge (same as we do for ACK, see below).
-                    else if (seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= pcb->rcv_ann_wnd) {
-                        Output::pcb_send_empty_ack(pcb);
-                    }
-                }
-            }
-            else if ((flags_rst_syn_ack & Tcp4FlagSyn) != 0) {
-                if (syn_sent) {
-                    // Received a SYN in SYN-SENT state.
-                    if (flags_rst_syn_ack == (Tcp4FlagSyn|Tcp4FlagAck)) {
-                        // Expected SYN-ACK response, continue processing.
-                        stop_processing = false;
-                    } else {
-                        // SYN without ACK, we do not support this yet, send RST.
-                        Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                             pcb->local_port, pcb->remote_port,
-                             0, true, seq_add(tcp_meta.seq_num, seqlen));
-                    }
-                } else {
-                    // Handle SYN as per RFC 5961.
-                    if (pcb->state == TcpState::SYN_RCVD &&
-                        tcp_meta.seq_num == seq_add(pcb->rcv_nxt, -1))
-                    {
-                        // This seems to be a retransmission of the SYN, retransmit our
-                        // SYN+ACK and bump the abort timeout.
-                        Output::pcb_send_syn(pcb);
-                        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
-                    }
-                    else {
-                        Output::pcb_send_empty_ack(pcb);
-                    }
-                }
-            }
-            else {
-                // Segment has no RST
-                // Segment without none of RST, SYN and ACK should never be sent.
-                // Just drop it here. Note that RFC 793 would have us check the
-                // sequence number and possibly send an empty ACK if the segment
-                // is outside the window, but we don't do that for perfomance.
-            }
-            
-            if (stop_processing) {
+            if (!pcb_uncommon_flags_processing(pcb, flags_rst_syn_ack, tcp_meta, tcp_data)) {
                 return false;
             }
         }
@@ -582,10 +514,16 @@ private:
                 rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
             }
             
-            // Determine acceptability of segment.
-            bool acceptable;
-            bool left_edge_in_window;
-            bool right_edge_in_window;
+            // Store the sequence number and FIN flag. But these and also
+            // tcp_data will be modified below if the segment is trimmed.
+            eff_seq = tcp_meta.seq_num;
+            seg_fin = (tcp_meta.flags & Tcp4FlagFin) != 0;
+            
+            // Sequence length of segment (data+FIN). Note that we cannot have
+            // a SYN here, we would have bailed out at the top, except in SYN_SENT
+            // state which is handled just above.
+            size_t seqlen = tcp_data.tot_len + seg_fin;
+            
             if (seqlen == 0) {
                 // Empty segment is acceptable if the sequence number is within or at
                 // the right edge of the receive window. Allowing the latter with
@@ -593,35 +531,37 @@ private:
                 // since such segments may be generated normally when the sender
                 // exhausts our receive window and may be useful window updates or
                 // ACKs.
-                acceptable = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= rcv_wnd;
+                bool acceptable = seq_diff(eff_seq, pcb->rcv_nxt) <= rcv_wnd;
+                
+                // If not acceptable, send any appropriate response and drop.
+                if (AMBRO_UNLIKELY(!acceptable)) {
+                    Output::pcb_send_empty_ack(pcb);
+                    return false;
+                }
             } else {
                 // Nonzero-length segment is acceptable if its left or right edge
                 // is within the receive window. Except for SYN_RCVD, we are not expecting
                 // any data to the left.
-                SeqType last_seq = seq_add(tcp_meta.seq_num, seq_add(seqlen, -1));
-                left_edge_in_window = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) < rcv_wnd;
-                right_edge_in_window = seq_diff(last_seq, pcb->rcv_nxt) < rcv_wnd;
+                SeqType last_seq = seq_add(eff_seq, seq_add(seqlen, -1));
+                bool left_edge_in_window = seq_diff(eff_seq, pcb->rcv_nxt) < rcv_wnd;
+                bool right_edge_in_window = seq_diff(last_seq, pcb->rcv_nxt) < rcv_wnd;
+                bool acceptable;
                 if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD)) {
                     acceptable = left_edge_in_window;
                 } else {
                     acceptable = left_edge_in_window || right_edge_in_window;
                 }
-            }
-            
-            // If not acceptable, send any appropriate response and drop.
-            if (AMBRO_UNLIKELY(!acceptable)) {
-                Output::pcb_send_empty_ack(pcb);
-                return false;
-            }
-            
-            // Trim the segment on the left or right so that it fits into the receive window.
-            eff_seq = tcp_meta.seq_num;
-            seg_fin = (tcp_meta.flags & Tcp4FlagFin) != 0;
-            if (AMBRO_LIKELY(seqlen > 0)) {
-                SeqType left_keep;
+                
+                // If not acceptable, send any appropriate response and drop.
+                if (AMBRO_UNLIKELY(!acceptable)) {
+                    Output::pcb_send_empty_ack(pcb);
+                    return false;
+                }
+                
+                // Trim the segment on the left or right so that it fits into the receive window.
                 if (AMBRO_UNLIKELY(!left_edge_in_window)) {
                     // The segment contains some already received data (seq_num < rcv_nxt).
-                    SeqType left_trim = seq_diff(pcb->rcv_nxt, tcp_meta.seq_num);
+                    SeqType left_trim = seq_diff(pcb->rcv_nxt, eff_seq);
                     AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
                     AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
                     eff_seq = pcb->rcv_nxt;
@@ -632,7 +572,7 @@ private:
                 }
                 else if (AMBRO_UNLIKELY(!right_edge_in_window)) {
                     // The segment contains some extra data beyond the receive window.
-                    SeqType left_keep = seq_diff(seq_add(pcb->rcv_nxt, rcv_wnd), tcp_meta.seq_num);
+                    SeqType left_keep = seq_diff(seq_add(pcb->rcv_nxt, rcv_wnd), eff_seq);
                     AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
                     AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
                     seqlen = left_keep;
@@ -656,6 +596,77 @@ private:
         }
         
         return true;
+    }
+    
+    static bool pcb_uncommon_flags_processing (TcpPcb *pcb, FlagsType flags_rst_syn_ack,
+                                               TcpSegMeta const &tcp_meta, IpBufRef const &tcp_data)
+    {
+        bool continue_processing = false;
+        
+        if ((flags_rst_syn_ack & Tcp4FlagRst) != 0) {
+            // RST, handle as per RFC 5961.
+            if (pcb->state == TcpState::SYN_SENT) {
+                // The RFC says the reset is acceptable if it acknowledges
+                // the SYN. But due to the possibility that we sent an empty
+                // ACK with seq_num==snd_una, accept also ack_num==snd_una.
+                if ((flags_rst_syn_ack & Tcp4FlagAck) != 0 &&
+                    seq_lte(tcp_meta.ack_num, pcb->snd_nxt, pcb->snd_una))
+                {
+                    TcpProto::pcb_abort(pcb, false);
+                }
+            } else {
+                if (tcp_meta.seq_num == pcb->rcv_nxt) {
+                    TcpProto::pcb_abort(pcb, false);
+                }
+                // NOTE: We check simply against rcv_ann_wnd and don't bother calculating
+                // the formally correct rcv_wnd based on rcvBufLen. This means that we
+                // would ignore an RST that is outside the announced window but still
+                // within the actual window for which we would accept data. This is not
+                // a problem.
+                // NOTE: But we are slightly violating RFC 5961 by allowing seq_num at
+                // exactly the right edge (same as we do for ACK, see below).
+                else if (seq_diff(tcp_meta.seq_num, pcb->rcv_nxt) <= pcb->rcv_ann_wnd) {
+                    Output::pcb_send_empty_ack(pcb);
+                }
+            }
+        }
+        else if ((flags_rst_syn_ack & Tcp4FlagSyn) != 0) {
+            if (pcb->state == TcpState::SYN_SENT) {
+                // Received a SYN in SYN-SENT state.
+                if (flags_rst_syn_ack == (Tcp4FlagSyn|Tcp4FlagAck)) {
+                    // Expected SYN-ACK response, continue processing.
+                    continue_processing = true;
+                } else {
+                    // SYN without ACK, we do not support this yet, send RST.
+                    size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
+                    Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
+                            pcb->local_port, pcb->remote_port,
+                            0, true, seq_add(tcp_meta.seq_num, seqlen));
+                }
+            } else {
+                // Handle SYN as per RFC 5961.
+                if (pcb->state == TcpState::SYN_RCVD &&
+                    tcp_meta.seq_num == seq_add(pcb->rcv_nxt, -1))
+                {
+                    // This seems to be a retransmission of the SYN, retransmit our
+                    // SYN+ACK and bump the abort timeout.
+                    Output::pcb_send_syn(pcb);
+                    pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
+                }
+                else {
+                    Output::pcb_send_empty_ack(pcb);
+                }
+            }
+        }
+        else {
+            // Segment has no RST
+            // Segment without none of RST, SYN and ACK should never be sent.
+            // Just drop it here. Note that RFC 793 would have us check the
+            // sequence number and possibly send an empty ACK if the segment
+            // is outside the window, but we don't do that for perfomance.
+        }
+        
+        return continue_processing;
     }
     
     static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
