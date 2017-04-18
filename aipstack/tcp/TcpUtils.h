@@ -45,23 +45,42 @@ public:
     using SeqType = uint32_t;
     using PortType = uint16_t;
     
-    // TCP states.
-    // Note, FIN_WAIT_2_TIME_WAIT is used transiently when we
-    // were in FIN_WAIT_2 and have just received a FIN, but we
-    // we will only go to TIME_WAIT after calling callbacks.
+private:
+    static uint8_t const Bit0 = 1 << 0;
+    static uint8_t const Bit1 = 1 << 1;
+    static uint8_t const Bit2 = 1 << 2;
+    static uint8_t const Bit3 = 1 << 3;
+    
+public:
+    /**
+     * TCP states.
+     * 
+     * ATTENTION: The bit values are carefully crafted to allow
+     * efficient implementation of the following state predicates:
+     * - state_is_synsent_synrcvd,
+     * - accepting_data_in_state,
+     * - can_output_in_state,
+     * - snd_open_in_state.
+     * 
+     * NOTE: the FIN_WAIT_2_TIME_WAIT state is not a standard TCP
+     * state but is used transiently when we were in FIN_WAIT_2 and
+     * have just received a FIN, but we will only go to TIME_WAIT
+     * after calling callbacks.
+     */
     enum TcpState : uint8_t {
-        CLOSED,
-        SYN_SENT,
-        SYN_RCVD,
-        ESTABLISHED,
-        CLOSE_WAIT,
-        LAST_ACK,
-        FIN_WAIT_1,
-        FIN_WAIT_2,
-        FIN_WAIT_2_TIME_WAIT,
-        CLOSING,
-        TIME_WAIT
+        CLOSED               = 0   |0   |0   |Bit0,
+        SYN_SENT             = Bit3|0   |0   |Bit0,
+        SYN_RCVD             = Bit3|0   |0   |0   ,
+        ESTABLISHED          = 0   |Bit2|0   |0   ,
+        CLOSE_WAIT           = 0   |Bit2|0   |Bit0,
+        LAST_ACK             = Bit3|Bit2|0   |0   ,
+        FIN_WAIT_1           = 0   |Bit2|Bit1|0   ,
+        FIN_WAIT_2           = 0   |0   |0   |0   ,
+        FIN_WAIT_2_TIME_WAIT = Bit3|0   |Bit1|Bit0,
+        CLOSING              = Bit3|Bit2|Bit1|Bit0,
+        TIME_WAIT            = Bit3|0   |Bit1|0   ,
     };
+    static int const TcpStateBits = 4;
     
     struct TcpOptions;
     
@@ -127,27 +146,31 @@ public:
                               TcpState::SYN_RCVD, TcpState::TIME_WAIT);
     }
     
-    static inline bool state_is_closed_synsent_synrcvd (uint8_t state)
+    static inline bool state_is_synsent_synrcvd (uint8_t state)
     {
-        return state <= TcpState::SYN_RCVD;
+        //return state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD);
+        return (state & (Bit3|Bit2|Bit1)) == Bit3;
     }
     
     static inline bool accepting_data_in_state (uint8_t state)
     {
-        return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
-                              TcpState::FIN_WAIT_2);
+        //return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
+        //                      TcpState::FIN_WAIT_2);
+        return (state & (Bit3|Bit0)) == 0;
     }
     
     static inline bool can_output_in_state (uint8_t state)
     {
-        return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
-                              TcpState::CLOSING, TcpState::CLOSE_WAIT,
-                              TcpState::LAST_ACK);
+        //return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
+        //                      TcpState::CLOSING, TcpState::CLOSE_WAIT,
+        //                      TcpState::LAST_ACK);
+        return (state & Bit2) != 0;
     }
     
     static inline bool snd_open_in_state (uint8_t state)
     {
-        return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
+        //return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
+        return (state & (Bit3|Bit2|Bit1)) == Bit2;
     }
     
     static inline void parse_options (IpBufRef buf, TcpOptions *out_opts)

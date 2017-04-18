@@ -53,7 +53,7 @@ class IpTcpProto_input
                                    OptionFlags, PortType))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
-                                 state_is_closed_synsent_synrcvd))
+                                 state_is_synsent_synrcvd))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
                                    AbrtTimer, RtxTimer, OutputTimer, MtuRef))
@@ -420,8 +420,7 @@ private:
             return;
         }
         
-        // This checks is a simple comparison for speed.
-        if (AMBRO_UNLIKELY(state_is_closed_synsent_synrcvd(pcb->state))) {
+        if (AMBRO_UNLIKELY(state_is_synsent_synrcvd(pcb->state))) {
             // Do SYN_SENT or SYN_RCVD specific processing.
             // Normally we transition to ESTABLISHED state here.
             if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, new_ack)) {

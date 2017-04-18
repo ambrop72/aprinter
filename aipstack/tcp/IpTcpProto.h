@@ -293,7 +293,7 @@ private:
         uint32_t flags : 14;
         
         // PCB state.
-        uint32_t state : 4;
+        uint32_t state : TcpUtils::TcpStateBits;
         
         // Number of duplicate ACKs (>=FastRtxDupAcks means we're in fast recovery).
         uint32_t num_dupack : Constants::DupAckBits;
