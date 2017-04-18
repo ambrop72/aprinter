@@ -73,7 +73,7 @@ public:
         SeqType ack_num;
         uint16_t window_size;
         FlagsType flags;
-        TcpOptions *opts; // may be null for TX
+        TcpOptions *opts; // not used for RX (undefined), may be null for TX
     };
     
     // TCP options flags used in TcpOptions options field.

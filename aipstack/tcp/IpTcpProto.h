@@ -103,7 +103,7 @@ private:
     using Input = IpTcpProto_input<IpTcpProto>;
     using Output = IpTcpProto_output<IpTcpProto>;
     
-    APRINTER_USE_TYPES1(TcpUtils, (TcpState))
+    APRINTER_USE_TYPES1(TcpUtils, (TcpState, TcpOptions))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
                                  seq_diff))
@@ -868,7 +868,11 @@ private:
     ProtoListener m_proto_listener;
     ListenersList m_listeners_list;
     TcpPcb *m_current_pcb;
-    IpBufRef m_received_opts_buf;
+    bool m_received_opts_parsed;
+    union {
+        IpBufRef m_received_opts_buf;
+        TcpOptions m_received_opts;
+    };
     PortType m_next_ephemeral_port;
     UnrefedPcbsList m_unrefed_pcbs_list;
     typename PcbIndex::Index m_pcb_index_active;

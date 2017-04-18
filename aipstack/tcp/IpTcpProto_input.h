@@ -107,15 +107,11 @@ public:
         uint8_t opts_len = data_offset - Tcp4Header::Size;
         
         // Remember the options region and skip over the options.
+        // The options will only be parsed when they are needed,
+        // using parse_received_opts.
+        tcp->m_received_opts_parsed = false;
         tcp->m_received_opts_buf = tcp_data.subTo(opts_len);
         tcp_data.skipBytes(opts_len);
-        
-        // The options will only be parsed when they are needed, using
-        // parse_received_opts. But we still reserve space for the parsed
-        // options here and point tcp_meta to that.
-        TcpOptions tcp_opts;
-        tcp_opts.options = 0;
-        tcp_meta.opts = &tcp_opts;
         
         // Try to handle using a PCB.
         TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.dst_addr, tcp_meta.local_port, ip_meta.src_addr, tcp_meta.remote_port);
@@ -312,17 +308,19 @@ private:
             // Calculate the MSS based on the interface MTU.
             uint16_t iface_mss = ip_meta.iface->getMtu() - Ip4TcpHeaderSize;
             
+            TcpProto *tcp = lis->m_tcp;
+            
             // Make sure received options are parsed.
-            parse_received_opts(lis->m_tcp, *tcp_meta.opts);
+            parse_received_opts(tcp);
             
             // Calculate the base_snd_mss.
             uint16_t base_snd_mss;
-            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, *tcp_meta.opts, &base_snd_mss)) {
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, tcp->m_received_opts, &base_snd_mss)) {
                 goto refuse;
             }
             
             // Allocate a PCB.
-            TcpPcb *pcb = lis->m_tcp->allocate_pcb();
+            TcpPcb *pcb = tcp->allocate_pcb();
             if (pcb == nullptr) {
                 goto refuse;
             }
@@ -365,9 +363,9 @@ private:
             // being accepted).
             
             // Handle window scaling option.
-            if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
+            if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 pcb->setFlag(PcbFlags::WND_SCALE);
-                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
                 pcb->rcv_wnd_shift = Constants::RcvWndShift;
             }
             
@@ -382,8 +380,6 @@ private:
             // Increment the listener's PCB count.
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
             lis->m_num_pcbs++;
-            
-            TcpProto *tcp = pcb->tcp;
             
             // Add the PCB to the active index.
             tcp->m_pcb_index_active.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
@@ -748,12 +744,14 @@ private:
             // Go to ESTABLISHED state.
             pcb->state = TcpState::ESTABLISHED;
             
+            TcpProto *tcp = pcb->tcp;
+            
             // Make sure received options are parsed.
-            parse_received_opts(pcb->tcp, *tcp_meta.opts);
+            parse_received_opts(tcp);
             
             // Update the base_snd_mss based on the MSS option in this packet (if any).
             if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(
-                pcb->base_snd_mss, *tcp_meta.opts, &pcb->base_snd_mss))
+                pcb->base_snd_mss, tcp->m_received_opts, &pcb->base_snd_mss))
             {
                 // Due to ESTABLISHED transition above, the RST will be an ACK.
                 TcpProto::pcb_abort(pcb, true);
@@ -761,13 +759,13 @@ private:
             }
             
             // Handle the window scale option.
-            if ((tcp_meta.opts->options & OptionFlags::WND_SCALE) != 0) {
+            if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 // Remote sent the window scale flag, so store the window scale
                 // value that they will be using. Note that the window size in
                 // this incoming segment has already been read above using
                 // pcb_decode_wnd_size while snd_wnd_shift was still zero, which
                 // is correct because the window size in a SYN-ACK is unscaled.
-                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp_meta.opts->wnd_scale);
+                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
             } else {
                 // Remote did not send the window scale option, which means we
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
@@ -1235,17 +1233,12 @@ private:
         return ann_wnd;
     }
     
-    static void parse_received_opts (TcpProto *tcp, TcpOptions &opts)
+    static void parse_received_opts (TcpProto *tcp)
     {
-        // If tot_len is 0, then either no options have been received
-        // and opts.options is still zero as set in recvIp4Dgram, or the
-        // options have already been parsed.
-        if (tcp->m_received_opts_buf.tot_len > 0) {
-            // Parse the options.
-            TcpUtils::parse_options(tcp->m_received_opts_buf, &opts);
-            
-            // Clear tot_len to prevent parsing again.
-            tcp->m_received_opts_buf.tot_len = 0;
+        // Only parse if the options were not parsed already.
+        if (!tcp->m_received_opts_parsed) {
+            tcp->m_received_opts_parsed = true;
+            TcpUtils::parse_options(tcp->m_received_opts_buf, &tcp->m_received_opts);
         }
     }
 };
