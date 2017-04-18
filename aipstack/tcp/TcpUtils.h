@@ -149,7 +149,7 @@ public:
     static inline bool state_is_synsent_synrcvd (uint8_t state)
     {
         //return state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD);
-        return (state & (Bit3|Bit2|Bit1)) == Bit3;
+        return (state >> 1) == (Bit3 >> 1);
     }
     
     static inline bool accepting_data_in_state (uint8_t state)
