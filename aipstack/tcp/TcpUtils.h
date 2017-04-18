@@ -68,17 +68,17 @@ public:
      * after calling callbacks.
      */
     enum TcpState : uint8_t {
-        CLOSED               = 0   |0   |0   |Bit0,
-        SYN_SENT             = Bit3|0   |0   |Bit0,
-        SYN_RCVD             = Bit3|0   |0   |0   ,
-        ESTABLISHED          = 0   |Bit2|0   |0   ,
-        CLOSE_WAIT           = 0   |Bit2|0   |Bit0,
-        LAST_ACK             = Bit3|Bit2|0   |0   ,
-        FIN_WAIT_1           = 0   |Bit2|Bit1|0   ,
-        FIN_WAIT_2           = 0   |0   |0   |0   ,
-        FIN_WAIT_2_TIME_WAIT = Bit3|0   |Bit1|Bit0,
-        CLOSING              = Bit3|Bit2|Bit1|Bit0,
-        TIME_WAIT            = Bit3|0   |Bit1|0   ,
+        CLOSED               = 0   |Bit2|0   |Bit0,
+        SYN_SENT             = Bit3|Bit2|0   |Bit0,
+        SYN_RCVD             = Bit3|Bit2|0   |0   ,
+        ESTABLISHED          = 0   |0   |0   |0   ,
+        CLOSE_WAIT           = 0   |0   |0   |Bit0,
+        LAST_ACK             = Bit3|0   |0   |0   ,
+        FIN_WAIT_1           = 0   |0   |Bit1|0   ,
+        FIN_WAIT_2           = 0   |Bit2|0   |0   ,
+        FIN_WAIT_2_TIME_WAIT = Bit3|Bit2|Bit1|Bit0,
+        CLOSING              = Bit3|0   |Bit1|Bit0,
+        TIME_WAIT            = Bit3|Bit2|Bit1|0   ,
     };
     static int const TcpStateBits = 4;
     
@@ -149,7 +149,7 @@ public:
     static inline bool state_is_synsent_synrcvd (uint8_t state)
     {
         //return state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD);
-        return (state >> 1) == (Bit3 >> 1);
+        return (state >> 1) == ((Bit3|Bit2) >> 1);
     }
     
     static inline bool accepting_data_in_state (uint8_t state)
@@ -164,13 +164,13 @@ public:
         //return state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1,
         //                      TcpState::CLOSING, TcpState::CLOSE_WAIT,
         //                      TcpState::LAST_ACK);
-        return (state & Bit2) != 0;
+        return (state & Bit2) == 0;
     }
     
     static inline bool snd_open_in_state (uint8_t state)
     {
         //return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
-        return (state & (Bit3|Bit2|Bit1)) == Bit2;
+        return (state >> 1) == 0;
     }
     
     static inline void parse_options (IpBufRef buf, TcpOptions *out_opts)
