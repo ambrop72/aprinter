@@ -103,13 +103,18 @@ public:
         
         // Get a buffer reference starting at the option data and compute
         // how many bytes of options there options are.
-        IpBufRef opts_and_data = dgram.hideHeader(Tcp4Header::Size);
+        IpBufRef tcp_data = dgram.hideHeader(Tcp4Header::Size);
         uint8_t opts_len = data_offset - Tcp4Header::Size;
         
-        // Parse TCP options and get a reference to the data.
+        // Remember the options region and skip over the options.
+        tcp->m_received_opts_buf = tcp_data.subTo(opts_len);
+        tcp_data.skipBytes(opts_len);
+        
+        // The options will only be parsed when they are needed, using
+        // parse_received_opts. But we still reserve space for the parsed
+        // options here and point tcp_meta to that.
         TcpOptions tcp_opts;
-        IpBufRef tcp_data;
-        TcpUtils::parse_options(opts_and_data, opts_len, &tcp_opts, &tcp_data);
+        tcp_opts.options = 0;
         tcp_meta.opts = &tcp_opts;
         
         // Try to handle using a PCB.
@@ -306,6 +311,9 @@ private:
             
             // Calculate the MSS based on the interface MTU.
             uint16_t iface_mss = ip_meta.iface->getMtu() - Ip4TcpHeaderSize;
+            
+            // Make sure received options are parsed.
+            parse_received_opts(lis->m_tcp, *tcp_meta.opts);
             
             // Calculate the base_snd_mss.
             uint16_t base_snd_mss;
@@ -739,6 +747,9 @@ private:
             
             // Go to ESTABLISHED state.
             pcb->state = TcpState::ESTABLISHED;
+            
+            // Make sure received options are parsed.
+            parse_received_opts(pcb->tcp, *tcp_meta.opts);
             
             // Update the base_snd_mss based on the MSS option in this packet (if any).
             if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(
@@ -1222,6 +1233,20 @@ private:
         // to fit into size_t as required since it is <=rcvBufLen which is
         // a size_t.
         return ann_wnd;
+    }
+    
+    static void parse_received_opts (TcpProto *tcp, TcpOptions &opts)
+    {
+        // If tot_len is 0, then either no options have been received
+        // and opts.options is still zero as set in recvIp4Dgram, or the
+        // options have already been parsed.
+        if (tcp->m_received_opts_buf.tot_len > 0) {
+            // Parse the options.
+            TcpUtils::parse_options(tcp->m_received_opts_buf, &opts);
+            
+            // Clear tot_len to prevent parsing again.
+            tcp->m_received_opts_buf.tot_len = 0;
+        }
     }
 };
 

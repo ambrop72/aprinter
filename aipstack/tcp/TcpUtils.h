@@ -73,7 +73,7 @@ public:
         SeqType ack_num;
         uint16_t window_size;
         FlagsType flags;
-        TcpOptions const *opts; // may be null for TX
+        TcpOptions *opts; // may be null for TX
     };
     
     // TCP options flags used in TcpOptions options field.
@@ -150,14 +150,8 @@ public:
         return state == OneOf(TcpState::ESTABLISHED, TcpState::CLOSE_WAIT);
     }
     
-    static inline void parse_options (IpBufRef buf, uint8_t opts_len, TcpOptions *out_opts, IpBufRef *out_data)
+    static inline void parse_options (IpBufRef buf, TcpOptions *out_opts)
     {
-        AMBRO_ASSERT(opts_len <= buf.tot_len)
-        
-        // Truncate the buffer temporarily while we're parsing the options.
-        size_t data_len = buf.tot_len - opts_len;
-        buf.tot_len = opts_len;
-        
         // Clear options flags. Below we will set flags for options that we find.
         out_opts->options = 0;
         
@@ -218,14 +212,6 @@ public:
                 } break;
             }
         }
-        
-        // Skip any remaining option data (we might not have consumed all of it).
-        buf.skipBytes(buf.tot_len);
-        
-        // The buf now points to the start of segment data but is empty.
-        // Extend it to reference the entire segment data and return it to the caller.
-        buf.tot_len = data_len;
-        *out_data = buf;
     }
     
     static size_t const OptWriteLenMSS = 4;

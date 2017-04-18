@@ -868,6 +868,7 @@ private:
     ProtoListener m_proto_listener;
     ListenersList m_listeners_list;
     TcpPcb *m_current_pcb;
+    IpBufRef m_received_opts_buf;
     PortType m_next_ephemeral_port;
     UnrefedPcbsList m_unrefed_pcbs_list;
     typename PcbIndex::Index m_pcb_index_active;
