@@ -648,16 +648,13 @@ public:
     }
     
     // Calculate snd_mss based on the current MtuRef information.
-    static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb)
+    static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb, uint16_t pmtu)
     {
         AMBRO_ASSERT(pcb->MtuRef::isSetup())
-        
-        // Get the PMTU from the MtuRef::
-        uint16_t mtu = pcb->MtuRef::getPmtu(pcb->tcp->m_stack);
-        AMBRO_ASSERT(mtu >= TheIpStack::MinMTU)
+        AMBRO_ASSERT(pmtu >= TheIpStack::MinMTU)
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
-        uint16_t mtu_mss = mtu - Ip4TcpHeaderSize;
+        uint16_t mtu_mss = pmtu - Ip4TcpHeaderSize;
         uint16_t snd_mss = APrinter::MinValue(pcb->base_snd_mss, mtu_mss);
         
         // This snd_mss cannot be less than MinAllowedMss:
@@ -671,7 +668,7 @@ public:
     // This is called when the MtuRef notifies us that the PMTU has
     // changed. It is very important that we do not reset/deinit any
     // MtuRef here (including this PCB's, such as through pcb_abort).
-    inline static void pcb_pmtu_changed (TcpPcb *pcb)
+    inline static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
     {
         AMBRO_ASSERT(pcb->MtuRef::isSetup())
         
@@ -682,7 +679,7 @@ public:
         }
         
         // Calculate the new snd_mss based on the PMTU.
-        uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb);
+        uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // If the snd_mss has not changed, there is nothing to do.
         if (AMBRO_UNLIKELY(new_snd_mss == pcb->snd_mss)) {

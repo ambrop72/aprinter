@@ -728,6 +728,14 @@ private:
         // Update snd_una due to one sequence count having been ACKed.
         pcb->snd_una = tcp_meta.ack_num;
         
+        // We'll need to get the current PMTU for pcb_calc_snd_mss_from_pmtu.
+        uint16_t pmtu;
+        
+        // In SYN_SENT we temporarily stored the PMTU to snd_wnd.
+        if (syn_sent) {
+            pmtu = pcb->snd_wnd;
+        }
+        
         // Remember the initial send window.
         pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         pcb->snd_wl1 = tcp_meta.seq_num;
@@ -772,7 +780,7 @@ private:
             }
         } else {
             // Setup the MTU reference.
-            if (!pcb->MtuRef::setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr)) {
+            if (!pcb->MtuRef::setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -780,7 +788,7 @@ private:
         
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
-        pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb);
+        pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // If this is the end of RTT measurement (there was no retransmission),
         // update the RTT vars and RTO based on the delay. Otherwise just reset RTO

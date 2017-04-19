@@ -577,14 +577,9 @@ public:
         
         using BaseMtuRef::isSetup;
         
-        inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface)
+        inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface, uint16_t &out_pmtu)
         {
-            return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface);
-        }
-        
-        inline uint16_t getPmtu (IpStack *stack)
-        {
-            return BaseMtuRef::getPmtu(mtu_cache(stack));
+            return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface, out_pmtu);
         }
         
         inline bool handleIcmpPacketTooBig (IpStack *stack, uint16_t mtu_info)

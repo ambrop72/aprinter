@@ -96,11 +96,6 @@ public:
     class MtuRef;
     
 private:
-    // Linked list data structure for MtuRef's referencing some MTU entry.
-    struct MtuRefListAccessor;
-    using MtuRefLinkModel = APrinter::PointerLinkModel<MtuRef>;
-    using MtuRefList = APrinter::LinkedList<MtuRefListAccessor, MtuRefLinkModel, false>;
-    
     // Timeout period for the MTU timer (one minute).
     static TimeType const MtuTimerTicks = 60.0 * (TimeType)Clock::time_freq;
     
@@ -116,12 +111,34 @@ private:
         };
     };
     
+    // Each MtuEntry in Referenced states keeps a doubly-linked list
+    // of MtuRef objects. We use a slightly special kind of list,
+    // where the head of the list (MtuEntry.refs_list_first) points
+    // to a different part of a node (to the next link) than a normal
+    // node's next link does (to the prev link). This allows us to
+    // efficiently determine whether the node is the first node.
+    // This Link struct enables this data structure. It simply
+    // contains a pointer the same type.
+    struct Link {
+        Link *link;
+        
+        // Convenience function for use when inherited.
+        inline Link * self ()
+        {
+            return this;
+        }
+    };
+    
+    // These types allow MtuRef to inherit Link twice.
+    struct PrevLink : public Link {};
+    struct NextLink : public Link {};
+    
     // MTU entry structure.
     struct MtuEntry {
         typename MtuIndex::Node index_node;
         union {
             APrinter::LinkedListNode<MtuLinkModel> free_list_node;
-            MtuRefList refs_list;
+            Link refs_list_first;
         };
         uint16_t mtu;
         uint8_t state;
@@ -184,18 +201,17 @@ public:
         tim(MtuTimer()).deinit(Context());
     }
     
-    class MtuRef
+    class MtuRef :
+        private PrevLink,
+        private NextLink
     {
         friend IpPathMtuCache;
-        
-    private:
-        MtuIndexType m_entry_idx;
-        APrinter::LinkedListNode<MtuRefLinkModel> m_refs_list_node;
         
     public:
         inline void init ()
         {
-            m_entry_idx = MtuIndexNull;
+            // Clear prev link to indicate unused MtuRef.
+            PrevLink::link = nullptr;
         }
         
         inline void deinit (IpPathMtuCache *cache)
@@ -205,47 +221,83 @@ public:
         
         void reset (IpPathMtuCache *cache)
         {
-            if (m_entry_idx != MtuIndexNull) {
-                MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
-                assert_entry_referenced(mtu_entry);
-                
-                mtu_entry.refs_list.remove(*this);
-                
-                if (mtu_entry.refs_list.isEmpty()) {
-                    mtu_entry.state = EntryState::Unused;
-                    cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), cache->mtuState());
-                }
-                
-                m_entry_idx = MtuIndexNull;
+            // If PrevLink is null we are unused (not in a list).
+            if (PrevLink::link == nullptr) {
+                return;
             }
+            
+            // Check if we are the first node by seeing if the destination
+            // of PrevLink points back to NextLink (rather than to PrevLink).
+            bool is_first = PrevLink::link->link == NextLink::self();
+            
+            if (is_first && NextLink::link == nullptr) {
+                // We are the only node, transition entry to Unused state.
+                MtuEntry &mtu_entry = get_entry_from_first(PrevLink::link);
+                assert_entry_referenced(mtu_entry);
+                mtu_entry.state = EntryState::Unused;
+                cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), cache->mtuState());
+            } else {
+                // We are not the only node, remove ourselves.
+                // Setup the link from the previous to the next node.
+                Link *prev_link_dst;
+                if (is_first) {
+                    MtuRef &next_ref = get_ref_from_prev_link(NextLink::link);
+                    prev_link_dst = next_ref.NextLink::self();
+                } else {
+                    AMBRO_ASSERT(PrevLink::link->link == PrevLink::self())
+                    prev_link_dst = NextLink::link;
+                }
+                PrevLink::link->link = prev_link_dst;
+                
+                // Setup the link from the next to the previous node, if any.
+                if (NextLink::link != nullptr) {
+                    AMBRO_ASSERT(NextLink::link->link == NextLink::self())
+                    NextLink::link->link = PrevLink::link;
+                }
+            }
+            
+            // Clear prev link to indicate unused MtuRef.
+            PrevLink::link = nullptr;
         }
         
         inline bool isSetup ()
         {
-            return m_entry_idx != MtuIndexNull;
+            return PrevLink::link != nullptr;
         }
         
-        bool setup (IpPathMtuCache *cache, Ip4Addr remote_addr, Iface *iface)
+        bool setup (IpPathMtuCache *cache, Ip4Addr remote_addr, Iface *iface, uint16_t &out_pmtu)
         {
             AMBRO_ASSERT(!isSetup())
             
+            // Lookup this address in the index.
             MtuLinkModelRef mtu_ref = cache->m_mtu_index.findEntry(cache->mtuState(), remote_addr);
             
             if (!mtu_ref.isNull()) {
+                // Got an existing MtuEntry for this address.
                 MtuEntry &mtu_entry = *mtu_ref;
                 
                 if (mtu_entry.state == EntryState::Unused) {
+                    // Unused entry, change to Referenced and insert ourselves.
+                    
                     cache->m_mtu_free_list.remove(mtu_ref, cache->mtuState());
                     
                     mtu_entry.state = EntryState::Referenced;
-                    mtu_entry.refs_list.init();
+                    NextLink::link = nullptr;
                 } else {
+                    // Referenced entry, insert ourselves.
                     AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
-                    AMBRO_ASSERT(!mtu_entry.refs_list.isEmpty())
+                    AMBRO_ASSERT(mtu_entry.refs_list_first.link != nullptr)
+                    
+                    MtuRef &next_ref = get_ref_from_next_link(mtu_entry.refs_list_first.link);
+                    AMBRO_ASSERT(next_ref.PrevLink::link == mtu_entry.refs_list_first.self())
+                    
+                    NextLink::link = next_ref.PrevLink::self();
+                    next_ref.PrevLink::link = NextLink::self();
                 }
-                
-                mtu_entry.refs_list.prepend(*this);
             } else {
+                // There is MtuEntry for this address, we will try to add one.
+                
+                // If no interface is provided, find the interface for the initial PMTU.
                 if (iface == nullptr) {
                     Ip4Addr route_addr;
                     if (!cache->m_ip_stack->routeIp4(remote_addr, nullptr, &iface, &route_addr)) {
@@ -253,6 +305,7 @@ public:
                     }
                 }
                 
+                // Get an MtuEntry from the free list.
                 mtu_ref = cache->m_mtu_free_list.first(cache->mtuState());
                 if (mtu_ref.isNull()) {
                     return false;
@@ -261,45 +314,48 @@ public:
                 MtuEntry &mtu_entry = *mtu_ref;
                 AMBRO_ASSERT(mtu_entry.state == OneOf(EntryState::Invalid, EntryState::Unused))
                 
+                // Remove it from the free list.
                 cache->m_mtu_free_list.removeFirst(cache->mtuState());
                 
+                // If it is Unused it is in the index from which it needs to
+                // be removed before being re-added with a different address.
                 if (mtu_entry.state == EntryState::Unused) {
                     AMBRO_ASSERT(mtu_entry.remote_addr != remote_addr)
                     cache->m_mtu_index.removeEntry(cache->mtuState(), mtu_ref);
                 }
                 
+                // Setup some fields.
                 mtu_entry.state = EntryState::Referenced;
-                mtu_entry.refs_list.init();
-                mtu_entry.refs_list.prepend(*this);
                 mtu_entry.remote_addr = remote_addr;
                 mtu_entry.mtu = iface->getMtu();
                 mtu_entry.minutes_old = 0;
                 
+                // Add the MtuRef to the index with the new address.
                 cache->m_mtu_index.addEntry(cache->mtuState(), mtu_ref);
+                
+                // Clear the next link since we are the first node.
+                NextLink::link = nullptr;
             }
             
-            m_entry_idx = mtu_ref.getIndex();
+            MtuEntry &mtu_entry = *mtu_ref;
             
-            assert_entry_referenced(cache->get_entry(m_entry_idx));
+            // In all cases link ourselves with the head of the list,
+            // so do it here for better code size.
+            mtu_entry.refs_list_first.link = NextLink::self();
+            PrevLink::link = mtu_entry.refs_list_first.self();
             
-            return true;
-        }
-        
-        inline uint16_t getPmtu (IpPathMtuCache *cache)
-        {
-            AMBRO_ASSERT(isSetup())
-            
-            MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
             assert_entry_referenced(mtu_entry);
             
-            return mtu_entry.mtu;
+            // Return the PMTU and success.
+            out_pmtu = mtu_entry.mtu;
+            return true;
         }
         
         bool handleIcmpPacketTooBig (IpPathMtuCache *cache, uint16_t mtu_info)
         {
             AMBRO_ASSERT(isSetup())
             
-            MtuEntry &mtu_entry = cache->get_entry(m_entry_idx);
+            MtuEntry &mtu_entry = find_our_entry();
             assert_entry_referenced(mtu_entry);
             
             // If the ICMP message does not include an MTU (mtu_info==0),
@@ -329,25 +385,42 @@ public:
         // It MUST NOT reset/deinit this or any other MtuRef object!
         // This is because the caller is iterating the linked list
         // of references without considerations for its modification.
-        virtual void pmtuChanged () = 0;
+        virtual void pmtuChanged (uint16_t pmtu) = 0;
+        
+    private:
+        MtuEntry & find_our_entry ()
+        {
+            MtuRef *ref = this;
+            while (ref->PrevLink::link->link != ref->NextLink::self()) {
+                AMBRO_ASSERT(ref->PrevLink::link->link == ref->PrevLink::self())
+                ref = &get_ref_from_next_link(ref->PrevLink::link);
+            }
+            
+            return get_entry_from_first(ref->PrevLink::link);
+        }
     };
     
 private:
-    // Node accessor for MtuRefList.
-    struct MtuRefListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuRef::m_refs_list_node) {};
-    
-    inline MtuEntry & get_entry (MtuIndexType index)
+    inline static MtuEntry & get_entry_from_first (Link *link)
     {
-        AMBRO_ASSERT(index < NumMtuEntries)
-        
-        return m_mtu_entries[index];
+        return *(MtuEntry *)((char *)link - offsetof(MtuEntry, refs_list_first));
+    }
+    
+    inline static MtuRef & get_ref_from_prev_link (Link *link)
+    {
+        return static_cast<MtuRef &>(static_cast<PrevLink &>(*link));
+    }
+    
+    inline static MtuRef & get_ref_from_next_link (Link *link)
+    {
+        return static_cast<MtuRef &>(static_cast<NextLink &>(*link));
     }
     
     inline static void assert_entry_referenced (MtuEntry &mtu_entry)
     {
         AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
         AMBRO_ASSERT(mtu_entry.mtu >= MinMTU)
-        AMBRO_ASSERT(!mtu_entry.refs_list.isEmpty())
+        AMBRO_ASSERT(mtu_entry.refs_list_first.link != nullptr)
     }
     
     void timerExpired (MtuTimer, Context)
@@ -411,13 +484,18 @@ private:
     {
         AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
         
-        MtuRef *ref = mtu_entry.refs_list.first();
-        while (ref != nullptr) {
-            AMBRO_ASSERT(ref->m_entry_idx == mtuRef(mtu_entry).getIndex())
-            ref->pmtuChanged();
-            AMBRO_ASSERT(ref->m_entry_idx == mtuRef(mtu_entry).getIndex())
+        uint16_t pmtu = mtu_entry.mtu;
+        
+        MtuRef *ref = &get_ref_from_next_link(mtu_entry.refs_list_first.link);
+        while (true) {
+            AMBRO_ASSERT(ref->PrevLink::link != nullptr)
+            ref->pmtuChanged(pmtu);
             AMBRO_ASSERT(mtu_entry.state == EntryState::Referenced)
-            ref = mtu_entry.refs_list.next(*ref);
+            AMBRO_ASSERT(ref->PrevLink::link != nullptr)
+            if (ref->NextLink::link == nullptr) {
+                break;
+            }
+            ref = &get_ref_from_prev_link(ref->NextLink::link);
         }
     }
 };

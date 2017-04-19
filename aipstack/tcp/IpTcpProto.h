@@ -322,7 +322,7 @@ private:
         void retrySending () override final { Output::pcb_send_retry(this); }
         
         // Callback from MtuRef when the PMTU changes.
-        void pmtuChanged () override final { Output::pcb_pmtu_changed(this); }
+        void pmtuChanged (uint16_t pmtu) override final { Output::pcb_pmtu_changed(this, pmtu); }
     };
     
     // Define the hook accessor for the PCB index.
@@ -718,7 +718,8 @@ private:
         }
         
         // Setup the MTU reference.
-        if (!pcb->MtuRef::setup(m_stack, remote_addr, iface)) {
+        uint16_t pmtu;
+        if (!pcb->MtuRef::setup(m_stack, remote_addr, iface, pmtu)) {
             // PCB is CLOSED, this is not a leak.
             return IpErr::NO_IPMTU_AVAIL;
         }
@@ -752,6 +753,7 @@ private:
         pcb->rcv_mss = iface_mss;
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
+        pcb->snd_wnd = pmtu; // store PMTU here temporarily
         pcb->snd_buf_cur = IpBufRef{};
         pcb->snd_psh_index = 0;
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
