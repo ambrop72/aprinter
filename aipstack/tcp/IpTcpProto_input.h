@@ -183,7 +183,7 @@ public:
         uint16_t mtu_info = Icmp4GetMtuFromRest(du_meta.icmp_rest);
         
         // Update the PMTU information.
-        if (!pcb->MtuRef::handleIcmpPacketTooBig(pcb->tcp->m_stack, mtu_info)) {
+        if (!pcb->tcp->m_stack->handleIcmpPacketTooBig(pcb->remote_addr, mtu_info)) {
             // The PMTU has not been lowered, nothing else to do.
             return;
         }

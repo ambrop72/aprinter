@@ -201,6 +201,40 @@ public:
         tim(MtuTimer()).deinit(Context());
     }
     
+    bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
+    {
+        MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(mtuState(), remote_addr);
+        if (mtu_ref.isNull()) {
+            return false;
+        }
+        
+        MtuEntry &mtu_entry = *mtu_ref;
+        AMBRO_ASSERT(mtu_entry.state == OneOf(EntryState::Referenced, EntryState::Unused))
+        
+        // If the ICMP message does not include an MTU (mtu_info==0),
+        // we assume the minimum PMTU that we allow. Generally we bump
+        // up the reported next link MTU to be no less than our MinMTU.
+        // This is what Linux does, it must be good enough for us too.
+        uint16_t bump_mtu = APrinter::MaxValue(MinMTU, mtu_info);
+        
+        // If the PMTU would not have changed, don't do anything but let
+        // the caller know.
+        if (bump_mtu >= mtu_entry.mtu) {
+            return false;
+        }
+        
+        // Update PMTU, reset timeout.
+        mtu_entry.mtu = bump_mtu;
+        mtu_entry.minutes_old = 0;
+        
+        // Notify all MtuRef referencing this entry.
+        if (mtu_entry.state == EntryState::Referenced) {
+            notify_pmtu_changed(mtu_entry);
+        }
+        
+        return true;
+    }
+    
     class MtuRef :
         private PrevLink,
         private NextLink
@@ -351,53 +385,12 @@ public:
             return true;
         }
         
-        bool handleIcmpPacketTooBig (IpPathMtuCache *cache, uint16_t mtu_info)
-        {
-            AMBRO_ASSERT(isSetup())
-            
-            MtuEntry &mtu_entry = find_our_entry();
-            assert_entry_referenced(mtu_entry);
-            
-            // If the ICMP message does not include an MTU (mtu_info==0),
-            // we assume the minimum PMTU that we allow. Generally we bump
-            // up the reported next link MTU to be no less than our MinMTU.
-            // This is what Linux does, it must be good enough for us too.
-            uint16_t bump_mtu = APrinter::MaxValue(MinMTU, mtu_info);
-            
-            // If the PMTU would not have changed, don't do anything but let
-            // the caller know.
-            if (bump_mtu >= mtu_entry.mtu) {
-                return false;
-            }
-            
-            // Update PMTU, reset timeout.
-            mtu_entry.mtu = bump_mtu;
-            mtu_entry.minutes_old = 0;
-            
-            // Notify all MtuRef referencing this entry.
-            cache->notify_pmtu_changed(mtu_entry);
-            
-            return true;
-        }
-        
     protected:
         // This is called when the PMTU changes.
         // It MUST NOT reset/deinit this or any other MtuRef object!
         // This is because the caller is iterating the linked list
         // of references without considerations for its modification.
         virtual void pmtuChanged (uint16_t pmtu) = 0;
-        
-    private:
-        MtuEntry & find_our_entry ()
-        {
-            MtuRef *ref = this;
-            while (ref->PrevLink::link->link != ref->NextLink::self()) {
-                AMBRO_ASSERT(ref->PrevLink::link->link == ref->PrevLink::self())
-                ref = &get_ref_from_next_link(ref->PrevLink::link);
-            }
-            
-            return get_entry_from_first(ref->PrevLink::link);
-        }
     };
     
 private:

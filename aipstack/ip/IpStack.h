@@ -306,6 +306,11 @@ public:
         return true;
     }
     
+    inline bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
+    {
+        return m_path_mtu_cache.handleIcmpPacketTooBig(remote_addr, mtu_info);
+    }
+    
     class ProtoListenerCallback {
     public:
         virtual void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
@@ -580,11 +585,6 @@ public:
         inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface, uint16_t &out_pmtu)
         {
             return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface, out_pmtu);
-        }
-        
-        inline bool handleIcmpPacketTooBig (IpStack *stack, uint16_t mtu_info)
-        {
-            return BaseMtuRef::handleIcmpPacketTooBig(mtu_cache(stack), mtu_info);
         }
         
     protected:
