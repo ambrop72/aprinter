@@ -27,7 +27,11 @@
 #ifndef APRINTER_PLACEMENT_NEW_H
 #define APRINTER_PLACEMENT_NEW_H
 
+#ifdef AMBROLIB_AVR
 inline void * operator new (size_t, void *__p) throw() { return __p; }
 inline void * operator new[] (size_t, void *__p) throw() { return __p; }
+#else
+#include <new>
+#endif
 
 #endif

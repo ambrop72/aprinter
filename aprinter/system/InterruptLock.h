@@ -27,8 +27,17 @@
 
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/FuncUtils.h>
+#include <aprinter/system/InterruptLockCommon.h>
 
 #include <aprinter/BeginNamespace.h>
+
+#if APRINTER_INTERRUPT_LOCK_MODE == APRINTER_INTERRUPT_LOCK_MODE_SIMPLE
+#define APRINTER_HAVE_INTR_CONTEXT 0
+#elif APRINTER_INTERRUPT_LOCK_MODE == APRINTER_INTERRUPT_LOCK_MODE_MULTILEVEL
+#define APRINTER_HAVE_INTR_CONTEXT 1
+#else
+#error "Bad APRINTER_INTERRUPT_LOCK_MODE"
+#endif
 
 template <typename Context>
 struct AtomicContext : public Context {
@@ -43,7 +52,7 @@ AtomicContext<Context> MakeAtomicContext (Context c)
     return AtomicContext<Context>(c);
 }
 
-#if !defined(AMBROLIB_AVR)
+#if APRINTER_HAVE_INTR_CONTEXT
 
 template <typename Context>
 struct InterruptContext : public Context {
@@ -62,7 +71,7 @@ InterruptContext<Context> MakeInterruptContext (Context c)
 
 enum {
     CONTEXT_ATOMIC,
-#if !defined(AMBROLIB_AVR)
+#if APRINTER_HAVE_INTR_CONTEXT
     CONTEXT_INTERRUPT,
 #endif
     CONTEXT_NORMAL
@@ -72,14 +81,14 @@ template <typename ThisContext>
 class GetContextType {
 private:
     AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasAtomicContextTag, AtomicContextTag)
-#if !defined(AMBROLIB_AVR)
+#if APRINTER_HAVE_INTR_CONTEXT
     AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasInterruptContextTag, InterruptContextTag)
 #endif
     
 public:
     static int const Value =
         FuncCall<HasAtomicContextTag, ThisContext>::Value ? CONTEXT_ATOMIC :
-#if !defined(AMBROLIB_AVR)
+#if APRINTER_HAVE_INTR_CONTEXT
         FuncCall<HasInterruptContextTag, ThisContext>::Value ? CONTEXT_INTERRUPT :
 #endif
         CONTEXT_NORMAL;
@@ -98,7 +107,7 @@ private:
         inline static void exitLock (ThisContext c) {}
     };
     
-#if !defined(AMBROLIB_AVR)
+#if APRINTER_HAVE_INTR_CONTEXT
     template <typename ThisContext, typename Dummy>
     struct LockHelper<ThisContext, CONTEXT_INTERRUPT, Dummy> {
         using EnterContext = AtomicContext<typename ThisContext::ParentContext>;

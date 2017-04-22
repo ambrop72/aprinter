@@ -80,11 +80,8 @@ rec {
     /* TypeScript compiler. */
     typescript = pkgs.callPackage ./typescript.nix {};
     
-    /* Typescript type definitions. */
-    definitelyTyped = pkgs.callPackage ./definitely-typed.nix {};
-    
     /* Builds the web interface. */
-    aprinterWebif = pkgs.callPackage ./webif.nix { inherit aprinterSource typescript definitelyTyped; };
+    aprinterWebif = pkgs.callPackage ./webif.nix { inherit aprinterSource typescript; };
     
     /* Hosts the web interface locally while proxying API requests to a device. */
     aprinterWebifTest = pkgs.callPackage ./webif-test.nix { inherit aprinterWebif ncd; };

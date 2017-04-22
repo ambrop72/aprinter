@@ -315,7 +315,7 @@ public:
     public:
         virtual bool start_command_impl (Context c) { return true; }
         virtual void finish_command_impl (Context c) = 0;
-        virtual void reply_poke_impl (Context c) = 0;
+        virtual void reply_poke_impl (Context c, bool push) = 0;
         virtual void reply_append_buffer_impl (Context c, char const *str, size_t length) = 0;
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         virtual void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
@@ -537,8 +537,8 @@ public:
                 if (!no_ok) {
                     this->reply_append_pstr(c, AMBRO_PSTR("ok\n"));
                 }
-                m_callback->reply_poke_impl(c);
             }
+            m_callback->reply_poke_impl(c, true);
             
             m_callback->finish_command_impl(c);
             m_cmd = nullptr;
@@ -654,9 +654,9 @@ public:
         }
         
     public:
-        void reply_poke (Context c)
+        void reply_poke (Context c, bool push=false)
         {
-            m_callback->reply_poke_impl(c);
+            m_callback->reply_poke_impl(c, push);
         }
         
         void reply_append_buffer (Context c, char const *str, size_t length)
@@ -745,6 +745,17 @@ public:
                 return default_value;
             }
             return str;
+        }
+        
+        APRINTER_NO_INLINE
+        bool find_command_param_uint32 (Context c, char code, uint32_t *out)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return false;
+            }
+            *out = getPartUint32Value(c, part);
+            return true;
         }
         
         APRINTER_NO_INLINE
@@ -882,7 +893,7 @@ private:
                     }
                     if (stream->m_callback->get_send_buf_avail_impl(c) >= need_space) {
                         stream->reply_append_buffer(c, o->msg_buffer, o->msg_length);
-                        stream->reply_poke(c);
+                        stream->reply_poke(c, true);
                     }
                 }
             }
@@ -890,13 +901,13 @@ private:
             o->msg_length = 0;
         }
         
-    private:
-        void reply_poke (Context c)
+    public:
+        void reply_poke (Context c, bool push=false) override
         {
             poke_with_inhibit(c, nullptr);
         }
         
-        void reply_append_buffer (Context c, char const *str, size_t length)
+        void reply_append_buffer (Context c, char const *str, size_t length) override
         {
             auto *o = Object::self(c);
             
@@ -906,7 +917,7 @@ private:
         }
         
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
-        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
+        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length) override
         {
             auto *o = Object::self(c);
             
@@ -2351,7 +2362,8 @@ private:
                 default:
                     if (
                         TheConfigManager::checkCommand(c, cmd) &&
-                        ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd)))
+                        ListForBreak<ModulesList>([&] APRINTER_TL(module, return module::check_command(c, cmd))) &&
+                        CallIfExists_check_command::template call_ret<TheWatchdog, bool, true>(c, cmd)
                     ) {
                         goto unknown_command;
                     }

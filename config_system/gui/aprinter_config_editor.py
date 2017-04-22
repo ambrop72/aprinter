@@ -56,6 +56,7 @@ def input_mode_choice(context, **kwargs):
         ce.Compound('Mk20PinInputMode', attrs=[
             ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up', 'Pull-down']),
         ]),
+        ce.Compound('StubPinInputMode', attrs=[]),
     ], **kwargs)
 
 def i2c_choice(**kwargs):
@@ -294,6 +295,25 @@ def platform_Stm32f4():
                 ce.Integer(key='prescaler', title='Prescaler'),
                 ce.String(key='primary_timer', title='Timer'),
             ]),
+        ]),
+    ])
+
+def platform_Linux():
+    return ce.Compound('Linux', attrs=[
+        ce.Compound('LinuxClock', key='clock', title='Clock', collapsable=True, attrs=[
+            ce.Integer(key='SubSecondBits', title='Sub-second time bits (clock precision)', default=21),
+            ce.Integer(key='MaxTimers', title='Maximum number of timers', default=10),
+            ce.Constant(key='primary_timer', value=''),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': '{}'.format(n)
+                } for n in range(16)
+            ]),
+        ]),
+        ce.Compound('NoAdc', key='adc', title='ADC', attrs=[]),
+        ce.Compound('NullWatchdog', key='watchdog', title='Watchdog', attrs=[]),
+        ce.Compound('StubPins', key='pins', title='Pins', attrs=[
+            ce.Constant(key='input_mode_type', value='StubPinInputMode'),
         ]),
     ])
 
@@ -694,6 +714,7 @@ def editor():
                     platform_Avr('ATmega2560'),
                     platform_Avr('ATmega1284p'),
                     platform_Stm32f4(),
+                    platform_Linux(),
                 ]),
                 ce.OneOf(key='debug_interface', title='Debug interface', choices=[
                     ce.Compound('NoDebug', title='None or specified elsewhere', attrs=[]),
@@ -753,6 +774,7 @@ def editor():
                         ce.Boolean(key='DoubleSpeed'),
                     ]),
                     ce.Compound('Stm32f4UsbSerial', title='STM32F4 USB', attrs=[]),
+                    ce.Compound('LinuxStdInOutSerial', title='Linux stdin/stdout', attrs=[]),
                     ce.Compound('NullSerial', title='Null serial driver', attrs=[]),
                 ])
             ])),
@@ -797,6 +819,11 @@ def editor():
                             ce.Compound('SdioSdCard', title='SDIO', attrs=[
                                 sdio_choice(key='SdioService', title='SDIO driver'),
                             ]),
+                            ce.Compound('LinuxSdCard', title='Linux file/device', attrs=[
+                                ce.Integer(key='BlockSize', default=512),
+                                ce.Integer(key='MaxIoBlocks', default=1024),
+                                ce.Integer(key='MaxIoDescriptors', default=32),
+                            ]),
                         ])
                     ])
                 ]),
@@ -810,10 +837,19 @@ def editor():
                                 mii_choice(key='MiiDriver', title='MII driver'),
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
+                            ce.Compound('LinuxTapEthernet', title='Linux TAP', attrs=[]),
                         ]),
-                        ce.Boolean(key='LwipAssertions', title='Enable lwIP assertions', default=False),
-                        ce.Integer(key='TcpRxBuf', title='TCP receive buffer size [bytes] (for each connection!)', default=5840),
-                        ce.Integer(key='TcpTxBuf', title='TCP send buffer size [bytes] (for each connection!)', default=3450),
+                        ce.Integer(key='NumArpEntries', title='Number of ARP entries', default=16),
+                        ce.Integer(key='ArpProtectCount', title='Number of protected ARP entries', default=8),
+                        ce.Integer(key='MaxReassPackets', title='Max packets in reassembly', default=1),
+                        ce.Integer(key='MaxReassSize', title='Max reassembled data size', default=1480),
+                        ce.Integer(key='MtuTimeoutMinutes', title='MTU information timeout [min]', default=10),
+                        ce.String(key='MtuIndexService', title='Data structure for MTU information', enum=['MruListIndex', 'AvlTreeIndex'], default='MruListIndex'),
+                        ce.Integer(key='NumTcpPcbs', title='Number of TCP PCBs', default=16),
+                        ce.Integer(key='NumOosSegs', title='Number of out-of-sequence segment slots', default=4),
+                        ce.Integer(key='TcpWndUpdThrDiv', title='TCP window update threshold divisor (threshold = RX buffer / N)', default=4),
+                        ce.String(key='PcbIndexService', title='Data structure for looking up PCBs', enum=['MruListIndex', 'AvlTreeIndex'], default='MruListIndex'),
+                        ce.Boolean(key='LinkWithArrayIndices', title='Use array indices in data structure', default=True),
                         ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                         ce.Boolean(key='DhcpEnabled', title='DHCP enabled', default=True),
@@ -825,9 +861,13 @@ def editor():
                             ce.Compound('TcpConsole', title='Enabled', attrs=[
                                 ce.Integer(key='Port', title='Console port number', default=23),
                                 ce.Integer(key='MaxClients', title='Maximum number of clients', default=2),
+                                ce.Integer(key='MaxPcbs', title='Maximum number of PCBs', default=4),
                                 ce.Integer(key='MaxParts', title='Max parts in GCode command', default=16),
-                                ce.Integer(key='MaxCommandSize', title='Maximum command size', default=64),
+                                ce.Integer(key='MaxCommandSize', title='Maximum command size', default=128),
+                                ce.Integer(key='SendBufferSize', title='Send buffer size [bytes]', default=3*1460),
+                                ce.Integer(key='RecvBufferSize', title='Receive buffer size [bytes]', default=2*1460),
                                 ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space [s]', default=5.0),
+                                ce.Float(key='SendEndTimeout', title='Timeout when waiting to send remaining data [s]', default=10.0),
                             ]),
                         ]),
                         ce.OneOf(key='webinterface', title='Web interface', choices=[
@@ -835,12 +875,15 @@ def editor():
                             ce.Compound('WebInterface', title='Enabled', attrs=[
                                 ce.Integer(key='Port', title='HTTP port number', default=80),
                                 ce.Integer(key='MaxClients', title='Maximum number of active clients', default=2),
+                                ce.Integer(key='MaxPcbs', title='Maximum number of PCBs', default=10),
                                 ce.Integer(key='QueueSize', title='Maximum number of queued clients', default=6),
+                                ce.Integer(key='SendBufferSize', title='Send buffer size [bytes]', default=3*1460),
+                                ce.Integer(key='RecvBufferSize', title='Receive buffer size [bytes]', default=2*1460),
                                 ce.Boolean(key='AllowPersistent', title='Allow persistent connections', default=False),
                                 ce.Float(key='QueueTimeout', title='Timeout for queued clients [s]', default=10),
                                 ce.Float(key='InactivityTimeout', title='Network inactivity timeout [s]', default=10),
                                 ce.Boolean(key='EnableDebug', title='Enable debug messages', default=False),
-                                ce.Integer(key='JsonBufferSize', title='Size of JSON response buffer', default=128),
+                                ce.Integer(key='JsonBufferSize', title='Size of JSON response buffer', default=400),
                                 ce.Integer(key='NumGcodeSlots', title='Maximum simultaneous g-code sessions', default=1),
                                 ce.Integer(key='MaxGcodeParts', title='Max parts in g-code command', default=16),
                                 ce.Integer(key='MaxGcodeCommandSize', title='Maximum g-code command size', default=128),
@@ -876,6 +919,12 @@ def editor():
                 ce.Boolean(key='EnableBulkOutputTest', title='Enable bulk output test commands (M942, M943)', default=False),
                 ce.Boolean(key='EnableBasicTestModule', title='Enable basic test features (see BasicTestModule)', default=True),
                 ce.Boolean(key='EnableStubCommandModule', title='Enable stub commands (see StubCommandModule)', default=True),
+                ce.OneOf(key='NetworkTestModule', title='Enable network test module', choices=[
+                    ce.Compound('Disabled', title='Disabled', attrs=[]),
+                    ce.Compound('Enabled', title='Enabled', attrs=[
+                        ce.Integer(key='BufferSize', title='Buffer size'),
+                    ]),
+                ]),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsable=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[

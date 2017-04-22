@@ -28,6 +28,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Accessor.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -38,6 +39,7 @@ template <class Entry>
 class DoubleEndedListNode {
     template <class, class, bool>
     friend class DoubleEndedListWithAccessor;
+    
     Entry *next;
     Entry *prev;
 };
@@ -69,16 +71,23 @@ public:
         return m_first;
     }
     
+    APRINTER_FUNCTION_IF(WithLast, Entry *, lastNotEmpty () const)
+    {
+        AMBRO_ASSERT(m_first != nullptr)
+        
+        return this->m_last;
+    }
+    
     Entry * next (Entry *e) const
     {
-        return ac(e)->next;
+        return ac(*e).next;
     }
     
     void prepend (Entry *e)
     {
-        ac(e)->next = m_first;
+        ac(*e).next = m_first;
         if (m_first) {
-            ac(m_first)->prev = e;
+            ac(*m_first).prev = e;
         } else {
             set_last(e);
         }
@@ -87,10 +96,10 @@ public:
     
     APRINTER_FUNCTION_IF(WithLast, void, append (Entry *e))
     {
-        ac(e)->next = nullptr;
+        ac(*e).next = nullptr;
         if (m_first) {
-            ac(e)->prev = this->m_last;
-            ac(this->m_last)->next = e;
+            ac(*e).prev = this->m_last;
+            ac(*this->m_last).next = e;
         } else {
             m_first = e;
         }
@@ -100,14 +109,14 @@ public:
     void remove (Entry *e)
     {
         if (e != m_first) {
-            ac(ac(e)->prev)->next = ac(e)->next;
-            if (ac(e)->next) {
-                ac(ac(e)->next)->prev = ac(e)->prev;
+            ac(*ac(*e).prev).next = ac(*e).next;
+            if (ac(*e).next) {
+                ac(*ac(*e).next).prev = ac(*e).prev;
             } else {
-                set_last(ac(e)->prev);
+                set_last(ac(*e).prev);
             }
         } else {
-            m_first = ac(e)->next;
+            m_first = ac(*e).next;
         }
     }
     
@@ -115,21 +124,21 @@ public:
     {
         AMBRO_ASSERT(m_first)
         
-        m_first = ac(m_first)->next;
+        m_first = ac(*m_first).next;
     }
     
     static void markRemoved (Entry *e)
     {
-        ac(e)->next = e;
+        ac(*e).next = e;
     }
     
     static bool isRemoved (Entry *e)
     {
-        return (ac(e)->next == e);
+        return (ac(*e).next == e);
     }
     
 private:
-    static DoubleEndedListNode<Entry> * ac (Entry *e)
+    static DoubleEndedListNode<Entry> & ac (Entry &e)
     {
         return Accessor::access(e);
     }
@@ -142,19 +151,19 @@ private:
     Entry *m_first;
 };
 
-template <class Entry, class Base, DoubleEndedListNode<Entry> Base::*NodeMember>
-struct DoubleEndedListAccessor {
-    static DoubleEndedListNode<Entry> * access (Entry *e)
-    {
-        return &(e->*NodeMember);
-    }
-};
-
 template <class Entry, DoubleEndedListNode<Entry> Entry::*NodeMember, bool WithLast=true>
-class DoubleEndedList : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, Entry, NodeMember>, WithLast> {};
+class DoubleEndedList : public DoubleEndedListWithAccessor<
+    Entry,
+    APRINTER_MEMBER_ACCESSOR_TN(NodeMember),
+    WithLast
+> {};
 
 template <class Entry, class Base, DoubleEndedListNode<Entry> Base::*NodeMember, bool WithLast=true>
-class DoubleEndedListForBase : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, Base, NodeMember>, WithLast> {};
+class DoubleEndedListForBase : public DoubleEndedListWithAccessor<
+    Entry,
+    MemberAccessorWithBase<Entry, DoubleEndedListNode<Entry>, Base, NodeMember>,
+    WithLast
+> {};
 
 #include <aprinter/EndNamespace.h>
 

@@ -30,6 +30,9 @@
 #include <inttypes.h>
 
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/FunctionIf.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
@@ -43,12 +46,18 @@ template <typename ModuleArg>
 class NetworkSupportModule {
     APRINTER_UNPACK_MODULE_ARG(ModuleArg)
     
+    APRINTER_DEFINE_MEMBER_TYPE(MemberHasSimulatedLinkStatus, HasSimulatedLinkStatus)
+    
 public:
     struct Object;
     
 private:
     using Config = typename ThePrinterMain::Config;
+    using TheCommand = typename ThePrinterMain::TheCommand;
     using TheNetwork = typename Context::Network;
+    
+    static bool const HasSimulatedLinkStatus =
+        FuncCall<typename MemberHasSimulatedLinkStatus::Has, typename TheNetwork::GetEthernet>::Value;
     
     using CNetEnabled = decltype(Config::e(Params::NetEnabled::i()));
     using CMacAddress = decltype(Config::e(Params::MacAddress::i()));
@@ -61,9 +70,16 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        TheNetwork::enableDebugMessages(c, true);
+        
         o->network_event_listener.init(c, APRINTER_CB_STATFUNC_T(&NetworkSupportModule::network_event_handler));
         o->network_event_listener.startListening(c);
+        
+        // If there is no configuration store then we will activate
+        // the network here already, otherwise configuration_changed will
+        // be called when the configuration is loaded from the store.
+        if (!ThePrinterMain::TheConfigManager::HasStore) {
+            configuration_changed(c);
+        }
     }
     
     static void deinit (Context c)
@@ -82,19 +98,19 @@ public:
         ConfigTypeIpAddress cfg_ip_gateway = APRINTER_CFG(Config, CIpGateway, c);
         
         if (TheNetwork::isActivated(c)) {
-            auto status = TheNetwork::getStatus(c);
+            auto config = TheNetwork::getConfig(c);
             
             bool match =
                 cfg_net_enabled &&
-                memcmp(cfg_mac.mac_addr, status.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
-                cfg_dhcp_enabled == status.dhcp_enabled &&
+                memcmp(cfg_mac.mac_addr, config.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
+                cfg_dhcp_enabled == config.dhcp_enabled &&
                 (cfg_dhcp_enabled || (
-                    memcmp(cfg_ip_addr.ip_addr,    status.ip_addr,    ConfigTypeIpAddress::Size) == 0 &&
-                    memcmp(cfg_ip_netmask.ip_addr, status.ip_netmask, ConfigTypeIpAddress::Size) == 0 &&
-                    memcmp(cfg_ip_gateway.ip_addr, status.ip_gateway, ConfigTypeIpAddress::Size) == 0
+                    memcmp(cfg_ip_addr.ip_addr,    config.ip_addr,    ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_netmask.ip_addr, config.ip_netmask, ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_gateway.ip_addr, config.ip_gateway, ConfigTypeIpAddress::Size) == 0
                 ));
             
-            if (!match) {
+            if (!match || TheNetwork::getStatus(c).activation_state == TheNetwork::ACTIVATE_FAILED) {
                 TheNetwork::deactivate(c);
             }
         }
@@ -113,25 +129,32 @@ public:
         }
     }
     
-    static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static bool check_command (Context c, TheCommand *cmd)
     {
         if (cmd->getCmdNumber(c) == 940) {
             handle_status_command(c, cmd);
             return false;
         }
-        return true;
+        return check_simulated_link_command(c, cmd);
     }
     
 private:
-    static void handle_status_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static void handle_status_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("Network: "));
         
-        if (!TheNetwork::isActivated(c)) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Inactive"));
-        } else {
-            auto status = TheNetwork::getStatus(c);
-            
+        auto status = TheNetwork::getStatus(c);
+        
+        if (status.activation_state == TheNetwork::NOT_ACTIVATED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("NotActivated"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATING) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Activating"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATE_FAILED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("ActivationFailed"));
+        }
+        else if (status.activation_state == TheNetwork::ACTIVATED) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("MAC="));
             print_mac_addr(c, cmd, status.mac_addr);
             
@@ -155,7 +178,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void print_mac_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    static void print_mac_addr (Context c, TheCommand *cmd, uint8_t const *addr)
     {
         for (auto i : LoopRange<int>(6)) {
             if (i > 0) {
@@ -167,7 +190,7 @@ private:
         }
     }
     
-    static void print_ip_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    static void print_ip_addr (Context c, TheCommand *cmd, uint8_t const *addr)
     {
         for (auto i : LoopRange<int>(4)) {
             if (i > 0) {
@@ -198,6 +221,20 @@ private:
             } break;
         }
     }
+    
+    APRINTER_FUNCTION_IF_ELSE_EXT(HasSimulatedLinkStatus, static, bool, check_simulated_link_command(Context c, TheCommand *cmd), {
+        if (cmd->getCmdNumber(c) == 941) {
+            uint32_t link_up_arg;
+            if (cmd->find_command_param_uint32(c, 'L', &link_up_arg)) {
+                TheNetwork::GetEthernet::setSimulatedLinkUp(c, link_up_arg != 0);
+            }
+            cmd->finishCommand(c);
+            return false;
+        }
+        return true;
+    }, {
+        return true;
+    })
     
 public:
     using ConfigExprs = MakeTypeList<CNetEnabled, CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;

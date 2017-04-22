@@ -46,10 +46,10 @@
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/ServiceUtils.h>
-#include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/misc/StringTools.h>
+#include <aprinter/misc/IpAddrUtils.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
@@ -262,38 +262,12 @@ private:
         
         static void print_value (ConfigTypeIpAddress value, char *out_str)
         {
-            sprintf(out_str, "%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8,
-                    value.ip_addr[0], value.ip_addr[1], value.ip_addr[2], value.ip_addr[3]);
+            IpAddrUtils::FormatIp4Addr((char const *)value.ip_addr, out_str);
         }
         
         static bool parse_value (char const *str, ConfigTypeIpAddress *out_value)
         {
-            for (auto i : LoopRange<size_t>(ConfigTypeIpAddress::Size)) {
-                if (*str == '\0') {
-                    return false;
-                }
-                
-                char *end;
-                long int val = strtol(str, &end, 10);
-                
-                if (!(*end == '.' || *end == '\0')) {
-                    return false;
-                }
-                
-                if (!(val >= 0 && val <= 255)) {
-                    return false;
-                }
-                
-                out_value->ip_addr[i] = val;
-                
-                str = (*end == '\0') ? end : (end + 1);
-            }
-            
-            if (*str != '\0') {
-                return false;
-            }
-            
-            return true;
+            return IpAddrUtils::ParseIp4Addr(str, (char *)out_value->ip_addr);
         }
     };
     template <typename Dummy>

@@ -102,6 +102,11 @@ public:
         m_next_event.prependNowNotAlready(c);
     }
     
+    void unsetNextEvent (Context c)
+    {
+        m_next_event.unset(c);
+    }
+    
     using CommandStream::tryCancelCommand;
     using CommandStream::setAcceptMsg;
     using CommandStream::hasCommand;

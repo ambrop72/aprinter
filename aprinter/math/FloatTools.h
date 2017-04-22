@@ -363,7 +363,7 @@ IntType FloatIntRound (FpType x)
 template <typename FpType, typename IntType, int Bits>
 class FloatIntRoundLimit {
     static constexpr IntType MaxInt = PowerOfTwoMinusOne<IntType, Bits>::Value;
-    static constexpr FpType FpPower = __builtin_ldexp(1.0, Bits);
+    static constexpr FpType FpPower = PowerOfTwo<FpType, Bits>::Value;
     
     static constexpr FpType helper (IntType x)
     {

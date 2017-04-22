@@ -31,7 +31,7 @@
  * there are problems with the order of registers used with the "ldmia" instructions.
  * 
  * The following command can be used to recompile this:
- * $(nix-build nix/ -A gcc-arm-embedded-fromsrc --no-out-link)/bin/arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -O2 -std=c99 -c aprinter/net/inet_chksum_arm.c -S -o aprinter/net/inet_chksum_arm.S
+ * $(nix-build nix/ -A gcc-arm-embedded-fromsrc --no-out-link)/bin/arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -O1 -std=c99 -c aprinter/net/inet_chksum_arm.c -S -o aprinter/net/inet_chksum_arm.S
  */
 
 /*
@@ -84,6 +84,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define ADD64   __asm __volatile("      \n\
         ldmia   %0!, {%2, %3, %4, %5}   \n\
@@ -156,7 +157,7 @@
 #define ADVANCE(n)      {w += n; mlen -= n;}
 #define ADVANCEML(n)    {mlen -= n;}
 
-uint16_t lwip_standard_chksum (void const *data, int mlen)
+uint16_t IpChksumInverted (char const *data, size_t mlen)
 {
     uint8_t *w = (uint8_t *)data;
     int byte_swapped = 0;
@@ -206,7 +207,7 @@ uint16_t lwip_standard_chksum (void const *data, int mlen)
         }
     }
     
-    if (byte_swapped) {
+    if (!byte_swapped) {
         REDUCE;
         ROL;
     }

@@ -28,13 +28,18 @@
 //#define APRINTER_DEBUG_MII
 
 #include <stdint.h>
+#include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
+
+#include <aipstack/misc/Err.h>
+#include <aipstack/proto/EthernetProto.h>
 
 #ifdef APRINTER_DEBUG_MII
 #include <aprinter/base/ProgramMemory.h>
@@ -96,21 +101,22 @@ public:
         o->link_up = false;
     }
     
-    static void activate (Context c, uint8_t const *mac_addr)
+    static void activate (Context c, AIpStack::MacAddr mac_addr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
         
         o->init_state = InitState::INITING;
-        TheMii::activate(c, mac_addr);
+        o->mac_addr = mac_addr;
+        TheMii::activate(c, o->mac_addr.data);
     }
     
-    static bool sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
         
-        if (o->init_state != InitState::RUNNING) {
-            return false;
+        if (AMBRO_UNLIKELY(o->init_state != InitState::RUNNING || !o->link_up)) {
+            return AIpStack::IpErr::LINK_DOWN;
         }
         return TheMii::sendFrame(c, send_buffer);
     }
@@ -119,6 +125,16 @@ public:
     {
         auto *o = Object::self(c);
         return o->link_up;
+    }
+    
+    static AIpStack::MacAddr const * getMacAddr (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->init_state != InitState::RUNNING) {
+            return nullptr;
+        }
+        return &o->mac_addr;
     }
     
 private:
@@ -223,6 +239,7 @@ public:
         ThePhy
     >> {
         InitState init_state;
+        AIpStack::MacAddr mac_addr;
         bool link_up;
     };
 };

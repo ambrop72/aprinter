@@ -158,7 +158,7 @@ private:
             AMBRO_ASSERT(!o->m_eof)
             
             if (o->m_poke_pending) {
-                reply_poke_impl(c);
+                reply_poke_impl(c, false);
             }
             
             if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
@@ -186,7 +186,7 @@ private:
             }
         }
         
-        void reply_poke_impl (Context c)
+        void reply_poke_impl (Context c, bool push)
         {
             auto *o = Object::self(c);
             

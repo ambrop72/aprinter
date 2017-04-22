@@ -80,7 +80,6 @@ private:
         10000, // MaxRequestHeadLength
         256,   // MaxChunkHeaderLength
         1024,  // MaxTrailerLength
-        4,     // TxChunkHeaderDigits
         4      // MaxQueryParams
     >;
     
@@ -144,10 +143,12 @@ private:
     
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
-    static_assert(TheHttpServer::MaxTxChunkSize >= ThePrinterMain::CommandSendBufClearance, "HTTP/TCP send buffer is too small");
     static_assert(TheHttpServer::MaxTxChunkOverhead <= 255, "");
-    static_assert(TheHttpServer::MaxGuaranteedBufferAvailBeforeHeadSent >= JsonBufferSize, "");
-    static_assert(TheHttpServer::MaxTxChunkSize >= GetSdChunkSize, "");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= ThePrinterMain::CommandSendBufClearance,
+                  "HTTP send buffer too small for send buffer clearance");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeBeforeHead >= JsonBufferSize, "HTTP send buffer too small for JsonBufferSize");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= JsonBufferSize, "HTTP send buffer too small for JsonBufferSize");
+    static_assert(TheHttpServer::GuaranteedTxChunkSizeWithoutPoke >= GetSdChunkSize, "HTTP send buffer too small for SD card transfer");
     
     static TimeType const GcodeSendBufTimeoutTicks = Params::GcodeSendBufTimeout::value() * Context::Clock::time_freq;
     
@@ -940,13 +941,18 @@ private:
             m_command_stream.setNextEventAfterCommandFinished(c);
         }
         
-        void reply_poke_impl (Context c) override
+        void reply_poke_impl (Context c, bool push) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            if (m_state == State::ATTACHED && m_output_pos > 0) {
-                m_client->m_request->provideResponseBodyData(c, m_output_pos);
-                m_output_pos = 0;
+            if (m_state == State::ATTACHED) {
+                if (m_output_pos > 0) {
+                    m_client->m_request->provideResponseBodyData(c, m_output_pos);
+                    m_output_pos = 0;
+                }
+                if (push) {
+                    m_client->m_request->pushResponseBody(c);
+                }
             }
         }
         
@@ -1003,7 +1009,8 @@ private:
         {
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
-            return (m_state != State::ATTACHED || (m_output_pos <= TheHttpServer::MaxTxChunkSize && length <= TheHttpServer::MaxTxChunkSize - m_output_pos));
+            return m_state != State::ATTACHED || (m_output_pos <= TheHttpServer::GuaranteedTxChunkSizeWithoutPoke
+                   && length <= TheHttpServer::GuaranteedTxChunkSizeWithoutPoke - m_output_pos);
         }
         
     private:

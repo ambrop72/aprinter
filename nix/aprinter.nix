@@ -23,7 +23,8 @@
  */
 
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
-, asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
+, clang, asf, stm32cubef4, teensyCores
+, aprinterSource, buildVars, extraSources
 , extraIncludes, defines, linkerSymbols
 , mainText, boardName, buildName, desiredOutputs
 , optimizeForSize ? false
@@ -67,6 +68,8 @@ let
     
     isArm = builtins.elem board.platform [ "sam3x" "teensy" "stm32f4" ];
     
+    isLinux = board.platform == "linux";
+    
     needAsf = board.platform == "sam3x";
     
     needStm32CubeF4 = board.platform == "stm32f4";
@@ -77,7 +80,7 @@ let
         ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${avrgcclibc}/bin/avr-"}
         ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${gcc-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
-        ${stdenv.lib.optionalString buildWithClang "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
+        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString needAsf "ASF_DIR=${asf}"}
         ${stdenv.lib.optionalString needStm32CubeF4 "STM32CUBEF4_DIR=${stm32cubef4}"}
         ${stdenv.lib.optionalString needTeensyCores "TEENSY_CORES=${teensyCores}"}
@@ -96,14 +99,15 @@ let
     ];
     
     ccxxldFlags = stdenv.lib.concatStringsSep " " [
-        (stdenv.lib.optionalString debugSymbols "-g")
+        (stdenv.lib.optionalString debugSymbols "-g1")
     ];
 in
 
 assert isAvr -> avrgcclibc != null;
 assert isArm -> gcc-arm-embedded != null;
-assert buildWithClang -> isArm;
-assert buildWithClang -> clang-arm-embedded != null;
+assert buildWithClang -> isArm || isLinux;
+assert buildWithClang && isArm -> clang-arm-embedded != null;
+assert buildWithClang && isLinux -> clang != null;
 assert needAsf -> asf != null;
 assert needStm32CubeF4 -> stm32cubef4 != null;
 assert needTeensyCores -> teensyCores != null;
@@ -114,6 +118,8 @@ stdenv.mkDerivation rec {
     name = "aprinter-${buildName}";
     
     src = aprinterSource;
+    
+    buildInputs = stdenv.lib.optional (buildWithClang && isLinux) clang;
     
     configurePhase = ''
         rm -rf config

@@ -25,10 +25,22 @@
 #ifndef APRINTER_HINTS_H
 #define APRINTER_HINTS_H
 
+#ifdef __GNUC__
+
 #define AMBRO_LIKELY(x) __builtin_expect((x), 1)
 #define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
-
 #define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
 #define APRINTER_NO_INLINE __attribute__((noinline))
+#define APRINTER_RESTRICT __restrict__
+
+#else
+
+#define AMBRO_LIKELY(x) (x)
+#define AMBRO_UNLIKELY(x) (x)
+#define AMBRO_ALWAYS_INLINE
+#define APRINTER_NO_INLINE
+#define APRINTER_RESTRICT
+
+#endif
 
 #endif

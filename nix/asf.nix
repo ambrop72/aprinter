@@ -25,8 +25,8 @@
 { stdenv, fetchurl, unzip }:
 let
     source = fetchurl {
-        url = http://www.atmel.com/images/asf-standalone-archive-3.20.1.101.zip;
-        sha256 = "c9fecef57c9dd57bcc3a5265fba7382e022fa911bbf97ba2d14c2a6b92f1e8cc";
+        url = http://www.atmel.com/images/asf-standalone-archive-3.33.0.50.zip;
+        sha256 = "d4593c9036686441f9e05b4a76c2dd23765d5b782260337fa67bf32e855995c1";
     };
 in
 stdenv.mkDerivation rec {
@@ -48,6 +48,7 @@ stdenv.mkDerivation rec {
         
         # Apply patches.
         patch -d "$out" -p1 < ${ ../patches/asf-emac.patch }
+        patch -d "$out" -p1 < ${ ../patches/asf-macros.patch }
     '';
     
     dontStrip = true;

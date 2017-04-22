@@ -103,18 +103,32 @@ class GenState(object):
         return name
     
     def add_int_constant (self, dtype, name, value):
-        m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
-        assert m
-        u = m.group(1)
-        b = m.group(2)
-        self._constants.append({'type':'static {}_t const'.format(dtype), 'name':name, 'value':'{}INT{}_C({})'.format(u.upper(), b, value)})
+        if dtype == 'int':
+            c_type = 'int'
+            c_init = str(value)
+        else:
+            m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
+            assert m
+            u = m.group(1)
+            b = m.group(2)
+            c_type = '{}_t'.format(dtype)
+            c_init = '{}INT{}_C({})'.format(u.upper(), b, value)
+        
+        self._constants.append({
+            'type': 'static {} const'.format(c_type),
+            'name': name,
+            'value': c_init,
+        })
         return name
     
     def add_platform_include (self, inc_file):
         self._platform_includes.append(inc_file)
     
-    def add_aprinter_include (self, inc_file):
+    def add_include (self, inc_file):
         self._aprinter_includes.add(inc_file)
+    
+    def add_aprinter_include (self, inc_file):
+        self.add_include('aprinter/'+inc_file)
     
     def register_objects (self, kind, config, key):
         if kind not in self._objects:
@@ -136,9 +150,10 @@ class GenState(object):
         self._singleton_objects[kind] = value
         return value
     
-    def get_singleton_object (self, kind):
-        assert kind in self._singleton_objects
-        return self._singleton_objects[kind]
+    def get_singleton_object (self, kind, allow_none=False):
+        have = kind in self._singleton_objects
+        assert allow_none or have
+        return self._singleton_objects[kind] if have else None
     
     def add_global_code (self, priority, code):
         self._global_code.append({'priority':priority, 'code':code})
@@ -219,7 +234,7 @@ class GenState(object):
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('ConfigOptions', ''.join('{}\n'.format(c) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
-        self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
+        self.add_subst('AprinterIncludes', ''.join('#include <{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
         self.add_subst('GlobalResourceExprs', ''.join(gr['code'] for gr in global_resources))
@@ -372,15 +387,19 @@ def format_cpp_float(value):
     return '{:.17E}'.format(value).replace('INF', 'INFINITY')
 
 def setup_event_loop(gen):
-    gen.add_aprinter_include('system/BusyEventLoop.h')
+    impl = gen.get_singleton_object('event_loop_impl', allow_none=True)
+    if impl is None:
+        impl = 'BusyEventLoop'
+    
+    gen.add_aprinter_include('system/{}.h'.format(impl))
     
     code_before_expr = 'struct MyLoopExtraDelay;\n'
-    expr = TemplateExpr('BusyEventLoopArg', ['Context', 'Program', 'MyLoopExtraDelay'])
+    expr = TemplateExpr('{}Arg'.format(impl), ['Context', 'Program', 'MyLoopExtraDelay'])
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
     code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
-    code_before_program += 'APRINTER_MAKE_INSTANCE(MyLoopExtra, (BusyEventLoopExtraArg<Program, MyLoop, {}>))\n'.format(fast_events)
+    code_before_program += 'APRINTER_MAKE_INSTANCE(MyLoopExtra, ({}ExtraArg<Program, MyLoop, {}>))\n'.format(impl, fast_events)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, use_instance=True, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
@@ -389,10 +408,7 @@ def setup_event_loop(gen):
 def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
-    lwip_cpu_info_arm = {
-        'alignment': 'u32_t',
-        'checksum_src_file': 'aprinter/net/inet_chksum_arm.S',
-    }
+    arm_checksum_src_file = 'aprinter/net/inet_chksum_arm.S'
     
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
@@ -402,27 +418,32 @@ def setup_platform(gen, config, key):
         
         gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
         gen.add_linker_symbol('__stack_size__', stack_size)
     
     @platform_sel.option('Teensy3')
     def option(platform):
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
     
     @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
     def option(platform_name, platform):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
-        gen.register_singleton_object('lwip_cpu_info', {'alignment': 'u8_t'})
     
     @platform_sel.option('Stm32f4')
     def option(platform):
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
-        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
+        gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
+    
+    @platform_sel.option('Linux')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/linux/linux_support.h')
+        gen.add_init_call(-1, 'platform_init(argc, argv);')
+        gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
     
     config.do_selection(key, platform_sel)
 
@@ -587,6 +608,15 @@ def Stm32f4ClockDef(x):
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
     x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, Context())'.format(tc, my_clock)
 
+def LinuxClockDef(x):
+    x.INCLUDE = 'hal/linux/LinuxClock.h'
+    x.CLOCK_SERVICE = lambda config: TemplateExpr('LinuxClockService', [config.get_int_constant('SubSecondBits'), config.get_int_constant('MaxTimers')])
+    x.TIMER_RE = '\\A()\\Z'
+    x.CHANNEL_RE = '\\A()([0-9]{1,2})\\Z'
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance: 'LinuxClockInterruptTimerService<{}, {}>'.format(it['channel'], clearance)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: ''
+    x.TIMER_EXPR = lambda tc: 'void'
+
 def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     clock_sel = selection.Selection()
     
@@ -615,6 +645,10 @@ def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     @clock_sel.option('Stm32f4Clock')
     def option(clock):
         return CommonClock(gen, clock, clock_name, priority, Stm32f4ClockDef)
+    
+    @clock_sel.option('LinuxClock')
+    def option(clock):
+        return CommonClock(gen, clock, clock_name, priority, LinuxClockDef)
     
     clock_object = config.do_selection(key, clock_sel)
     if clock_object is not None:
@@ -666,6 +700,12 @@ def setup_pins (gen, config, key):
         gen.add_aprinter_include('hal/stm32/Stm32f4Pins.h')
         pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
         return TemplateLiteral('Stm32f4PinsService')
+    
+    @pins_sel.option('StubPins')
+    def options(pin_config):
+        gen.add_aprinter_include('hal/generic/StubPins.h')
+        pin_regexes.append('\\AStubPin\\Z')
+        return TemplateLiteral('StubPinsService')
     
     service_expr = config.do_selection(key, pins_sel)
     service_code = 'using PinsService = {};'.format(service_expr.build(indent=0))
@@ -720,6 +760,11 @@ def setup_watchdog (gen, config, key, disable_watchdog, user):
             watchdog.get_int('Divider'),
             watchdog.get_int('Reload'),
         ])
+    
+    @watchdog_sel.option('NullWatchdog')
+    def option(watchdog):
+        gen.add_aprinter_include('hal/generic/NullWatchdog.h')
+        return 'NullWatchdogService'
     
     return config.do_selection(key, watchdog_sel)
 
@@ -864,6 +909,10 @@ def use_input_mode (config, key):
     @im_sel.option('Mk20PinInputMode')
     def option(im_config):
         return im_config.do_enum('PullMode', {'Normal': 'Mk20PinInputModeNormal', 'Pull-up': 'Mk20PinInputModePullUp', 'Pull-down': 'Mk20PinInputModePullDown'})
+    
+    @im_sel.option('StubPinInputMode')
+    def option(im_config):
+        return 'StubPinInputMode'
     
     return config.do_selection(key, im_sel)
 
@@ -1118,6 +1167,11 @@ def use_serial(gen, config, key, user):
         gen.add_aprinter_include('hal/stm32/Stm32f4UsbSerial.h')
         return 'Stm32f4UsbSerialService'
     
+    @serial_sel.option('LinuxStdInOutSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('hal/linux/LinuxStdInOutSerial.h')
+        return 'LinuxStdInOutSerialService'
+    
     @serial_sel.option('NullSerial')
     def option(serial_service):
         gen.add_aprinter_include('hal/generic/NullSerial.h')
@@ -1141,6 +1195,15 @@ def use_sdcard(gen, config, key, user):
         gen.add_aprinter_include('hal/generic/SdioSdCard.h')
         return TemplateExpr('SdioSdCardService', [
             use_sdio(gen, sdio_sd, 'SdioService', '{}::GetSdio'.format(user)),
+        ])
+    
+    @sd_service_sel.option('LinuxSdCard')
+    def option(linux_sd):
+        gen.add_aprinter_include('hal/linux/LinuxSdCard.h')
+        return TemplateExpr('LinuxSdCardService', [
+            linux_sd.get_int('BlockSize'),
+            linux_sd.get_int('MaxIoBlocks'),
+            linux_sd.get_int('MaxIoDescriptors'),
         ])
     
     return config.do_selection(key, sd_service_sel)
@@ -1242,16 +1305,21 @@ def get_letter_number_name(config, key):
     normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
+def get_ip_index(gen, config, key):
+    index_name = config.get_string(key)
+    if index_name not in ('MruListIndex', 'AvlTreeIndex'):
+        config.key_path(key).error('Invalid value.')
+    gen.add_include('aipstack/misc/index/{}.h'.format(index_name))
+    return 'AIpStack::{}Service'.format(index_name)
+
 class NetworkConfigState(object):
-    def __init__(self):
-        self._num_listeners = 0
+    def __init__(self, min_send_buf, min_recv_buf):
+        self.min_send_buf = min_send_buf
+        self.min_recv_buf = min_recv_buf
         self._num_connections = 0
-        self._num_queued_connections = 0
     
-    def add_resource_counts(self, listeners=0, connections=0, queued_connections=0):
-        self._num_listeners += listeners
+    def add_resource_counts(self, connections=0):
         self._num_connections += connections
-        self._num_queued_connections += queued_connections
 
 def setup_network(gen, config, key):
     network_sel = selection.Selection()
@@ -1262,72 +1330,76 @@ def setup_network(gen, config, key):
     
     @network_sel.option('Network')
     def option(network_config):
-        gen.add_aprinter_include('net/LwipNetwork.h')
+        gen.add_aprinter_include('net/IpStackNetwork.h')
         
-        gen.add_extra_include('aprinter/net/inc')
-        gen.add_extra_include('lwip/src/include')
+        num_arp_entries = network_config.get_int('NumArpEntries')
+        if not 4 <= num_arp_entries <= 128:
+            network_config.key_path('NumArpEntries').error('Value out of range.')
         
-        gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
-        gen.add_extra_source('lwip/src/core/ipv4/ip4_frag.c')
-        gen.add_extra_source('lwip/src/core/ipv4/etharp.c')
-        gen.add_extra_source('lwip/src/core/def.c')
-        gen.add_extra_source('lwip/src/core/dhcp.c')
-        gen.add_extra_source('lwip/src/core/inet_chksum.c')
-        gen.add_extra_source('lwip/src/core/init.c')
-        gen.add_extra_source('lwip/src/core/memp.c')
-        gen.add_extra_source('lwip/src/core/netif.c')
-        gen.add_extra_source('lwip/src/core/pbuf.c')
-        gen.add_extra_source('lwip/src/core/tcp.c')
-        gen.add_extra_source('lwip/src/core/tcp_in.c')
-        gen.add_extra_source('lwip/src/core/tcp_out.c')
-        gen.add_extra_source('lwip/src/core/timers.c')
-        gen.add_extra_source('lwip/src/core/udp.c')
+        arp_protect_count = network_config.get_int('ArpProtectCount')
+        if not 2 <= arp_protect_count <= num_arp_entries:
+            network_config.key_path('ArpProtectCount').error('Value out of range.')
         
-        gen.set_need_millisecond_clock()
-        gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { Context c; return MyMillisecondClock::getTime(c); }')
+        max_reass_packets = network_config.get_int('MaxReassPackets')
+        if not 1 <= max_reass_packets <= 128:
+            network_config.key_path('MaxReassPackets').error('Value out of range.')
         
-        gen.add_global_code(0, 'APRINTER_DEFINE_LWIP_PLATFORM_DIAG(Context, MyPrinter, MyNetwork)')
+        max_reass_size = network_config.get_int('MaxReassSize')
+        if not 1480 <= max_reass_size <= 30000:
+            network_config.key_path('MaxReassSize').error('Value out of range.')
         
-        mss_for_check = 1460
+        mtu_timeout_minutes = network_config.get_int('MtuTimeoutMinutes')
+        if not 1 <= mtu_timeout_minutes <= 255:
+            network_config.key_path('MtuTimeoutMinutes').error('Value out of range.')
         
-        tcp_rx_buf = network_config.get_int('TcpRxBuf')
-        if not mss_for_check <= tcp_rx_buf <= 20000:
-            network_config.key_path('TcpRxBuf').error('Value out of range.')
+        num_tcp_pcbs = network_config.get_int('NumTcpPcbs')
+        if not 2 <= num_tcp_pcbs <= 2048:
+            network_config.key_path('NumTcpPcbs').error('Value out of range.')
         
-        tcp_tx_buf = network_config.get_int('TcpTxBuf')
-        if not mss_for_check <= tcp_tx_buf <= 20000:
-            network_config.key_path('TcpTxBuf').error('Value out of range.')
+        num_oos_segs = network_config.get_int('NumOosSegs')
+        if not 2 <= num_oos_segs <= 32:
+            network_config.key_path('NumOosSegs').error('Value out of range.')
         
-        cpu_info = gen.get_singleton_object('lwip_cpu_info')
+        tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
         
-        if 'checksum_src_file' in cpu_info:
-            chksum_algorithm = 0
-            gen.add_extra_source(cpu_info['checksum_src_file'])
-        else:
-            chksum_algorithm = 3
+        link_with_array_indices = network_config.get_bool('LinkWithArrayIndices')
         
-        network_expr = TemplateExpr('LwipNetworkArg', [
-            'Context',
-            'Program',
+        checksum_src_file = gen.get_singleton_object('checksum_src_file', allow_none=True)
+        if checksum_src_file is not None:
+            gen.add_extra_source(checksum_src_file)
+            gen.add_define('AIPSTACK_EXTERNAL_CHKSUM', 1)
+        
+        service_expr = TemplateExpr('IpStackNetworkService', [
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
+            num_arp_entries,
+            arp_protect_count,
+            max_reass_packets,
+            max_reass_size,
+            TemplateExpr('AIpStack::IpPathMtuParams', [
+                'IpStackNumMtuEntries',
+                mtu_timeout_minutes,
+                get_ip_index(gen, network_config, 'MtuIndexService'),
+            ]),
+            num_tcp_pcbs,
+            num_oos_segs,
+            tcp_wnd_upd_thr_div,
+            get_ip_index(gen, network_config, 'PcbIndexService'),
+            link_with_array_indices,
         ])
+        service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
+        network_expr = TemplateExpr('NetworkService::Compose', ['Context', 'Program'])
+        gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, code_before=service_code, context_name='Network', is_fast_event_root=True)
         
-        gen.add_global_resource(27, 'MyNetwork', network_expr, use_instance=True, context_name='Network', is_fast_event_root=True)
+        tcp_max_mss = 1460
+        min_send_buf = 2*tcp_max_mss
+        min_recv_buf = 2*tcp_max_mss
         
-        network_state = NetworkConfigState()
+        network_state = NetworkConfigState(min_send_buf, min_recv_buf)
         gen.register_singleton_object('network', network_state)
         
         def finalize():
-            gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
-            gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
-            gen.add_define('APRINTER_NUM_TCP_CONN_QUEUED', network_state._num_queued_connections)
-            gen.add_define('APRINTER_TCP_RX_BUF', tcp_rx_buf)
-            gen.add_define('APRINTER_TCP_TX_BUF', tcp_tx_buf)
-            gen.add_define('APRINTER_MEM_ALIGNMENT', cpu_info['alignment'])
-            gen.add_define('APRINTER_LWIP_CHKSUM_ALGORITHM', chksum_algorithm)
-            gen.add_define('APRINTER_LWIP_ASSERTIONS', int(network_config.get_bool('LwipAssertions')))
+            num_mtu_entries = network_state._num_connections
+            gen.add_int_constant('int', 'IpStackNumMtuEntries', num_mtu_entries)
         
         gen.add_finalize_action(finalize)
         
@@ -1345,6 +1417,11 @@ def use_ethernet(gen, config, key, user):
             use_mii(gen, ethernet_config, 'MiiDriver', '{}::GetMii'.format(user)),
             use_phy(gen, ethernet_config, 'PhyDriver'),
         ])
+    
+    @ethernet_sel.option('LinuxTapEthernet')
+    def option(ethernet_config):
+        gen.add_aprinter_include('hal/linux/LinuxTapEthernet.h')
+        return 'LinuxTapEthernetService'
     
     return config.do_selection(key, ethernet_sel)
 
@@ -1599,6 +1676,8 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
                 if have_network:
+                    network = gen.get_singleton_object('network')
+                    
                     for network_config in board_data.get_config('network_config').enter_config('network'):
                         gen.add_aprinter_include('printer/modules/NetworkSupportModule.h')
                         network_support_module = gen.add_module()
@@ -1624,8 +1703,12 @@ def generate(config_root_data, cfg_name, main_template):
                                 tcpconsole_config.key_path('Port').error('Bad value.')
                             
                             console_max_clients = tcpconsole_config.get_int('MaxClients')
-                            if not (1 <= console_max_clients <= 20):
+                            if not (1 <= console_max_clients <= 32):
                                 tcpconsole_config.key_path('MaxClients').error('Bad value.')
+                            
+                            console_max_pcbs = tcpconsole_config.get_int('MaxPcbs')
+                            if not (console_max_clients <= console_max_pcbs):
+                                tcpconsole_config.key_path('MaxPcbs').error('Bad value.')
                             
                             console_max_parts = tcpconsole_config.get_int('MaxParts')
                             if not (1 <= console_max_parts <= 64):
@@ -1634,6 +1717,14 @@ def generate(config_root_data, cfg_name, main_template):
                             console_max_command_size = tcpconsole_config.get_int('MaxCommandSize')
                             if not (1 <= console_max_command_size <= 512):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
+                            
+                            console_send_buf_size = tcpconsole_config.get_int('SendBufferSize')
+                            if console_send_buf_size < network.min_send_buf:
+                                tcpconsole_config.key_path('SendBufferSize').error('Bad value.')
+                            
+                            console_recv_buf_size = tcpconsole_config.get_int('RecvBufferSize')
+                            if console_recv_buf_size < network.min_recv_buf:
+                                tcpconsole_config.key_path('RecvBufferSize').error('Bad value.')
                             
                             gen.add_aprinter_include('printer/modules/TcpConsoleModule.h')
                             gen.add_aprinter_include('printer/utils/GcodeParser.h')
@@ -1645,11 +1736,15 @@ def generate(config_root_data, cfg_name, main_template):
                                 ]),
                                 console_port,
                                 console_max_clients,
+                                console_max_pcbs,
                                 console_max_command_size,
+                                console_send_buf_size,
+                                console_recv_buf_size,
                                 gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
+                                gen.add_float_constant('TcpConsoleSendEndTimeout', tcpconsole_config.get_float('SendEndTimeout')),
                             ]))
                             
-                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=console_max_clients)
+                            network.add_resource_counts(connections=console_max_clients)
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
                         
@@ -1666,12 +1761,24 @@ def generate(config_root_data, cfg_name, main_template):
                                 webif_config.key_path('Port').error('Bad value.')
                             
                             webif_max_clients = webif_config.get_int('MaxClients')
-                            if not (1 <= webif_max_clients <= 20):
+                            if not (1 <= webif_max_clients <= 128):
                                 webif_config.key_path('MaxClients').error('Bad value.')
                             
                             webif_queue_size = webif_config.get_int('QueueSize')
-                            if not (0 <= webif_queue_size <= 50):
+                            if not (0 <= webif_queue_size <= 512):
                                 webif_config.key_path('QueueSize').error('Bad value.')
+                            
+                            webif_max_pcbs = webif_config.get_int('MaxPcbs')
+                            if not (webif_max_clients+webif_queue_size <= webif_max_pcbs):
+                                webif_config.key_path('MaxPcbs').error('Bad value.')
+                            
+                            webif_send_buf_size = webif_config.get_int('SendBufferSize')
+                            if webif_send_buf_size < network.min_send_buf:
+                                webif_config.key_path('SendBufferSize').error('Bad value.')
+                            
+                            webif_recv_buf_size = webif_config.get_int('RecvBufferSize')
+                            if webif_recv_buf_size < network.min_recv_buf:
+                                webif_config.key_path('RecvBufferSize').error('Bad value.')
                             
                             allow_persistent = webif_config.get_bool('AllowPersistent')
                             
@@ -1704,6 +1811,9 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_port,
                                     webif_max_clients,
                                     webif_queue_size,
+                                    webif_max_pcbs,
+                                    webif_send_buf_size,
+                                    webif_recv_buf_size,
                                     allow_persistent,
                                     'WebInterfaceQueueTimeout',
                                     'WebInterfaceInactivityTimeout',
@@ -1717,9 +1827,27 @@ def generate(config_root_data, cfg_name, main_template):
                                 gen.add_float_constant('WebInterfaceGcodeSendBufTimeout', webif_config.get_float('GcodeSendBufTimeout')),
                             ]))
                             
-                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
+                            network.add_resource_counts(connections=webif_max_clients+webif_queue_size)
                             
                         network_config.do_selection('webinterface', webif_sel)
+                        
+                        for development in board_data.enter_config('development'):
+                            networktest_sel = selection.Selection()
+                            
+                            @networktest_sel.option('Disabled')
+                            def option(networksel_config):
+                                pass
+                            
+                            @networktest_sel.option('Enabled')
+                            def option(networksel_config):
+                                gen.add_aprinter_include('printer/modules/NetworkTestModule.h')
+                                network_test_module = gen.add_module()
+                                network_test_module.set_expr(TemplateExpr('NetworkTestModuleService', [
+                                    networksel_config.get_int('BufferSize'),
+                                ]))
+                                network.add_resource_counts(connections=1)
+                            
+                            development.do_selection('NetworkTestModule', networktest_sel)
                 
                 current_config = board_data.get_config('current_config')
             
@@ -2407,6 +2535,7 @@ def main():
     parser.add_argument('--config', help='JSON configuration file to use.')
     parser.add_argument('--cfg-name', help='Build this configuration instead of the one specified in the configuration file.')
     parser.add_argument('--output', default='-', help='File to write the output to (C++ code or Nix expression).')
+    parser.add_argument('--system', help='Pass system to nixpkgs (build on that platform).')
     args = parser.parse_args()
     
     # Determine directories.
@@ -2426,7 +2555,7 @@ def main():
     
     # Build the Nix expression.
     nix_expr = (
-        'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
+        'with ((import (builtins.toPath {})) {{ pkgs = import <nixpkgs> {{ {} }}; }}); aprinterFunc {{\n'
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
         '    optimizeLibcForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
@@ -2436,6 +2565,7 @@ def main():
         '}}\n'
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
+        '' if args.system is None else 'system = {};'.format(nix_utils.escape_string_for_nix(args.system)),
         nix_utils.escape_string_for_nix(result['board_for_build']),
         nix_utils.convert_for_nix(result['output_types']),
         nix_utils.convert_bool_for_nix(result['optimize_for_size']),

@@ -42,7 +42,7 @@
 #ifdef AMBROLIB_ABORT_ACTION
 #define AMBRO_ASSERT_ABORT_ACTION AMBROLIB_ABORT_ACTION
 #else
-#define AMBRO_ASSERT_ABORT_ACTION { abort(); }
+#define AMBRO_ASSERT_ABORT_ACTION { ::abort(); }
 #endif
 
 #if defined(AMBROLIB_NO_PRINT)
@@ -63,6 +63,11 @@
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
+    }
+
+#define AMBRO_ASSERT_FORCE_MSG(e, msg) \
+    { \
+        if (!(e)) AMBRO_ASSERT_ABORT(msg " at " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
     }
 
 #ifdef AMBROLIB_ASSERTIONS

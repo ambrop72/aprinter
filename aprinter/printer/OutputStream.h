@@ -41,7 +41,7 @@
 template <typename Context, typename FpType>
 class OutputStream {
 public:
-    virtual void reply_poke (Context c) = 0;
+    virtual void reply_poke (Context c, bool push=false) = 0;
     virtual void reply_append_buffer (Context c, char const *str, size_t length) = 0;
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
     virtual void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
