@@ -96,10 +96,11 @@ private:
     }
 };
 
-template <typename TimedEvent, typename Impl, typename... TimerIds>
+template <typename TimedEvent, typename Impl, typename UserData, typename... TimerIds>
 class MultiTimer :
-    private MultiTimerOne<TimedEvent, MultiTimer<TimedEvent, Impl, TimerIds...>, TimerIds>...,
-    private TimedEvent
+    private MultiTimerOne<TimedEvent, MultiTimer<TimedEvent, Impl, UserData, TimerIds...>, TimerIds>...,
+    private TimedEvent,
+    public UserData
 {
     template <typename, typename, typename>
     friend class MultiTimerOne;
@@ -125,6 +126,8 @@ class MultiTimer :
     }
     
 private:
+    // UserData would be placed in front of m_state using up
+    // what might otherwise be holes in the memory layout.
     StateType m_state;
     TimeType m_times[NumTimers];
     

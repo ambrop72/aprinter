@@ -180,6 +180,16 @@ public:
     static SeqType const MaxRcvWnd = Constants::MaxRcvWnd;
     
 private:
+    // These TcpPcb fields are injected into MultiTimer to fill up what
+    // would otherwise be holes in the layout, for better memory use.
+    struct MultiTimerUserData {
+        // The base send MSS. It is computed based on the interface
+        // MTU and the MTU option provided by the peer.
+        // In the SYN_SENT state this is set based on the interface MTU and
+        // the calculation is completed at the transition to ESTABLISHED.
+        uint16_t base_snd_mss;
+    };
+    
     /**
      * Timers:
      * AbrtTimer: for aborting PCB (TIME_WAIT, abandonment)
@@ -190,7 +200,7 @@ private:
     struct OutputTimer {};
     struct RtxTimer {};
     using PcbMultiTimer = APrinter::MultiTimer<
-        typename Context::EventLoop::TimedEventNew, TcpPcb,
+        typename Context::EventLoop::TimedEventNew, TcpPcb, MultiTimerUserData,
         AbrtTimer, OutputTimer, RtxTimer>;
     
     /**
@@ -263,12 +273,6 @@ private:
         RttType rttvar;
         RttType srtt;
         RttType rto;
-        
-        // The base send MSS. It is computed based on the interface
-        // MTU and the MTU option provided by the peer.
-        // In the SYN_SENT state this is set based on the interface MTU and
-        // the calculation is completed at the transition to ESTABLISHED.
-        uint16_t base_snd_mss;
         
         // The maximum segment size we will send.
         // This is dynamic based on Path MTU Discovery, but it will always
