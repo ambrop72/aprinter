@@ -280,11 +280,6 @@ private:
         // ssthresh, cwnd and rtx_timer (see pcb_pmtu_changed).
         uint16_t snd_mss;
         
-        // The maximum segment size we are willing to accept. This is
-        // calculated based on the interface MTU and does not change
-        // from when the PCB is initialized in SYN_SENT/SYN_RCVD state.
-        uint16_t rcv_mss;
-        
         // NOTE: The following 5 fields are uint32_t to encourage compilers
         // to pack them into a single 32-bit word, if they were narrower
         // they may be packed less efficiently.
@@ -750,7 +745,6 @@ private:
         pcb->rcv_nxt = 0; // it is sent in the SYN
         pcb->rcv_ann_wnd = rcv_wnd;
         pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
-        pcb->rcv_mss = iface_mss;
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
         pcb->snd_wnd = pmtu; // store PMTU here temporarily

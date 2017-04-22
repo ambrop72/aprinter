@@ -105,6 +105,10 @@ public:
     static uint8_t const RcvWndShift = 6;
     static_assert(RcvWndShift <= 14, "");
     
+    // Minimum amount to extend the receive window when a PCB is
+    // abandoned before the FIN has been received.
+    static SeqType const MinAbandonRcvWndIncr = UINT16_MAX;
+    
 public:
     static int const DupAckBits = APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
 };

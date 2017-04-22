@@ -261,8 +261,8 @@ public:
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
-        // Our heuristic is to raise the window up to to max(rcv_mss,rcv_ann_thres).
-        SeqType min_window = APrinter::MaxValue((SeqType)pcb->rcv_mss, pcb->rcv_ann_thres);
+        // This is our heuristic for the window increment.
+        SeqType min_window = APrinter::MaxValue(pcb->rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
         
         // Make sure it fits in size_t (relevant if size_t is 16-bit),
         // to ensure the invariant that rcv_ann_wnd always fits in size_t.
@@ -346,9 +346,9 @@ private:
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
             pcb->rcv_ann_wnd = rcv_wnd;
             pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
-            pcb->rcv_mss = iface_mss;
             pcb->snd_una = iss;
             pcb->snd_nxt = iss;
+            pcb->snd_wnd = iface_mss; // store iface_mss here temporarily
             pcb->snd_buf_cur = IpBufRef{};
             pcb->snd_psh_index = 0;
             pcb->base_snd_mss = base_snd_mss;
