@@ -598,6 +598,11 @@ private:
                 goto reject;
             }
             
+            // Sanity check source address - reject broadcast addresses.
+            if (AMBRO_UNLIKELY(!IpStack::checkUnicastSrcAddr(ip_meta))) {
+                goto accept;
+            }
+            
             // Check UDP length.
             uint16_t udp_length = udp_header.get(Udp4Header::Length());
             if (AMBRO_UNLIKELY(udp_length < Udp4Header::Size || udp_length > dgram.tot_len)) {

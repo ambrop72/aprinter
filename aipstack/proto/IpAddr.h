@@ -185,6 +185,21 @@ public:
         uint8_t bytes[] = {n1, n2, n3, n4};
         return IpGenericAddr::FromBytes(bytes);
     }
+    
+    bool isBroadcast () const
+    {
+        return *this == Ip4Addr::AllOnesAddr();
+    }
+    
+    bool isMulticast() const
+    {
+        return (*this & Ip4Addr::FromBytes(0xF0, 0, 0, 0)) == Ip4Addr::FromBytes(0xE0, 0, 0, 0);
+    }
+    
+    bool isBroadcastOrMulticast () const
+    {
+        return isBroadcast() || isMulticast();
+    }
 };
 
 #include <aipstack/EndNamespace.h>

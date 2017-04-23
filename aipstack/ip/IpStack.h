@@ -311,6 +311,12 @@ public:
         return m_path_mtu_cache.handleIcmpPacketTooBig(remote_addr, mtu_info);
     }
     
+    static bool checkUnicastSrcAddr (Ip4DgramMeta const &ip_meta)
+    {
+        return !ip_meta.src_addr.isBroadcastOrMulticast() &&
+               !ip_meta.iface->ip4AddrIsLocalBcast(ip_meta.src_addr);
+    }
+    
     class ProtoListenerCallback {
     public:
         virtual void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
@@ -605,15 +611,20 @@ private:
             return;
         }
         
-        // Read IP header fields.
+        // Read some IP header fields.
         auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
         uint8_t version_ihl    = ip4_header.get(Ip4Header::VersionIhl());
         uint16_t total_len     = ip4_header.get(Ip4Header::TotalLen());
         uint16_t flags_offset  = ip4_header.get(Ip4Header::FlagsOffset());
-        uint8_t ttl            = ip4_header.get(Ip4Header::TimeToLive());
-        uint8_t proto          = ip4_header.get(Ip4Header::Protocol());
-        Ip4Addr src_addr       = ip4_header.get(Ip4Header::SrcAddr());
-        Ip4Addr dst_addr       = ip4_header.get(Ip4Header::DstAddr());
+        
+        // Create the datagram meta-info struct.
+        Ip4DgramMeta const meta = {
+            ip4_header.get(Ip4Header::SrcAddr()),
+            ip4_header.get(Ip4Header::DstAddr()),
+            ip4_header.get(Ip4Header::TimeToLive()),
+            ip4_header.get(Ip4Header::Protocol()),
+            iface
+        };
         
         // Check IP version.
         if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
@@ -632,14 +643,6 @@ private:
             return;
         }
         
-        // Sanity check source address - reject broadcast addresses.
-        if (AMBRO_UNLIKELY(
-            src_addr == Ip4Addr::AllOnesAddr() ||
-            iface->ip4AddrIsLocalBcast(src_addr)))
-        {
-            return;
-        }
-        
         // Verify IP header checksum.
         uint16_t calc_chksum = IpChksum(ip4_header.data, header_len);
         if (AMBRO_UNLIKELY(calc_chksum != 0)) {
@@ -649,16 +652,15 @@ private:
         // Create a reference to the payload.
         IpBufRef dgram = pkt.hideHeader(header_len).subTo(total_len - header_len);
         
-        // Check for fragmentation.
-        bool more_fragments = (flags_offset & Ip4FlagMF) != 0;
-        uint16_t fragment_offset_8b = flags_offset & Ip4OffsetMask;
-        if (AMBRO_UNLIKELY(more_fragments || fragment_offset_8b != 0)) {
-            // Get the fragment offset in bytes.
-            uint16_t fragment_offset = fragment_offset_8b * 8;
+        // Check if the more-fragments flag is set or the fragment offset is nonzero.
+        if (AMBRO_UNLIKELY((flags_offset & (Ip4FlagMF|Ip4OffsetMask)) != 0)) {
+            // Get the more-fragments flag and the fragment offset in bytes.
+            bool more_fragments = (flags_offset & Ip4FlagMF) != 0;
+            uint16_t fragment_offset = (flags_offset & Ip4OffsetMask) * 8;
             
             // Perform reassembly.
-            if (!m_reassembly.reassembleIp4(
-                ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr, proto, ttl,
+            if (!m_reassembly.reassembleIp4(ip4_header.get(Ip4Header::Ident()),
+                meta.src_addr, meta.dst_addr, meta.proto, meta.ttl,
                 more_fragments, fragment_offset, ip4_header.data, header_len, dgram))
             {
                 return;
@@ -666,9 +668,6 @@ private:
             // Continue processing the reassembled datagram.
             // Note, dgram was modified pointing to the reassembled data.
         }
-        
-        // Create the datagram meta-info struct.
-        Ip4DgramMeta meta = {src_addr, dst_addr, ttl, proto, iface};
         
         // Do the real processing now that the datagram is complete and
         // sanity checked.
@@ -706,6 +705,11 @@ private:
     
     void recvIcmp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
     {
+        // Sanity check source address - reject broadcast addresses.
+        if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(meta))) {
+            return;
+        }
+        
         // Check destination address.
         // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
         if (AMBRO_UNLIKELY(

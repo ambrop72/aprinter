@@ -56,7 +56,7 @@ class IpTcpProto_input
                                  state_is_synsent_synrcvd))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer, MtuRef))
+                                   AbrtTimer, RtxTimer, OutputTimer, MtuRef, TheIpStack))
     APRINTER_USE_VALS(TcpProto, (NumOosSegs))
     APRINTER_USE_ONEOF
     
@@ -120,6 +120,16 @@ public:
             tcp->m_current_pcb = pcb;
             pcb_input(pcb, tcp_meta, tcp_data);
             tcp->m_current_pcb = nullptr;
+            return;
+        }
+        
+        // Sanity check source address - reject broadcast addresses.
+        // We do this after looking up the PCB for performance, since
+        // the PCBs already have sanity checked addresses. There is a
+        // minor detail that the original check might have been against
+        // a different subnet broadcast address but we prefer speed to
+        // completeness of this check.
+        if (AMBRO_UNLIKELY(!TheIpStack::checkUnicastSrcAddr(ip_meta))) {
             return;
         }
         
@@ -1175,7 +1185,7 @@ private:
                 }
             }
             
-            if (rcv_datalen > 0) {
+            if (AMBRO_LIKELY(rcv_datalen > 0)) {
                 // Give any data to the user.
                 if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_received(rcv_datalen); }))) {
                     return false;
