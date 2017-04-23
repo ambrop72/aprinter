@@ -424,15 +424,15 @@ private:
         // - Check ACK validity.
         SeqType eff_seq;
         bool seg_fin;
-        bool new_ack;
-        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_seq, seg_fin, new_ack)) {
+        SeqType acked;
+        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_seq, seg_fin, acked)) {
             return;
         }
         
         if (AMBRO_UNLIKELY(state_is_synsent_synrcvd(pcb->state))) {
             // Do SYN_SENT or SYN_RCVD specific processing.
             // Normally we transition to ESTABLISHED state here.
-            if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, new_ack)) {
+            if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, acked)) {
                 return;
             }
             
@@ -441,7 +441,7 @@ private:
             AMBRO_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         } else {
             // Process acknowledgements and window updates.
-            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, new_ack, tcp_data.tot_len)) {
+            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, acked, tcp_data.tot_len)) {
                 return;
             }
         }
@@ -481,7 +481,7 @@ private:
     
     static bool pcb_input_basic_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta,
                                             IpBufRef &tcp_data, SeqType &eff_seq,
-                                            bool &seg_fin, bool &new_ack)
+                                            bool &seg_fin, SeqType &acked)
     {
         // Get the RST, SYN and ACK flags.
         FlagsType flags_rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
@@ -514,9 +514,8 @@ private:
                 return false;
             }
             
-            // The above checked that out SYN is acknowledged, so this is
-            // considered to be a new ACK.
-            new_ack = true;
+            // The SYN is being acknowledged.
+            acked = 1;
         } else {
             // Calculate the right edge of the receive window.
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
@@ -591,8 +590,8 @@ private:
             // Check ACK validity as per RFC 5961.
             SeqType ack_minus_una = seq_diff(tcp_meta.ack_num, pcb->snd_una);
             if (AMBRO_LIKELY(ack_minus_una <= seq_diff(pcb->snd_nxt, pcb->snd_una))) {
-                // Fast path: it is not an old ACK. Check if it ACKs anything new.
-                new_ack = tcp_meta.ack_num != pcb->snd_una;
+                // Fast path: it is not an old ACK.
+                acked = ack_minus_una;
             } else {
                 // Slow path: it is an old or too new ACK. If it is permissibly
                 // old then allow it otherwise just send an empty ACK.
@@ -601,7 +600,7 @@ private:
                     Output::pcb_send_empty_ack(pcb);
                     return false;
                 }
-                new_ack = false;
+                acked = 0;
             }
         }
         
@@ -679,7 +678,7 @@ private:
         return continue_processing;
     }
     
-    static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack)
+    static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked)
     {
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         AMBRO_ASSERT(pcb->state != TcpState::SYN_SENT || pcb->con != nullptr)
@@ -701,8 +700,8 @@ private:
         }
         // If our SYN is not acknowledged, send RST and drop. In SYN_RCVD,
         // RFC 793 seems to allow ack_num==snd_una which doesn't make sense.
-        // Note that in SYN_SENT, new_ack is always true here.
-        else if (!new_ack) {
+        // Note that in SYN_SENT, acked is always one here.
+        else if (acked == 0) {
             Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                              pcb->local_port, pcb->remote_port,
                              tcp_meta.ack_num, false, 0);
@@ -724,7 +723,7 @@ private:
         }
         
         // In SYN_SENT and SYN_RCVD the remote acks only our SYN no more.
-        // Otherwise we would have bailed out already (valid_ack, new_ack).
+        // Otherwise we would have bailed out already.
         AMBRO_ASSERT(pcb->snd_nxt == seq_add(pcb->snd_una, 1))
         AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
         
@@ -886,7 +885,7 @@ private:
         return true;
     }
     
-    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, bool new_ack, size_t data_len)
+    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked, size_t data_len)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
@@ -896,19 +895,16 @@ private:
         }
         
         // Handle new acknowledgments.
-        if (new_ack) {
+        if (acked > 0) {
             // We can only get here if there was anything pending acknowledgement
             // (snd_una!=snd_nxt), this is assured in pcb_input_basic_processing
-            // when calculating new_ack. Further, it is assured that snd_una==snd_nxt
+            // when calculating acked. Further, it is assured that snd_una==snd_nxt
             // in FIN_WAIT_2 and TIME_WAIT (additional states we are asserting we are
             // not in).
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
-            
-            // Calculate the amount of acknowledged sequence counts.
-            // This can be data or FIN (but not SYN, as SYN_RCVD state is handled above).
-            SeqType acked = seq_diff(tcp_meta.ack_num, pcb->snd_una);
-            AMBRO_ASSERT(acked > 0)
+            // The amount of acknowledged sequence numbers was already calculated.
+            AMBRO_ASSERT(acked == seq_diff(tcp_meta.ack_num, pcb->snd_una))
             
             // Inform Output that something was acked. This includes stopping
             // the rtx_timer, RTT measurement, congestion control processing,
