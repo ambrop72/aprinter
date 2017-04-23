@@ -163,11 +163,6 @@ private:
     // Ref type of the link model.
     using MtuLinkModelRef = typename MtuLinkModel::Ref;
     
-    inline MtuLinkModelRef mtuRef (MtuEntry &mtu_entry)
-    {
-        return MtuLinkModelRef(mtu_entry, &mtu_entry - m_mtu_entries);
-    }
-    
 private:
     IpStack *m_ip_stack;
     typename MtuIndex::Index m_mtu_index;
@@ -192,7 +187,7 @@ public:
         // Initialize the MTU entries.
         for (MtuEntry &mtu_entry : m_mtu_entries) {
             mtu_entry.state = EntryState::Invalid;
-            m_mtu_free_list.append(mtuRef(mtu_entry), *this);
+            m_mtu_free_list.append({mtu_entry, *this}, *this);
         }
     }
     
@@ -269,7 +264,7 @@ public:
                 MtuEntry &mtu_entry = get_entry_from_first(PrevLink::link);
                 assert_entry_referenced(mtu_entry);
                 mtu_entry.state = EntryState::Unused;
-                cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), *cache);
+                cache->m_mtu_free_list.append({mtu_entry, *cache}, *cache);
             } else {
                 // We are not the only node, remove ourselves.
                 // Setup the link from the previous to the next node.
@@ -442,11 +437,11 @@ private:
         
         // If the entry is unused, invalidate it.
         if (mtu_entry.state == EntryState::Unused) {
-            m_mtu_index.removeEntry(*this, mtuRef(mtu_entry));
+            m_mtu_index.removeEntry(*this, {mtu_entry, *this});
             mtu_entry.state = EntryState::Invalid;
             // Move to the front of the free list.
-            m_mtu_free_list.remove(mtuRef(mtu_entry), *this);
-            m_mtu_free_list.prepend(mtuRef(mtu_entry), *this);
+            m_mtu_free_list.remove({mtu_entry, *this}, *this);
+            m_mtu_free_list.prepend({mtu_entry, *this}, *this);
             return;
         }
         

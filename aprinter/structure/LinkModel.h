@@ -61,6 +61,8 @@ class PointerLinkModelState {
 public:
     inline PointerLinkModelState () {}
     
+    // Convenience constructor that allows using the same way as
+    // with ArrayLinkModel, it ignores the argument.
     template <typename T>
     inline PointerLinkModelState (T const &) {}
 };
@@ -151,9 +153,14 @@ public:
             return m_link == other.m_link;
         }
         
-        // for users not data structures
-        inline Ref(Entry &entry)
+        // The remaining functions are only for users of data structures.
+        
+        inline Ref (Entry &entry)
         : m_link(Link(&entry))
+        {}
+        
+        inline Ref (Entry &entry, State)
+        : Ref(entry)
         {}
         
     private:
@@ -176,6 +183,11 @@ public:
     inline Entry & getEntryAt (size_t index)
     {
         return m_array[index];
+    }
+    
+    inline size_t getEntryIndex (Entry &entry)
+    {
+        return &entry - m_array;
     }
     
 private:
@@ -287,12 +299,16 @@ public:
             return m_link == other.m_link;
         }
         
-        // for users not data structures
-        inline Ref(Entry &entry, IndexType index)
+        // The remaining functions are only for users of data structures.
+        
+        inline Ref (Entry &entry, IndexType index)
         : m_link(Link(index)), m_ptr(&entry)
         {}
         
-        // for users not data structures
+        inline Ref (Entry &entry, State st)
+        : Ref(entry, st.getEntryIndex(entry))
+        {}
+        
         inline IndexType getIndex () const
         {
             return m_link.m_index;
