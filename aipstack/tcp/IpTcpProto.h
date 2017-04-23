@@ -305,6 +305,17 @@ private:
         inline void setFlag (FlagsType flag) { flags |= flag; }
         inline void clearFlag (FlagsType flag) { flags &= ~flag; }
         
+        // Check if a flag is set and clear it.
+        inline bool hasAndClearFlag (FlagsType flag)
+        {
+            FlagsType the_flags = flags;
+            if ((the_flags & flag) != 0) {
+                flags = the_flags & ~flag;
+                return true;
+            }
+            return false;
+        }
+        
         // Convenience functions for buffer length.
         // WARNING: Must not be called in SYN_RCVD state because in
         // that case the "lis" union memeber is valid not "con".

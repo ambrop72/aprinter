@@ -460,9 +460,7 @@ private:
         }
         
         // Output if needed.
-        if (pcb->hasFlag(PcbFlags::OUT_PENDING)) {
-            pcb->clearFlag(PcbFlags::OUT_PENDING);
-            
+        if (pcb->hasAndClearFlag(PcbFlags::OUT_PENDING)) {
             // Can only output if in the right state.
             if (can_output_in_state(pcb->state)) {
                 // Output queued data.
@@ -477,8 +475,7 @@ private:
         // Send an empty ACK if desired.
         // Note, ACK_PENDING will have been cleared above if pcb_output sent anything,
         // in that case we don't need an empty ACK here.
-        if (pcb->hasFlag(PcbFlags::ACK_PENDING)) {
-            pcb->clearFlag(PcbFlags::ACK_PENDING);
+        if (pcb->hasAndClearFlag(PcbFlags::ACK_PENDING)) {
             Output::pcb_send_empty_ack(pcb);
         }
     }
