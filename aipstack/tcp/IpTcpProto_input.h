@@ -590,17 +590,20 @@ private:
             }
             
             // Check ACK validity as per RFC 5961.
-            // For this arithemtic to work we're relying on snd_nxt not wrapping around
-            // over snd_una-MaxAckBefore.
-            SeqType past_ack_num = seq_diff(pcb->snd_una, Constants::MaxAckBefore);
-            bool valid_ack = seq_lte(tcp_meta.ack_num, pcb->snd_nxt, past_ack_num);
-            if (AMBRO_UNLIKELY(!valid_ack)) {
-                Output::pcb_send_empty_ack(pcb);
-                return false;
+            SeqType ack_minus_una = seq_diff(tcp_meta.ack_num, pcb->snd_una);
+            if (AMBRO_LIKELY(ack_minus_una <= seq_diff(pcb->snd_nxt, pcb->snd_una))) {
+                // Fast path: it is not an old ACK. Check if it ACKs anything new.
+                new_ack = tcp_meta.ack_num != pcb->snd_una;
+            } else {
+                // Slow path: it is an old or too new ACK. If it is permissibly
+                // old then allow it otherwise just send an empty ACK.
+                SeqType una_minus_ack = -ack_minus_una;
+                if (AMBRO_UNLIKELY(una_minus_ack > Constants::MaxAckBefore)) {
+                    Output::pcb_send_empty_ack(pcb);
+                    return false;
+                }
+                new_ack = false;
             }
-            
-            // Check if the ACK acknowledges anything new.
-            new_ack = !seq_lte(tcp_meta.ack_num, pcb->snd_una, past_ack_num);
         }
         
         return true;
