@@ -376,7 +376,7 @@ public:
             pcb.con = nullptr;
             
             // Add the PCB to the list of unreferenced PCBs.
-            m_unrefed_pcbs_list.prepend(link_model_ref(pcb), link_model_state());
+            m_unrefed_pcbs_list.prepend(link_model_ref(pcb), *this);
         }
     }
     
@@ -422,7 +422,7 @@ private:
         }
         
         // Get a PCB to use.
-        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(link_model_state());
+        TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(*this);
         AMBRO_ASSERT(pcb_is_in_unreferenced_list(pcb))
         
         // Abort the PCB if it's not closed.
@@ -484,15 +484,15 @@ private:
         
         // Remove the PCB from the index in which it is.
         if (pcb->state == TcpState::TIME_WAIT) {
-            tcp->m_pcb_index_timewait.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+            tcp->m_pcb_index_timewait.removeEntry(*tcp, tcp->link_model_ref(*pcb));
         } else {
-            tcp->m_pcb_index_active.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+            tcp->m_pcb_index_active.removeEntry(*tcp, tcp->link_model_ref(*pcb));
         }
         
         // Make sure the PCB is at the end of the unreferenced list.
-        if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(tcp->link_model_state())) {
-            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
-            tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
+        if (pcb != tcp->m_unrefed_pcbs_list.lastNotEmpty(*tcp)) {
+            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), *tcp);
+            tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), *tcp);
         }
         
         // Reset other relevant fields to initial state.
@@ -524,8 +524,8 @@ private:
         
         // Move the PCB from the active index to the time-wait index.
         IpTcpProto *tcp = pcb->tcp;
-        tcp->m_pcb_index_active.removeEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
-        tcp->m_pcb_index_timewait.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+        tcp->m_pcb_index_active.removeEntry(*tcp, tcp->link_model_ref(*pcb));
+        tcp->m_pcb_index_timewait.addEntry(*tcp, tcp->link_model_ref(*pcb));
         
         // Stop these timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
@@ -557,9 +557,9 @@ private:
             // Add the PCB to the list of unreferenced PCBs.
             IpTcpProto *tcp = pcb->tcp;
             if (closing) {
-                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
+                tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), *tcp);
             } else {
-                tcp->m_unrefed_pcbs_list.prepend(tcp->link_model_ref(*pcb), tcp->link_model_state());
+                tcp->m_unrefed_pcbs_list.prepend(tcp->link_model_ref(*pcb), *tcp);
             }
         }
     }
@@ -583,7 +583,7 @@ private:
             // The PCB was removed from the list of unreferenced
             // PCBs, so we have to add it back.
             IpTcpProto *tcp = pcb->tcp;
-            tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
+            tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), *tcp);
         }
         
         // Clear pcb->con since we will be going to CLOSED state
@@ -602,7 +602,7 @@ private:
         
         // Add the PCB to the unreferenced PCBs list.
         // This has not been done by TcpConnection.
-        tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), tcp->link_model_state());
+        tcp->m_unrefed_pcbs_list.append(tcp->link_model_ref(*pcb), *tcp);
         
         // Abort if in SYN_SENT state or some data is queued.
         // The pcb_abort() will decide whether to send an RST
@@ -727,7 +727,7 @@ private:
         // to reset the MtuRef before abandoning the PCB!
         
         // Remove the PCB from the unreferenced PCBs list.
-        m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
+        m_unrefed_pcbs_list.remove(link_model_ref(*pcb), *this);
         
         // Generate an initial sequence number.
         SeqType iss = make_iss();
@@ -764,7 +764,7 @@ private:
         // snd_mss will be initialized at transition to ESTABLISHED
         
         // Add the PCB to the active index.
-        m_pcb_index_active.addEntry(link_model_state(), link_model_ref(*pcb));
+        m_pcb_index_active.addEntry(*this, link_model_ref(*pcb));
         
         // Start the connection timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynSentTimeoutTicks);
@@ -804,9 +804,9 @@ private:
     {
         AMBRO_ASSERT(pcb_is_in_unreferenced_list(pcb))
         
-        if (pcb != m_unrefed_pcbs_list.first(link_model_state())) {
-            m_unrefed_pcbs_list.remove(link_model_ref(*pcb), link_model_state());
-            m_unrefed_pcbs_list.prepend(link_model_ref(*pcb), link_model_state());
+        if (pcb != m_unrefed_pcbs_list.first(*this)) {
+            m_unrefed_pcbs_list.remove(link_model_ref(*pcb), *this);
+            m_unrefed_pcbs_list.prepend(link_model_ref(*pcb), *this);
         }
     }
     
@@ -816,12 +816,12 @@ private:
         PcbKey key{remote_port, remote_addr, local_port, local_addr};
         
         // Look in the active index first.
-        TcpPcb *pcb = m_pcb_index_active.findEntry(link_model_state(), key);
+        TcpPcb *pcb = m_pcb_index_active.findEntry(*this, key);
         AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
         if (pcb == nullptr) {
-            pcb = m_pcb_index_timewait.findEntry(link_model_state(), key);
+            pcb = m_pcb_index_timewait.findEntry(*this, key);
             AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
         }
         
@@ -838,18 +838,13 @@ private:
     };
     
     // Define the link model for data structures of PCBs.
+    struct PcbArrayAccessor;
     struct PcbLinkModel : public APrinter::If<LinkWithArrayIndices,
-        APrinter::ArrayLinkModel<TcpPcb, PcbIndexType, PcbIndexNull>,
+        APrinter::ArrayLinkModelWithAccessor<
+            TcpPcb, PcbIndexType, PcbIndexNull, IpTcpProto, PcbArrayAccessor>,
         APrinter::PointerLinkModel<TcpPcb>
     > {};
     APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
-    
-    // Returns the link model State value.
-    APRINTER_FUNCTION_IF_ELSE_EXT(LinkWithArrayIndices, inline, State, link_model_state (), {
-        return m_pcbs;
-    }, {
-        return State();
-    })
     
     // Returns the link model Ref for a PCB.
     APRINTER_FUNCTION_IF_ELSE_EXT(LinkWithArrayIndices, inline, Ref, link_model_ref (TcpPcb &pcb), {
@@ -878,6 +873,8 @@ private:
     typename PcbIndex::Index m_pcb_index_active;
     typename PcbIndex::Index m_pcb_index_timewait;
     TcpPcb m_pcbs[NumTcpPcbs];
+    
+    struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (

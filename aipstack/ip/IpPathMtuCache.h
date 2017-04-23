@@ -79,7 +79,9 @@ class IpPathMtuCache :
     static MtuIndexType const MtuIndexNull = std::numeric_limits<MtuIndexType>::max();
     
     // Link model for MTU entries: array indices.
-    using MtuLinkModel = APrinter::ArrayLinkModel<MtuEntry, MtuIndexType, MtuIndexNull>;
+    struct MtuEntriesAccessor;
+    using MtuLinkModel = APrinter::ArrayLinkModelWithAccessor<
+        MtuEntry, MtuIndexType, MtuIndexNull, IpPathMtuCache, MtuEntriesAccessor>;
     
     // Index data structure for MTU entries by remote address.
     struct MtuIndexAccessor;
@@ -166,16 +168,14 @@ private:
         return MtuLinkModelRef(mtu_entry, &mtu_entry - m_mtu_entries);
     }
     
-    inline typename MtuLinkModel::State mtuState ()
-    {
-        return m_mtu_entries;
-    }
-    
 private:
     IpStack *m_ip_stack;
     typename MtuIndex::Index m_mtu_index;
     MtuFreeList m_mtu_free_list;
     MtuEntry m_mtu_entries[NumMtuEntries];
+    
+    // Accessor for the m_mtu_entries array.
+    struct MtuEntriesAccessor : public APRINTER_MEMBER_ACCESSOR(&IpPathMtuCache::m_mtu_entries) {};
     
 public:
     void init (IpStack *ip_stack)
@@ -192,7 +192,7 @@ public:
         // Initialize the MTU entries.
         for (MtuEntry &mtu_entry : m_mtu_entries) {
             mtu_entry.state = EntryState::Invalid;
-            m_mtu_free_list.append(mtuRef(mtu_entry), mtuState());
+            m_mtu_free_list.append(mtuRef(mtu_entry), *this);
         }
     }
     
@@ -203,7 +203,7 @@ public:
     
     bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
     {
-        MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(mtuState(), remote_addr);
+        MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(*this, remote_addr);
         if (mtu_ref.isNull()) {
             return false;
         }
@@ -269,7 +269,7 @@ public:
                 MtuEntry &mtu_entry = get_entry_from_first(PrevLink::link);
                 assert_entry_referenced(mtu_entry);
                 mtu_entry.state = EntryState::Unused;
-                cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), cache->mtuState());
+                cache->m_mtu_free_list.append(cache->mtuRef(mtu_entry), *cache);
             } else {
                 // We are not the only node, remove ourselves.
                 // Setup the link from the previous to the next node.
@@ -304,7 +304,7 @@ public:
             AMBRO_ASSERT(!isSetup())
             
             // Lookup this address in the index.
-            MtuLinkModelRef mtu_ref = cache->m_mtu_index.findEntry(cache->mtuState(), remote_addr);
+            MtuLinkModelRef mtu_ref = cache->m_mtu_index.findEntry(*cache, remote_addr);
             
             if (!mtu_ref.isNull()) {
                 // Got an existing MtuEntry for this address.
@@ -313,7 +313,7 @@ public:
                 if (mtu_entry.state == EntryState::Unused) {
                     // Unused entry, change to Referenced and insert ourselves.
                     
-                    cache->m_mtu_free_list.remove(mtu_ref, cache->mtuState());
+                    cache->m_mtu_free_list.remove(mtu_ref, *cache);
                     
                     mtu_entry.state = EntryState::Referenced;
                     NextLink::link = nullptr;
@@ -340,7 +340,7 @@ public:
                 }
                 
                 // Get an MtuEntry from the free list.
-                mtu_ref = cache->m_mtu_free_list.first(cache->mtuState());
+                mtu_ref = cache->m_mtu_free_list.first(*cache);
                 if (mtu_ref.isNull()) {
                     return false;
                 }
@@ -349,13 +349,13 @@ public:
                 AMBRO_ASSERT(mtu_entry.state == OneOf(EntryState::Invalid, EntryState::Unused))
                 
                 // Remove it from the free list.
-                cache->m_mtu_free_list.removeFirst(cache->mtuState());
+                cache->m_mtu_free_list.removeFirst(*cache);
                 
                 // If it is Unused it is in the index from which it needs to
                 // be removed before being re-added with a different address.
                 if (mtu_entry.state == EntryState::Unused) {
                     AMBRO_ASSERT(mtu_entry.remote_addr != remote_addr)
-                    cache->m_mtu_index.removeEntry(cache->mtuState(), mtu_ref);
+                    cache->m_mtu_index.removeEntry(*cache, mtu_ref);
                 }
                 
                 // Setup some fields.
@@ -365,7 +365,7 @@ public:
                 mtu_entry.minutes_old = 0;
                 
                 // Add the MtuRef to the index with the new address.
-                cache->m_mtu_index.addEntry(cache->mtuState(), mtu_ref);
+                cache->m_mtu_index.addEntry(*cache, mtu_ref);
                 
                 // Clear the next link since we are the first node.
                 NextLink::link = nullptr;
@@ -442,11 +442,11 @@ private:
         
         // If the entry is unused, invalidate it.
         if (mtu_entry.state == EntryState::Unused) {
-            m_mtu_index.removeEntry(mtuState(), mtuRef(mtu_entry));
+            m_mtu_index.removeEntry(*this, mtuRef(mtu_entry));
             mtu_entry.state = EntryState::Invalid;
             // Move to the front of the free list.
-            m_mtu_free_list.remove(mtuRef(mtu_entry), mtuState());
-            m_mtu_free_list.prepend(mtuRef(mtu_entry), mtuState());
+            m_mtu_free_list.remove(mtuRef(mtu_entry), *this);
+            m_mtu_free_list.prepend(mtuRef(mtu_entry), *this);
             return;
         }
         

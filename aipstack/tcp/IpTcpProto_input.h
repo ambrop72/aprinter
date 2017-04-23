@@ -382,7 +382,7 @@ private:
             lis->m_num_pcbs++;
             
             // Add the PCB to the active index.
-            tcp->m_pcb_index_active.addEntry(tcp->link_model_state(), tcp->link_model_ref(*pcb));
+            tcp->m_pcb_index_active.addEntry(*tcp, tcp->link_model_ref(*pcb));
             
             // Move the PCB to the front of the unreferenced list.
             tcp->move_unrefed_pcb_to_front(pcb);
@@ -849,7 +849,7 @@ private:
             // Remove the PCB from the list of unreferenced PCBs. This protects
             // the PCB from being aborted by allocate_pcb if a new connection is
             // created.
-            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), tcp->link_model_state());
+            tcp->m_unrefed_pcbs_list.remove(tcp->link_model_ref(*pcb), *tcp);
             
             // Call the connectionEstablished callback of the listener to allow the
             // application to accept the connection.

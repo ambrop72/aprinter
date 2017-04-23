@@ -25,6 +25,8 @@
 #ifndef APRINTER_LINK_MODEL_H
 #define APRINTER_LINK_MODEL_H
 
+#include <stddef.h>
+
 #include <aprinter/BeginNamespace.h>
 
 /**
@@ -55,6 +57,14 @@
  *   the base of the array, so that Link::ref() can work.
  */
 
+class PointerLinkModelState {
+public:
+    inline PointerLinkModelState () {}
+    
+    template <typename T>
+    inline PointerLinkModelState (T const &) {}
+};
+
 /**
  * Pointer link model for intrusive data structures.
  * 
@@ -65,7 +75,7 @@
 template <typename Entry>
 class PointerLinkModel {
 public:
-    struct State {};
+    using State = PointerLinkModelState;
     
     class Ref;
     
@@ -151,6 +161,27 @@ public:
     };
 };
 
+template <
+    typename Entry,
+    typename ArrayContainer,
+    typename ArrayAccessor
+>
+class ArrayLinkModelAccessorState {
+public:
+    ArrayLinkModelAccessorState() = delete;
+    
+    inline ArrayLinkModelAccessorState (ArrayContainer &container)
+    : m_array(ArrayAccessor::access(container)) {}
+    
+    inline Entry & getEntryAt (size_t index)
+    {
+        return m_array[index];
+    }
+    
+private:
+    Entry *m_array;
+};
+
 /**
  * Array index link model for intrusive data structures.
  * 
@@ -171,22 +202,12 @@ public:
 template <
     typename Entry,
     typename IndexType,
-    IndexType NullIndex
+    IndexType NullIndex,
+    typename State_
 >
 class ArrayLinkModel {
 public:
-    class State {
-        friend ArrayLinkModel;
-        
-    public:
-        State() = delete;
-        
-        inline State(Entry *array)
-        : m_array(array) {}
-        
-    private:
-        Entry *m_array;
-    };
+    using State = State_;
     
     class Ref;
     
@@ -214,7 +235,7 @@ public:
             if (isNull()) {
                 return Ref(*this, nullptr);
             } else {
-                return Ref(*this, &state.m_array[m_index]);
+                return Ref(*this, &state.getEntryAt(m_index));
             }
         }
         
@@ -282,6 +303,19 @@ public:
         Entry *m_ptr;
     };
 };
+
+/**
+ * Shortcut for ArrayLinkModel with ArrayLinkModelAccessorState.
+ */
+template <
+    typename Entry,
+    typename IndexType,
+    IndexType NullIndex,
+    typename ArrayContainer,
+    typename ArrayAccessor
+>
+using ArrayLinkModelWithAccessor = ArrayLinkModel<Entry, IndexType, NullIndex,
+    ArrayLinkModelAccessorState<Entry, ArrayContainer, ArrayAccessor>>;
 
 #include <aprinter/EndNamespace.h>
 
