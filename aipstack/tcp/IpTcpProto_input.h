@@ -494,7 +494,14 @@ private:
             }
         }
         
-        if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_SENT)) {
+        SeqType rcv_wnd;
+        
+        if (AMBRO_UNLIKELY(state_is_synsent_synrcvd(pcb->state))) {
+            if (pcb->state == TcpState::SYN_RCVD) {
+                rcv_wnd = pcb->rcv_ann_wnd;
+                goto syn_rcvd;
+            }
+            
             // In SYN_SENT we are only accepting a SYN and not any data or FIN.
             // It is important that we strip these away here because pcb_input
             // will call pcb_input_rcv_processing later which assumes that any
@@ -520,12 +527,12 @@ private:
             new_ack = true;
         } else {
             // Calculate the right edge of the receive window.
-            SeqType rcv_wnd = pcb->rcv_ann_wnd;
-            if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD)) {
+            if (true) {
                 SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxRcvWnd);
-                rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
+                rcv_wnd = APrinter::MaxValue(pcb->rcv_ann_wnd, avail_wnd);
             }
             
+        syn_rcvd:
             // Store the sequence number and FIN flag. But these and also
             // tcp_data will be modified below if the segment is trimmed.
             eff_seq = tcp_meta.seq_num;
