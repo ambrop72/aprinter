@@ -104,8 +104,8 @@ public:
     // Container for TCP options that we care about.
     struct TcpOptions {
         uint8_t options;
-        uint16_t mss;
         uint8_t wnd_scale;
+        uint16_t mss;
     };
     
     static SeqType const SeqMSB = (SeqType)1 << 31;

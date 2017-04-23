@@ -109,7 +109,6 @@ public:
         // Remember the options region and skip over the options.
         // The options will only be parsed when they are needed,
         // using parse_received_opts.
-        tcp->m_received_opts_parsed = false;
         tcp->m_received_opts_buf = tcp_data.subTo(opts_len);
         tcp_data.skipBytes(opts_len);
         
@@ -1253,9 +1252,9 @@ private:
     static void parse_received_opts (TcpProto *tcp)
     {
         // Only parse if the options were not parsed already.
-        if (!tcp->m_received_opts_parsed) {
-            tcp->m_received_opts_parsed = true;
+        if (tcp->m_received_opts_buf.node != nullptr) {
             TcpUtils::parse_options(tcp->m_received_opts_buf, &tcp->m_received_opts);
+            tcp->m_received_opts_buf.node = nullptr;
         }
     }
 };
