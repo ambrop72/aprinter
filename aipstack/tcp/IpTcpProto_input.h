@@ -422,10 +422,10 @@ private:
         // - Check acceptability.
         // - Trim segment into window.
         // - Check ACK validity.
-        SeqType eff_seq;
+        SeqType eff_rel_seq;
         bool seg_fin;
         SeqType acked;
-        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_seq, seg_fin, acked)) {
+        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_rel_seq, seg_fin, acked)) {
             return;
         }
         
@@ -448,7 +448,7 @@ private:
         
         if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
             // Process received data or FIN.
-            if (!pcb_input_rcv_processing(pcb, eff_seq, seg_fin, tcp_data)) {
+            if (!pcb_input_rcv_processing(pcb, eff_rel_seq, seg_fin, tcp_data)) {
                 return;
             }
         }
@@ -480,7 +480,7 @@ private:
     }
     
     static bool pcb_input_basic_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta,
-                                            IpBufRef &tcp_data, SeqType &eff_seq,
+                                            IpBufRef &tcp_data, SeqType &eff_rel_seq,
                                             bool &seg_fin, SeqType &acked)
     {
         // Get the RST, SYN and ACK flags.
@@ -494,13 +494,9 @@ private:
         }
         
         if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_SENT)) {
-            // In SYN_SENT we are only accepting a SYN and not any data or FIN.
-            // It is important that we strip these away here because pcb_input
-            // will call pcb_input_rcv_processing later which assumes that any
-            // data/FIN not striped fits in the window and can be processed.
-            // The eff_seq also needs to be incremented to 1 due to the SYN.
-            // We can get here without receiving a SYN but this does not matter.
-            eff_seq = seq_add(tcp_meta.seq_num, 1);
+            // In SYN_SENT we are only accepting a SYN and we have to ignore
+            // any data or FIN (so that pcb_input_rcv_processing does nothing).
+            eff_rel_seq = 0;
             tcp_data.tot_len = 0;
             seg_fin = false;
             
@@ -524,9 +520,11 @@ private:
                 rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
             }
             
-            // Store the sequence number and FIN flag. But these and also
-            // tcp_data will be modified below if the segment is trimmed.
-            eff_seq = tcp_meta.seq_num;
+            // Store the sequence number relative to rcv_nxt and FIN flag. But these
+            // and also tcp_data will be modified below if the segment is trimmed.
+            // At this point eff_rel_seq may be "negative" (very large) but that would
+            // be resolved.
+            eff_rel_seq = seq_diff(tcp_meta.seq_num, pcb->rcv_nxt);
             seg_fin = (tcp_meta.flags & Tcp4FlagFin) != 0;
             
             // Sequence length of segment (data+FIN). Note that we cannot have
@@ -541,7 +539,7 @@ private:
                 // since such segments may be generated normally when the sender
                 // exhausts our receive window and may be useful window updates or
                 // ACKs.
-                bool acceptable = seq_diff(eff_seq, pcb->rcv_nxt) <= rcv_wnd;
+                bool acceptable = eff_rel_seq <= rcv_wnd;
                 
                 // If not acceptable, send any appropriate response and drop.
                 if (AMBRO_UNLIKELY(!acceptable)) {
@@ -553,9 +551,9 @@ private:
                 // is within the receive window. In SYN_RCVD we could be more strict
                 // and not allow data before the SYN, but for performance reasons
                 // we check that later in pcb_input_syn_sent_rcvd_processing.
-                SeqType last_seq = seq_add(eff_seq, seq_add(seqlen, -1));
-                bool left_edge_in_window = seq_diff(eff_seq, pcb->rcv_nxt) < rcv_wnd;
-                bool right_edge_in_window = seq_diff(last_seq, pcb->rcv_nxt) < rcv_wnd;
+                SeqType last_rel_seq = seq_diff(seq_add(eff_rel_seq, seqlen), 1);
+                bool left_edge_in_window = eff_rel_seq < rcv_wnd;
+                bool right_edge_in_window = last_rel_seq < rcv_wnd;
                 bool acceptable = left_edge_in_window || right_edge_in_window;
                 
                 // If not acceptable, send any appropriate response and drop.
@@ -567,21 +565,19 @@ private:
                 // Trim the segment on the left or right so that it fits into the receive window.
                 if (AMBRO_UNLIKELY(!left_edge_in_window)) {
                     // The segment contains some already received data (seq_num < rcv_nxt).
-                    SeqType left_trim = seq_diff(pcb->rcv_nxt, eff_seq);
+                    SeqType left_trim = -eff_rel_seq;
                     AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
                     AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
-                    eff_seq = pcb->rcv_nxt;
-                    seqlen -= left_trim;
+                    eff_rel_seq = 0;
                     // No change to seg_fin: for SYN we'd have bailed out earlier,
                     // and FIN could not be trimmed because left_trim < seqlen.
                     tcp_data.skipBytes(left_trim);
                 }
                 else if (AMBRO_UNLIKELY(!right_edge_in_window)) {
                     // The segment contains some extra data beyond the receive window.
-                    SeqType left_keep = seq_diff(seq_add(pcb->rcv_nxt, rcv_wnd), eff_seq);
+                    SeqType left_keep = seq_diff(rcv_wnd, eff_rel_seq);
                     AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
                     AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
-                    seqlen = left_keep;
                     seg_fin = false; // a FIN would be outside the window
                     tcp_data.tot_len = left_keep;
                 }
@@ -1063,7 +1059,7 @@ private:
         return true;
     }
     
-    static bool pcb_input_rcv_processing (TcpPcb *pcb, SeqType eff_seq, bool seg_fin,
+    static bool pcb_input_rcv_processing (TcpPcb *pcb, SeqType eff_rel_seq, bool seg_fin,
                                           IpBufRef tcp_data)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
@@ -1071,18 +1067,16 @@ private:
         // We only get here if the segment fits into the receive window,
         // this is assured by pcb_input_basic_processing.
         // It is also ensured that pcb->rcv_ann_wnd fits into size_t
-        // and we need this here to avoid oveflows.
-        SeqType data_offset_seqtype = seq_diff(eff_seq, pcb->rcv_nxt);
+        // and we need this here to avoid oveflows in the check below.
         if (SIZE_MAX < UINT32_MAX) {
-            AMBRO_ASSERT(data_offset_seqtype <= SIZE_MAX)
-            AMBRO_ASSERT(tcp_data.tot_len <= SIZE_MAX - data_offset_seqtype)
+            AMBRO_ASSERT(eff_rel_seq <= SIZE_MAX)
+            AMBRO_ASSERT(tcp_data.tot_len <= SIZE_MAX - eff_rel_seq)
         }
-        size_t data_offset = data_offset_seqtype;
         
         // Abort the connection if we have no place to put received data.
         // This includes when the connection was abandoned.
         if (AMBRO_UNLIKELY(tcp_data.tot_len > 0 &&
-                           pcb->rcvBufLen() < data_offset + tcp_data.tot_len)) {
+                           pcb->rcvBufLen() < eff_rel_seq + tcp_data.tot_len)) {
             TcpProto::pcb_abort(pcb, true);
             return false;
         }
@@ -1093,7 +1087,7 @@ private:
         
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        if (AMBRO_LIKELY(data_offset == 0 && pcb->ooseq.isNothingBuffered())) {
+        if (AMBRO_LIKELY(eff_rel_seq == 0 && pcb->ooseq.isNothingBuffered())) {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
@@ -1105,6 +1099,7 @@ private:
             }
         } else {
             // Remember information about out-of-sequence data and FIN.
+            SeqType eff_seq = seq_add(pcb->rcv_nxt, eff_rel_seq);
             bool need_ack;
             bool update_ok = pcb->ooseq.updateForSegmentReceived(
                 pcb->rcv_nxt, eff_seq, tcp_data.tot_len, seg_fin, need_ack);
@@ -1124,7 +1119,7 @@ private:
             if (tcp_data.tot_len > 0) {
                 AMBRO_ASSERT(pcb->con != nullptr)
                 IpBufRef dst_buf = pcb->con->m_rcv_buf;
-                dst_buf.skipBytes(data_offset);
+                dst_buf.skipBytes(eff_rel_seq);
                 dst_buf.giveBuf(tcp_data);
             }
             
