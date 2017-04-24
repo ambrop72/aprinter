@@ -185,8 +185,12 @@ private:
         
         void dataReceived (size_t amount) override final
         {
-            m_connection.extendSendBuf(amount);
-            m_connection.sendPush();
+            if (amount > 0) {
+                m_connection.extendSendBuf(amount);
+                m_connection.sendPush();
+            } else {
+                m_connection.closeSending();
+            }
         }
         
         void dataSent (size_t amount) override final
