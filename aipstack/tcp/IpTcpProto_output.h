@@ -48,7 +48,7 @@ class IpTcpProto_output
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, PortType, TcpState, TcpSegMeta,
                                    OptionFlags, TcpOptions))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, tcplen,
+    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
@@ -457,7 +457,7 @@ public:
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
         
         // Handle end of round-trip-time measurement.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt(pcb->rtt_test_seq, ack_num, pcb->snd_una)) {
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt2(pcb->rtt_test_seq, ack_num)) {
             // Update the RTT variables and RTO.
             pcb_end_rtt_measurement(pcb);
             
@@ -482,7 +482,7 @@ public:
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
-                    if (pcb->cwnd_acked >= pcb->cwnd) {
+                    if (AMBRO_UNLIKELY(pcb->cwnd_acked >= pcb->cwnd)) {
                         pcb_increase_cwnd_acked(pcb, pcb->cwnd_acked);
                         pcb->cwnd_acked = 0;
                         pcb->setFlag(PcbFlags::CWND_INCRD);

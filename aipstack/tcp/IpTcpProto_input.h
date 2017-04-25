@@ -417,6 +417,9 @@ private:
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
         
+        // Remember original data length.
+        size_t orig_data_len = tcp_data.tot_len;
+        
         // Do basic processing, e.g.:
         // - Handle RST and SYN.
         // - Check acceptability.
@@ -441,7 +444,7 @@ private:
             AMBRO_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         } else {
             // Process acknowledgements and window updates.
-            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, acked, tcp_data.tot_len)) {
+            if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, acked, orig_data_len)) {
                 return;
             }
         }
@@ -887,7 +890,8 @@ private:
         return true;
     }
     
-    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked, size_t data_len)
+    static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta,
+                                              SeqType acked, size_t orig_data_len)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
@@ -917,7 +921,11 @@ private:
             pcb->snd_una = tcp_meta.ack_num;
             
             // The snd_wnd needs adjustment because it is relative to snd_una.
-            pcb->snd_wnd -= APrinter::MinValue(pcb->snd_wnd, acked);
+            if (AMBRO_LIKELY(acked <= pcb->snd_wnd)) {
+                pcb->snd_wnd -= acked;
+            } else {
+                pcb->snd_wnd = 0;
+            }
             
             // Schedule pcb_output, so that the rtx_timer will be restarted
             // if needed (for retransmission or zero-window probe).
@@ -949,7 +957,11 @@ private:
                 }
                 
                 // Adjust the push index.
-                pcb->snd_psh_index -= APrinter::MinValue(pcb->snd_psh_index, data_acked);
+                if (data_acked <= pcb->snd_psh_index) {
+                    pcb->snd_psh_index -= data_acked;
+                } else {
+                    pcb->snd_psh_index = 0;
+                }
                 
                 // Report data-sent event to the user.
                 if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_sent(data_acked); }))) {
@@ -964,7 +976,7 @@ private:
                 // We must be in a state where we had queued a FIN for sending
                 // but have not send it or received its acknowledgement yet.
                 AMBRO_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
-                                                    TcpState::LAST_ACK))
+                                                 TcpState::LAST_ACK))
                 
                 // Tell TcpConnection and application about end sent.
                 if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->end_sent(); }))) {
@@ -999,13 +1011,14 @@ private:
         }
         // Handle duplicate ACKs (RFC 5681).
         else {
-            // NOTE: pcb_has_snd_unacked has a precondition assert can_output_in_state,
-            // so short-circuiting here is important.
-            if (can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
-                data_len == 0 && (tcp_meta.flags & Tcp4FlagFin) == 0 &&
+            // Check conditions in such an order that we are typically
+            // fast for segments which are not duplicate ACKs.
+            if (AMBRO_UNLIKELY(orig_data_len == 0) &&
+                (tcp_meta.flags & Tcp4FlagFin) == 0 &&
                 tcp_meta.ack_num == pcb->snd_una &&
-                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->snd_wnd)
-            {
+                can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
+                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->snd_wnd
+            ) {
                 if (pcb->num_dupack < Constants::FastRtxDupAcks + Constants::MaxAdditionaDupAcks) {
                     pcb->num_dupack++;
                     if (pcb->num_dupack == Constants::FastRtxDupAcks) {
