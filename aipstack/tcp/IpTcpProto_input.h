@@ -554,32 +554,38 @@ private:
                 SeqType last_rel_seq = seq_diff(seq_add(eff_rel_seq, seqlen), 1);
                 bool left_edge_in_window = eff_rel_seq < rcv_wnd;
                 bool right_edge_in_window = last_rel_seq < rcv_wnd;
-                bool acceptable = left_edge_in_window || right_edge_in_window;
                 
-                // If not acceptable, send any appropriate response and drop.
-                if (AMBRO_UNLIKELY(!acceptable)) {
-                    Output::pcb_send_empty_ack(pcb);
-                    return false;
-                }
-                
-                // Trim the segment on the left or right so that it fits into the receive window.
-                if (AMBRO_UNLIKELY(!left_edge_in_window)) {
-                    // The segment contains some already received data (seq_num < rcv_nxt).
-                    SeqType left_trim = -eff_rel_seq;
-                    AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
-                    AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
-                    eff_rel_seq = 0;
-                    // No change to seg_fin: for SYN we'd have bailed out earlier,
-                    // and FIN could not be trimmed because left_trim < seqlen.
-                    tcp_data.skipBytes(left_trim);
-                }
-                else if (AMBRO_UNLIKELY(!right_edge_in_window)) {
-                    // The segment contains some extra data beyond the receive window.
-                    SeqType left_keep = seq_diff(rcv_wnd, eff_rel_seq);
-                    AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
-                    AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
-                    seg_fin = false; // a FIN would be outside the window
-                    tcp_data.tot_len = left_keep;
+                // Fast path is that the entire segment is in the receive window.
+                // Note: if the left and right edge are in the window then it follows
+                // the entire segment is; the segment cannot possibly be so long to
+                // start in the window, leave it, wrap around and end in the window.
+                if (AMBRO_UNLIKELY(!left_edge_in_window || !right_edge_in_window)) {
+                    if (left_edge_in_window) {
+                        // The segment contains some extra data beyond the receive window,
+                        // remove this data from the end.
+                        SeqType left_keep = seq_diff(rcv_wnd, eff_rel_seq);
+                        AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
+                        AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
+                        seg_fin = false; // a FIN would be outside the window
+                        tcp_data.tot_len = left_keep;
+                    }
+                    else if (right_edge_in_window) {
+                        // The segment contains some already received data (seq_num < rcv_nxt),
+                        // remove this data from the front.
+                        SeqType left_trim = -eff_rel_seq;
+                        AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
+                        AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
+                        eff_rel_seq = 0;
+                        // No change to seg_fin: for SYN we'd have bailed out earlier,
+                        // and FIN could not be trimmed because left_trim < seqlen.
+                        tcp_data.skipBytes(left_trim);
+                    }
+                    else {
+                        // The segment is completely outside the receive window.
+                        // It is unacceptable -> send ACK and stop processing.
+                        Output::pcb_send_empty_ack(pcb);
+                        return false;
+                    }
                 }
             }
             
