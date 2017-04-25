@@ -379,7 +379,7 @@ private:
             }
             
             // These will be initialized at transition to ESTABLISHED:
-            // snd_wnd, snd_wl1, snd_wl2, snd_mss
+            // snd_wnd, snd_mss
             
             // We also do not setup the MtuRef now, it will be done at
             // transition to ESTABLISHED. Note that we also don't have the
@@ -751,8 +751,6 @@ private:
         
         // Remember the initial send window.
         pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
-        pcb->snd_wl1 = tcp_meta.seq_num;
-        pcb->snd_wl2 = tcp_meta.ack_num;
         
         if (syn_sent) {
             // Update rcv_nxt and rcv_ann_wnd now that we have received the SYN.
@@ -1032,46 +1030,43 @@ private:
         }
         
         // Handle window updates.
-        // But inhibit for old acknowledgements (ack_num<snd_una). Note that
-        // for new acknowledgements, snd_una has been bumped to ack_num.
+        // Our update logic is much simpler than recommented RFC 793:
+        // update the window if the segment is not an old ACK. This is
+        // more efficient both in terms of memory (no snd_wl1/snd_wl2)
+        // and CPU (much simpler check). The standard approach may even
+        // have issues with sequence numbers becoming uncomparable and
+        // consequently valid window updates being ignored, but the
+        // actual possibility will not be elaborated upon...
+        // The only possibly problematic behavior of our way is that
+        // it may use old window values when the ACK number is the same,
+        // but this could only happen if segments are reordered, and is
+        // far from being a serious problem even if it does happen.
         if (AMBRO_LIKELY(pcb->snd_una == tcp_meta.ack_num)) {
-            // Compare sequence and ack numbers with respect to nxt_wnd+1
-            // and snd_nxt+1 as the minimum value, respectively.
-            // Note that we use the original non-trimmed sequence number.
-            SeqType wnd_seq_ref = seq_add(pcb->rcv_nxt, Constants::MaxRcvWnd+1);
-            SeqType wnd_seq_seg = seq_diff(tcp_meta.seq_num, wnd_seq_ref);
-            SeqType wnd_seq_old = seq_diff(pcb->snd_wl1, wnd_seq_ref);
-            if (wnd_seq_seg > wnd_seq_old || (wnd_seq_seg == wnd_seq_old &&
-                seq_lte(pcb->snd_wl2, tcp_meta.ack_num, seq_add(pcb->snd_nxt, 1))))
+            // Update the window.
+            SeqType old_snd_wnd = pcb->snd_wnd;
+            pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
+            
+            // If the window has increased, schedule pcb_output because it may
+            // be possible to send something more.
+            if (pcb->snd_wnd > old_snd_wnd) {
+                pcb->setFlag(PcbFlags::OUT_PENDING);
+            }
+            
+            // Check if we need to end widow probing.
+            // This is done by checking if the assert pcb_need_rtx_timer has been
+            // invalidated while the rtx_timer was running not for idle timeout.
+            if (pcb->tim(RtxTimer()).isSet(Context()) &&
+                !pcb->hasFlag(PcbFlags::IDLE_TIMER) &&
+                !Output::pcb_need_rtx_timer(pcb))
             {
-                // Update the window.
-                SeqType old_snd_wnd = pcb->snd_wnd;
-                pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
-                pcb->snd_wl1 = tcp_meta.seq_num;
-                pcb->snd_wl2 = tcp_meta.ack_num;
+                // Stop the timer to stop window probes and avoid hitting the assert.
+                pcb->tim(RtxTimer()).unset(Context());
                 
-                // If the window has increased, schedule pcb_output because it may
-                // be possible to send something more.
-                if (pcb->snd_wnd > old_snd_wnd) {
-                    pcb->setFlag(PcbFlags::OUT_PENDING);
-                }
+                // Undo any increase of the retransmission time.
+                Output::pcb_update_rto(pcb);
                 
-                // Check if we need to end widow probing.
-                // This is done by checking if the assert pcb_need_rtx_timer has been
-                // invalidated while the rtx_timer was running not for idle timeout.
-                if (pcb->tim(RtxTimer()).isSet(Context()) &&
-                    !pcb->hasFlag(PcbFlags::IDLE_TIMER) &&
-                    !Output::pcb_need_rtx_timer(pcb))
-                {
-                    // Stop the timer to stop window probes and avoid hitting the assert.
-                    pcb->tim(RtxTimer()).unset(Context());
-                    
-                    // Undo any increase of the retransmission time.
-                    Output::pcb_update_rto(pcb);
-                    
-                    // Schedule pcb_output which should now send something.
-                    pcb->setFlag(PcbFlags::OUT_PENDING);
-                }
+                // Schedule pcb_output which should now send something.
+                pcb->setFlag(PcbFlags::OUT_PENDING);
             }
         }
         

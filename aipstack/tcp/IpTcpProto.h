@@ -247,8 +247,6 @@ private:
         SeqType snd_una;
         SeqType snd_nxt;
         SeqType snd_wnd;
-        SeqType snd_wl1;
-        SeqType snd_wl2;
         IpBufRef snd_buf_cur;
         size_t snd_psh_index;
         
