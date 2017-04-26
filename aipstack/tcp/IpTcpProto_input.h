@@ -1042,31 +1042,32 @@ private:
         // but this could only happen if segments are reordered, and is
         // far from being a serious problem even if it does happen.
         if (AMBRO_LIKELY(pcb->snd_una == tcp_meta.ack_num)) {
-            // Update the window.
+            // Get the new window size.
+            SeqType new_snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
+            
+            // Check if the window has changed.
             SeqType old_snd_wnd = pcb->snd_wnd;
-            pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
-            
-            // If the window has increased, schedule pcb_output because it may
-            // be possible to send something more.
-            if (pcb->snd_wnd > old_snd_wnd) {
-                pcb->setFlag(PcbFlags::OUT_PENDING);
-            }
-            
-            // Check if we need to end widow probing.
-            // This is done by checking if the assert pcb_need_rtx_timer has been
-            // invalidated while the rtx_timer was running not for idle timeout.
-            if (pcb->tim(RtxTimer()).isSet(Context()) &&
-                !pcb->hasFlag(PcbFlags::IDLE_TIMER) &&
-                !Output::pcb_need_rtx_timer(pcb))
-            {
-                // Stop the timer to stop window probes and avoid hitting the assert.
-                pcb->tim(RtxTimer()).unset(Context());
+            if (new_snd_wnd != old_snd_wnd) {
+                // Update the window.
+                pcb->snd_wnd = new_snd_wnd;
                 
-                // Undo any increase of the retransmission time.
-                Output::pcb_update_rto(pcb);
-                
-                // Schedule pcb_output which should now send something.
+                // Set the flag OUT_PENDING to send any data that can now be
+                // sent and to ensure the rtx_timer is reconfigured as needed
+                // (the change may have invalidated pcb_need_rtx_timer).
                 pcb->setFlag(PcbFlags::OUT_PENDING);
+                
+                // If the window now became zero or nonzero while we have outstanding,
+                // data to be sent/acked, make sure the rtx_timer is stopped. Because
+                // if it is currently set for one kind of message (retransmission or
+                // window probe) and we didn't stop it, pcb_update_rtx_timer would
+                // assume it was set for the other kind of  message and we may end up
+                // sending that message at the wrong time.
+                if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0)) &&
+                    Output::can_output_in_state(pcb->state) &&
+                    Output::pcb_has_snd_outstanding(pcb))
+                {
+                    pcb->tim(RtxTimer()).unset(Context());
+                }
             }
         }
         
@@ -1167,7 +1168,11 @@ private:
             // Note, it is possible that rcv_seqlen is greater than rcv_ann_wnd
             // in case the peer send data before receiving a window update
             // permitting that.
-            pcb->rcv_ann_wnd -= APrinter::MinValue(pcb->rcv_ann_wnd, rcv_seqlen);
+            if (AMBRO_LIKELY(rcv_seqlen <= pcb->rcv_ann_wnd)) {
+                pcb->rcv_ann_wnd -= rcv_seqlen;
+            } else {
+                pcb->rcv_ann_wnd = 0;
+            }
             
             // Send an ACK later.
             pcb->setFlag(PcbFlags::ACK_PENDING);
