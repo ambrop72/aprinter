@@ -25,7 +25,7 @@
 { stdenv, fetchurl, unzip }:
 let
     source = fetchurl {
-        url = http://www.atmel.com/images/asf-standalone-archive-3.33.0.50.zip;
+        url = "http://ww1.microchip.com/downloads/en/DeviceDoc/asf-standalone-archive-3.33.0.50.zip";
         sha256 = "d4593c9036686441f9e05b4a76c2dd23765d5b782260337fa67bf32e855995c1";
     };
 in
