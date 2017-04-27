@@ -176,7 +176,7 @@ public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
                               TcpListenParams, TcpListener, TcpListenerCallback))
     
-    static SeqType const MaxRcvWnd = Constants::MaxRcvWnd;
+    static SeqType const MaxRcvWnd = Constants::MaxWindow;
     
 private:
     // These TcpPcb fields are injected into MultiTimer to fill up what

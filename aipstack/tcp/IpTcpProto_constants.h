@@ -56,8 +56,8 @@ public:
     static uint8_t const TcpIpSendFlags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
     
 public:
-    // Maximum theoreticaly possible receive window.
-    static SeqType const MaxRcvWnd = UINT32_C(0x3fffffff);
+    // Maximum theoreticaly possible send and receive window.
+    static SeqType const MaxWindow = UINT32_C(0x3fffffff);
     
     // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
     static SeqType const DefaultWndAnnThreshold = 2700;

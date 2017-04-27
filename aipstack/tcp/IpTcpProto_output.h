@@ -738,6 +738,40 @@ public:
         }
     }
     
+    // Update the snd_wnd to the given value.
+    static void pcb_update_snd_wnd (TcpPcb *pcb, SeqType new_snd_wnd)
+    {
+        // With maximum snd_wnd_shift=14, MaxWindow or more cannot be reported.
+        AMBRO_ASSERT(new_snd_wnd <= Constants::MaxWindow)
+        
+        // Check if the window has changed.
+        SeqType old_snd_wnd = pcb->snd_wnd;
+        if (new_snd_wnd == old_snd_wnd) {
+            return;
+        }
+        
+        // Update the window.
+        pcb->snd_wnd = new_snd_wnd;
+        
+        // Set the flag OUT_PENDING to send any data that can now be
+        // sent and to ensure the rtx_timer is reconfigured as needed
+        // (the change may have invalidated pcb_need_rtx_timer).
+        pcb->setFlag(PcbFlags::OUT_PENDING);
+        
+        // If the window now became zero or nonzero while we have outstanding,
+        // data to be sent/acked, make sure the rtx_timer is stopped. Because
+        // if it is currently set for one kind of message (retransmission or
+        // window probe) and we didn't stop it, pcb_update_rtx_timer would
+        // assume it was set for the other kind of  message and we may end up
+        // sending that message at the wrong time.
+        if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0)) &&
+            can_output_in_state(pcb->state) &&
+            pcb_has_snd_outstanding(pcb))
+        {
+            pcb->tim(RtxTimer()).unset(Context());
+        }
+    }
+    
     // Send an RST as a reply to a received segment.
     // This conforms to RFC 793 handling of segments not belonging to a known
     // connection.

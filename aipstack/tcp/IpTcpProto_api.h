@@ -202,7 +202,7 @@ public:
          */
         void setInitialReceiveWindow (size_t rcv_wnd)
         {
-            m_initial_rcv_wnd = APrinter::MinValueU(Constants::MaxRcvWnd, rcv_wnd);
+            m_initial_rcv_wnd = APrinter::MinValueU(Constants::MaxWindow, rcv_wnd);
         }
         
     private:
@@ -442,13 +442,13 @@ public:
          * connection, is advised to then call extendRecvBuf(0) which will
          * ensure that a window update is sent if it is now needed.
          * May only be called in CONNECTED state.
-         * The threshold value must be positive and not exceed MaxRcvWnd.
+         * The threshold value must be positive and not exceed MaxWindow.
          */
         void setWindowUpdateThreshold (SeqType rcv_ann_thres)
         {
             assert_connected();
             AMBRO_ASSERT(rcv_ann_thres > 0)
-            AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxRcvWnd)
+            AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxWindow)
             
             m_pcb->rcv_ann_thres = rcv_ann_thres;
         }

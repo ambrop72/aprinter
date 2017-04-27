@@ -519,7 +519,7 @@ private:
             // Calculate the right edge of the receive window.
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
             if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD)) {
-                SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxRcvWnd);
+                SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxWindow);
                 rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
             }
             
@@ -813,7 +813,7 @@ private:
         // Initialize congestion control variables.
         pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
-        pcb->ssthresh = Constants::MaxRcvWnd;
+        pcb->ssthresh = Constants::MaxWindow;
         pcb->cwnd_acked = 0;
         
         if (syn_sent) {
@@ -1042,33 +1042,8 @@ private:
         // but this could only happen if segments are reordered, and is
         // far from being a serious problem even if it does happen.
         if (AMBRO_LIKELY(pcb->snd_una == tcp_meta.ack_num)) {
-            // Get the new window size.
             SeqType new_snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
-            
-            // Check if the window has changed.
-            SeqType old_snd_wnd = pcb->snd_wnd;
-            if (new_snd_wnd != old_snd_wnd) {
-                // Update the window.
-                pcb->snd_wnd = new_snd_wnd;
-                
-                // Set the flag OUT_PENDING to send any data that can now be
-                // sent and to ensure the rtx_timer is reconfigured as needed
-                // (the change may have invalidated pcb_need_rtx_timer).
-                pcb->setFlag(PcbFlags::OUT_PENDING);
-                
-                // If the window now became zero or nonzero while we have outstanding,
-                // data to be sent/acked, make sure the rtx_timer is stopped. Because
-                // if it is currently set for one kind of message (retransmission or
-                // window probe) and we didn't stop it, pcb_update_rtx_timer would
-                // assume it was set for the other kind of  message and we may end up
-                // sending that message at the wrong time.
-                if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0)) &&
-                    Output::can_output_in_state(pcb->state) &&
-                    Output::pcb_has_snd_outstanding(pcb))
-                {
-                    pcb->tim(RtxTimer()).unset(Context());
-                }
-            }
+            Output::pcb_update_snd_wnd(pcb, new_snd_wnd);
         }
         
         return true;
@@ -1245,7 +1220,7 @@ private:
         
         // Calculate the minimum of the available buffer space and the maximum
         // window that can be announced. There is no need to also clamp to
-        // MaxRcvWnd since max_ann will be less than MaxRcvWnd.
+        // MaxWindow since max_ann will be less than MaxWindow.
         SeqType bounded_wnd = APrinter::MinValueU(pcb->rcvBufLen(), max_ann);
         
         // Clear the lowest order bits which cannot be sent with the current
