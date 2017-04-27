@@ -6,9 +6,9 @@
 , optimizeForSize ? false
 }:
 let
-    gcc_version = "6.2.0";
-    binutils_version = "2.26";
-    newlib_version = "2.4.0";
+    gcc_version = "6.3.0";
+    binutils_version = "2.28";
+    newlib_version = "2.5.0.20170421";
     
     target = "arm-none-eabi";
     
@@ -103,15 +103,15 @@ stdenv.mkDerivation {
     srcs = [
         (fetchurl {
             url = "mirror://gnu/binutils/binutils-${binutils_version}.tar.bz2";
-            sha256 = "c2ace41809542f5237afc7e3b8f32bb92bc7bc53c6232a84463c423b0714ecd9";
+            sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2";
-            sha256 = "9944589fc722d3e66308c0ce5257788ebd7872982a718aa2516123940671b7c5";
+            sha256 = "f06ae7f3f790fbf0f018f6d40e844451e6bc3b7bc96e128e63b09825c1f8b29f";
         })
         (fetchurl {
-            url = "ftp://sourceware.org/pub/newlib/newlib-2.4.0.tar.gz";
-            sha256 = "545b3d235e350d2c61491df8b9f775b1b972f191380db8f52ec0b1c829c52706";
+            url = "ftp://sourceware.org/pub/newlib/newlib-${newlib_version}.tar.gz";
+            sha256 = "714599a373c4e60da628533cc0cb281446d2e3baf75fabceb14c5919c5809618";
         })
     ];
     
@@ -136,10 +136,6 @@ stdenv.mkDerivation {
         
         # I'm not sure why/if this is needed. Maybe it just fixes the build.
         patch -N newlib*/libgloss/arm/linux-crt0.c ${ ../patches/newlib-optimize.patch }
-        
-        # This seems to fix some inline assembly to work if it is included multiple times,
-        # which supposedly happens when LTO is used.
-        patch -N newlib*/newlib/libc/machine/arm/arm_asm.h ${ ../patches/newlib-lto.patch }
     '';
     
     installPhase = ''
