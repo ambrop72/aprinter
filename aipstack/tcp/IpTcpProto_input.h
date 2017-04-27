@@ -223,10 +223,16 @@ public:
         
         // Try to announce as much window as is available, even if a
         // window update would otherwise be inhibited due to rcv_ann_thres.
-        if (accepting_data_in_state(pcb->state)) {
-            SeqType ann_wnd = pcb_calc_wnd_update(pcb);
-            if (ann_wnd > pcb->rcv_ann_wnd) {
-                pcb->rcv_ann_wnd = ann_wnd;
+        if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
+            // For performance we only update rcv_ann_wnd if the RCV_WND_UPD
+            // flag is set and we clear the flag when we do an update. Any
+            // state change which may allow advertising more window will set
+            // this flag.
+            if (pcb->hasAndClearFlag(PcbFlags::RCV_WND_UPD)) {
+                SeqType ann_wnd = pcb_calc_wnd_update(pcb);
+                if (ann_wnd > pcb->rcv_ann_wnd) {
+                    pcb->rcv_ann_wnd = ann_wnd;
+                }
             }
         }
         
@@ -255,13 +261,23 @@ public:
             // Calculate how much window we could announce.
             SeqType ann_wnd = pcb_calc_wnd_update(pcb);
             
-            // If we can announce at least rcv_ann_thres more than
-            // the last announced window, force sending an ACK.
-            // We don't need to actually update rcv_ann_wnd, that
-            // will be done by pcb_ann_wnd when the ACK (or data)
-            // segment is sent.
+            // If we can announce at least rcv_ann_thres more window than
+            // already announced then we need to send an ACK immediately.
             if (ann_wnd >= pcb->rcv_ann_wnd + pcb->rcv_ann_thres) {
+                // Update rcv_ann_wnd to the calculated new value and
+                // clear the flag to inhibit a redundant recalculation
+                // in rcv_ann_wnd.
+                pcb->rcv_ann_wnd = ann_wnd;
+                pcb->clearFlag(PcbFlags::RCV_WND_UPD);
+                
+                // Force an ACK.
                 Output::pcb_need_ack(pcb);
+            }
+            // If the window update theshold is not reached but we are still
+            // able to announce more window, set the flag to make sure that
+            // pcb_ann_wnd updates rcv_ann_wnd when the next segment is sent.
+            else if (ann_wnd > pcb->rcv_ann_wnd) {
+                pcb->setFlag(PcbFlags::RCV_WND_UPD);
             }
         }
     }
@@ -797,6 +813,10 @@ private:
             }
         }
         
+        // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
+        // when the next segment is sent.
+        pcb->setFlag(PcbFlags::RCV_WND_UPD);
+        
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
@@ -1149,7 +1169,12 @@ private:
                 pcb->rcv_ann_wnd = 0;
             }
             
-            // Send an ACK later.
+            // Due to window scaling the reduction of rcv_ann_wnd may
+            // permit announcing more window, so set the flag which forces
+            // pcb_ann_wnd to update the window a segment is sent.
+            pcb->setFlag(PcbFlags::RCV_WND_UPD);
+            
+            // Make sure an ACK is sent.
             pcb->setFlag(PcbFlags::ACK_PENDING);
             
             if (AMBRO_UNLIKELY(rcv_fin)) {

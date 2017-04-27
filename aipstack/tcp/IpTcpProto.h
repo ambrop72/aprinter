@@ -125,7 +125,8 @@ private:
         WND_SCALE   = (FlagsType)1 << 10, // Window scaling is used
         CWND_INIT   = (FlagsType)1 << 11, // Current cwnd is the initial cwnd
         OUT_RETRY   = (FlagsType)1 << 12, // If OutputTimer is set it is for OutputRetry*Ticks
-        // NOTE: If adding new flags check bit width in TcpPcb::flags.
+        RCV_WND_UPD = (FlagsType)1 << 13, // rcv_ann_wnd needs update before sending a segment
+        // NOTE: Currently no more bits are available, see TcpPcb::flags.
     }; };
     
     // For retransmission time calculations we right-shift the Clock time
