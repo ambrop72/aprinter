@@ -32,48 +32,57 @@
 #endif
 
 #include <aprinter/base/Preprocessor.h>
-
-#ifdef AMBROLIB_EMERGENCY_ACTION
-#define AMBRO_ASSERT_EMERGENCY_ACTION AMBROLIB_EMERGENCY_ACTION
-#else
-#define AMBRO_ASSERT_EMERGENCY_ACTION
-#endif
-
-#ifdef AMBROLIB_ABORT_ACTION
-#define AMBRO_ASSERT_ABORT_ACTION AMBROLIB_ABORT_ACTION
-#else
-#define AMBRO_ASSERT_ABORT_ACTION { ::abort(); }
-#endif
-
-#if defined(AMBROLIB_NO_PRINT)
-#define AMBRO_ASSERT_PRINT_ACTION(str)
-#elif defined(AMBROLIB_AVR)
-#define AMBRO_ASSERT_PRINT_ACTION(str) puts_P(PSTR(str));
-#else
-#define AMBRO_ASSERT_PRINT_ACTION(str) puts(str);
-#endif
+#include <aprinter/base/Hints.h>
+#include <aprinter/base/ProgramMemory.h>
 
 #define AMBRO_ASSERT_ABORT(msg) \
-    { \
-        AMBRO_ASSERT_EMERGENCY_ACTION \
-        AMBRO_ASSERT_PRINT_ACTION(msg) \
-        AMBRO_ASSERT_ABORT_ACTION \
-    }
+    do { \
+        APrinter_AssertAbort(AMBRO_PSTR(msg)); \
+    } while (0)
 
 #define AMBRO_ASSERT_FORCE(e) \
     { \
-        if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
+        if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)); \
     }
 
 #define AMBRO_ASSERT_FORCE_MSG(e, msg) \
     { \
-        if (!(e)) AMBRO_ASSERT_ABORT(msg " at " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
+        if (!(e)) AMBRO_ASSERT_ABORT(msg " at " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)); \
     }
 
 #ifdef AMBROLIB_ASSERTIONS
 #define AMBRO_ASSERT(e) AMBRO_ASSERT_FORCE(e)
 #else
 #define AMBRO_ASSERT(e) {}
+#endif
+
+#ifdef __cplusplus
+extern "C"
+#endif
+APRINTER_NO_INLINE APRINTER_NO_RETURN
+void APrinter_AssertAbort (char const *msg)
+#ifdef APRINTER_ASSERT_NO_DEFINITIONS
+;
+#else
+{
+#ifdef AMBROLIB_EMERGENCY_ACTION
+    AMBROLIB_EMERGENCY_ACTION
+#endif
+    
+#if !defined(AMBROLIB_NO_PRINT)
+#ifdef AMBROLIB_AVR
+    puts_P(msg);
+#else
+    puts(msg);
+#endif
+#endif
+    
+#ifdef AMBROLIB_ABORT_ACTION
+    AMBROLIB_ABORT_ACTION
+#else
+    abort();
+#endif
+}
 #endif
 
 #endif

@@ -31,6 +31,7 @@
 #define AMBRO_UNLIKELY(x) __builtin_expect((x), 0)
 #define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
 #define APRINTER_NO_INLINE __attribute__((noinline))
+#define APRINTER_NO_RETURN __attribute__((noreturn))
 #define APRINTER_RESTRICT __restrict__
 
 #else
@@ -39,6 +40,7 @@
 #define AMBRO_UNLIKELY(x) (x)
 #define AMBRO_ALWAYS_INLINE
 #define APRINTER_NO_INLINE
+#define APRINTER_NO_RETURN
 #define APRINTER_RESTRICT
 
 #endif

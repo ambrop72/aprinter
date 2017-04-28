@@ -35,6 +35,8 @@
 #include <getopt.h>
 #include <sys/mman.h>
 
+#define APRINTER_ASSERT_NO_DEFINITIONS
+
 #include "linux_support.h"
 
 #include <aprinter/base/Assert.h>

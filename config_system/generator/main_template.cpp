@@ -98,7 +98,7 @@ static void emergency (void)
 #ifndef APRINTER_DONT_DEFINE_CXA_PURE_VIRTUAL
 extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 {
-    AMBRO_ASSERT_ABORT("pure virtual function call")
+    AMBRO_ASSERT_ABORT("pure virtual function call");
 }
 #endif
 
