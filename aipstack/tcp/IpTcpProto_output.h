@@ -296,7 +296,9 @@ public:
             
             // Advance snd_buf_cur over any data just sent.
             size_t data_sent = APrinter::MinValueU(seg_seqlen, pcb->snd_buf_cur.tot_len);
-            pcb->snd_buf_cur.skipBytes(data_sent);
+            if (AMBRO_LIKELY(data_sent > 0)) {
+                pcb->snd_buf_cur.skipBytes(data_sent);
+            }
             
             // If we sent a FIN, clear the FIN_PENDING flag.
             if (seg_seqlen > data_sent) {

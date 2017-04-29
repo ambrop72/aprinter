@@ -418,6 +418,8 @@ struct IpBufRef {
      * It returns an IpBufRef with the same node and offset
      * but with tot_len equal to new_tot_len. The new_tot_len
      * must not exceed tot_len.
+     * 
+     * The 'node' is allowed to be null.
      */
     inline IpBufRef subTo (size_t new_tot_len) const
     {
