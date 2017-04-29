@@ -25,13 +25,20 @@
 #ifndef AMBROLIB_NULL_WATCHDOG_H
 #define AMBROLIB_NULL_WATCHDOG_H
 
+#include <stdlib.h>
+
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject>
+template <typename Arg>
 class NullWatchdog {
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject))
+    
 public:
     struct Object;
     
@@ -57,13 +64,24 @@ public:
         TheDebugObject::access(c);
     }
     
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        ::abort();
+    }
+    
 public:
     struct Object : public ObjBase<NullWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 struct NullWatchdogService {
-    template <typename Context, typename ParentObject>
-    using Watchdog = NullWatchdog<Context, ParentObject>;
+    APRINTER_ALIAS_STRUCT_EXT(Watchdog, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_VALUE(bool, DebugMode)
+    ), (
+        APRINTER_DEF_INSTANCE(Watchdog, NullWatchdog)
+    ))
 };
 
 #include <aprinter/EndNamespace.h>

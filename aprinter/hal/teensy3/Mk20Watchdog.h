@@ -27,15 +27,20 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TParams>
+template <typename Arg>
 class Mk20Watchdog {
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
+    
 public:
     struct Object;
     using Params = TParams;
@@ -82,18 +87,29 @@ public:
         }
     }
     
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        while (true);
+    }
+    
 public:
     struct Object : public ObjBase<Mk20Watchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
-template <uint32_t TToval, uint8_t TPrescval>
-struct Mk20WatchdogService {
-    static const uint32_t Toval = TToval;
-    static const uint8_t Prescval = TPrescval;
-    
-    template <typename Context, typename ParentObject>
-    using Watchdog = Mk20Watchdog<Context, ParentObject, Mk20WatchdogService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(Mk20WatchdogService, (
+    APRINTER_AS_VALUE(uint32_t, Toval),
+    APRINTER_AS_VALUE(uint8_t, Prescval)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Watchdog, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_VALUE(bool, DebugMode)
+    ), (
+        using Params = Mk20WatchdogService;
+        APRINTER_DEF_INSTANCE(Watchdog, Mk20Watchdog)
+    ))
+))
 
 #define AMBRO_MK20_WATCHDOG_GLOBAL(watchdog) \
 extern "C" \

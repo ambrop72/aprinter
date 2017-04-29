@@ -720,11 +720,7 @@ def get_pin (gen, config, key):
         config.key_path(key).error('Invalid pin value.')
     return pin
 
-def setup_watchdog (gen, config, key, disable_watchdog, user):
-    if disable_watchdog:
-        gen.add_aprinter_include('hal/generic/NullWatchdog.h')
-        return 'NullWatchdogService'
-    
+def setup_watchdog (gen, config, key, user):
     watchdog_sel = selection.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
@@ -1529,7 +1525,7 @@ def generate(config_root_data, cfg_name, main_template):
                     assertions_enabled = development.get_bool('AssertionsEnabled')
                     event_loop_benchmark_enabled = development.get_bool('EventLoopBenchmarkEnabled')
                     detect_overload_enabled = development.get_bool('DetectOverloadEnabled')
-                    disable_watchdog = development.get_bool('DisableWatchdog')
+                    watchdog_debug_mode = development.get_bool('WatchdogDebugMode') if development.has('WatchdogDebugMode') else False
                     build_with_clang = development.get_bool('BuildWithClang')
                     verbose_build = development.get_bool('VerboseBuild')
                     debug_symbols = development.get_bool('DebugSymbols')
@@ -2491,7 +2487,8 @@ def generate(config_root_data, cfg_name, main_template):
                 performance.get_int_constant('LookaheadCommitCount'),
                 'ForceTimeout',
                 performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
-                setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
+                setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog'),
+                watchdog_debug_mode,
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,

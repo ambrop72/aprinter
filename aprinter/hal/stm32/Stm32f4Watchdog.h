@@ -27,13 +27,18 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class Stm32f4Watchdog {
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
+    
     static uint32_t const PrescalerValue =
         Params::Divider == 4 ? IWDG_PRESCALER_4 :
         Params::Divider == 8 ? IWDG_PRESCALER_8 :
@@ -81,20 +86,31 @@ public:
         HAL_IWDG_Refresh(&o->iwdg_handle);
     }
     
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        while (true);
+    }
+    
 public:
     struct Object : public ObjBase<Stm32f4Watchdog, ParentObject, MakeTypeList<TheDebugObject>> {
         IWDG_HandleTypeDef iwdg_handle;
     };
 };
 
-template <int TDivider, uint16_t TReload>
-struct Stm32f4WatchdogService {
-    static int const Divider = TDivider;
-    static uint16_t const Reload = TReload;
-    
-    template <typename Context, typename ParentObject>
-    using Watchdog = Stm32f4Watchdog<Context, ParentObject, Stm32f4WatchdogService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(Stm32f4WatchdogService, (
+    APRINTER_AS_VALUE(int, Divider),
+    APRINTER_AS_VALUE(uint16_t, Reload)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Watchdog, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_VALUE(bool, DebugMode)
+    ), (
+        using Params = Stm32f4WatchdogService;
+        APRINTER_DEF_INSTANCE(Watchdog, Stm32f4Watchdog)
+    ))
+))
 
 #include <aprinter/EndNamespace.h>
 

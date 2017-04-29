@@ -29,13 +29,18 @@
 #include <avr/wdt.h>
 
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class AvrWatchdog {
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
+    
     static_assert(Params::WatchdogPrescaler >= 0, "");
     static_assert(Params::WatchdogPrescaler < 10, "");
     
@@ -70,17 +75,28 @@ public:
         wdt_reset();
     }
     
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        while (true);
+    }
+    
 public:
     struct Object : public ObjBase<AvrWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
-template <int TWatchdogPrescaler>
-struct AvrWatchdogService {
-    static const int WatchdogPrescaler = TWatchdogPrescaler;
-    
-    template <typename Context, typename ParentObject>
-    using Watchdog = AvrWatchdog<Context, ParentObject, AvrWatchdogService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(AvrWatchdogService, (
+    APRINTER_AS_VALUE(int, WatchdogPrescaler)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Watchdog, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_VALUE(bool, DebugMode)
+    ), (
+        using Params = AvrWatchdogService;
+        APRINTER_DEF_INSTANCE(Watchdog, AvrWatchdog)
+    ))
+))
 
 #define AMBRO_AVR_WATCHDOG_GLOBAL \
 void clear_mcusr () __attribute__((naked)) __attribute__((section("init3"))); \

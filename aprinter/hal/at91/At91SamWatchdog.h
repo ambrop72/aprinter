@@ -27,13 +27,19 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
+template <typename Arg>
 class At91SamWatchdog {
+    APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
+    APRINTER_USE_VALS(Arg, (DebugMode))
+    
     static_assert(Params::Wdv <= 0xFFF, "");
     
 public:
@@ -49,7 +55,8 @@ public:
     {
         TheDebugObject::init(c);
         
-        WDT->WDT_MR = WDT_MR_WDV(Params::Wdv) | WDT_MR_WDRSTEN | WDT_MR_WDD(Params::Wdv);
+        WDT->WDT_MR = WDT_MR_WDV(Params::Wdv) | WDT_MR_WDD(Params::Wdv) | WDT_MR_WDRSTEN |
+            (DebugMode ? WDT_MR_WDDBGHLT : 0);
     }
     
     static void deinit (Context c)
@@ -91,17 +98,34 @@ public:
         return true;
     }
     
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        // This is called after a fatal error has been detected. We spin here
+        // doing either nothing or resetting the watchdog if debug mode is enabled.
+        while (true) {
+            if (DebugMode) {
+                WDT->WDT_CR = WDT_CR_KEY(0xA5) | WDT_CR_WDRSTT;
+            }
+        }
+    }
+    
 public:
     struct Object : public ObjBase<At91SamWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
-template <uint32_t TWdv>
-struct At91SamWatchdogService {
-    static const uint32_t Wdv = TWdv;
-    
-    template <typename Context, typename ParentObject>
-    using Watchdog = At91SamWatchdog<Context, ParentObject, At91SamWatchdogService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(At91SamWatchdogService, (
+    APRINTER_AS_VALUE(uint32_t, Wdv)
+), (
+    APRINTER_ALIAS_STRUCT_EXT(Watchdog, (
+        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(ParentObject),
+        APRINTER_AS_VALUE(bool, DebugMode)
+    ), (
+        using Params = At91SamWatchdogService;
+        APRINTER_DEF_INSTANCE(Watchdog, At91SamWatchdog)
+    ))
+))
 
 #include <aprinter/EndNamespace.h>
 

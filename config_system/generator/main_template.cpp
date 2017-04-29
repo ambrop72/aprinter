@@ -34,13 +34,10 @@
 
 $${PLATFORM_INCLUDES}
 static void emergency (void);
+static void emergency_abort (void);
 
-#ifndef AMBROLIB_EMERGENCY_ACTION
-#define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
-#endif
-#ifndef AMBROLIB_ABORT_ACTION
-#define AMBROLIB_ABORT_ACTION { while (1); }
-#endif
+#define AMBROLIB_EMERGENCY_ACTION { emergency(); }
+#define AMBROLIB_ABORT_ACTION { emergency_abort(); }
 
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
@@ -50,6 +47,7 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/PlacementNew.h>
+#include <aprinter/base/Hints.h>
 
 $${AprinterIncludes}
 using namespace APrinter;
@@ -92,7 +90,19 @@ void Context::check () const {}
 $${GlobalCode}
 static void emergency (void)
 {
+    // Disable interrupts to guarantee that adjustments made by
+    // emergency handling code are complete and no overridden.
+#ifndef APRINTER_EMERGENCY_NO_CLI
+    cli();
+#endif
+    // PrinterMain will perform specific emergency actions.
     $${EmergencyProvider}::emergency();
+}
+
+APRINTER_NO_RETURN
+static void emergency_abort()
+{
+    $${EmergencyProvider}::emergency_abort();
 }
 
 #ifndef APRINTER_DONT_DEFINE_CXA_PURE_VIRTUAL

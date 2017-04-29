@@ -92,6 +92,7 @@ APRINTER_ALIAS_STRUCT(PrinterMainParams, (
     APRINTER_AS_TYPE(ForceTimeout),
     APRINTER_AS_TYPE(FpType),
     APRINTER_AS_TYPE(WatchdogService),
+    APRINTER_AS_VALUE(bool, WatchdogDebugMode),
     APRINTER_AS_TYPE(ConfigManagerService),
     APRINTER_AS_TYPE(ConfigList),
     APRINTER_AS_TYPE(AxesList),
@@ -225,7 +226,7 @@ private:
     using ParamsModulesList = typename Params::ModulesList;
     
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
+    APRINTER_MAKE_INSTANCE(TheWatchdog, (Params::WatchdogService::template Watchdog<Context, Object, Params::WatchdogDebugMode>))
     APRINTER_MAKE_INSTANCE(TheConfigCache, (ConfigCacheArg<Context, Object, DelayedConfigExprs>))
     APRINTER_MAKE_INSTANCE(TheBlinker, (BlinkerArg<Context, Object, typename Params::LedPin, BlinkerHandler>))
     
@@ -2289,12 +2290,17 @@ public:
     template <int LaserIndex>
     using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
     
-    APRINTER_NO_INLINE
     static void emergency ()
     {
         ListFor<AxesList>([] APRINTER_TL(axis, axis::emergency()));
         ListFor<LasersList>([] APRINTER_TL(laser, laser::emergency()));
         ListFor<ModulesList>([] APRINTER_TL(module, module::emergency()));
+    }
+    
+    APRINTER_NO_RETURN
+    static void emergency_abort ()
+    {
+        TheWatchdog::emergency_abort();
     }
     
     static TheCommand * get_locked (Context c)
