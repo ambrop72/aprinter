@@ -125,26 +125,26 @@ private:
         cmd->finishCommand(c);
     }
     
-    struct Connection : private TcpProto::TcpConnectionCallback
+    struct Connection : private TcpConnection
     {
         void init (Context c)
         {
-            m_connection.init(this);
+            TcpConnection::init();
         }
         
         void deinit (Context c)
         {
-            m_connection.deinit();
+            TcpConnection::deinit();
         }
         
         bool start_connection (Context c, Ip4Addr addr, uint16_t port, typename ThePrinterMain::TheCommand *cmd)
         {
-            if (!m_connection.isInit()) {
+            if (!TcpConnection::isInit()) {
                 cmd->reportError(c, AMBRO_PSTR("ConnectionAlreadyActive"));
                 return false;
             }
             
-            IpErr res = m_connection.startConnection(Network::getTcpProto(c), addr, port, BufferSize);
+            IpErr res = TcpConnection::startConnection(Network::getTcpProto(c), addr, port, BufferSize);
             if (res != IpErr::SUCCESS) {
                 cmd->reportError(c, AMBRO_PSTR("FailedToStartConnection"));
                 return false;
@@ -154,20 +154,20 @@ private:
             
             SeqType max_rx_window = MinValueU(BufferSize, TcpProto::MaxRcvWnd);
             SeqType thres = MaxValue((SeqType)1, max_rx_window / Network::TcpWndUpdThrDiv);
-            m_connection.setWindowUpdateThreshold(thres);
+            TcpConnection::setWindowUpdateThreshold(thres);
             
-            m_connection.setSendBuf(IpBufRef{&m_buf_node, 0, 0});
-            m_connection.setRecvBuf(IpBufRef{&m_buf_node, 0, BufferSize});
+            TcpConnection::setSendBuf(IpBufRef{&m_buf_node, 0, 0});
+            TcpConnection::setRecvBuf(IpBufRef{&m_buf_node, 0, BufferSize});
             
             return true;
         }
         
         bool abort_connection (Context c)
         {
-            if (m_connection.isInit()) {
+            if (TcpConnection::isInit()) {
                 return false;
             }
-            m_connection.reset();
+            TcpConnection::reset();
             return true;
         }
         
@@ -175,7 +175,7 @@ private:
         {
             ThePrinterMain::print_pgm_string(Context(), AMBRO_PSTR("//TestConnectionAborted\n"));
             
-            m_connection.reset();
+            TcpConnection::reset();
         }
         
         void connectionEstablished () override final
@@ -186,19 +186,18 @@ private:
         void dataReceived (size_t amount) override final
         {
             if (amount > 0) {
-                m_connection.extendSendBuf(amount);
-                m_connection.sendPush();
+                TcpConnection::extendSendBuf(amount);
+                TcpConnection::sendPush();
             } else {
-                m_connection.closeSending();
+                TcpConnection::closeSending();
             }
         }
         
         void dataSent (size_t amount) override final
         {
-            m_connection.extendRecvBuf(amount);
+            TcpConnection::extendRecvBuf(amount);
         }
         
-        TcpConnection m_connection;
         IpBufNode m_buf_node;
         char m_buffer[BufferSize];
     };

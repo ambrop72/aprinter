@@ -142,7 +142,7 @@ private:
     
     struct Client :
         private TheConvenientStream::UserCallback,
-        private TcpProto::TcpConnectionCallback
+        private TcpConnection
     {
         enum class State : uint8_t {NOT_CONNECTED, CONNECTED, SENDING_END, WAITING_CMD};
         
@@ -153,7 +153,7 @@ private:
         
         void init (Context c)
         {
-            m_connection.init(this);
+            TcpConnection::init();
             m_state = State::NOT_CONNECTED;
         }
         
@@ -164,7 +164,7 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
-            m_connection.deinit();
+            TcpConnection::deinit();
         }
         
         void accept_connection (Context c)
@@ -174,10 +174,10 @@ private:
             
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
             
-            m_connection.acceptConnection(&o->listener);
+            TcpConnection::acceptConnection(&o->listener);
             
-            m_send_ring_buf.setup(m_connection, m_send_buf, SendBufferSize);
-            m_recv_ring_buf.setup(m_connection, m_recv_buf, RecvBufferSize,
+            m_send_ring_buf.setup(*this, m_send_buf, SendBufferSize);
+            m_recv_ring_buf.setup(*this, m_recv_buf, RecvBufferSize,
                                   Network::TcpWndUpdThrDiv, AIpStack::IpBufRef{});
             
             m_gcode_parser.init(c);
@@ -195,7 +195,7 @@ private:
             m_command_stream.deinit(c);
             m_gcode_parser.deinit(c);
             
-            m_connection.reset();
+            TcpConnection::reset();
             
             m_state = State::NOT_CONNECTED;
         }
@@ -207,7 +207,7 @@ private:
             if (m_command_stream.tryCancelCommand(c)) {
                 disconnect(c);
             } else {
-                m_connection.reset();
+                TcpConnection::reset();
                 m_state = State::WAITING_CMD;
                 m_command_stream.updateSendBufEvent(c);
                 m_send_timeout_event.unset(c);
@@ -218,7 +218,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            m_connection.closeSending();
+            TcpConnection::closeSending();
             m_state = State::SENDING_END;
             m_command_stream.updateSendBufEvent(c);
             m_command_stream.unsetNextEvent(c);
@@ -241,7 +241,7 @@ private:
             Context c;
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
-            m_recv_ring_buf.updateMirrorAfterDataReceived(m_connection, RecvMirrorSize, amount);
+            m_recv_ring_buf.updateMirrorAfterDataReceived(*this, RecvMirrorSize, amount);
             
             if (m_state == State::CONNECTED) {
                 m_command_stream.setNextEventIfNoCommand(c);
@@ -280,18 +280,18 @@ private:
                 return disconnect(c);
             }
             
-            size_t avail = MinValue(MaxCommandSize, m_recv_ring_buf.getUsedLen(m_connection));
+            size_t avail = MinValue(MaxCommandSize, m_recv_ring_buf.getUsedLen(*this));
             bool line_buffer_exhausted = (avail == MaxCommandSize);
             
             if (!m_gcode_parser.haveCommand(c)) {
-                m_gcode_parser.startCommand(c, m_recv_ring_buf.getReadPtr(m_connection).ptr1, 0);
+                m_gcode_parser.startCommand(c, m_recv_ring_buf.getReadPtr(*this).ptr1, 0);
             }
             
             if (m_gcode_parser.extendCommand(c, avail, line_buffer_exhausted)) {
                 return m_command_stream.startCommand(c, &m_gcode_parser);
             }
             
-            if (line_buffer_exhausted || m_connection.wasEndReceived()) {
+            if (line_buffer_exhausted || TcpConnection::wasEndReceived()) {
                 m_command_stream.setAcceptMsg(c, false);
                 if (line_buffer_exhausted) {
                     ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
@@ -305,7 +305,7 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == OneOf(State::CONNECTED, State::SENDING_END)) {
-                m_recv_ring_buf.consumeData(m_connection, m_gcode_parser.getLength(c));
+                m_recv_ring_buf.consumeData(*this, m_gcode_parser.getLength(c));
             }
             
             if (m_state != State::SENDING_END) {
@@ -318,7 +318,7 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (push && m_state == State::CONNECTED) {
-                m_connection.sendPush();
+                TcpConnection::sendPush();
             }
         }
         
@@ -327,12 +327,12 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == State::CONNECTED && !m_command_stream.isSendOverrunBeingRaised(c)) {
-                size_t avail = m_send_ring_buf.getFreeLen(m_connection);
+                size_t avail = m_send_ring_buf.getFreeLen(*this);
                 if (avail < length) {
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                m_send_ring_buf.writeData(m_connection, MemRef(str, length));
+                m_send_ring_buf.writeData(*this, MemRef(str, length));
             }
         }
         
@@ -340,7 +340,7 @@ private:
         {
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
-            return (m_state != State::CONNECTED) ? (size_t)-1 : m_send_ring_buf.getFreeLen(m_connection);
+            return (m_state != State::CONNECTED) ? (size_t)-1 : m_send_ring_buf.getFreeLen(*this);
         }
         
         void commandStreamError (Context c, typename TheConvenientStream::Error error) override
@@ -371,7 +371,6 @@ private:
             return (m_state != State::CONNECTED || length <= GuaranteedSendBuf);
         }
         
-        TcpConnection m_connection;
         SendRingBuffer m_send_ring_buf;
         RecvRingBuffer m_recv_ring_buf;
         TheGcodeParser m_gcode_parser;

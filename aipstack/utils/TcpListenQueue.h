@@ -45,8 +45,7 @@ class TcpListenQueue {
     using TimeType = typename Context::Clock::TimeType;
     using TheClockUtils = APrinter::ClockUtils<Context>;
     APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener,
-                                   TcpListenerCallback, TcpConnection,
-                                   TcpConnectionCallback))
+                                   TcpListenerCallback, TcpConnection))
     
     static_assert(RxBufferSize > 0, "");
     
@@ -54,7 +53,7 @@ public:
     class QueuedListener;
     
     class ListenQueueEntry :
-        private TcpConnectionCallback
+        private TcpConnection
     {
         friend class QueuedListener;
         
@@ -62,22 +61,22 @@ public:
         void init (QueuedListener *listener)
         {
             m_listener = listener;
-            m_connection.init(this);
+            TcpConnection::init();
             m_rx_buf_node = IpBufNode{m_rx_buf, RxBufferSize, nullptr};
         }
         
         void deinit ()
         {
-            m_connection.deinit();
+            TcpConnection::deinit();
         }
         
         void accept_connection ()
         {
-            AMBRO_ASSERT(m_connection.isInit())
+            AMBRO_ASSERT(TcpConnection::isInit())
             AMBRO_ASSERT(m_listener->m_queue_size > 0)
             
-            m_connection.acceptConnection(&m_listener->m_listener);
-            m_connection.setRecvBuf(IpBufRef{&m_rx_buf_node, 0, RxBufferSize});
+            TcpConnection::acceptConnection(&m_listener->m_listener);
+            TcpConnection::setRecvBuf(IpBufRef{&m_rx_buf_node, 0, RxBufferSize});
             
             m_time = Context::Clock::getTime(Context());
             m_ready = false;
@@ -88,9 +87,9 @@ public:
         
         void reset_connection ()
         {
-            AMBRO_ASSERT(!m_connection.isInit())
+            AMBRO_ASSERT(!TcpConnection::isInit())
             
-            m_connection.reset();
+            TcpConnection::reset();
             
             if (!m_ready) {
                 // Removed a not-ready connection -> update timeout.
@@ -100,9 +99,9 @@ public:
         
         IpBufRef get_received_data ()
         {
-            AMBRO_ASSERT(!m_connection.isInit())
+            AMBRO_ASSERT(!TcpConnection::isInit())
             
-            size_t rx_buf_len = m_connection.getRecvBuf().tot_len;
+            size_t rx_buf_len = TcpConnection::getRecvBuf().tot_len;
             AMBRO_ASSERT(rx_buf_len <= RxBufferSize)
             size_t rx_len = RxBufferSize - rx_buf_len;
             return IpBufRef{&m_rx_buf_node, 0, rx_len};
@@ -111,17 +110,17 @@ public:
     private:
         void connectionAborted () override final
         {
-            AMBRO_ASSERT(!m_connection.isInit())
+            AMBRO_ASSERT(!TcpConnection::isInit())
             
             reset_connection();
         }
         
         void dataReceived (size_t amount) override final
         {
-            AMBRO_ASSERT(!m_connection.isInit())
+            AMBRO_ASSERT(!TcpConnection::isInit())
             
             // If we get a FIN without any data, abandon the connection.
-            if (amount == 0 && m_connection.getRecvBuf().tot_len == RxBufferSize) {
+            if (amount == 0 && TcpConnection::getRecvBuf().tot_len == RxBufferSize) {
                 reset_connection();
                 return;
             }
@@ -145,7 +144,6 @@ public:
         
     private:
         QueuedListener *m_listener;
-        TcpConnection m_connection;
         TimeType m_time;
         IpBufNode m_rx_buf_node;
         bool m_ready;
@@ -259,14 +257,14 @@ public:
                 dst_con.acceptConnection(&m_listener);
             } else {
                 AMBRO_ASSERT(m_queued_to_accept != nullptr)
-                AMBRO_ASSERT(!m_queued_to_accept->m_connection.isInit())
+                AMBRO_ASSERT(!m_queued_to_accept->TcpConnection::isInit())
                 AMBRO_ASSERT(m_queued_to_accept->m_ready)
                 
                 ListenQueueEntry *entry = m_queued_to_accept;
                 m_queued_to_accept = nullptr;
                 
                 initial_rx_data = entry->get_received_data();
-                dst_con.moveConnection(&entry->m_connection);
+                dst_con.moveConnection(entry);
             }
         }
         
@@ -284,7 +282,7 @@ public:
                 // Try to accept the connection into the queue.
                 for (int i = 0; i < m_queue_size; i++) {
                     ListenQueueEntry &entry = m_queue[i];
-                    if (entry.m_connection.isInit()) {
+                    if (entry.TcpConnection::isInit()) {
                         entry.accept_connection();
                         break;
                     }
@@ -302,7 +300,7 @@ public:
             
             // Try to dispatch the oldest ready connections.
             while (ListenQueueEntry *entry = find_oldest(true)) {
-                AMBRO_ASSERT(!entry->m_connection.isInit())
+                AMBRO_ASSERT(!entry->TcpConnection::isInit())
                 AMBRO_ASSERT(entry->m_ready)
                 
                 // Call the accept handler, while publishing the connection.
@@ -311,7 +309,7 @@ public:
                 m_queued_to_accept = nullptr;
                 
                 // If the connection was not taken, stop trying.
-                if (!entry->m_connection.isInit()) {
+                if (!entry->TcpConnection::isInit()) {
                     break;
                 }
             }
@@ -342,7 +340,7 @@ public:
             // (or not expire if there is none).
             ListenQueueEntry *entry = find_oldest(false);
             AMBRO_ASSERT(entry != nullptr)
-            AMBRO_ASSERT(!entry->m_connection.isInit())
+            AMBRO_ASSERT(!entry->TcpConnection::isInit())
             AMBRO_ASSERT(!entry->m_ready)
             
             // Reset the oldest non-ready connection.
@@ -364,7 +362,7 @@ public:
             
             for (int i = 0; i < m_queue_size; i++) {
                 ListenQueueEntry &entry = m_queue[i];
-                if (!entry.m_connection.isInit() && entry.m_ready == ready &&
+                if (!entry.TcpConnection::isInit() && entry.m_ready == ready &&
                     (oldest_entry == nullptr ||
                      !TheClockUtils::timeGreaterOrEqual(entry.m_time, oldest_entry->m_time)))
                 {

@@ -174,8 +174,8 @@ private:
         PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
     
 public:
-    APRINTER_USE_TYPES1(Api, (TcpConnection, TcpConnectionCallback,
-                              TcpListenParams, TcpListener, TcpListenerCallback))
+    APRINTER_USE_TYPES1(Api, (TcpConnection, TcpListenParams, TcpListener,
+                              TcpListenerCallback))
     
     static SeqType const MaxRcvWnd = Constants::MaxWindow;
     

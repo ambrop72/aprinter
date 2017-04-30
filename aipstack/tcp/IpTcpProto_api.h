@@ -219,42 +219,6 @@ public:
     };
     
     /**
-     * Callback interface for TcpConnection.
-     */
-    class TcpConnectionCallback {
-    public:
-        /**
-         * Called when the connection is aborted.
-         * This callback corresponds to a transition from CONNECTED
-         * to CLOSED state, which happens just before the callback.
-         */
-        virtual void connectionAborted () = 0;
-        
-        /**
-         * Called for actively opened connections when the connection
-         * is established.
-         */
-        virtual void connectionEstablished () {}
-        
-        /**
-         * Called when some data or FIN has been received.
-         * 
-         * Each callback corresponds to shifting of the receive
-         * buffer by that amount. Zero amount indicates that FIN
-         * was received.
-         */
-        virtual void dataReceived (size_t amount) = 0;
-        
-        /**
-         * Called when some data or FIN has been sent and acknowledged.
-         * 
-         * Each dataSent callback corresponds to shifting of the send buffer
-         * by that amount. Zero amount indicates that FIN was acknowledged.
-         */
-        virtual void dataSent (size_t amount) = 0;
-    };
-    
-    /**
      * Represents a TCP connection.
      * Conceptually, the connection object has three main states:
      * - INIT: No connection has been made yet.
@@ -280,11 +244,8 @@ public:
          * Initializes the connection object.
          * The object is initialized in INIT state.
          */
-        void init (TcpConnectionCallback *callback)
+        void init ()
         {
-            AMBRO_ASSERT(callback != nullptr)
-            
-            m_callback = callback;
             m_pcb = nullptr;
             m_snd_buf = IpBufRef{};
             m_rcv_buf = IpBufRef{};
@@ -716,6 +677,37 @@ public:
         }
         
     private:
+        /**
+         * Called when the connection is aborted.
+         * This callback corresponds to a transition from CONNECTED
+         * to CLOSED state, which happens just before the callback.
+         */
+        virtual void connectionAborted () = 0;
+        
+        /**
+         * Called for actively opened connections when the connection
+         * is established.
+         */
+        virtual void connectionEstablished () {}
+        
+        /**
+         * Called when some data or FIN has been received.
+         * 
+         * Each callback corresponds to shifting of the receive
+         * buffer by that amount. Zero amount indicates that FIN
+         * was received.
+         */
+        virtual void dataReceived (size_t amount) = 0;
+        
+        /**
+         * Called when some data or FIN has been sent and acknowledged.
+         * 
+         * Each dataSent callback corresponds to shifting of the send buffer
+         * by that amount. Zero amount indicates that FIN was acknowledged.
+         */
+        virtual void dataSent (size_t amount) = 0;
+        
+    private:
         // These are called by TCP internals when various things happen.
         
         // NOTE: This does not add the PCB to the unreferenced list.
@@ -732,7 +724,7 @@ public:
             m_pcb = nullptr;
             
             // Call the application callback.
-            m_callback->connectionAborted();
+            connectionAborted();
         }
         
         void connection_established ()
@@ -740,7 +732,7 @@ public:
             assert_connected();
             
             // Call the application callback.
-            m_callback->connectionEstablished();
+            connectionEstablished();
         }
         
         void data_sent (size_t amount)
@@ -750,7 +742,7 @@ public:
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
-            m_callback->dataSent(amount);
+            dataSent(amount);
         }
         
         void end_sent ()
@@ -763,7 +755,7 @@ public:
             m_flags |= Flags::END_SENT;
             
             // Call the application callback.
-            m_callback->dataSent(0);
+            dataSent(0);
         }
         
         void data_received (size_t amount)
@@ -773,7 +765,7 @@ public:
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
-            m_callback->dataReceived(amount);
+            dataReceived(amount);
         }
         
         void end_received ()
@@ -785,11 +777,10 @@ public:
             m_flags |= Flags::END_RECEIVED;
             
             // Call the application callback.
-            m_callback->dataReceived(0);
+            dataReceived(0);
         }
         
     private:
-        TcpConnectionCallback *m_callback;
         TcpPcb *m_pcb;
         IpBufRef m_snd_buf;
         IpBufRef m_rcv_buf;
