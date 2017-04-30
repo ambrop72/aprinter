@@ -47,6 +47,7 @@
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
 
+#include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
@@ -79,7 +80,7 @@ private:
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
     
-    using ListenQueue = AIpStack::TcpListenQueue<Context, TcpProto>;
+    using ListenQueue = AIpStack::TcpListenQueue<Context, TcpProto, Params::Net::QueueRecvBufferSize>;
     APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams,
                                       QueuedListenerCallback, QueuedListener))
     
@@ -94,6 +95,7 @@ private:
     static_assert(Params::Net::MaxPcbs > 0, "");
     static_assert(Params::Net::SendBufferSize >= Network::MinTcpSendBufSize, "");
     static_assert(Params::Net::RecvBufferSize >= Network::MinTcpRecvBufSize, "");
+    static_assert(Params::Net::RecvBufferSize >= Params::Net::QueueRecvBufferSize, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
@@ -247,11 +249,13 @@ private:
             HTTP_SERVER_DEBUG("HttpClientConnected");
             
             // Accept the connection.
-            listener->acceptConnection(&m_connection);
+            AIpStack::IpBufRef initial_rx_data;
+            listener->acceptConnection(m_connection, initial_rx_data);
             
             // Set up the ring buffers.
             m_send_ring_buf.setup(m_connection, m_tx_buf, TxBufferSize);
-            m_recv_ring_buf.setup(m_connection, m_rx_buf, RxBufferSize, Network::TcpWndUpdThrDiv);
+            m_recv_ring_buf.setup(m_connection, m_rx_buf, RxBufferSize,
+                                  Network::TcpWndUpdThrDiv, initial_rx_data);
             
             // Go prepare_for_request() very soon through this state for simplicity.
             // Really there will be no waiting.
@@ -1475,6 +1479,7 @@ APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
+    APRINTER_AS_VALUE(size_t, QueueRecvBufferSize),
     APRINTER_AS_VALUE(int, MaxPcbs),
     APRINTER_AS_VALUE(size_t, SendBufferSize),
     APRINTER_AS_VALUE(size_t, RecvBufferSize),

@@ -40,6 +40,7 @@
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
+#include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
@@ -176,7 +177,8 @@ private:
             m_connection.acceptConnection(&o->listener);
             
             m_send_ring_buf.setup(m_connection, m_send_buf, SendBufferSize);
-            m_recv_ring_buf.setup(m_connection, m_recv_buf, RecvBufferSize, Network::TcpWndUpdThrDiv);
+            m_recv_ring_buf.setup(m_connection, m_recv_buf, RecvBufferSize,
+                                  Network::TcpWndUpdThrDiv, AIpStack::IpBufRef{});
             
             m_gcode_parser.init(c);
             m_command_stream.init(c, SendBufTimeoutTicks, this, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));

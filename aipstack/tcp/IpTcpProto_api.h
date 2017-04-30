@@ -481,12 +481,15 @@ public:
          * Typically the application will call this once just after a connection
          * is established.
          * May only be called in CONNECTED or CLOSED state.
-         * May only be called when the current receive buffer has zero length.
+         * If a receive buffer has already been set than the new buffer must be
+         * at least as large as the old one and the leading portion corresponding
+         * to the old size must have been copied (because it may contain buffered
+         * out-of-sequence data).
          */
         void setRecvBuf (IpBufRef rcv_buf)
         {
             assert_started();
-            AMBRO_ASSERT(m_rcv_buf.tot_len == 0)
+            AMBRO_ASSERT(rcv_buf.tot_len >= m_rcv_buf.tot_len)
             
             // Set the receive buffer.
             m_rcv_buf = rcv_buf;

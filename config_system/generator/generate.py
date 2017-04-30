@@ -1353,7 +1353,7 @@ def setup_network(gen, config, key):
             network_config.key_path('NumTcpPcbs').error('Value out of range.')
         
         num_oos_segs = network_config.get_int('NumOosSegs')
-        if not 2 <= num_oos_segs <= 32:
+        if not 1 <= num_oos_segs <= 32:
             network_config.key_path('NumOosSegs').error('Value out of range.')
         
         tcp_wnd_upd_thr_div = network_config.get_int('TcpWndUpdThrDiv')
@@ -1764,6 +1764,10 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (0 <= webif_queue_size <= 512):
                                 webif_config.key_path('QueueSize').error('Bad value.')
                             
+                            webif_queue_recv_buffer_size = webif_config.get_int('QueueRecvBufferSize')
+                            if not (0 < webif_queue_recv_buffer_size):
+                                webif_config.key_path('QueueRecvBufferSize').error('Bad value.')
+                            
                             webif_max_pcbs = webif_config.get_int('MaxPcbs')
                             if not (webif_max_clients+webif_queue_size <= webif_max_pcbs):
                                 webif_config.key_path('MaxPcbs').error('Bad value.')
@@ -1774,7 +1778,9 @@ def generate(config_root_data, cfg_name, main_template):
                             
                             webif_recv_buf_size = webif_config.get_int('RecvBufferSize')
                             if webif_recv_buf_size < network.min_recv_buf:
-                                webif_config.key_path('RecvBufferSize').error('Bad value.')
+                                webif_config.key_path('RecvBufferSize').error('Bad value (too small).')
+                            if webif_recv_buf_size < webif_queue_recv_buffer_size:
+                                webif_config.key_path('RecvBufferSize').error('Bad value (less than QueueRecvBufferSize).')
                             
                             allow_persistent = webif_config.get_bool('AllowPersistent')
                             
@@ -1807,6 +1813,7 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_port,
                                     webif_max_clients,
                                     webif_queue_size,
+                                    webif_queue_recv_buffer_size,
                                     webif_max_pcbs,
                                     webif_send_buf_size,
                                     webif_recv_buf_size,

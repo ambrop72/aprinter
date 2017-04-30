@@ -99,11 +99,17 @@ public:
     
     class RecvRingBuffer {
     public:
-        void setup (TcpConnection &con, char *buf, size_t buf_size, int wnd_upd_div)
+        // NOTE: If using mirror region and initial_rx_data is not empty, it is
+        // you may need to call updateMirrorAfterDataReceived to make sure initial
+        // data is mirrored as applicable.
+        void setup (TcpConnection &con, char *buf, size_t buf_size, int wnd_upd_div,
+                    IpBufRef initial_rx_data)
         {
             AMBRO_ASSERT(buf != nullptr)
             AMBRO_ASSERT(buf_size > 0)
             AMBRO_ASSERT(wnd_upd_div >= 2)
+            AMBRO_ASSERT(initial_rx_data.tot_len <= buf_size)
+            AMBRO_ASSERT(con.getRecvBuf().tot_len <= buf_size - initial_rx_data.tot_len)
             
             m_buf_node = IpBufNode{buf, buf_size, &m_buf_node};
             
@@ -111,7 +117,19 @@ public:
             SeqType thres = APrinter::MaxValue((SeqType)1, max_rx_window / wnd_upd_div);
             con.setWindowUpdateThreshold(thres);
             
-            con.setRecvBuf(IpBufRef{&m_buf_node, (size_t)0, m_buf_node.len});
+            IpBufRef recv_buf = IpBufRef{&m_buf_node, (size_t)0, m_buf_node.len};
+            
+            if (initial_rx_data.tot_len > 0) {
+                recv_buf.giveBuf(initial_rx_data);
+            }
+            
+            IpBufRef old_recv_buf = con.getRecvBuf();
+            if (old_recv_buf.tot_len > 0) {
+                IpBufRef tmp_buf = recv_buf;
+                tmp_buf.giveBuf(old_recv_buf);
+            }
+            
+            con.setRecvBuf(recv_buf);
         }
         
         size_t getUsedLen (TcpConnection &con)

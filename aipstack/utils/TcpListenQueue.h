@@ -32,11 +32,14 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/misc/ClockUtils.h>
 
+#include <aipstack/misc/Buf.h>
+
 #include <aipstack/BeginNamespace.h>
 
 template <
     typename Context,
-    typename TcpProto
+    typename TcpProto,
+    size_t RxBufferSize
 >
 class TcpListenQueue {
     using TimeType = typename Context::Clock::TimeType;
@@ -44,6 +47,8 @@ class TcpListenQueue {
     APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener,
                                    TcpListenerCallback, TcpConnection,
                                    TcpConnectionCallback))
+    
+    static_assert(RxBufferSize > 0, "");
     
 public:
     class QueuedListener;
@@ -54,28 +59,97 @@ public:
         friend class QueuedListener;
         
     private:
-        void connectionAborted () override final
+        void init (QueuedListener *listener)
+        {
+            m_listener = listener;
+            m_connection.init(this);
+            m_rx_buf_node = IpBufNode{m_rx_buf, RxBufferSize, nullptr};
+        }
+        
+        void deinit ()
+        {
+            m_connection.deinit();
+        }
+        
+        void accept_connection ()
+        {
+            AMBRO_ASSERT(m_connection.isInit())
+            AMBRO_ASSERT(m_listener->m_queue_size > 0)
+            
+            m_connection.acceptConnection(&m_listener->m_listener);
+            m_connection.setRecvBuf(IpBufRef{&m_rx_buf_node, 0, RxBufferSize});
+            
+            m_time = Context::Clock::getTime(Context());
+            m_ready = false;
+            
+            // Added a not-ready connection -> update timeout.
+            m_listener->update_timeout();
+        }
+        
+        void reset_connection ()
         {
             AMBRO_ASSERT(!m_connection.isInit())
             
             m_connection.reset();
-            m_listener->update_timeout();
+            
+            if (!m_ready) {
+                // Removed a not-ready connection -> update timeout.
+                m_listener->update_timeout();
+            }
         }
         
-        void dataReceived (size_t) override final
+        IpBufRef get_received_data ()
         {
-            AMBRO_ASSERT(false) // zero window
+            AMBRO_ASSERT(!m_connection.isInit())
+            
+            size_t rx_buf_len = m_connection.getRecvBuf().tot_len;
+            AMBRO_ASSERT(rx_buf_len <= RxBufferSize)
+            size_t rx_len = RxBufferSize - rx_buf_len;
+            return IpBufRef{&m_rx_buf_node, 0, rx_len};
+        }
+        
+    private:
+        void connectionAborted () override final
+        {
+            AMBRO_ASSERT(!m_connection.isInit())
+            
+            reset_connection();
+        }
+        
+        void dataReceived (size_t amount) override final
+        {
+            AMBRO_ASSERT(!m_connection.isInit())
+            
+            // If we get a FIN without any data, abandon the connection.
+            if (amount == 0 && m_connection.getRecvBuf().tot_len == RxBufferSize) {
+                reset_connection();
+                return;
+            }
+            
+            if (!m_ready) {
+                // Some data has been received, connection is now ready.
+                m_ready = true;
+                
+                // Non-ready connection changed to ready -> update timeout.
+                m_listener->update_timeout();
+                
+                // Try to hand over ready connections.
+                m_listener->dequeue_event_handler(Context());
+            }
         }
         
         void dataSent (size_t) override final
         {
-            AMBRO_ASSERT(false) // nothing sent
+            AMBRO_ASSERT(false) // nothing was sent so this cannot be called
         }
         
     private:
         QueuedListener *m_listener;
         TcpConnection m_connection;
         TimeType m_time;
+        IpBufNode m_rx_buf_node;
+        bool m_ready;
+        char m_rx_buf[RxBufferSize];
     };
     
     struct ListenQueueParams {
@@ -128,6 +202,7 @@ public:
             AMBRO_ASSERT(!m_listener.isListening())
             AMBRO_ASSERT(q_params.queue_size >= 0)
             AMBRO_ASSERT(q_params.queue_size == 0 || q_params.queue_entries != nullptr)
+            AMBRO_ASSERT(q_params.queue_size == 0 || q_params.min_rcv_buf_size >= RxBufferSize)
             
             // Start listening.
             if (!m_listener.startListening(tcp, params)) {
@@ -142,16 +217,12 @@ public:
             
             // Init queue entries.
             for (int i = 0; i < m_queue_size; i++) {
-                ListenQueueEntry *entry = &m_queue[i];
-                entry->m_listener = this;
-                entry->m_connection.init(entry);
+                m_queue[i].init(this);
             }
             
-            // If there is no queue, raise the initial receive window.
-            // If there is a queue, we have to leave it at zero.
-            if (m_queue_size == 0) {
-                m_listener.setInitialReceiveWindow(q_params.min_rcv_buf_size);
-            }
+            // Set the initial receive window.
+            size_t initial_rx_window = (m_queue_size == 0) ? q_params.min_rcv_buf_size : RxBufferSize;
+            m_listener.setInitialReceiveWindow(initial_rx_window);
             
             return true;
         }
@@ -165,15 +236,37 @@ public:
             }
         }
         
-        void acceptConnection (TcpConnection *dst_con)
+        // NOTE: If m_queue_size>0, there are complications that you
+        // must deal with:
+        // - Any initial data which has already been received will be returned
+        //   in initial_rx_data. You must copy this data immediately after this
+        //   function returns and process it correctly.
+        // - You must also immediately copy the contents of the existing remaining
+        //   receive buffer (getRecvBuf) to your own receive buffer before calling
+        //   setRecvBuf to set your receive buffer. This is because out-of-sequence
+        //   data may have been stored there.
+        // - A FIN may already have been received. If so you will not get a
+        //   dataReceived(0) callback.
+        void acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
         {
             AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(dst_con.isInit())
             
-            if (m_queued_to_accept != nullptr) {
-                ListenQueueEntry *entry = m_queued_to_accept;
-                dst_con->moveConnection(&entry->m_connection);
+            if (m_queue_size == 0) {
+                AMBRO_ASSERT(m_listener.hasAcceptPending())
+                
+                initial_rx_data = IpBufRef{};
+                dst_con.acceptConnection(&m_listener);
             } else {
-                dst_con->acceptConnection(&m_listener);
+                AMBRO_ASSERT(m_queued_to_accept != nullptr)
+                AMBRO_ASSERT(!m_queued_to_accept->m_connection.isInit())
+                AMBRO_ASSERT(m_queued_to_accept->m_ready)
+                
+                ListenQueueEntry *entry = m_queued_to_accept;
+                m_queued_to_accept = nullptr;
+                
+                initial_rx_data = entry->get_received_data();
+                dst_con.moveConnection(&entry->m_connection);
             }
         }
         
@@ -183,23 +276,22 @@ public:
             AMBRO_ASSERT(lis == &m_listener)
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(m_listener.hasAcceptPending())
-            AMBRO_ASSERT(m_queued_to_accept == nullptr)
             
-            // Call the accept callback so the user can call acceptConnection.
-            m_callback->connectionEstablished(this);
-            
-            // If the user did not accept the connection, try to queue it.
-            if (m_listener.hasAcceptPending()) {
+            if (m_queue_size == 0) {
+                // Call the accept callback so the user can call acceptConnection.
+                m_callback->connectionEstablished(this);
+            } else {
+                // Try to accept the connection into the queue.
                 for (int i = 0; i < m_queue_size; i++) {
-                    ListenQueueEntry *entry = &m_queue[i];
-                    if (entry->m_connection.isInit()) {
-                        entry->m_connection.acceptConnection(&m_listener);
-                        entry->m_time = Context::Clock::getTime(Context());
-                        update_timeout();
+                    ListenQueueEntry &entry = m_queue[i];
+                    if (entry.m_connection.isInit()) {
+                        entry.accept_connection();
                         break;
                     }
                 }
             }
+            
+            // If the connection was not accepted, it will be aborted.
         }
         
         void dequeue_event_handler (Context)
@@ -208,33 +300,20 @@ public:
             AMBRO_ASSERT(m_queue_size > 0)
             AMBRO_ASSERT(m_queued_to_accept == nullptr)
             
-            bool queue_changed = false;
-            
-            // Find the oldest queued connection.
-            ListenQueueEntry *oldest_entry = find_oldest_queued_pcb();
-            
-            while (oldest_entry != nullptr) {
-                AMBRO_ASSERT(!oldest_entry->m_connection.isInit())
+            // Try to dispatch the oldest ready connections.
+            while (ListenQueueEntry *entry = find_oldest(true)) {
+                AMBRO_ASSERT(!entry->m_connection.isInit())
+                AMBRO_ASSERT(entry->m_ready)
                 
                 // Call the accept handler, while publishing the connection.
-                m_queued_to_accept = oldest_entry;
+                m_queued_to_accept = entry;
                 m_callback->connectionEstablished(this);
                 m_queued_to_accept = nullptr;
                 
                 // If the connection was not taken, stop trying.
-                if (!oldest_entry->m_connection.isInit()) {
+                if (!entry->m_connection.isInit()) {
                     break;
                 }
-                
-                queue_changed = true;
-                
-                // Refresh the oldest entry.
-                oldest_entry = find_oldest_queued_pcb();
-            }
-            
-            // Update the dequeue timeout if we dequeued any connection.
-            if (queue_changed) {
-                update_timeout(oldest_entry);
             }
         }
         
@@ -243,16 +322,10 @@ public:
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(m_queue_size > 0)
             
-            update_timeout(find_oldest_queued_pcb());
-        }
-        
-        void update_timeout (ListenQueueEntry *oldest_entry)
-        {
-            AMBRO_ASSERT(m_listener.isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
+            ListenQueueEntry *entry = find_oldest(false);
             
-            if (oldest_entry != nullptr) {
-                TimeType expire_time = oldest_entry->m_time + m_queue_timeout;
+            if (entry != nullptr) {
+                TimeType expire_time = entry->m_time + m_queue_timeout;
                 m_timeout_event.appendAt(Context(), expire_time);
             } else {
                 m_timeout_event.unset(Context());
@@ -264,35 +337,41 @@ public:
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(m_queue_size > 0)
             
-            // The oldest queued connection has expired, close it.
-            ListenQueueEntry *entry = find_oldest_queued_pcb();
+            // We must have a non-ready connection since we keep the timeout
+            // always updated to expire for the oldest non-ready connection
+            // (or not expire if there is none).
+            ListenQueueEntry *entry = find_oldest(false);
             AMBRO_ASSERT(entry != nullptr)
-            entry->m_connection.reset();
-            update_timeout();
+            AMBRO_ASSERT(!entry->m_connection.isInit())
+            AMBRO_ASSERT(!entry->m_ready)
+            
+            // Reset the oldest non-ready connection.
+            entry->reset_connection();
         }
         
         void deinit_queue ()
         {
             if (m_listener.isListening()) {
                 for (int i = 0; i < m_queue_size; i++) {
-                    ListenQueueEntry *entry = &m_queue[i];
-                    entry->m_connection.deinit();
+                    m_queue[i].deinit();
                 }
             }
         }
         
-        ListenQueueEntry * find_oldest_queued_pcb ()
+        ListenQueueEntry * find_oldest (bool ready)
         {
             ListenQueueEntry *oldest_entry = nullptr;
+            
             for (int i = 0; i < m_queue_size; i++) {
-                ListenQueueEntry *entry = &m_queue[i];
-                if (!entry->m_connection.isInit() &&
+                ListenQueueEntry &entry = m_queue[i];
+                if (!entry.m_connection.isInit() && entry.m_ready == ready &&
                     (oldest_entry == nullptr ||
-                     !TheClockUtils::timeGreaterOrEqual(entry->m_time, oldest_entry->m_time)))
+                     !TheClockUtils::timeGreaterOrEqual(entry.m_time, oldest_entry->m_time)))
                 {
-                    oldest_entry = entry;
+                    oldest_entry = &entry;
                 }
             }
+            
             return oldest_entry;
         }
         

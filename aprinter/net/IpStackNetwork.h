@@ -62,7 +62,7 @@ class IpStackNetwork {
     static_assert(NumArpEntries >= 4, "");
     static_assert(ArpProtectCount >= 2, "");
     static_assert(NumTcpPcbs >= 2, "");
-    static_assert(NumOosSegs >= 2 && NumOosSegs <= 255, "");
+    static_assert(NumOosSegs >= 1 && NumOosSegs <= 255, "");
     
     static size_t const EthMTU = 1514;
     static size_t const TcpMaxMSS = EthMTU - EthHeader::Size - Ip4Header::Size - Tcp4Header::Size;

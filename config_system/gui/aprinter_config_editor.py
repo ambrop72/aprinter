@@ -877,6 +877,7 @@ def editor():
                                 ce.Integer(key='MaxClients', title='Maximum number of active clients', default=2),
                                 ce.Integer(key='MaxPcbs', title='Maximum number of PCBs', default=10),
                                 ce.Integer(key='QueueSize', title='Maximum number of queued clients', default=6),
+                                ce.Integer(key='QueueRecvBufferSize', title='Receive buffer size for queued clients [bytes]', default=410),
                                 ce.Integer(key='SendBufferSize', title='Send buffer size [bytes]', default=3*1460),
                                 ce.Integer(key='RecvBufferSize', title='Receive buffer size [bytes]', default=2*1460),
                                 ce.Boolean(key='AllowPersistent', title='Allow persistent connections', default=False),
