@@ -34,6 +34,10 @@
 
 $${PLATFORM_INCLUDES}
 static void emergency (void);
+
+#include <aprinter/base/Hints.h>
+
+APRINTER_NO_RETURN
 static void emergency_abort (void);
 
 #define AMBROLIB_EMERGENCY_ACTION { emergency(); }

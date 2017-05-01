@@ -80,7 +80,7 @@ let
         ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${avrgcclibc}/bin/avr-"}
         ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${gcc-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
-        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
+        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/"}
         ${stdenv.lib.optionalString needAsf "ASF_DIR=${asf}"}
         ${stdenv.lib.optionalString needStm32CubeF4 "STM32CUBEF4_DIR=${stm32cubef4}"}
         ${stdenv.lib.optionalString needTeensyCores "TEENSY_CORES=${teensyCores}"}

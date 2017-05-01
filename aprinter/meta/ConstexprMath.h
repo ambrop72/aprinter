@@ -38,7 +38,8 @@ static constexpr double ConstexprFmax (double a, double b)
         (b == INFINITY) ? b :
         (a == -INFINITY) ? b :
         (b == -INFINITY) ? a :
-        __builtin_fmax(a, b);
+        (a == b) ? (__builtin_signbit(a) ? b : a) :
+        ((a > b) ? a : b);
 }
 
 static constexpr double ConstexprFmin (double a, double b)
@@ -50,7 +51,8 @@ static constexpr double ConstexprFmin (double a, double b)
         (b == -INFINITY) ? b :
         (a == INFINITY) ? b :
         (b == INFINITY) ? a :
-        __builtin_fmin(a, b);
+        (a == b) ? (!__builtin_signbit(a) ? b : a) :
+        ((a < b) ? a : b);
 }
 
 static constexpr double ConstexprRound (double a)

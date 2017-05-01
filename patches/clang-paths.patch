@@ -1,0 +1,20 @@
+diff -urN cfe-4.0.0.src.orig/lib/Driver/ToolChains.cpp cfe-4.0.0.src/lib/Driver/ToolChains.cpp
+--- cfe-4.0.0.src.orig/lib/Driver/ToolChains.cpp	2017-05-01 10:59:22.404330080 +0200
++++ cfe-4.0.0.src/lib/Driver/ToolChains.cpp	2017-05-01 12:09:33.625597770 +0200
+@@ -2850,6 +2850,7 @@
+   getProgramPaths().push_back(getDriver().getInstalledDir());
+   if (getDriver().getInstalledDir() != getDriver().Dir)
+     getProgramPaths().push_back(getDriver().Dir);
++  getProgramPaths().push_back("<GCC_PROGRAM_PATH>");
+ }
+ 
+ Generic_GCC::~Generic_GCC() {}
+@@ -2964,6 +2965,8 @@
+                                       llvm::opt::ArgStringList &CC1Args) const {
+   // By default, we don't assume we know where libstdc++ might be installed.
+   // FIXME: If we have a valid GCCInstallation, use it.
++  addSystemInclude(DriverArgs, CC1Args, "<LIBCXX_INCLUDE_PATH>");
++  addSystemInclude(DriverArgs, CC1Args, "<LIBCXX_INCLUDE_PATH_TARGET>");
+ }
+ 
+ /// \brief Helper to add the variant paths of a libstdc++ installation.
