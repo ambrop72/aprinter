@@ -27,7 +27,6 @@
 
 #include <stdint.h>
 
-#include <avr/sfr_defs.h>
 #include <avr/io.h>
 
 #include <aprinter/meta/TypeListUtils.h>
@@ -43,8 +42,8 @@
 #define AMBRO_DEFINE_AVR_PORT(ClassName, PortReg, PinReg, DdrReg) \
 struct ClassName { \
     static uint8_t getPin () { return PinReg; } \
-    static const uint32_t port_io_addr = _SFR_IO_ADDR(PortReg); \
-    static const uint32_t ddr_io_addr = _SFR_IO_ADDR(DdrReg); \
+    static const uint32_t port_io_addr = APRINTER_SFR_IO_ADDR(PortReg##_); \
+    static const uint32_t ddr_io_addr = APRINTER_SFR_IO_ADDR(DdrReg##_); \
 };
 
 #ifdef PORTA

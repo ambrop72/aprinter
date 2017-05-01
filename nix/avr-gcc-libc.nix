@@ -1,27 +1,26 @@
-{ stdenv, fetchurl, fetchsvn, texinfo, gmp, mpfr, libmpc, zlib, automake, autoconf, libtool }:
+{ stdenv, fetchurl, texinfo, gmp, mpfr, libmpc, zlib }:
 
 stdenv.mkDerivation {
   name = "avr-gcc-libc";
 
   srcs = [
     (fetchurl {
-        url = "mirror://gnu/binutils/binutils-2.25.1.tar.bz2";
-        sha256 = "b5b14added7d78a8d1ca70b5cb75fef57ce2197264f4f5835326b0df22ac9f22";
+        url = "mirror://gnu/binutils/binutils-2.28.tar.bz2";
+        sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
     })
     (fetchurl {
-        url = "mirror://gcc/releases/gcc-5.3.0/gcc-5.3.0.tar.bz2";
-        sha256 = "b84f5592e9218b73dbae612b5253035a7b34a9a1f7688d2e1bfaaf7267d5c4db";
+        url = "mirror://gcc/releases/gcc-6.3.0/gcc-6.3.0.tar.bz2";
+        sha256 = "f06ae7f3f790fbf0f018f6d40e844451e6bc3b7bc96e128e63b09825c1f8b29f";
     })
-    (fetchsvn {
-        url = http://svn.savannah.nongnu.org/svn/avr-libc/trunk/avr-libc;
-        rev = 2478;
-        sha256 = "18rwc2c7yi85nndysp8pqwnici83x9cz791hfm572ya4yf9dv0i9";
+    (fetchurl {
+        url = "http://download.savannah.gnu.org/releases/avr-libc/avr-libc-2.0.0.tar.bz2";
+        sha256 = "b2dd7fd2eefd8d8646ef6a325f6f0665537e2f604ed02828ced748d49dc85b97";
     })
   ];
   
   sourceRoot = ".";
 
-  nativeBuildInputs = [ texinfo automake autoconf libtool ];
+  nativeBuildInputs = [ texinfo ];
 
   hardeningDisable = [ "format" ];
   
@@ -60,7 +59,6 @@ stdenv.mkDerivation {
     unset CXX
 
     pushd avr-libc*
-    ./bootstrap
     ./configure --prefix="$out" --build=`./config.guess` --host=avr
     make $MAKE_FLAGS
     make install

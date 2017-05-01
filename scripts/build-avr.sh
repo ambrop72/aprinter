@@ -49,17 +49,24 @@ configure_avr() {
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -fno-access-control \
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
-        -DAMBROLIB_AVR -I. -Wfatal-errors
+        -DAMBROLIB_AVR -I. -I"$BUILD" -Wfatal-errors
         ${CXXFLAGS} ${CCXXLDFLAGS}
     )
     
     RUNBUILD=build_avr
     CHECK=check_depends_avr
+    
+    REG_ADDR_PREPROCESS=aprinter/platform/avr/avr_reg_addr_preprocess.h
+    REG_ADDR_PREPROCESS_OUT=$BUILD/avr_reg_addr_preprocess.i
+    REG_ADDR_GEN=aprinter/platform/avr/avr_reg_addr_gen.sh
+    REG_ADDR_GEN_OUT=$BUILD/aprinter_avr_reg_addrs.h
 }
 
 build_avr() {
     echo "  Compiling for AVR"
     ${CHECK}
+    
+    extract_register_addresses
     
     echo "   Compiling and linking"
     ($V; "$AVR_CC" -x c++ "${CXXFLAGS[@]}" "$SOURCE" -o "$TARGET.elf" -Wl,-u,vfprintf -lprintf_flt || exit 2)
@@ -74,4 +81,14 @@ build_avr() {
         echo "   Size of build: "
         "$AVR_SIZE" "${TARGET}.elf" | sed 's/^/    /'
     fi
+}
+
+extract_register_addresses() {
+    echo "   Extracting register addresses"
+    
+    # Preprocess avr_reg_addr_helper.h (-P to get no line number comments).
+    ($V; "$AVR_CC" -E -P -x c++ "${CXXFLAGS[@]}" "$REG_ADDR_PREPROCESS" -o "$REG_ADDR_PREPROCESS_OUT" || exit 2)
+    
+    # Generate the header using another script.
+    ($V; "$BASH" "$REG_ADDR_GEN" "$REG_ADDR_PREPROCESS_OUT" "$REG_ADDR_GEN_OUT" || exit 2)
 }

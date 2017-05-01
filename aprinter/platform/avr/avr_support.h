@@ -26,10 +26,22 @@
 #define APRINTER_AVR_SUPPORT_H
 
 #include <avr/interrupt.h>
+#include <avr/sfr_defs.h>
+
+// Generated file with numeric register addresses.
+#include <aprinter_avr_reg_addrs.h>
 
 #include <aprinter/system/InterruptLockCommon.h>
 
 #define APRINTER_INTERRUPT_LOCK_MODE APRINTER_INTERRUPT_LOCK_MODE_SIMPLE
+
+// Replacement for _SFT_IO_ADDR which works reliably as a constant expression,
+// based on the register addresses in the generated aprinter_avr_reg_addrs.h.
+// The "reg" passed must have an additional underscore to prevent undesired
+// expansion according to existing define for the register.
+// This only works with registers listed in avr_reg_addr_preprocess.h, more
+// registers should be added there as needed.
+#define APRINTER_SFR_IO_ADDR(reg) (APrinter_AVR_##reg##ADDR - __SFR_OFFSET)
 
 inline static void memory_barrier (void)
 {
