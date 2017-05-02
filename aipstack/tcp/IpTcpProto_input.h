@@ -182,8 +182,8 @@ public:
             return;
         }
         
-        // If the MtuRef is not setup, ignore (this is when the PCB has been abandoned).
-        if (!pcb->MtuRef::isSetup()) {
+        // If the PCB has been abandoned, ignore.
+        if (pcb->con == nullptr) {
             return;
         }
         
@@ -263,7 +263,7 @@ public:
             
             // If we can announce at least rcv_ann_thres more window than
             // already announced then we need to send an ACK immediately.
-            if (ann_wnd >= pcb->rcv_ann_wnd + pcb->rcv_ann_thres) {
+            if (ann_wnd >= pcb->rcv_ann_wnd + pcb->con->m_ev.rcv_ann_thres) {
                 // Update rcv_ann_wnd to the calculated new value and
                 // clear the flag to inhibit a redundant recalculation
                 // in rcv_ann_wnd.
@@ -282,12 +282,12 @@ public:
         }
     }
     
-    static void pcb_update_rcv_wnd_after_abandoned (TcpPcb *pcb)
+    static void pcb_update_rcv_wnd_after_abandoned (TcpPcb *pcb, SeqType rcv_ann_thres)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // This is our heuristic for the window increment.
-        SeqType min_window = APrinter::MaxValue(pcb->rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
+        SeqType min_window = APrinter::MaxValue(rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
         
         // Make sure it fits in size_t (relevant if size_t is 16-bit),
         // to ensure the invariant that rcv_ann_wnd always fits in size_t.
@@ -315,16 +315,18 @@ public:
     static void pcb_complete_established_transition (TcpPcb *pcb, uint16_t pmtu)
     {
         AMBRO_ASSERT(pcb->state == TcpState::ESTABLISHED)
+        AMBRO_ASSERT(pcb->con != nullptr)
         
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // Initialize congestion control variables.
-        pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+        TcpConnection *con = pcb->con;
+        con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
-        pcb->ssthresh = Constants::MaxWindow;
-        pcb->cwnd_acked = 0;
+        con->m_ev.ssthresh = Constants::MaxWindow;
+        con->m_ev.cwnd_acked = 0;
     }
     
 private:
@@ -388,13 +390,11 @@ private:
             pcb->remote_port = tcp_meta.remote_port;
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
             pcb->rcv_ann_wnd = rcv_wnd;
-            pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
             pcb->snd_una = iss;
             pcb->snd_nxt = iss;
             pcb->snd_wnd = iface_mss; // store iface_mss here temporarily
             pcb->base_snd_mss = base_snd_mss;
             pcb->rto = Constants::InitialRtxTime;
-            pcb->ooseq.init();
             pcb->num_dupack = 0;
             pcb->snd_wnd_shift = 0;
             pcb->rcv_wnd_shift = 0;
@@ -1017,7 +1017,9 @@ private:
                     pcb->tim(OutputTimer()).unset(Context());
                     
                     // Reset the MTU reference.
-                    pcb->MtuRef::reset(pcb->tcp->m_stack);
+                    if (pcb->con != nullptr) {
+                        pcb->con->MtuRef::reset(pcb->tcp->m_stack);
+                    }
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.
@@ -1097,27 +1099,39 @@ private:
             return false;
         }
         
+        TcpConnection *con = pcb->con;
+        
         // This will be the in-sequence data or FIN that we will process.
         size_t rcv_datalen;
         bool rcv_fin;
         
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        if (AMBRO_LIKELY(eff_rel_seq == 0 && pcb->ooseq.isNothingBuffered())) {
+        if (AMBRO_LIKELY(eff_rel_seq == 0 &&
+                         (con == nullptr || con->m_ooseq.isNothingBuffered())))
+        {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
             
             // Copy any received data into the receive buffer, shifting it.
             if (rcv_datalen > 0) {
-                AMBRO_ASSERT(pcb->con != nullptr)
-                pcb->con->m_rcv_buf.giveBuf(tcp_data);
+                AMBRO_ASSERT(con != nullptr)
+                con->m_rcv_buf.giveBuf(tcp_data);
             }
         } else {
-            // Remember information about out-of-sequence data and FIN.
+            if (AMBRO_UNLIKELY(con == nullptr)) {
+                // Received out-of-sequence segment after connection was abandoned,
+                // this implies that there is some unacceptable data remaining ->
+                // reset connection.
+                TcpProto::pcb_abort(pcb, true);
+                return false;
+            }
+            
+            // Update information about out-of-sequence data and FIN.
             SeqType eff_seq = seq_add(pcb->rcv_nxt, eff_rel_seq);
             bool need_ack;
-            bool update_ok = pcb->ooseq.updateForSegmentReceived(
+            bool update_ok = con->m_ooseq.updateForSegmentReceived(
                 pcb->rcv_nxt, eff_seq, tcp_data.tot_len, seg_fin, need_ack);
             
             // If there was an inconsistency, abort.
@@ -1133,27 +1147,22 @@ private:
             
             // Copy any received data into the receive buffer.
             if (tcp_data.tot_len > 0) {
-                AMBRO_ASSERT(pcb->con != nullptr)
-                IpBufRef dst_buf = pcb->con->m_rcv_buf;
+                IpBufRef dst_buf = con->m_rcv_buf;
                 dst_buf.skipBytes(eff_rel_seq);
                 dst_buf.giveBuf(tcp_data);
             }
             
             // Get data or FIN from the out-of-sequence buffer.
-            pcb->ooseq.shiftAvailable(pcb->rcv_nxt, rcv_datalen, rcv_fin);
+            con->m_ooseq.shiftAvailable(pcb->rcv_nxt, rcv_datalen, rcv_fin);
             
             // If we got any data out of OOS buffering here then the receive buffer
             // can necessarily be shifted by that much. This is because the data was
-            // written into the receive buffer when it was received, and the only
-            // concern is if the connection was then abandoned. But in that case we
-            // would not get any more data out since we have not put any more data
-            // in and we always consume all available data after adding some.
-            AMBRO_ASSERT(pcb->rcvBufLen() >= rcv_datalen)
+            // written into the receive buffer when it was received.
+            AMBRO_ASSERT(con->m_rcv_buf.tot_len >= rcv_datalen)
             
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
-                AMBRO_ASSERT(pcb->con != nullptr)
-                pcb->con->m_rcv_buf.skipBytes(rcv_datalen);
+                con->m_rcv_buf.skipBytes(rcv_datalen);
             }
         }
         

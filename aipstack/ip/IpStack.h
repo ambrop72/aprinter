@@ -576,11 +576,6 @@ public:
     public:
         using BaseMtuRef::init;
         
-        inline void deinit (IpStack *stack)
-        {
-            return BaseMtuRef::deinit(mtu_cache(stack));
-        }
-        
         inline void reset (IpStack *stack)
         {
             return BaseMtuRef::reset(mtu_cache(stack));

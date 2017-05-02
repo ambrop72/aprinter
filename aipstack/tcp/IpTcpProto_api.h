@@ -48,7 +48,7 @@ class IpTcpProto_api
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
     APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
-                                   PcbFlags, MtuRef))
+                                   PcbFlags, MtuRef, OosBuffer))
     
 public:
     class TcpConnection;
@@ -226,7 +226,11 @@ public:
      *              is in progress.
      * - CLOSED: There was a connection but is no more.
      */
-    class TcpConnection {
+    class TcpConnection :
+        // MTU reference.
+        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
+        private MtuRef
+    {
         template <typename> friend class IpTcpProto;
         template <typename> friend class IpTcpProto_input;
         template <typename> friend class IpTcpProto_output;
@@ -239,6 +243,16 @@ public:
             END_RECEIVED = 1 << 3, // FIN was received.
         }; };
         
+        // These variables are here instead of in TcpPcb to save memory,
+        // as they are not needed in unreferenced PCBs.
+        struct EstablishedVars {
+            SeqType cwnd;
+            SeqType ssthresh;
+            SeqType cwnd_acked;
+            SeqType recover;
+            SeqType rcv_ann_thres;
+        };
+        
     public:
         /**
          * Initializes the connection object.
@@ -246,6 +260,7 @@ public:
          */
         void init ()
         {
+            MtuRef::init();
             m_pcb = nullptr;
             m_flags = 0;
         }
@@ -269,16 +284,21 @@ public:
                 
                 TcpPcb *pcb = m_pcb;
                 
+                // Reset the MtuRef.
+                MtuRef::reset(pcb->tcp->m_stack);
+                
                 // Disassociate with the PCB.
                 pcb->con = nullptr;
                 m_pcb = nullptr;
                 
                 // Handle abandonment of connection.
-                TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0);
+                TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0, m_ev.rcv_ann_thres);
             }
             
             // Reset other variables.
             m_flags = 0;
+            
+            // NOTE: MtuRef has no deinit(), only reset is needed if it was setup.
         }
         
         /**
@@ -299,7 +319,7 @@ public:
             
             // Setup the MTU reference.
             uint16_t pmtu;
-            if (!pcb->MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
+            if (!MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
                 return false;
             }
             
@@ -316,15 +336,15 @@ public:
             // Set the PCB state to ESTABLISHED.
             pcb->state = TcpState::ESTABLISHED;
             
-            // Initialize certain sender variables.
-            Input::pcb_complete_established_transition(pcb, pmtu);
-            
             // Associate with the PCB.
             m_pcb = pcb;
             pcb->con = this;
             
-            // Clear variables, set STARTED flag.
+            // Initialize TcpConnection variables, set STARTED flag.
             setup_common_started();
+            
+            // Initialize certain sender variables.
+            Input::pcb_complete_established_transition(pcb, pmtu);
             
             return true;
         }
@@ -344,10 +364,17 @@ public:
         {
             assert_init();
             
+            // Setup the MTU reference.
+            uint16_t pmtu;
+            if (!MtuRef::setup(tcp->m_stack, addr, nullptr, pmtu)) {
+                return IpErr::NO_IPMTU_AVAIL;
+            }
+            
             // Create the PCB for the connection.
             TcpPcb *pcb = nullptr;
-            IpErr err = tcp->create_connection(this, addr, port, rcv_wnd, &pcb);
+            IpErr err = tcp->create_connection(this, addr, port, rcv_wnd, pmtu, &pcb);
             if (err != IpErr::SUCCESS) {
+                MtuRef::reset(tcp->m_stack);
                 return err;
             }
             
@@ -356,7 +383,7 @@ public:
             AMBRO_ASSERT(pcb->con == this)
             m_pcb = pcb;
             
-            // Clear variables, set STARTED flag.
+            // Initialize TcpConnection variables, set STARTED flag.
             setup_common_started();
             
             return IpErr::SUCCESS;
@@ -378,11 +405,16 @@ public:
             m_pcb->con = this;
             
             // Copy the other state.
-            m_snd_buf = src_con->m_snd_buf;
-            m_rcv_buf = src_con->m_rcv_buf;
-            m_snd_buf_cur = src_con->m_snd_buf_cur;
+            m_snd_buf       = src_con->m_snd_buf;
+            m_rcv_buf       = src_con->m_rcv_buf;
+            m_snd_buf_cur   = src_con->m_snd_buf_cur;
             m_snd_psh_index = src_con->m_snd_psh_index;
-            m_flags = src_con->m_flags;
+            m_ev            = src_con->m_ev;
+            m_ooseq.initCopy(src_con->m_ooseq);
+            m_flags         = src_con->m_flags;
+            
+            // Move the MtuRef setup.
+            MtuRef::moveFrom(*src_con);
             
             // Reset the source.
             src_con->m_pcb = nullptr;
@@ -410,16 +442,16 @@ public:
          * If the threshold is being raised outside of initializing a new
          * connection, is advised to then call extendRecvBuf(0) which will
          * ensure that a window update is sent if it is now needed.
-         * May only be called in CONNECTED state.
-         * The threshold value must be positive and not exceed MaxWindow.
+         * May only be called in CONNECTED or CLOSED state.
+         * The threshold value must be positive and not exceed MaxRcvWnd.
          */
         void setWindowUpdateThreshold (SeqType rcv_ann_thres)
         {
-            assert_connected();
+            assert_started();
             AMBRO_ASSERT(rcv_ann_thres > 0)
             AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxWindow)
             
-            m_pcb->rcv_ann_thres = rcv_ann_thres;
+            m_ev.rcv_ann_thres = rcv_ann_thres;
         }
         
         /**
@@ -606,16 +638,17 @@ public:
         {
             assert_sending();
             
+            // Set the push index to the current send buffer size.
+            m_snd_psh_index = m_snd_buf.tot_len;
+            
             // Remember that sending is closed.
             m_flags |= Flags::SND_CLOSED;
             
-            if (m_pcb != nullptr) {
-                // Inform the output code, e.g. to adjust the PCB state
-                // and send a FIN. Except in SYN_SENT, in that case the
-                // input code will take care of it when the SYN is received.
-                if (m_pcb->state != TcpState::SYN_SENT) {
-                    Output::pcb_end_sending(m_pcb);
-                }
+            // Inform the output code, e.g. to adjust the PCB state
+            // and send a FIN. But not in SYN_SENT, in that case the
+            // input code will take care of it when the SYN is received.
+            if (m_pcb != nullptr && m_pcb->state != TcpState::SYN_SENT) {
+                Output::pcb_end_sending(m_pcb);
             }
         }
         
@@ -649,10 +682,11 @@ public:
         {
             assert_started();
             
-            // TODO: Handle push in SYN_SENT state.
+            // Set the push index to the current send buffer size.
+            m_snd_psh_index = m_snd_buf.tot_len;
             
             // Tell the output code to push, if necessary.
-            if (m_pcb != nullptr && (m_flags & Flags::SND_CLOSED) == 0) {
+            if (m_pcb != nullptr && snd_open_in_state(m_pcb->state)) {
                 Output::pcb_push_output(m_pcb);
             }
         }
@@ -693,6 +727,16 @@ public:
             m_rcv_buf = IpBufRef{};
             m_snd_buf_cur = IpBufRef{};
             m_snd_psh_index = 0;
+            
+            // Clear EstablishedVars so there's no issue in moveConnection
+            // with copying uninitialized values (not needed otherwise).
+            m_ev = EstablishedVars{};
+            
+            // Initialize rcv_ann_thres.
+            m_ev.rcv_ann_thres = Constants::DefaultWndAnnThreshold;
+            
+            // Initialize the out-of-sequence information.
+            m_ooseq.init();
             
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_flags = Flags::STARTED;
@@ -740,8 +784,12 @@ public:
         {
             assert_connected();
             
-            // Disassociate with the PCB.
             TcpPcb *pcb = m_pcb;
+            
+            // Reset the MtuRef.
+            MtuRef::reset(pcb->tcp->m_stack);
+            
+            // Disassociate with the PCB.
             pcb->con = nullptr;
             m_pcb = nullptr;
             
@@ -802,11 +850,21 @@ public:
             dataReceived(0);
         }
         
+        // Callback from MtuRef when the PMTU changes.
+        void pmtuChanged (uint16_t pmtu) override final
+        {
+            assert_connected();
+            
+            Output::pcb_pmtu_changed(m_pcb, pmtu);
+        }
+        
     private:
         TcpPcb *m_pcb;
         IpBufRef m_snd_buf;
         IpBufRef m_rcv_buf;
         IpBufRef m_snd_buf_cur;
+        EstablishedVars m_ev;
+        OosBuffer m_ooseq;
         size_t m_snd_psh_index;
         uint8_t m_flags;
     };

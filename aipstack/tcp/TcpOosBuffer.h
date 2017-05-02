@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <algorithm>
 
@@ -128,6 +129,15 @@ public:
     {
         // Set the first element to an end segment.
         m_ooseq[0] = OosSeg::MakeEnd();
+    }
+    
+    /**
+     * Initialize this object as a copy of an already initialized object.
+     */
+    inline void initCopy (TcpOosBuffer const &other)
+    {
+        // memcpy is safe to use with possibly uninitialized memory.
+        ::memcpy(m_ooseq, other.m_ooseq, sizeof(m_ooseq));
     }
     
     /**

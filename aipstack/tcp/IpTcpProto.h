@@ -212,10 +212,7 @@ private:
         // Send retry request (inherited for efficiency).
         public IpSendRetry::Request,
         // PCB timers.
-        public PcbMultiTimer,
-        // MTU reference.
-        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
-        public MtuRef
+        public PcbMultiTimer
     {
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
@@ -249,19 +246,9 @@ private:
         SeqType snd_nxt;
         SeqType snd_wnd;
         
-        // Congestion control variables.
-        SeqType cwnd;
-        SeqType ssthresh;
-        SeqType cwnd_acked;
-        SeqType recover;
-        
         // Receiver variables.
         SeqType rcv_nxt;
         SeqType rcv_ann_wnd; // ensured to fit in size_t (in case size_t is 16-bit)
-        SeqType rcv_ann_thres;
-        
-        // Out-of-sequence segment information.
-        OosBuffer ooseq;
         
         // Round-trip-time and retransmission time management.
         SeqType rtt_test_seq;
@@ -326,9 +313,6 @@ private:
         
         // Send retry callback.
         void retrySending () override final { Output::pcb_send_retry(this); }
-        
-        // Callback from MtuRef when the PMTU changes.
-        void pmtuChanged (uint16_t pmtu) override final { Output::pcb_pmtu_changed(this, pmtu); }
     };
     
     // Define the hook accessor for the PCB index.
@@ -374,9 +358,6 @@ public:
             // Initialize the send-retry Request object.
             pcb.IpSendRetry::Request::init();
             
-            // Initialize the MTU reference.
-            pcb.MtuRef::init();
-            
             // Initialize some PCB variables.
             pcb.tcp = this;
             pcb.state = TcpState::CLOSED;
@@ -401,7 +382,6 @@ public:
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
             AMBRO_ASSERT(pcb.con == nullptr)
-            pcb.MtuRef::deinit(m_stack);
             pcb.IpSendRetry::Request::deinit();
             pcb.PcbMultiTimer::deinit(Context());
         }
@@ -504,7 +484,6 @@ private:
         
         // Reset other relevant fields to initial state.
         pcb->PcbMultiTimer::unsetAll(Context());
-        pcb->MtuRef::reset(pcb->tcp->m_stack);
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
         
@@ -537,9 +516,6 @@ private:
         // Stop these timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
-        
-        // Reset the MTU reference.
-        pcb->MtuRef::reset(pcb->tcp->m_stack);
         
         // Start the TIME_WAIT timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
@@ -600,7 +576,7 @@ private:
     
     // This is called from TcpConnection::reset when the TcpConnection
     // is abandoning the PCB.
-    static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty)
+    static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty, SeqType rcv_ann_thres)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection just cleared it
@@ -617,9 +593,6 @@ private:
             return pcb_abort(pcb);
         }
         
-        // Reset the MTU reference.
-        pcb->MtuRef::reset(pcb->tcp->m_stack);
-        
         // Arrange for sending the FIN.
         if (snd_open_in_state(pcb->state)) {
             Output::pcb_end_sending(pcb);
@@ -628,7 +601,7 @@ private:
         // If we haven't received a FIN, possibly announce more window
         // to encourage the peer to send its outstanding data/FIN.
         if (accepting_data_in_state(pcb->state)) {
-            Input::pcb_update_rcv_wnd_after_abandoned(pcb);
+            Input::pcb_update_rcv_wnd_after_abandoned(pcb, rcv_ann_thres);
         }
         
         // Start the abort timeout.
@@ -688,9 +661,10 @@ private:
     }
     
     IpErr create_connection (TcpConnection *con, Ip4Addr remote_addr, PortType remote_port,
-                             size_t user_rcv_wnd, TcpPcb **out_pcb)
+                             size_t user_rcv_wnd, uint16_t pmtu, TcpPcb **out_pcb)
     {
         AMBRO_ASSERT(con != nullptr)
+        AMBRO_ASSERT(con->MtuRef::isSetup())
         AMBRO_ASSERT(out_pcb != nullptr)
         
         // Determine the local interface.
@@ -722,13 +696,6 @@ private:
             return IpErr::NO_PCB_AVAIL;
         }
         
-        // Setup the MTU reference.
-        uint16_t pmtu;
-        if (!pcb->MtuRef::setup(m_stack, remote_addr, iface, pmtu)) {
-            // PCB is CLOSED, this is not a leak.
-            return IpErr::NO_IPMTU_AVAIL;
-        }
-        
         // NOTE: If another error case is added after this, make sure
         // to reset the MtuRef before abandoning the PCB!
         
@@ -754,13 +721,11 @@ private:
         pcb->remote_port = remote_port;
         pcb->rcv_nxt = 0; // it is sent in the SYN
         pcb->rcv_ann_wnd = rcv_wnd;
-        pcb->rcv_ann_thres = Constants::DefaultWndAnnThreshold;
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
         pcb->snd_wnd = pmtu; // store PMTU here temporarily
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
-        pcb->ooseq.init();
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
