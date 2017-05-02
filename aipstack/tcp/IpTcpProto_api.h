@@ -48,7 +48,7 @@ class IpTcpProto_api
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
     APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
-                                   PcbFlags))
+                                   PcbFlags, MtuRef))
     
 public:
     class TcpConnection;
@@ -285,8 +285,9 @@ public:
          * Accepts a connection available on a listener.
          * This brings the object from the INIT to CONNECTED state.
          * May only be called in INIT state.
+         * True means success, false means failure (still in INIT).
          */
-        void acceptConnection (TcpListener *lis)
+        bool acceptConnection (TcpListener *lis)
         {
             assert_init();
             AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
@@ -295,6 +296,12 @@ public:
             
             TcpPcb *pcb = lis->m_accept_pcb;
             TcpProto *tcp = pcb->tcp;
+            
+            // Setup the MTU reference.
+            uint16_t pmtu;
+            if (!pcb->MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
+                return false;
+            }
             
             // Clear the m_accept_pcb link from the listener.
             lis->m_accept_pcb = nullptr;
@@ -309,12 +316,17 @@ public:
             // Set the PCB state to ESTABLISHED.
             pcb->state = TcpState::ESTABLISHED;
             
+            // Initialize certain sender variables.
+            Input::pcb_complete_established_transition(pcb, pmtu);
+            
             // Associate with the PCB.
             m_pcb = pcb;
             pcb->con = this;
             
             // Clear variables, set STARTED flag.
             setup_common_started();
+            
+            return true;
         }
         
         /**

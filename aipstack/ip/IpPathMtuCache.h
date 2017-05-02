@@ -380,6 +380,37 @@ public:
             return true;
         }
         
+        void moveFrom (MtuRef &src)
+        {
+            AMBRO_ASSERT(!isSetup())
+            
+            // If the source is not setup, nothing needs to be done.
+            if (!src.isSetup()) {
+                return;
+            }
+            
+            // Copy the prev and next links.
+            PrevLink::link = src.PrevLink::link;
+            NextLink::link = src.NextLink::link;
+            
+            // Fixup the link from prev (different for first and non-first node).
+            if (PrevLink::link->link == src.NextLink::self()) {
+                PrevLink::link->link = NextLink::self();
+            } else {
+                AMBRO_ASSERT(PrevLink::link->link == src.PrevLink::self())
+                PrevLink::link->link = PrevLink::self();
+            }
+            
+            // Fixup the link from next if any.
+            if (NextLink::link != nullptr) {
+                AMBRO_ASSERT(NextLink::link->link == src.NextLink::self())
+                NextLink::link->link = NextLink::self();
+            }
+            
+            // Reset the PrevLink in the source make it not-setup.
+            src.PrevLink::link = nullptr;
+        }
+        
     protected:
         // This is called when the PMTU changes.
         // It MUST NOT reset/deinit this or any other MtuRef object!

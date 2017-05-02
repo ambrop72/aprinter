@@ -75,7 +75,10 @@ public:
             AMBRO_ASSERT(TcpConnection::isInit())
             AMBRO_ASSERT(m_listener->m_queue_size > 0)
             
-            TcpConnection::acceptConnection(&m_listener->m_listener);
+            if (!TcpConnection::acceptConnection(&m_listener->m_listener)) {
+                return;
+            }
+            
             TcpConnection::setRecvBuf(IpBufRef{&m_rx_buf_node, 0, RxBufferSize});
             
             m_time = Context::Clock::getTime(Context());
@@ -245,7 +248,7 @@ public:
         //   data may have been stored there.
         // - A FIN may already have been received. If so you will not get a
         //   dataReceived(0) callback.
-        void acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
+        bool acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
         {
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(dst_con.isInit())
@@ -254,7 +257,7 @@ public:
                 AMBRO_ASSERT(m_listener.hasAcceptPending())
                 
                 initial_rx_data = IpBufRef{};
-                dst_con.acceptConnection(&m_listener);
+                return dst_con.acceptConnection(&m_listener);
             } else {
                 AMBRO_ASSERT(m_queued_to_accept != nullptr)
                 AMBRO_ASSERT(!m_queued_to_accept->TcpConnection::isInit())
@@ -265,6 +268,7 @@ public:
                 
                 initial_rx_data = entry->get_received_data();
                 dst_con.moveConnection(entry);
+                return true;
             }
         }
         

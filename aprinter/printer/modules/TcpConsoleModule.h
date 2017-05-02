@@ -172,9 +172,11 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
+            if (!TcpConnection::acceptConnection(&o->listener)) {
+                return;
+            }
             
-            TcpConnection::acceptConnection(&o->listener);
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
             
             m_send_ring_buf.setup(*this, m_send_buf, SendBufferSize);
             m_recv_ring_buf.setup(*this, m_recv_buf, RecvBufferSize,

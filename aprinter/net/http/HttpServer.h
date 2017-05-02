@@ -246,11 +246,13 @@ private:
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            HTTP_SERVER_DEBUG("HttpClientConnected");
-            
             // Accept the connection.
             AIpStack::IpBufRef initial_rx_data;
-            listener->acceptConnection(*this, initial_rx_data);
+            if (!listener->acceptConnection(*this, initial_rx_data)) {
+                return;
+            }
+            
+            HTTP_SERVER_DEBUG("HttpClientConnected");
             
             // Set up the ring buffers.
             m_send_ring_buf.setup(*this, m_tx_buf, TxBufferSize);

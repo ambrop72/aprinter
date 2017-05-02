@@ -309,6 +309,24 @@ public:
         }
     }
     
+    // This is called at transition to ESTABLISHED in order to initialize
+    // certain variables which can only be initialized once these is an
+    // associated TcpConnection object.
+    static void pcb_complete_established_transition (TcpPcb *pcb, uint16_t pmtu)
+    {
+        AMBRO_ASSERT(pcb->state == TcpState::ESTABLISHED)
+        
+        // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
+        // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
+        pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
+        
+        // Initialize congestion control variables.
+        pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+        pcb->setFlag(PcbFlags::CWND_INIT);
+        pcb->ssthresh = Constants::MaxWindow;
+        pcb->cwnd_acked = 0;
+    }
+    
 private:
     static void listen_input (TcpListener *lis, Ip4DgramMeta const &ip_meta,
                               TcpSegMeta const &tcp_meta, size_t tcp_data_len)
@@ -755,16 +773,30 @@ private:
         // Update snd_una due to one sequence count having been ACKed.
         pcb->snd_una = tcp_meta.ack_num;
         
-        // We'll need to get the current PMTU for pcb_calc_snd_mss_from_pmtu.
-        uint16_t pmtu;
-        
-        // In SYN_SENT we temporarily stored the PMTU to snd_wnd.
+        // In SYN_SENT we temporarily stored the PMTU to snd_wnd, read it
+        // before we overwrite snd_wnd.
+        uint16_t pmtu_syn_sent;
         if (syn_sent) {
-            pmtu = pcb->snd_wnd;
+            pmtu_syn_sent = pcb->snd_wnd;
         }
         
         // Remember the initial send window.
         pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
+        
+        // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
+        // when the next segment is sent.
+        pcb->setFlag(PcbFlags::RCV_WND_UPD);
+        
+        // If this is the end of RTT measurement (there was no retransmission),
+        // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
+        // to the initial value since it might have been increased in retransmissions.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+            Output::pcb_end_rtt_measurement(pcb);
+        } else {
+            pcb->rto = Constants::InitialRtxTime;
+        }
+        
+        TcpProto *tcp = pcb->tcp;
         
         if (syn_sent) {
             // Update rcv_nxt and rcv_ann_wnd now that we have received the SYN.
@@ -775,8 +807,6 @@ private:
             
             // Go to ESTABLISHED state.
             pcb->state = TcpState::ESTABLISHED;
-            
-            TcpProto *tcp = pcb->tcp;
             
             // Make sure received options are parsed.
             parse_received_opts(tcp);
@@ -791,6 +821,7 @@ private:
             }
             
             // Handle the window scale option.
+            AMBRO_ASSERT(pcb->snd_wnd_shift == 0)
             if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 // Remote sent the window scale flag, so store the window scale
                 // value that they will be using. Note that the window size in
@@ -803,45 +834,17 @@ private:
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
                 pcb->rcv_wnd_shift = 0;
             }
-        } else {
-            // Setup the MTU reference.
-            if (!pcb->MtuRef::setup(pcb->tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
-                TcpProto::pcb_abort(pcb, true);
-                return false;
-            }
-        }
-        
-        // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
-        // when the next segment is sent.
-        pcb->setFlag(PcbFlags::RCV_WND_UPD);
-        
-        // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
-        // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
-        pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
-        
-        // If this is the end of RTT measurement (there was no retransmission),
-        // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
-        // to the initial value since it might have been increased in retransmissions.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-            Output::pcb_end_rtt_measurement(pcb);
-        } else {
-            pcb->rto = Constants::InitialRtxTime;
-        }
-        
-        // Initialize congestion control variables.
-        pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
-        pcb->setFlag(PcbFlags::CWND_INIT);
-        pcb->ssthresh = Constants::MaxWindow;
-        pcb->cwnd_acked = 0;
-        
-        if (syn_sent) {
+            
+            // Initialize certain sender variables.
+            pcb_complete_established_transition(pcb, pmtu_syn_sent);
+            
+            // Make sure the ACK to the SYN-ACK is sent.
+            pcb->setFlag(PcbFlags::ACK_PENDING);
+            
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con != nullptr)
             AMBRO_ASSERT(con->m_pcb == pcb)
-            
-            // Make sure the ACK to the SYN-ACK is sent.
-            pcb->setFlag(PcbFlags::ACK_PENDING);
             
             // Make sure sending of any queued data starts.
             if (con->m_snd_buf.tot_len > 0) {
@@ -855,7 +858,6 @@ private:
             }
             
             // Report connected event to the user.
-            TcpProto *tcp = pcb->tcp;
             con->connection_established();
             
             // Handle abort of PCB.
@@ -873,7 +875,6 @@ private:
             
             // In the listener, point m_accept_pcb to this PCB, so that
             // the connection can be accepted using TcpConnection::acceptConnection.
-            TcpProto *tcp = pcb->tcp;
             lis->m_accept_pcb = pcb;
             
             // Remove the PCB from the list of unreferenced PCBs. This protects
@@ -889,7 +890,7 @@ private:
             if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
                 return false;
             }
-        
+            
             // Possible transitions in callback (except to CLOSED):
             // - SYN_RCVD->ESTABLISHED
             // - ESTABLISHED->FIN_WAIT_1
@@ -898,11 +899,16 @@ private:
             // already abandoned, abort with RST. We must not leave the PCB in
             // SYN_RCVD state here because many variables have been updated for
             // the transition to ESTABLISHED.
-            if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD || pcb->con == nullptr)) {
+            if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
+            
+            // Since acceptConnection was called successfully, the PCB transitioned
+            // to ESTABLISHED, and possibly then to FIN_WAIT_1 if sending was already.
         }
+        
+        AMBRO_ASSERT(pcb->state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1))
         
         return true;
     }

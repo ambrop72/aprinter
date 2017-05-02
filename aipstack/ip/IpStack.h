@@ -593,6 +593,11 @@ public:
             return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface, out_pmtu);
         }
         
+        inline void moveFrom (MtuRef &src)
+        {
+            return BaseMtuRef::moveFrom(src);
+        }
+        
     protected:
         using BaseMtuRef::pmtuChanged;
         
