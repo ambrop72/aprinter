@@ -247,8 +247,6 @@ public:
         void init ()
         {
             m_pcb = nullptr;
-            m_snd_buf = IpBufRef{};
-            m_rcv_buf = IpBufRef{};
             m_flags = 0;
         }
         
@@ -280,8 +278,6 @@ public:
             }
             
             // Reset other variables.
-            m_snd_buf = IpBufRef{};
-            m_rcv_buf = IpBufRef{};
             m_flags = 0;
         }
         
@@ -317,8 +313,8 @@ public:
             m_pcb = pcb;
             pcb->con = this;
             
-            // Set STARTED flag to indicate we're no longer in INIT state.
-            m_flags = Flags::STARTED;
+            // Clear variables, set STARTED flag.
+            setup_common_started();
         }
         
         /**
@@ -348,8 +344,8 @@ public:
             AMBRO_ASSERT(pcb->con == this)
             m_pcb = pcb;
             
-            // Set STARTED flag to indicate we're no longer in INIT state.
-            m_flags = Flags::STARTED;
+            // Clear variables, set STARTED flag.
+            setup_common_started();
             
             return IpErr::SUCCESS;
         }
@@ -365,19 +361,19 @@ public:
             assert_init();
             src_con->assert_connected();
             
-            // Move the PCB association.
+            // Update the PCB association.
             m_pcb = src_con->m_pcb;
             m_pcb->con = this;
-            src_con->m_pcb = nullptr;
             
             // Copy the other state.
             m_snd_buf = src_con->m_snd_buf;
             m_rcv_buf = src_con->m_rcv_buf;
+            m_snd_buf_cur = src_con->m_snd_buf_cur;
+            m_snd_psh_index = src_con->m_snd_psh_index;
             m_flags = src_con->m_flags;
             
-            // Reset other variables in the source.
-            src_con->m_snd_buf = IpBufRef{};
-            src_con->m_rcv_buf = IpBufRef{};
+            // Reset the source.
+            src_con->m_pcb = nullptr;
             src_con->m_flags = 0;
         }
         
@@ -535,16 +531,16 @@ public:
         {
             assert_sending();
             AMBRO_ASSERT(m_snd_buf.tot_len == 0)
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->snd_buf_cur.tot_len == 0)
+            AMBRO_ASSERT(m_snd_buf_cur.tot_len == 0)
             
             // Set the send buffer.
             m_snd_buf = snd_buf;
             
+            // Also update snd_buf_cur. It just needs to be set to the
+            // same as we don't allow calling this with nonempty snd_buf.
+            m_snd_buf_cur = snd_buf;
+            
             if (m_pcb != nullptr) {
-                // Also update snd_buf_cur. It just needs to be set to the
-                // same as we don't allow calling this with nonempty snd_buf.
-                m_pcb->snd_buf_cur = snd_buf;
-                
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_pcb);
             }
@@ -559,15 +555,15 @@ public:
         {
             assert_sending();
             AMBRO_ASSERT(amount <= SIZE_MAX - m_snd_buf.tot_len)
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->snd_buf_cur.tot_len <= m_snd_buf.tot_len)
+            AMBRO_ASSERT(m_snd_buf_cur.tot_len <= m_snd_buf.tot_len)
             
             // Increment the amount of data in the send buffer.
             m_snd_buf.tot_len += amount;
             
+            // Also adjust snd_buf_cur.
+            m_snd_buf_cur.tot_len += amount;
+        
             if (m_pcb != nullptr) {
-                // Also adjust snd_buf_cur.
-                m_pcb->snd_buf_cur.tot_len += amount;
-                
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_pcb);
             }
@@ -641,6 +637,8 @@ public:
         {
             assert_started();
             
+            // TODO: Handle push in SYN_SENT state.
+            
             // Tell the output code to push, if necessary.
             if (m_pcb != nullptr && (m_flags & Flags::SND_CLOSED) == 0) {
                 Output::pcb_push_output(m_pcb);
@@ -674,6 +672,18 @@ public:
         {
             assert_started();
             AMBRO_ASSERT((m_flags & Flags::SND_CLOSED) == 0)
+        }
+        
+        void setup_common_started ()
+        {
+            // Clear buffer variables.
+            m_snd_buf = IpBufRef{};
+            m_rcv_buf = IpBufRef{};
+            m_snd_buf_cur = IpBufRef{};
+            m_snd_psh_index = 0;
+            
+            // Set STARTED flag to indicate we're no longer in INIT state.
+            m_flags = Flags::STARTED;
         }
         
     private:
@@ -784,6 +794,8 @@ public:
         TcpPcb *m_pcb;
         IpBufRef m_snd_buf;
         IpBufRef m_rcv_buf;
+        IpBufRef m_snd_buf_cur;
+        size_t m_snd_psh_index;
         uint8_t m_flags;
     };
 };

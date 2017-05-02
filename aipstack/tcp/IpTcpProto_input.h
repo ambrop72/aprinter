@@ -374,8 +374,6 @@ private:
             pcb->snd_una = iss;
             pcb->snd_nxt = iss;
             pcb->snd_wnd = iface_mss; // store iface_mss here temporarily
-            pcb->snd_buf_cur = IpBufRef{};
-            pcb->snd_psh_index = 0;
             pcb->base_snd_mss = base_snd_mss;
             pcb->rto = Constants::InitialRtxTime;
             pcb->ooseq.init();
@@ -839,13 +837,14 @@ private:
         if (syn_sent) {
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
+            AMBRO_ASSERT(con != nullptr)
             AMBRO_ASSERT(con->m_pcb == pcb)
             
             // Make sure the ACK to the SYN-ACK is sent.
             pcb->setFlag(PcbFlags::ACK_PENDING);
             
             // Make sure sending of any queued data starts.
-            if (pcb->sndBufLen() > 0) {
+            if (con->m_snd_buf.tot_len > 0) {
                 pcb->setFlag(PcbFlags::OUT_PENDING);
             }
             
@@ -960,25 +959,26 @@ private:
             if (data_acked > 0) {
                 // We necessarily still have a TcpConnection, if the connection was
                 // abandoned with unsent/unacked data, it would have been aborted.
-                AMBRO_ASSERT(pcb->con != nullptr)
-                AMBRO_ASSERT(data_acked <= pcb->con->m_snd_buf.tot_len)
-                AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->con->m_snd_buf.tot_len)
-                AMBRO_ASSERT(pcb->snd_psh_index <= pcb->con->m_snd_buf.tot_len)
+                TcpConnection *con = pcb->con;
+                AMBRO_ASSERT(con != nullptr)
+                AMBRO_ASSERT(data_acked <= con->m_snd_buf.tot_len)
+                AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
+                AMBRO_ASSERT(con->m_snd_psh_index <= con->m_snd_buf.tot_len)
                 
                 // Advance the send buffer.
                 size_t cur_offset = Output::pcb_snd_offset(pcb);
                 if (data_acked >= cur_offset) {
-                    pcb->snd_buf_cur.skipBytes(data_acked - cur_offset);
-                    pcb->con->m_snd_buf = pcb->snd_buf_cur;
+                    con->m_snd_buf_cur.skipBytes(data_acked - cur_offset);
+                    con->m_snd_buf = con->m_snd_buf_cur;
                 } else {
-                    pcb->con->m_snd_buf.skipBytes(data_acked);
+                    con->m_snd_buf.skipBytes(data_acked);
                 }
                 
                 // Adjust the push index.
-                if (data_acked <= pcb->snd_psh_index) {
-                    pcb->snd_psh_index -= data_acked;
+                if (data_acked <= con->m_snd_psh_index) {
+                    con->m_snd_psh_index -= data_acked;
                 } else {
-                    pcb->snd_psh_index = 0;
+                    con->m_snd_psh_index = 0;
                 }
                 
                 // Report data-sent event to the user.

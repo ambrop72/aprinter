@@ -53,7 +53,7 @@ class IpTcpProto_output
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
                                    Input, Clock, TimeType, RttType, RttNextType, Constants,
-                                   OutputTimer, RtxTimer, TheIpStack, MtuRef))
+                                   OutputTimer, RtxTimer, TheIpStack, MtuRef, TcpConnection))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -69,9 +69,13 @@ public:
     static size_t pcb_snd_offset (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->snd_buf_cur.tot_len <= pcb->sndBufLen())
         
-        return pcb->sndBufLen() - pcb->snd_buf_cur.tot_len;
+        TcpConnection *con = pcb->con;
+        if (AMBRO_UNLIKELY(con == nullptr)) {
+            return 0;
+        }
+        AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
+        return con->m_snd_buf.tot_len - con->m_snd_buf_cur.tot_len;
     }
     
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
@@ -191,7 +195,10 @@ public:
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || can_output_in_state(pcb->state))
         
         // Set the push index to the end of the send buffer.
-        pcb->snd_psh_index = pcb->sndBufLen();
+        TcpConnection *con = pcb->con;
+        if (AMBRO_LIKELY(con != nullptr)) {
+            con->m_snd_psh_index = con->m_snd_buf.tot_len;
+        }
         
         if (pcb->state != TcpState::SYN_SENT) {
             // Schedule a call to pcb_output soon.
@@ -228,7 +235,7 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        return pcb->snd_buf_cur.tot_len < pcb->sndBufLen() ||
+        return pcb_snd_offset(pcb) > 0 ||
                (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
     }
     
@@ -264,8 +271,19 @@ public:
         // Will need to know if we sent anything.
         bool sent = false;
         
+        // Make a reference to snd_buf_cur, or to a dummy if the connection
+        // is abandoned.
+        IpBufRef dummy_snd_buf_cur;
+        IpBufRef *snd_buf_cur;
+        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+            dummy_snd_buf_cur = IpBufRef{};
+            snd_buf_cur = &dummy_snd_buf_cur;
+        } else {
+            snd_buf_cur = &pcb->con->m_snd_buf_cur;
+        }
+        
         // While we have something to send and some window is available...
-        while ((pcb->snd_buf_cur.tot_len > 0 || pcb->hasFlag(PcbFlags::FIN_PENDING)) && rem_wnd > 0)
+        while ((snd_buf_cur->tot_len > 0 || pcb->hasFlag(PcbFlags::FIN_PENDING)) && rem_wnd > 0)
         {
             // If we have less than MSS of data left to send which is
             // not being pushed (due to sendPush or close), delay sending.
@@ -277,7 +295,7 @@ public:
             // Send a segment.
             bool fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
             SeqType seg_seqlen;
-            IpErr err = pcb_output_segment(pcb, pcb->snd_buf_cur, fin, rem_wnd, &seg_seqlen);
+            IpErr err = pcb_output_segment(pcb, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
             
             // If there was an error sending the segment, stop for now.
             if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
@@ -295,9 +313,9 @@ public:
             AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
             
             // Advance snd_buf_cur over any data just sent.
-            size_t data_sent = APrinter::MinValueU(seg_seqlen, pcb->snd_buf_cur.tot_len);
+            size_t data_sent = APrinter::MinValueU(seg_seqlen, snd_buf_cur->tot_len);
             if (AMBRO_LIKELY(data_sent > 0)) {
-                pcb->snd_buf_cur.skipBytes(data_sent);
+                snd_buf_cur->skipBytes(data_sent);
             }
             
             // If we sent a FIN, clear the FIN_PENDING flag.
@@ -435,7 +453,10 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
         // Requeue data.
-        pcb->snd_buf_cur = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
+        TcpConnection *con = pcb->con;
+        if (AMBRO_LIKELY(con != nullptr)) {
+            con->m_snd_buf_cur = con->m_snd_buf;
+        }
         
         // Requeue any FIN.
         if (!snd_open_in_state(pcb->state)) {
@@ -813,8 +834,18 @@ private:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        return pcb->snd_buf_cur.tot_len < pcb->snd_mss &&
-               pcb->snd_psh_index <= pcb_snd_offset(pcb) &&
+        // If the connection was abandoned, sending must have been closed and
+        // there is no reason to delay sending since there will be no more data.
+        TcpConnection *con = pcb->con;
+        if (AMBRO_UNLIKELY(con == nullptr)) {
+            AMBRO_ASSERT(!snd_open_in_state(pcb->state))
+            return false;
+        }
+        
+        AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
+        
+        return con->m_snd_buf_cur.tot_len < pcb->snd_mss &&
+               con->m_snd_psh_index <= con->m_snd_buf.tot_len - con->m_snd_buf_cur.tot_len &&
                snd_open_in_state(pcb->state);
     }
     
@@ -839,9 +870,13 @@ private:
         if (seg_data_len == data.tot_len && fin && rem_wnd > seg_data_len) {
             seg_flags |= Tcp4FlagFin|Tcp4FlagPsh;
             seg_seqlen++;
-        }
-        else if (pcb->snd_psh_index > offset && pcb->snd_psh_index <= offset + seg_data_len) {
-            seg_flags |= Tcp4FlagPsh;
+        } else {
+            TcpConnection *con = pcb->con;
+            if (AMBRO_LIKELY(con != nullptr)) {
+                if (con->m_snd_psh_index > offset && con->m_snd_psh_index <= offset + seg_data_len) {
+                    seg_flags |= Tcp4FlagPsh;
+                }
+            }
         }
         
         // Send the segment.

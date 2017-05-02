@@ -248,8 +248,6 @@ private:
         SeqType snd_una;
         SeqType snd_nxt;
         SeqType snd_wnd;
-        IpBufRef snd_buf_cur;
-        size_t snd_psh_index;
         
         // Congestion control variables.
         SeqType cwnd;
@@ -606,7 +604,6 @@ private:
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection just cleared it
-        AMBRO_ASSERT(snd_buf_nonempty || pcb->snd_buf_cur.tot_len == 0)
         IpTcpProto *tcp = pcb->tcp;
         
         // Add the PCB to the unreferenced PCBs list.
@@ -761,8 +758,6 @@ private:
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
         pcb->snd_wnd = pmtu; // store PMTU here temporarily
-        pcb->snd_buf_cur = IpBufRef{};
-        pcb->snd_psh_index = 0;
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
         pcb->ooseq.init();
