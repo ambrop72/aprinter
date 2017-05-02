@@ -315,16 +315,18 @@ public:
     static void pcb_complete_established_transition (TcpPcb *pcb, uint16_t pmtu)
     {
         AMBRO_ASSERT(pcb->state == TcpState::ESTABLISHED)
+        AMBRO_ASSERT(pcb->con != nullptr)
         
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // Initialize congestion control variables.
-        pcb->cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+        TcpConnection *con = pcb->con;
+        con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
-        pcb->ssthresh = Constants::MaxWindow;
-        pcb->cwnd_acked = 0;
+        con->m_ev.ssthresh = Constants::MaxWindow;
+        con->m_ev.cwnd_acked = 0;
     }
     
 private:

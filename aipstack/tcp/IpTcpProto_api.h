@@ -239,6 +239,13 @@ public:
             END_RECEIVED = 1 << 3, // FIN was received.
         }; };
         
+        struct EstablishedVars {
+            SeqType cwnd;
+            SeqType ssthresh;
+            SeqType cwnd_acked;
+            SeqType recover;
+        };
+        
     public:
         /**
          * Initializes the connection object.
@@ -316,15 +323,15 @@ public:
             // Set the PCB state to ESTABLISHED.
             pcb->state = TcpState::ESTABLISHED;
             
-            // Initialize certain sender variables.
-            Input::pcb_complete_established_transition(pcb, pmtu);
-            
             // Associate with the PCB.
             m_pcb = pcb;
             pcb->con = this;
             
             // Clear variables, set STARTED flag.
             setup_common_started();
+            
+            // Initialize certain sender variables.
+            Input::pcb_complete_established_transition(pcb, pmtu);
             
             return true;
         }
@@ -378,11 +385,12 @@ public:
             m_pcb->con = this;
             
             // Copy the other state.
-            m_snd_buf = src_con->m_snd_buf;
-            m_rcv_buf = src_con->m_rcv_buf;
-            m_snd_buf_cur = src_con->m_snd_buf_cur;
+            m_snd_buf       = src_con->m_snd_buf;
+            m_rcv_buf       = src_con->m_rcv_buf;
+            m_snd_buf_cur   = src_con->m_snd_buf_cur;
             m_snd_psh_index = src_con->m_snd_psh_index;
-            m_flags = src_con->m_flags;
+            m_ev            = src_con->m_ev;
+            m_flags         = src_con->m_flags;
             
             // Reset the source.
             src_con->m_pcb = nullptr;
@@ -694,6 +702,10 @@ public:
             m_snd_buf_cur = IpBufRef{};
             m_snd_psh_index = 0;
             
+            // Clear EstablishedVars so there's no issue in moveConnection
+            // with copying uninitialized values (not needed otherwise).
+            m_ev = EstablishedVars{};
+            
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_flags = Flags::STARTED;
         }
@@ -807,6 +819,7 @@ public:
         IpBufRef m_snd_buf;
         IpBufRef m_rcv_buf;
         IpBufRef m_snd_buf_cur;
+        EstablishedVars m_ev;
         size_t m_snd_psh_index;
         uint8_t m_flags;
     };

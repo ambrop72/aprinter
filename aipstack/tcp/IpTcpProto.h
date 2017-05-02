@@ -249,12 +249,6 @@ private:
         SeqType snd_nxt;
         SeqType snd_wnd;
         
-        // Congestion control variables.
-        SeqType cwnd;
-        SeqType ssthresh;
-        SeqType cwnd_acked;
-        SeqType recover;
-        
         // Receiver variables.
         SeqType rcv_nxt;
         SeqType rcv_ann_wnd; // ensured to fit in size_t (in case size_t is 16-bit)
