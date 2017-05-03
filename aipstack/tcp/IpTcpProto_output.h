@@ -696,7 +696,6 @@ public:
     // Calculate snd_mss based on the current MtuRef information.
     static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pcb->MtuRef::isSetup())
         AMBRO_ASSERT(pmtu >= TheIpStack::MinMTU)
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
@@ -716,7 +715,9 @@ public:
     // MtuRef here (including this PCB's, such as through pcb_abort).
     inline static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pcb->MtuRef::isSetup())
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD, TcpState::TIME_WAIT))
+        AMBRO_ASSERT(pcb->con != nullptr)
+        AMBRO_ASSERT(pcb->con->MtuRef::isSetup())
         
         // If we are not in a state where output is possible,
         // there is nothing to do.

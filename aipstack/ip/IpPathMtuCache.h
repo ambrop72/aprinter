@@ -243,11 +243,6 @@ public:
             PrevLink::link = nullptr;
         }
         
-        inline void deinit (IpPathMtuCache *cache)
-        {
-            reset(cache);
-        }
-        
         void reset (IpPathMtuCache *cache)
         {
             // If PrevLink is null we are unused (not in a list).

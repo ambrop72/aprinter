@@ -182,8 +182,8 @@ public:
             return;
         }
         
-        // If the MtuRef is not setup, ignore (this is when the PCB has been abandoned).
-        if (!pcb->MtuRef::isSetup()) {
+        // If the PCB has been abandoned, ignore.
+        if (pcb->con == nullptr) {
             return;
         }
         
@@ -1019,7 +1019,9 @@ private:
                     pcb->tim(OutputTimer()).unset(Context());
                     
                     // Reset the MTU reference.
-                    pcb->MtuRef::reset(pcb->tcp->m_stack);
+                    if (pcb->con != nullptr) {
+                        pcb->con->MtuRef::reset(pcb->tcp->m_stack);
+                    }
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.

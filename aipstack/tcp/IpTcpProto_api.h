@@ -226,7 +226,11 @@ public:
      *              is in progress.
      * - CLOSED: There was a connection but is no more.
      */
-    class TcpConnection {
+    class TcpConnection :
+        // MTU reference.
+        // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
+        private MtuRef
+    {
         template <typename> friend class IpTcpProto;
         template <typename> friend class IpTcpProto_input;
         template <typename> friend class IpTcpProto_output;
@@ -239,6 +243,8 @@ public:
             END_RECEIVED = 1 << 3, // FIN was received.
         }; };
         
+        // These variables are here instead of in TcpPcb to save memory,
+        // as they are not needed in unreferenced PCBs.
         struct EstablishedVars {
             SeqType cwnd;
             SeqType ssthresh;
@@ -253,6 +259,7 @@ public:
          */
         void init ()
         {
+            MtuRef::init();
             m_pcb = nullptr;
             m_flags = 0;
         }
@@ -276,6 +283,9 @@ public:
                 
                 TcpPcb *pcb = m_pcb;
                 
+                // Reset the MtuRef.
+                MtuRef::reset(pcb->tcp->m_stack);
+                
                 // Disassociate with the PCB.
                 pcb->con = nullptr;
                 m_pcb = nullptr;
@@ -286,6 +296,8 @@ public:
             
             // Reset other variables.
             m_flags = 0;
+            
+            // NOTE: MtuRef has no deinit(), only reset is needed if it was setup.
         }
         
         /**
@@ -306,7 +318,7 @@ public:
             
             // Setup the MTU reference.
             uint16_t pmtu;
-            if (!pcb->MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
+            if (!MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
                 return false;
             }
             
@@ -351,10 +363,17 @@ public:
         {
             assert_init();
             
+            // Setup the MTU reference.
+            uint16_t pmtu;
+            if (!MtuRef::setup(tcp->m_stack, addr, nullptr, pmtu)) {
+                return IpErr::NO_IPMTU_AVAIL;
+            }
+            
             // Create the PCB for the connection.
             TcpPcb *pcb = nullptr;
-            IpErr err = tcp->create_connection(this, addr, port, rcv_wnd, &pcb);
+            IpErr err = tcp->create_connection(this, addr, port, rcv_wnd, pmtu, &pcb);
             if (err != IpErr::SUCCESS) {
+                MtuRef::reset(tcp->m_stack);
                 return err;
             }
             
@@ -391,6 +410,9 @@ public:
             m_snd_psh_index = src_con->m_snd_psh_index;
             m_ev            = src_con->m_ev;
             m_flags         = src_con->m_flags;
+            
+            // Move the MtuRef setup.
+            MtuRef::moveFrom(*src_con);
             
             // Reset the source.
             src_con->m_pcb = nullptr;
@@ -752,8 +774,12 @@ public:
         {
             assert_connected();
             
-            // Disassociate with the PCB.
             TcpPcb *pcb = m_pcb;
+            
+            // Reset the MtuRef.
+            MtuRef::reset(pcb->tcp->m_stack);
+            
+            // Disassociate with the PCB.
             pcb->con = nullptr;
             m_pcb = nullptr;
             
@@ -812,6 +838,14 @@ public:
             
             // Call the application callback.
             dataReceived(0);
+        }
+        
+        // Callback from MtuRef when the PMTU changes.
+        void pmtuChanged (uint16_t pmtu) override final
+        {
+            assert_connected();
+            
+            Output::pcb_pmtu_changed(m_pcb, pmtu);
         }
         
     private:
