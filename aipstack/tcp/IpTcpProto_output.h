@@ -713,6 +713,12 @@ public:
         AMBRO_ASSERT(pcb->con != nullptr)
         AMBRO_ASSERT(pcb->con->MtuRef::isSetup())
         
+        // In SYN_SENT, just update the PMTU temporarily stuffed in snd_mss.
+        if (pcb->state == TcpState::SYN_SENT) {
+            pcb->snd_mss = pmtu;
+            return;
+        }
+        
         // If we are not in a state where output is possible,
         // there is nothing to do.
         if (!can_output_in_state(pcb->state)) {
@@ -731,25 +737,24 @@ public:
         pcb->snd_mss = new_snd_mss;
         
         TcpConnection *con = pcb->con;
-        if (AMBRO_LIKELY(con != nullptr)) {
-            // Make sure that ssthresh does not become lesser than snd_mss.
-            if (con->m_ev.ssthresh < pcb->snd_mss) {
-                con->m_ev.ssthresh = pcb->snd_mss;
-            }
-            
-            if (pcb->hasFlag(PcbFlags::CWND_INIT)) {
-                // Recalculate initial CWND (RFC 5681 page 5).
-                con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
-            } else {
-                // The standards do not require updating cwnd for the new snd_mss,
-                // but we have to make sure that cwnd does not become less than snd_mss.
-                // We also set cwnd to snd_mss if we have done a retransmission from the
-                // rtx_timer and no new ACK has been received since; since the cwnd would
-                // have been set to snd_mss then, and should not have been changed since
-                // (the latter is not trivial to see though).
-                if (con->m_ev.cwnd < pcb->snd_mss || pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-                    con->m_ev.cwnd = pcb->snd_mss;
-                }
+        
+        // Make sure that ssthresh does not become lesser than snd_mss.
+        if (con->m_ev.ssthresh < pcb->snd_mss) {
+            con->m_ev.ssthresh = pcb->snd_mss;
+        }
+        
+        if (pcb->hasFlag(PcbFlags::CWND_INIT)) {
+            // Recalculate initial CWND (RFC 5681 page 5).
+            con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+        } else {
+            // The standards do not require updating cwnd for the new snd_mss,
+            // but we have to make sure that cwnd does not become less than snd_mss.
+            // We also set cwnd to snd_mss if we have done a retransmission from the
+            // rtx_timer and no new ACK has been received since; since the cwnd would
+            // have been set to snd_mss then, and should not have been changed since
+            // (the latter is not trivial to see though).
+            if (con->m_ev.cwnd < pcb->snd_mss || pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                con->m_ev.cwnd = pcb->snd_mss;
             }
         }
         
