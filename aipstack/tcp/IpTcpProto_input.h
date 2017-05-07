@@ -392,7 +392,7 @@ private:
             pcb->rcv_ann_wnd = rcv_wnd;
             pcb->snd_una = iss;
             pcb->snd_nxt = iss;
-            pcb->snd_wnd = iface_mss; // store iface_mss here temporarily
+            pcb->snd_mss = iface_mss; // store iface_mss here temporarily
             pcb->base_snd_mss = base_snd_mss;
             pcb->rto = Constants::InitialRtxTime;
             pcb->num_dupack = 0;
@@ -409,14 +409,6 @@ private:
                 pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
                 pcb->rcv_wnd_shift = Constants::RcvWndShift;
             }
-            
-            // These will be initialized at transition to ESTABLISHED:
-            // snd_wnd, snd_mss
-            
-            // We also do not setup the MtuRef now, it will be done at
-            // transition to ESTABLISHED. Note that we also don't have the
-            // IpSendFlags::DontFragmentFlag (yet), since handleIp4DestUnreach
-            // would not be able to handle an ICMP error without the MtuRef::
             
             // Increment the listener's PCB count.
             AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
@@ -773,13 +765,6 @@ private:
         // Update snd_una due to one sequence count having been ACKed.
         pcb->snd_una = tcp_meta.ack_num;
         
-        // In SYN_SENT we temporarily stored the PMTU to snd_wnd, read it
-        // before we overwrite snd_wnd.
-        uint16_t pmtu_syn_sent;
-        if (syn_sent) {
-            pmtu_syn_sent = pcb->snd_wnd;
-        }
-        
         // Remember the initial send window.
         pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         
@@ -836,7 +821,8 @@ private:
             }
             
             // Initialize certain sender variables.
-            pcb_complete_established_transition(pcb, pmtu_syn_sent);
+            uint16_t pmtu = pcb->snd_mss; // pmtu was stored to snd_mss temporarily
+            pcb_complete_established_transition(pcb, pmtu);
             
             // Make sure the ACK to the SYN-ACK is sent.
             pcb->setFlag(PcbFlags::ACK_PENDING);

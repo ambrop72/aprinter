@@ -723,14 +723,12 @@ private:
         pcb->rcv_ann_wnd = rcv_wnd;
         pcb->snd_una = iss;
         pcb->snd_nxt = iss;
-        pcb->snd_wnd = pmtu; // store PMTU here temporarily
+        pcb->snd_mss = pmtu; // store PMTU here temporarily
         pcb->base_snd_mss = iface_mss; // will be updated when the SYN-ACK is received
         pcb->rto = Constants::InitialRtxTime;
         pcb->num_dupack = 0;
         pcb->snd_wnd_shift = 0;
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
-        
-        // snd_mss will be initialized at transition to ESTABLISHED
         
         // Add the PCB to the active index.
         m_pcb_index_active.addEntry(*this, {*pcb, *this});
