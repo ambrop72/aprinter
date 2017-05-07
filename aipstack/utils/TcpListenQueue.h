@@ -33,6 +33,7 @@
 #include <aprinter/misc/ClockUtils.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Err.h>
 
 #include <aipstack/BeginNamespace.h>
 
@@ -75,7 +76,7 @@ public:
             AMBRO_ASSERT(TcpConnection::isInit())
             AMBRO_ASSERT(m_listener->m_queue_size > 0)
             
-            if (!TcpConnection::acceptConnection(&m_listener->m_listener)) {
+            if (TcpConnection::acceptConnection(&m_listener->m_listener) != IpErr::SUCCESS) {
                 return;
             }
             
@@ -248,7 +249,7 @@ public:
         //   data may have been stored there.
         // - A FIN may already have been received. If so you will not get a
         //   dataReceived(0) callback.
-        bool acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
+        IpErr acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
         {
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(dst_con.isInit())
@@ -268,7 +269,7 @@ public:
                 
                 initial_rx_data = entry->get_received_data();
                 dst_con.moveConnection(entry);
-                return true;
+                return IpErr::SUCCESS;
             }
         }
         

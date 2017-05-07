@@ -32,7 +32,9 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
+
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/tcp/TcpUtils.h>
 
@@ -303,11 +305,11 @@ public:
         
         /**
          * Accepts a connection available on a listener.
-         * This brings the object from the INIT to CONNECTED state.
+         * On success, this brings the object from the INIT to CONNECTED state.
+         * On failure, the object remains in INIT state.
          * May only be called in INIT state.
-         * True means success, false means failure (still in INIT).
          */
-        bool acceptConnection (TcpListener *lis)
+        IpErr acceptConnection (TcpListener *lis)
         {
             assert_init();
             AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
@@ -320,7 +322,7 @@ public:
             // Setup the MTU reference.
             uint16_t pmtu;
             if (!MtuRef::setup(tcp->m_stack, pcb->remote_addr, nullptr, pmtu)) {
-                return false;
+                return IpErr::NO_IPMTU_AVAIL;
             }
             
             // Clear the m_accept_pcb link from the listener.
@@ -346,7 +348,7 @@ public:
             // Initialize certain sender variables.
             Input::pcb_complete_established_transition(pcb, pmtu);
             
-            return true;
+            return IpErr::SUCCESS;
         }
         
         /**

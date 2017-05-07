@@ -48,6 +48,7 @@
 #include <aprinter/net/http/HttpPathParser.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
@@ -248,7 +249,7 @@ private:
             
             // Accept the connection.
             AIpStack::IpBufRef initial_rx_data;
-            if (!listener->acceptConnection(*this, initial_rx_data)) {
+            if (listener->acceptConnection(*this, initial_rx_data) != AIpStack::IpErr::SUCCESS) {
                 return;
             }
             

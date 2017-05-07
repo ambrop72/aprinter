@@ -41,6 +41,7 @@
 #include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
@@ -172,7 +173,7 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            if (!TcpConnection::acceptConnection(&o->listener)) {
+            if (TcpConnection::acceptConnection(&o->listener) != AIpStack::IpErr::SUCCESS) {
                 return;
             }
             
