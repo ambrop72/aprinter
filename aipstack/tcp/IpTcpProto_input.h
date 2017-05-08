@@ -885,7 +885,10 @@ private:
             // already abandoned, abort with RST. We must not leave the PCB in
             // SYN_RCVD state here because many variables have been updated for
             // the transition to ESTABLISHED.
-            if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+            // NOTE: It is important to check state==SYN_RCVD before pcb->con since
+            // in SYN_RCVD, pcb->con is undefined because pcb->lis in the same union
+            // is relevant.
+            if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD || pcb->con == nullptr)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
