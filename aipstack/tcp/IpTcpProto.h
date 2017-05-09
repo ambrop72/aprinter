@@ -259,8 +259,9 @@ private:
         // The maximum segment size we will send.
         // This is dynamic based on Path MTU Discovery, but it will always
         // be between Constants::MinAllowedMss and base_snd_mss.
-        // It is first initialized at the transition to ESTABLISHED state,
-        // before that is is undefined.
+        // It is first properly initialized at the transition to ESTABLISHED
+        // state, before that in SYN_SENT/SYN_RCVD is is used to store the
+        // pmtu/iface_mss respectively.
         // Due to invariants and other requirements associated with snd_mss,
         // fixups must be performed when snd_mss is changed, specifically of
         // ssthresh, cwnd and rtx_timer (see pcb_pmtu_changed).
