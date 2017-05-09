@@ -248,6 +248,7 @@ public:
         // These variables are here instead of in TcpPcb to save memory,
         // as they are not needed in unreferenced PCBs.
         struct EstablishedVars {
+            SeqType snd_wnd;
             SeqType cwnd;
             SeqType ssthresh;
             SeqType cwnd_acked;

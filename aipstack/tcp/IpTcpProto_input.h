@@ -203,7 +203,9 @@ public:
         // We will retransmit if we have anything unacknowledged data, there
         // is some window available and and the sequence number in the ICMP
         // message is equal to the first unacknowledged sequence number.
-        if (Output::pcb_has_snd_unacked(pcb) && pcb->snd_wnd > 0 && seq_num == pcb->snd_una) {
+        if (Output::pcb_has_snd_unacked(pcb) && pcb->con->m_ev.snd_wnd > 0 &&
+            seq_num == pcb->snd_una)
+        {
             // Requeue everything for retransmission.
             Output::pcb_requeue_everything(pcb);
             
@@ -321,8 +323,10 @@ public:
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
-        // Initialize congestion control variables.
+        // Initialize some variables. Note that snd_wnd was temporarily
+        // stuffed to rtt_test_seq (pcb_input_syn_sent_rcvd_processing).
         TcpConnection *con = pcb->con;
+        con->m_ev.snd_wnd = pcb->rtt_test_seq;
         con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
         con->m_ev.ssthresh = Constants::MaxWindow;
@@ -765,9 +769,6 @@ private:
         // Update snd_una due to one sequence count having been ACKed.
         pcb->snd_una = tcp_meta.ack_num;
         
-        // Remember the initial send window.
-        pcb->snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
-        
         // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
         // when the next segment is sent.
         pcb->setFlag(PcbFlags::RCV_WND_UPD);
@@ -780,6 +781,11 @@ private:
         } else {
             pcb->rto = Constants::InitialRtxTime;
         }
+        
+        // Calculate the initial send window (snd_wnd).
+        // Stuff it into rtt_test_seq temporarily. It will be put into
+        // its rightful place by pcb_complete_established_transition.
+        pcb->rtt_test_seq = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         
         TcpProto *tcp = pcb->tcp;
         
@@ -932,13 +938,6 @@ private:
             // Update snd_una due to sequences having been ACKed.
             pcb->snd_una = tcp_meta.ack_num;
             
-            // The snd_wnd needs adjustment because it is relative to snd_una.
-            if (AMBRO_LIKELY(acked <= pcb->snd_wnd)) {
-                pcb->snd_wnd -= acked;
-            } else {
-                pcb->snd_wnd = 0;
-            }
-            
             // Schedule pcb_output, so that the rtx_timer will be restarted
             // if needed (for retransmission or zero-window probe).
             pcb->setFlag(PcbFlags::OUT_PENDING);
@@ -959,6 +958,15 @@ private:
                 AMBRO_ASSERT(data_acked <= con->m_snd_buf.tot_len)
                 AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
                 AMBRO_ASSERT(con->m_snd_psh_index <= con->m_snd_buf.tot_len)
+                
+                // The snd_wnd needs adjustment because it is relative to snd_una.
+                // It is okay to adjust for acked data only not FIN since after
+                // FIN is acked snd_wnd is no longer relevant.
+                if (AMBRO_LIKELY(data_acked <= con->m_ev.snd_wnd)) {
+                    con->m_ev.snd_wnd -= data_acked;
+                } else {
+                    con->m_ev.snd_wnd = 0;
+                }
                 
                 // Advance the send buffer.
                 size_t cur_offset = Output::pcb_snd_offset(pcb);
@@ -1032,7 +1040,8 @@ private:
                 (tcp_meta.flags & Tcp4FlagFin) == 0 &&
                 tcp_meta.ack_num == pcb->snd_una &&
                 can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
-                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->snd_wnd
+                pcb->con != nullptr &&
+                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->con->m_ev.snd_wnd
             ) {
                 if (pcb->num_dupack < Constants::FastRtxDupAcks + Constants::MaxAdditionaDupAcks) {
                     pcb->num_dupack++;

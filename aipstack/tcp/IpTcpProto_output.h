@@ -217,7 +217,9 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
-        return (pcb->snd_wnd == 0) ? !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
+        TcpConnection *con = pcb->con;
+        return (con == nullptr || con->m_ev.snd_wnd == 0) ?
+            !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
     }
     
     // Determine if there is any data or FIN which is no longer queued for
@@ -252,25 +254,29 @@ public:
         }
         
         SeqType cwnd;
+        SeqType snd_wnd;
         IpBufRef dummy_snd_buf_cur;
         IpBufRef *snd_buf_cur;
         
-        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
-            // Abandoned connection -> assume cwnd=1, use dummy snd_buf.
+        TcpConnection *con = pcb->con;
+        if (AMBRO_UNLIKELY(con == nullptr)) {
+            // Abandoned connection -> assume cwnd=snd_wnd=1, use dummy snd_buf.
             cwnd = 1;
+            snd_wnd = 1;
             dummy_snd_buf_cur = IpBufRef{};
             snd_buf_cur = &dummy_snd_buf_cur;
         } else {
-            // Referenced connection -> take cwnd and snd_buf_cur.
-            cwnd = pcb->con->m_ev.cwnd;
-            snd_buf_cur = &pcb->con->m_snd_buf_cur;
+            // Referenced connection -> take real things from TcpConnection.
+            cwnd = con->m_ev.cwnd;
+            snd_wnd = con->m_ev.snd_wnd;
+            snd_buf_cur = &con->m_snd_buf_cur;
         }
         
         AMBRO_ASSERT(cwnd >= pcb->snd_mss)
         
         // Calculate how much more we are allowed to send, according
         // to the receiver window and the congestion window.
-        SeqType full_wnd = APrinter::MinValue(pcb->snd_wnd, cwnd);
+        SeqType full_wnd = APrinter::MinValue(snd_wnd, cwnd);
         SeqType rem_wnd = full_wnd - APrinter::MinValueU(full_wnd, pcb_snd_offset(pcb));
         
         // Will need to know if we sent anything.
@@ -413,33 +419,34 @@ public:
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
         
-        if (pcb->snd_wnd == 0) {
+        TcpConnection *con = pcb->con;
+        
+        if (con == nullptr || con->m_ev.snd_wnd == 0) {
             // Send a window probe.
+            // Note that for an abandoned connection (where snd_wnd is gone),
+            // a FIN retransmission would also be handled by this case.
             pcb_output_front(pcb);
         } else {
-            TcpConnection *con = pcb->con;
-            if (AMBRO_LIKELY(con != nullptr)) {
-                // Check for first retransmission.
-                if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-                    // Set flag to indicate there has been a retransmission.
-                    // This will be cleared upon new ACK.
-                    pcb->setFlag(PcbFlags::RTX_ACTIVE);
-                    
-                    // Update ssthresh (RFC 5681).
-                    pcb_update_ssthresh_for_rtx(pcb);
-                }
+            // Check for first retransmission.
+            if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                // Set flag to indicate there has been a retransmission.
+                // This will be cleared upon new ACK.
+                pcb->setFlag(PcbFlags::RTX_ACTIVE);
                 
-                // Set cwnd to one segment (RFC 5681).
-                // Also reset cwnd_acked to avoid old accumulated value
-                // from causing an undesired cwnd increase later.
-                con->m_ev.cwnd = pcb->snd_mss;
-                pcb->clearFlag(PcbFlags::CWND_INIT);
-                con->m_ev.cwnd_acked = 0;
-                
-                // Set recover.
-                pcb->setFlag(PcbFlags::RECOVER);
-                con->m_ev.recover = pcb->snd_nxt;
+                // Update ssthresh (RFC 5681).
+                pcb_update_ssthresh_for_rtx(pcb);
             }
+            
+            // Set cwnd to one segment (RFC 5681).
+            // Also reset cwnd_acked to avoid old accumulated value
+            // from causing an undesired cwnd increase later.
+            con->m_ev.cwnd = pcb->snd_mss;
+            pcb->clearFlag(PcbFlags::CWND_INIT);
+            con->m_ev.cwnd_acked = 0;
+            
+            // Set recover.
+            pcb->setFlag(PcbFlags::RECOVER);
+            con->m_ev.recover = pcb->snd_nxt;
             
             // Exit any fast recovery.
             pcb->num_dupack = 0;
@@ -763,7 +770,7 @@ public:
         // idle timeout). Note that snd_mss affects pcb_need_rtx_timer only
         // when snd_wnd==0 (to determine if window probing is needed), hence
         // the condition here.
-        if (pcb_has_snd_outstanding(pcb) && pcb->snd_wnd == 0) {
+        if (pcb_has_snd_outstanding(pcb) && con->m_ev.snd_wnd == 0) {
             pcb_update_rtx_timer(pcb);
         }
     }
@@ -792,14 +799,20 @@ public:
         // With maximum snd_wnd_shift=14, MaxWindow or more cannot be reported.
         AMBRO_ASSERT(new_snd_wnd <= Constants::MaxWindow)
         
+        // If the connection has been abandoned we no longer keep snd_wnd.
+        TcpConnection *con = pcb->con;
+        if (AMBRO_UNLIKELY(con == nullptr)) {
+            return;
+        }
+        
         // Check if the window has changed.
-        SeqType old_snd_wnd = pcb->snd_wnd;
+        SeqType old_snd_wnd = con->m_ev.snd_wnd;
         if (new_snd_wnd == old_snd_wnd) {
             return;
         }
         
         // Update the window.
-        pcb->snd_wnd = new_snd_wnd;
+        con->m_ev.snd_wnd = new_snd_wnd;
         
         // Set the flag OUT_PENDING to send any data that can now be
         // sent and to ensure the rtx_timer is reconfigured as needed
@@ -958,7 +971,8 @@ private:
         // Compute a maximum number of sequence counts to send.
         // We must not send more than one segment, but we must be
         // able to send at least something in case of window probes.
-        SeqType rem_wnd = APrinter::MinValueU(pcb->snd_mss, APrinter::MaxValue((SeqType)1, pcb->snd_wnd));
+        SeqType snd_wnd = (pcb->con != nullptr) ? pcb->con->m_ev.snd_wnd : 1;
+        SeqType rem_wnd = APrinter::MinValueU(pcb->snd_mss, APrinter::MaxValue((SeqType)1, snd_wnd));
         
         // Send a segment from the start of the send buffer.
         IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};

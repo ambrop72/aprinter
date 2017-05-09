@@ -244,14 +244,13 @@ private:
         // Sender variables.
         SeqType snd_una;
         SeqType snd_nxt;
-        SeqType snd_wnd;
         
         // Receiver variables.
         SeqType rcv_nxt;
         SeqType rcv_ann_wnd; // ensured to fit in size_t (in case size_t is 16-bit)
         
         // Round-trip-time and retransmission time management.
-        SeqType rtt_test_seq;
+        SeqType rtt_test_seq; // also transiently stores snd_wnd at transition to ESTABLISHED
         TimeType rtt_test_time;
         RttType rttvar;
         RttType srtt;
