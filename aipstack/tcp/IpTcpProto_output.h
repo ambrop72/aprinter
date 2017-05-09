@@ -796,6 +796,7 @@ public:
     // Update the snd_wnd to the given value.
     static void pcb_update_snd_wnd (TcpPcb *pcb, SeqType new_snd_wnd)
     {
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
         // With maximum snd_wnd_shift=14, MaxWindow or more cannot be reported.
         AMBRO_ASSERT(new_snd_wnd <= Constants::MaxWindow)
         
