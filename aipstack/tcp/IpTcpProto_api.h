@@ -27,6 +27,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+#include <type_traits>
 
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
@@ -237,24 +240,13 @@ public:
         template <typename> friend class IpTcpProto_input;
         template <typename> friend class IpTcpProto_output;
         
-        // Flag definitions for m_flags.
+        // Flag definitions for m_v.flags.
         struct Flags { enum : uint8_t {
             STARTED      = 1 << 0, // We are not in INIT state.
             SND_CLOSED   = 1 << 1, // Sending was closed.
             END_SENT     = 1 << 2, // FIN was sent and acked.
             END_RECEIVED = 1 << 3, // FIN was received.
         }; };
-        
-        // These variables are here instead of in TcpPcb to save memory,
-        // as they are not needed in unreferenced PCBs.
-        struct EstablishedVars {
-            SeqType snd_wnd;
-            SeqType cwnd;
-            SeqType ssthresh;
-            SeqType cwnd_acked;
-            SeqType recover;
-            SeqType rcv_ann_thres;
-        };
         
     public:
         /**
@@ -264,8 +256,8 @@ public:
         void init ()
         {
             MtuRef::init();
-            m_pcb = nullptr;
-            m_flags = 0;
+            m_v.pcb = nullptr;
+            m_v.flags = 0;
         }
         
         /**
@@ -282,24 +274,24 @@ public:
          */
         void reset ()
         {
-            if (m_pcb != nullptr) {
+            if (m_v.pcb != nullptr) {
                 assert_started();
                 
-                TcpPcb *pcb = m_pcb;
+                TcpPcb *pcb = m_v.pcb;
                 
                 // Reset the MtuRef.
                 MtuRef::reset(pcb->tcp->m_stack);
                 
                 // Disassociate with the PCB.
                 pcb->con = nullptr;
-                m_pcb = nullptr;
+                m_v.pcb = nullptr;
                 
                 // Handle abandonment of connection.
-                TcpProto::pcb_con_abandoned(pcb, m_snd_buf.tot_len > 0, m_ev.rcv_ann_thres);
+                TcpProto::pcb_con_abandoned(pcb, m_v.snd_buf.tot_len > 0, m_v.rcv_ann_thres);
             }
             
             // Reset other variables.
-            m_flags = 0;
+            m_v.flags = 0;
             
             // NOTE: MtuRef has no deinit(), only reset is needed if it was setup.
         }
@@ -340,7 +332,7 @@ public:
             pcb->state = TcpState::ESTABLISHED;
             
             // Associate with the PCB.
-            m_pcb = pcb;
+            m_v.pcb = pcb;
             pcb->con = this;
             
             // Initialize TcpConnection variables, set STARTED flag.
@@ -384,7 +376,7 @@ public:
             // Remember the PCB (the link to us already exists).
             AMBRO_ASSERT(pcb != nullptr)
             AMBRO_ASSERT(pcb->con == this)
-            m_pcb = pcb;
+            m_v.pcb = pcb;
             
             // Initialize TcpConnection variables, set STARTED flag.
             setup_common_started();
@@ -403,25 +395,20 @@ public:
             assert_init();
             src_con->assert_connected();
             
-            // Update the PCB association.
-            m_pcb = src_con->m_pcb;
-            m_pcb->con = this;
+            static_assert(std::is_trivially_copy_constructible<OosBuffer>::value, "");
             
-            // Copy the other state.
-            m_snd_buf       = src_con->m_snd_buf;
-            m_rcv_buf       = src_con->m_rcv_buf;
-            m_snd_buf_cur   = src_con->m_snd_buf_cur;
-            m_snd_psh_index = src_con->m_snd_psh_index;
-            m_ev            = src_con->m_ev;
-            m_ooseq.initCopy(src_con->m_ooseq);
-            m_flags         = src_con->m_flags;
+            // Byte-copy the whole m_v.
+            ::memcpy(&m_v, &src_con->m_v, sizeof(m_v));
+            
+            // Update the PCB association.
+            m_v.pcb->con = this;
             
             // Move the MtuRef setup.
             MtuRef::moveFrom(*src_con);
             
             // Reset the source.
-            src_con->m_pcb = nullptr;
-            src_con->m_flags = 0;
+            src_con->m_v.pcb = nullptr;
+            src_con->m_v.flags = 0;
         }
         
         /**
@@ -429,7 +416,7 @@ public:
          */
         inline bool isInit ()
         {
-            return m_flags == 0;
+            return m_v.flags == 0;
         }
         
         /**
@@ -437,7 +424,7 @@ public:
          */
         inline bool isConnected ()
         {
-            return m_pcb != nullptr;
+            return m_v.pcb != nullptr;
         }
         
         /**
@@ -454,7 +441,7 @@ public:
             AMBRO_ASSERT(rcv_ann_thres > 0)
             AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxWindow)
             
-            m_ev.rcv_ann_thres = rcv_ann_thres;
+            m_v.rcv_ann_thres = rcv_ann_thres;
         }
         
         /**
@@ -467,11 +454,11 @@ public:
         {
             assert_connected();
             
-            SeqType ann_wnd = m_pcb->rcv_ann_wnd;
+            SeqType ann_wnd = m_v.pcb->rcv_ann_wnd;
             
             // In SYN_SENT we subtract one because one was added
             // by create_connection for receiving the SYN.
-            if (m_pcb->state == TcpState::SYN_SENT) {
+            if (m_v.pcb->state == TcpState::SYN_SENT) {
                 AMBRO_ASSERT(ann_wnd > 0)
                 ann_wnd--;
             }
@@ -493,14 +480,14 @@ public:
         void setRecvBuf (IpBufRef rcv_buf)
         {
             assert_started();
-            AMBRO_ASSERT(rcv_buf.tot_len >= m_rcv_buf.tot_len)
+            AMBRO_ASSERT(rcv_buf.tot_len >= m_v.rcv_buf.tot_len)
             
             // Set the receive buffer.
-            m_rcv_buf = rcv_buf;
+            m_v.rcv_buf = rcv_buf;
             
-            if (m_pcb != nullptr) {
+            if (m_v.pcb != nullptr) {
                 // Inform the input code, so it can send a window update.
-                Input::pcb_rcv_buf_extended(m_pcb);
+                Input::pcb_rcv_buf_extended(m_v.pcb);
             }
         }
         
@@ -511,14 +498,14 @@ public:
         void extendRecvBuf (size_t amount)
         {
             assert_started();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_rcv_buf.tot_len)
+            AMBRO_ASSERT(amount <= SIZE_MAX - m_v.rcv_buf.tot_len)
             
             // Extend the receive buffer.
-            m_rcv_buf.tot_len += amount;
+            m_v.rcv_buf.tot_len += amount;
             
-            if (m_pcb != nullptr) {
+            if (m_v.pcb != nullptr) {
                 // Inform the input code, so it can send a window update.
-                Input::pcb_rcv_buf_extended(m_pcb);
+                Input::pcb_rcv_buf_extended(m_v.pcb);
             }
         }
         
@@ -535,7 +522,7 @@ public:
         {
             assert_started();
             
-            return m_rcv_buf;
+            return m_v.rcv_buf;
         }
         
         /**
@@ -546,7 +533,7 @@ public:
         {
             assert_started();
             
-            return (m_flags & Flags::END_RECEIVED) != 0;
+            return (m_v.flags & Flags::END_RECEIVED) != 0;
         }
         
         /**
@@ -563,7 +550,7 @@ public:
             
             // Sending can be delayed for segmentation only when we have
             // less than the MSS data left to send, hence return mss-1.
-            return m_pcb->base_snd_mss - 1;
+            return m_v.pcb->base_snd_mss - 1;
         }
         
         /**
@@ -577,19 +564,19 @@ public:
         void setSendBuf (IpBufRef snd_buf)
         {
             assert_sending();
-            AMBRO_ASSERT(m_snd_buf.tot_len == 0)
-            AMBRO_ASSERT(m_snd_buf_cur.tot_len == 0)
+            AMBRO_ASSERT(m_v.snd_buf.tot_len == 0)
+            AMBRO_ASSERT(m_v.snd_buf_cur.tot_len == 0)
             
             // Set the send buffer.
-            m_snd_buf = snd_buf;
+            m_v.snd_buf = snd_buf;
             
             // Also update snd_buf_cur. It just needs to be set to the
             // same as we don't allow calling this with nonempty snd_buf.
-            m_snd_buf_cur = snd_buf;
+            m_v.snd_buf_cur = snd_buf;
             
-            if (m_pcb != nullptr) {
+            if (m_v.pcb != nullptr) {
                 // Inform the output code, so it may send the data.
-                Output::pcb_snd_buf_extended(m_pcb);
+                Output::pcb_snd_buf_extended(m_v.pcb);
             }
         }
         
@@ -601,18 +588,18 @@ public:
         void extendSendBuf (size_t amount)
         {
             assert_sending();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_snd_buf.tot_len)
-            AMBRO_ASSERT(m_snd_buf_cur.tot_len <= m_snd_buf.tot_len)
+            AMBRO_ASSERT(amount <= SIZE_MAX - m_v.snd_buf.tot_len)
+            AMBRO_ASSERT(m_v.snd_buf_cur.tot_len <= m_v.snd_buf.tot_len)
             
             // Increment the amount of data in the send buffer.
-            m_snd_buf.tot_len += amount;
+            m_v.snd_buf.tot_len += amount;
             
             // Also adjust snd_buf_cur.
-            m_snd_buf_cur.tot_len += amount;
+            m_v.snd_buf_cur.tot_len += amount;
         
-            if (m_pcb != nullptr) {
+            if (m_v.pcb != nullptr) {
                 // Inform the output code, so it may send the data.
-                Output::pcb_snd_buf_extended(m_pcb);
+                Output::pcb_snd_buf_extended(m_v.pcb);
             }
         }
         
@@ -629,7 +616,7 @@ public:
         {
             assert_started();
             
-            return m_snd_buf;
+            return m_v.snd_buf;
         }
         
         /**
@@ -642,16 +629,16 @@ public:
             assert_sending();
             
             // Set the push index to the current send buffer size.
-            m_snd_psh_index = m_snd_buf.tot_len;
+            m_v.snd_psh_index = m_v.snd_buf.tot_len;
             
             // Remember that sending is closed.
-            m_flags |= Flags::SND_CLOSED;
+            m_v.flags |= Flags::SND_CLOSED;
             
             // Inform the output code, e.g. to adjust the PCB state
             // and send a FIN. But not in SYN_SENT, in that case the
             // input code will take care of it when the SYN is received.
-            if (m_pcb != nullptr && m_pcb->state != TcpState::SYN_SENT) {
-                Output::pcb_end_sending(m_pcb);
+            if (m_v.pcb != nullptr && m_v.pcb->state != TcpState::SYN_SENT) {
+                Output::pcb_end_sending(m_v.pcb);
             }
         }
         
@@ -663,7 +650,7 @@ public:
         {
             assert_started();
             
-            return (m_flags & Flags::SND_CLOSED) != 0;
+            return (m_v.flags & Flags::SND_CLOSED) != 0;
         }
         
         /**
@@ -674,7 +661,7 @@ public:
         {
             assert_started();
             
-            return (m_flags & Flags::END_SENT) != 0;
+            return (m_v.flags & Flags::END_SENT) != 0;
         }
         
         /**
@@ -686,63 +673,59 @@ public:
             assert_started();
             
             // Set the push index to the current send buffer size.
-            m_snd_psh_index = m_snd_buf.tot_len;
+            m_v.snd_psh_index = m_v.snd_buf.tot_len;
             
             // Tell the output code to push, if necessary.
-            if (m_pcb != nullptr && snd_open_in_state(m_pcb->state)) {
-                Output::pcb_push_output(m_pcb);
+            if (m_v.pcb != nullptr && snd_open_in_state(m_v.pcb->state)) {
+                Output::pcb_push_output(m_v.pcb);
             }
         }
         
     private:
         void assert_init ()
         {
-            AMBRO_ASSERT(m_flags == 0)
-            AMBRO_ASSERT(m_pcb == nullptr)
+            AMBRO_ASSERT(m_v.flags == 0)
+            AMBRO_ASSERT(m_v.pcb == nullptr)
         }
         
         void assert_started ()
         {
-            AMBRO_ASSERT((m_flags & Flags::STARTED) != 0)
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
-                state_is_active(m_pcb->state))
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->con == this)
-            AMBRO_ASSERT(m_pcb == nullptr || m_pcb->state == TcpState::SYN_SENT ||
-                snd_open_in_state(m_pcb->state) == ((m_flags & Flags::SND_CLOSED) == 0))
+            AMBRO_ASSERT((m_v.flags & Flags::STARTED) != 0)
+            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
+                state_is_active(m_v.pcb->state))
+            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->con == this)
+            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
+                snd_open_in_state(m_v.pcb->state) == ((m_v.flags & Flags::SND_CLOSED) == 0))
         }
         
         void assert_connected ()
         {
             assert_started();
-            AMBRO_ASSERT(m_pcb != nullptr)
+            AMBRO_ASSERT(m_v.pcb != nullptr)
         }
         
         void assert_sending ()
         {
             assert_started();
-            AMBRO_ASSERT((m_flags & Flags::SND_CLOSED) == 0)
+            AMBRO_ASSERT((m_v.flags & Flags::SND_CLOSED) == 0)
         }
         
         void setup_common_started ()
         {
             // Clear buffer variables.
-            m_snd_buf = IpBufRef{};
-            m_rcv_buf = IpBufRef{};
-            m_snd_buf_cur = IpBufRef{};
-            m_snd_psh_index = 0;
-            
-            // Clear EstablishedVars so there's no issue in moveConnection
-            // with copying uninitialized values (not needed otherwise).
-            m_ev = EstablishedVars{};
+            m_v.snd_buf = IpBufRef{};
+            m_v.rcv_buf = IpBufRef{};
+            m_v.snd_buf_cur = IpBufRef{};
+            m_v.snd_psh_index = 0;
             
             // Initialize rcv_ann_thres.
-            m_ev.rcv_ann_thres = Constants::DefaultWndAnnThreshold;
+            m_v.rcv_ann_thres = Constants::DefaultWndAnnThreshold;
             
             // Initialize the out-of-sequence information.
-            m_ooseq.init();
+            m_v.ooseq.init();
             
             // Set STARTED flag to indicate we're no longer in INIT state.
-            m_flags = Flags::STARTED;
+            m_v.flags = Flags::STARTED;
         }
         
     private:
@@ -787,14 +770,14 @@ public:
         {
             assert_connected();
             
-            TcpPcb *pcb = m_pcb;
+            TcpPcb *pcb = m_v.pcb;
             
             // Reset the MtuRef.
             MtuRef::reset(pcb->tcp->m_stack);
             
             // Disassociate with the PCB.
             pcb->con = nullptr;
-            m_pcb = nullptr;
+            m_v.pcb = nullptr;
             
             // Call the application callback.
             connectionAborted();
@@ -811,7 +794,7 @@ public:
         void data_sent (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT((m_flags & Flags::END_SENT) == 0)
+            AMBRO_ASSERT((m_v.flags & Flags::END_SENT) == 0)
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
@@ -821,11 +804,11 @@ public:
         void end_sent ()
         {
             assert_connected();
-            AMBRO_ASSERT((m_flags & Flags::END_SENT) == 0)
-            AMBRO_ASSERT((m_flags & Flags::SND_CLOSED) != 0)
+            AMBRO_ASSERT((m_v.flags & Flags::END_SENT) == 0)
+            AMBRO_ASSERT((m_v.flags & Flags::SND_CLOSED) != 0)
             
             // Remember that end was sent.
-            m_flags |= Flags::END_SENT;
+            m_v.flags |= Flags::END_SENT;
             
             // Call the application callback.
             dataSent(0);
@@ -834,7 +817,7 @@ public:
         void data_received (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT((m_flags & Flags::END_RECEIVED) == 0)
+            AMBRO_ASSERT((m_v.flags & Flags::END_RECEIVED) == 0)
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
@@ -844,10 +827,10 @@ public:
         void end_received ()
         {
             assert_connected();
-            AMBRO_ASSERT((m_flags & Flags::END_RECEIVED) == 0)
+            AMBRO_ASSERT((m_v.flags & Flags::END_RECEIVED) == 0)
             
             // Remember that end was received.
-            m_flags |= Flags::END_RECEIVED;
+            m_v.flags |= Flags::END_RECEIVED;
             
             // Call the application callback.
             dataReceived(0);
@@ -858,18 +841,27 @@ public:
         {
             assert_connected();
             
-            Output::pcb_pmtu_changed(m_pcb, pmtu);
+            Output::pcb_pmtu_changed(m_v.pcb, pmtu);
         }
         
     private:
-        TcpPcb *m_pcb;
-        IpBufRef m_snd_buf;
-        IpBufRef m_rcv_buf;
-        IpBufRef m_snd_buf_cur;
-        EstablishedVars m_ev;
-        OosBuffer m_ooseq;
-        size_t m_snd_psh_index;
-        uint8_t m_flags;
+        struct Vars {
+            TcpPcb *pcb;
+            IpBufRef snd_buf;
+            IpBufRef rcv_buf;
+            IpBufRef snd_buf_cur;
+            SeqType snd_wnd;
+            SeqType cwnd;
+            SeqType ssthresh;
+            SeqType cwnd_acked;
+            SeqType recover;
+            SeqType rcv_ann_thres;
+            OosBuffer ooseq;
+            size_t snd_psh_index;
+            uint8_t flags;
+        };
+        
+        Vars m_v;
     };
 };
 

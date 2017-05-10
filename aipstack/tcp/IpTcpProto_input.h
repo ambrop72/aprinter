@@ -203,7 +203,7 @@ public:
         // We will retransmit if we have anything unacknowledged data, there
         // is some window available and and the sequence number in the ICMP
         // message is equal to the first unacknowledged sequence number.
-        if (Output::pcb_has_snd_unacked(pcb) && pcb->con->m_ev.snd_wnd > 0 &&
+        if (Output::pcb_has_snd_unacked(pcb) && pcb->con->m_v.snd_wnd > 0 &&
             seq_num == pcb->snd_una)
         {
             // Requeue everything for retransmission.
@@ -265,7 +265,7 @@ public:
             
             // If we can announce at least rcv_ann_thres more window than
             // already announced then we need to send an ACK immediately.
-            if (ann_wnd >= pcb->rcv_ann_wnd + pcb->con->m_ev.rcv_ann_thres) {
+            if (ann_wnd >= pcb->rcv_ann_wnd + pcb->con->m_v.rcv_ann_thres) {
                 // Update rcv_ann_wnd to the calculated new value and
                 // clear the flag to inhibit a redundant recalculation
                 // in rcv_ann_wnd.
@@ -326,11 +326,11 @@ public:
         // Initialize some variables. Note that snd_wnd was temporarily
         // stuffed to rtt_test_seq (pcb_input_syn_sent_rcvd_processing).
         TcpConnection *con = pcb->con;
-        con->m_ev.snd_wnd = pcb->rtt_test_seq;
-        con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+        con->m_v.snd_wnd = pcb->rtt_test_seq;
+        con->m_v.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
-        con->m_ev.ssthresh = Constants::MaxWindow;
-        con->m_ev.cwnd_acked = 0;
+        con->m_v.ssthresh = Constants::MaxWindow;
+        con->m_v.cwnd_acked = 0;
     }
     
 private:
@@ -836,16 +836,16 @@ private:
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con != nullptr)
-            AMBRO_ASSERT(con->m_pcb == pcb)
+            AMBRO_ASSERT(con->m_v.pcb == pcb)
             
             // Make sure sending of any queued data starts.
-            if (con->m_snd_buf.tot_len > 0) {
+            if (con->m_v.snd_buf.tot_len > 0) {
                 pcb->setFlag(PcbFlags::OUT_PENDING);
             }
             
             // If the application called closeSending already,
             // call pcb_end_sending now that this can be done.
-            if ((con->m_flags & TcpConnection::Flags::SND_CLOSED) != 0) {
+            if ((con->m_v.flags & TcpConnection::Flags::SND_CLOSED) != 0) {
                 Output::pcb_end_sending(pcb);
             }
             
@@ -955,33 +955,33 @@ private:
                 // abandoned with unsent/unacked data, it would have been aborted.
                 TcpConnection *con = pcb->con;
                 AMBRO_ASSERT(con != nullptr)
-                AMBRO_ASSERT(data_acked <= con->m_snd_buf.tot_len)
-                AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
-                AMBRO_ASSERT(con->m_snd_psh_index <= con->m_snd_buf.tot_len)
+                AMBRO_ASSERT(data_acked <= con->m_v.snd_buf.tot_len)
+                AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+                AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
                 
                 // The snd_wnd needs adjustment because it is relative to snd_una.
                 // It is okay to adjust for acked data only not FIN since after
                 // FIN is acked snd_wnd is no longer relevant.
-                if (AMBRO_LIKELY(data_acked <= con->m_ev.snd_wnd)) {
-                    con->m_ev.snd_wnd -= data_acked;
+                if (AMBRO_LIKELY(data_acked <= con->m_v.snd_wnd)) {
+                    con->m_v.snd_wnd -= data_acked;
                 } else {
-                    con->m_ev.snd_wnd = 0;
+                    con->m_v.snd_wnd = 0;
                 }
                 
                 // Advance the send buffer.
                 size_t cur_offset = Output::pcb_snd_offset(pcb);
                 if (data_acked >= cur_offset) {
-                    con->m_snd_buf_cur.skipBytes(data_acked - cur_offset);
-                    con->m_snd_buf = con->m_snd_buf_cur;
+                    con->m_v.snd_buf_cur.skipBytes(data_acked - cur_offset);
+                    con->m_v.snd_buf = con->m_v.snd_buf_cur;
                 } else {
-                    con->m_snd_buf.skipBytes(data_acked);
+                    con->m_v.snd_buf.skipBytes(data_acked);
                 }
                 
                 // Adjust the push index.
-                if (data_acked <= con->m_snd_psh_index) {
-                    con->m_snd_psh_index -= data_acked;
+                if (data_acked <= con->m_v.snd_psh_index) {
+                    con->m_v.snd_psh_index -= data_acked;
                 } else {
-                    con->m_snd_psh_index = 0;
+                    con->m_v.snd_psh_index = 0;
                 }
                 
                 // Report data-sent event to the user.
@@ -1041,7 +1041,7 @@ private:
                 tcp_meta.ack_num == pcb->snd_una &&
                 can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
                 pcb->con != nullptr &&
-                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->con->m_ev.snd_wnd
+                pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->con->m_v.snd_wnd
             ) {
                 if (pcb->num_dupack < Constants::FastRtxDupAcks + Constants::MaxAdditionaDupAcks) {
                     pcb->num_dupack++;
@@ -1106,7 +1106,7 @@ private:
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
         if (AMBRO_LIKELY(eff_rel_seq == 0 &&
-                         (con == nullptr || con->m_ooseq.isNothingBuffered())))
+                         (con == nullptr || con->m_v.ooseq.isNothingBuffered())))
         {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
@@ -1115,7 +1115,7 @@ private:
             // Copy any received data into the receive buffer, shifting it.
             if (rcv_datalen > 0) {
                 AMBRO_ASSERT(con != nullptr)
-                con->m_rcv_buf.giveBuf(tcp_data);
+                con->m_v.rcv_buf.giveBuf(tcp_data);
             }
         } else {
             if (AMBRO_UNLIKELY(con == nullptr)) {
@@ -1129,7 +1129,7 @@ private:
             // Update information about out-of-sequence data and FIN.
             SeqType eff_seq = seq_add(pcb->rcv_nxt, eff_rel_seq);
             bool need_ack;
-            bool update_ok = con->m_ooseq.updateForSegmentReceived(
+            bool update_ok = con->m_v.ooseq.updateForSegmentReceived(
                 pcb->rcv_nxt, eff_seq, tcp_data.tot_len, seg_fin, need_ack);
             
             // If there was an inconsistency, abort.
@@ -1145,22 +1145,22 @@ private:
             
             // Copy any received data into the receive buffer.
             if (tcp_data.tot_len > 0) {
-                IpBufRef dst_buf = con->m_rcv_buf;
+                IpBufRef dst_buf = con->m_v.rcv_buf;
                 dst_buf.skipBytes(eff_rel_seq);
                 dst_buf.giveBuf(tcp_data);
             }
             
             // Get data or FIN from the out-of-sequence buffer.
-            con->m_ooseq.shiftAvailable(pcb->rcv_nxt, rcv_datalen, rcv_fin);
+            con->m_v.ooseq.shiftAvailable(pcb->rcv_nxt, rcv_datalen, rcv_fin);
             
             // If we got any data out of OOS buffering here then the receive buffer
             // can necessarily be shifted by that much. This is because the data was
             // written into the receive buffer when it was received.
-            AMBRO_ASSERT(con->m_rcv_buf.tot_len >= rcv_datalen)
+            AMBRO_ASSERT(con->m_v.rcv_buf.tot_len >= rcv_datalen)
             
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
-                con->m_rcv_buf.skipBytes(rcv_datalen);
+                con->m_v.rcv_buf.skipBytes(rcv_datalen);
             }
         }
         

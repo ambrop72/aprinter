@@ -303,8 +303,8 @@ private:
         // Convenience functions for buffer length.
         // WARNING: Must not be called in SYN_RCVD state because in
         // that case the "lis" union memeber is valid not "con".
-        inline size_t sndBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_snd_buf.tot_len : 0; }
-        inline size_t rcvBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_rcv_buf.tot_len : 0; }
+        inline size_t sndBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_v.snd_buf.tot_len : 0; }
+        inline size_t rcvBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_v.rcv_buf.tot_len : 0; }
         
         // Trampolines for timer handlers.
         inline void timerExpired (AbrtTimer, Context) { pcb_abrt_timer_handler(this); }
@@ -531,7 +531,7 @@ private:
             // PCBs, which protects it from being aborted by allocate_pcb
             // during this callback.
             TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con->m_pcb == pcb)
+            AMBRO_ASSERT(con->m_v.pcb == pcb)
             con->pcb_aborted();
             
             // The pcb->con has been cleared by con->pcb_aborted().
@@ -622,7 +622,7 @@ private:
     {
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
         AMBRO_ASSERT(pcb->state != TcpState::SYN_RCVD)
-        AMBRO_ASSERT(pcb->con == nullptr || pcb->con->m_pcb == pcb)
+        AMBRO_ASSERT(pcb->con == nullptr || pcb->con->m_v.pcb == pcb)
         
         if (pcb->con == nullptr) {
             return true;

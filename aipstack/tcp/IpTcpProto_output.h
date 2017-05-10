@@ -74,8 +74,8 @@ public:
         if (AMBRO_UNLIKELY(con == nullptr)) {
             return 0;
         }
-        AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
-        return con->m_snd_buf.tot_len - con->m_snd_buf_cur.tot_len;
+        AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+        return con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
     }
     
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
@@ -218,7 +218,7 @@ public:
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         TcpConnection *con = pcb->con;
-        return (con == nullptr || con->m_ev.snd_wnd == 0) ?
+        return (con == nullptr || con->m_v.snd_wnd == 0) ?
             !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
     }
     
@@ -267,9 +267,9 @@ public:
             snd_buf_cur = &dummy_snd_buf_cur;
         } else {
             // Referenced connection -> take real things from TcpConnection.
-            cwnd = con->m_ev.cwnd;
-            snd_wnd = con->m_ev.snd_wnd;
-            snd_buf_cur = &con->m_snd_buf_cur;
+            cwnd = con->m_v.cwnd;
+            snd_wnd = con->m_v.snd_wnd;
+            snd_buf_cur = &con->m_v.snd_buf_cur;
         }
         
         AMBRO_ASSERT(cwnd >= pcb->snd_mss)
@@ -391,11 +391,11 @@ public:
                 // Also reset cwnd_acked to avoid old accumulated value
                 // from causing an undesired cwnd increase later.
                 SeqType initial_cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
-                if (con->m_ev.cwnd >= initial_cwnd) {
-                    con->m_ev.cwnd = initial_cwnd;
+                if (con->m_v.cwnd >= initial_cwnd) {
+                    con->m_v.cwnd = initial_cwnd;
                     pcb->setFlag(PcbFlags::CWND_INIT);
                 }
-                con->m_ev.cwnd_acked = 0;
+                con->m_v.cwnd_acked = 0;
             }
             
             // This is all, the remainder of this function is for retransmission.
@@ -421,7 +421,7 @@ public:
         
         TcpConnection *con = pcb->con;
         
-        if (con == nullptr || con->m_ev.snd_wnd == 0) {
+        if (con == nullptr || con->m_v.snd_wnd == 0) {
             // Send a window probe.
             // Note that for an abandoned connection (where snd_wnd is gone),
             // a FIN retransmission would also be handled by this case.
@@ -440,13 +440,13 @@ public:
             // Set cwnd to one segment (RFC 5681).
             // Also reset cwnd_acked to avoid old accumulated value
             // from causing an undesired cwnd increase later.
-            con->m_ev.cwnd = pcb->snd_mss;
+            con->m_v.cwnd = pcb->snd_mss;
             pcb->clearFlag(PcbFlags::CWND_INIT);
-            con->m_ev.cwnd_acked = 0;
+            con->m_v.cwnd_acked = 0;
             
             // Set recover.
             pcb->setFlag(PcbFlags::RECOVER);
-            con->m_ev.recover = pcb->snd_nxt;
+            con->m_v.recover = pcb->snd_nxt;
             
             // Exit any fast recovery.
             pcb->num_dupack = 0;
@@ -466,7 +466,7 @@ public:
         // Requeue data.
         TcpConnection *con = pcb->con;
         if (AMBRO_LIKELY(con != nullptr)) {
-            con->m_snd_buf_cur = con->m_snd_buf;
+            con->m_v.snd_buf_cur = con->m_v.snd_buf;
         }
         
         // Requeue any FIN.
@@ -512,20 +512,20 @@ public:
             pcb->num_dupack = 0;
             
             // Perform congestion-control processing.
-            if (con->m_ev.cwnd <= con->m_ev.ssthresh) {
+            if (con->m_v.cwnd <= con->m_v.ssthresh) {
                 // Slow start.
                 pcb_increase_cwnd_acked(pcb, acked);
             } else {
                 // Congestion avoidance.
                 if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
                     // Increment cwnd_acked.
-                    con->m_ev.cwnd_acked = (acked > UINT32_MAX - con->m_ev.cwnd_acked) ? UINT32_MAX : (con->m_ev.cwnd_acked + acked);
+                    con->m_v.cwnd_acked = (acked > UINT32_MAX - con->m_v.cwnd_acked) ? UINT32_MAX : (con->m_v.cwnd_acked + acked);
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
-                    if (AMBRO_UNLIKELY(con->m_ev.cwnd_acked >= con->m_ev.cwnd)) {
-                        pcb_increase_cwnd_acked(pcb, con->m_ev.cwnd_acked);
-                        con->m_ev.cwnd_acked = 0;
+                    if (AMBRO_UNLIKELY(con->m_v.cwnd_acked >= con->m_v.cwnd)) {
+                        pcb_increase_cwnd_acked(pcb, con->m_v.cwnd_acked);
+                        con->m_v.cwnd_acked = 0;
                         pcb->setFlag(PcbFlags::CWND_INCRD);
                     }
                 }
@@ -540,12 +540,12 @@ public:
             AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
             
             // If all data up to recover is being ACKed, exit fast recovery.
-            if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, con->m_ev.recover, pcb->snd_una)) {
+            if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, con->m_v.recover, pcb->snd_una)) {
                 // Deflate the CWND.
                 // Note, cwnd>=snd_mss is respected because ssthresh>=snd_mss.
                 SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
-                AMBRO_ASSERT(con->m_ev.ssthresh >= pcb->snd_mss)
-                con->m_ev.cwnd = APrinter::MinValue(con->m_ev.ssthresh,
+                AMBRO_ASSERT(con->m_v.ssthresh >= pcb->snd_mss)
+                con->m_v.cwnd = APrinter::MinValue(con->m_v.ssthresh,
                     seq_add(APrinter::MaxValue(flight_size, (SeqType)pcb->snd_mss), pcb->snd_mss));
                 
                 // Reset num_dupack to indicate end of fast recovery.
@@ -556,8 +556,8 @@ public:
                 
                 // Deflate CWND by the amount of data ACKed.
                 // Be careful to not bring CWND below snd_mss.
-                AMBRO_ASSERT(con->m_ev.cwnd >= pcb->snd_mss)
-                con->m_ev.cwnd -= APrinter::MinValue(seq_diff(con->m_ev.cwnd, pcb->snd_mss), acked);
+                AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
+                con->m_v.cwnd -= APrinter::MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
                 
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
@@ -571,7 +571,7 @@ public:
         // leave recover behind snd_una, clear the recover flag to indicate
         // that recover is no longer valid and assumed <snd_una.
         if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::RECOVER)) &&
-            con != nullptr && !seq_lte(ack_num, con->m_ev.recover, pcb->snd_una))
+            con != nullptr && !seq_lte(ack_num, con->m_v.recover, pcb->snd_una))
         {
             pcb->clearFlag(PcbFlags::RECOVER);
         }
@@ -601,14 +601,14 @@ public:
         if (AMBRO_LIKELY(con != nullptr)) {
             // Set recover.
             pcb->setFlag(PcbFlags::RECOVER);
-            con->m_ev.recover = pcb->snd_nxt;
+            con->m_v.recover = pcb->snd_nxt;
             
             // Update ssthresh.
             pcb_update_ssthresh_for_rtx(pcb);
             
             // Update cwnd.
             SeqType three_mss = 3 * (SeqType)pcb->snd_mss;
-            con->m_ev.cwnd = (three_mss > UINT32_MAX - con->m_ev.ssthresh) ? UINT32_MAX : (con->m_ev.ssthresh + three_mss);
+            con->m_v.cwnd = (three_mss > UINT32_MAX - con->m_v.ssthresh) ? UINT32_MAX : (con->m_v.ssthresh + three_mss);
             pcb->clearFlag(PcbFlags::CWND_INIT);
             
             // Schedule output due to possible CWND increase.
@@ -746,13 +746,13 @@ public:
         TcpConnection *con = pcb->con;
         
         // Make sure that ssthresh does not become lesser than snd_mss.
-        if (con->m_ev.ssthresh < pcb->snd_mss) {
-            con->m_ev.ssthresh = pcb->snd_mss;
+        if (con->m_v.ssthresh < pcb->snd_mss) {
+            con->m_v.ssthresh = pcb->snd_mss;
         }
         
         if (pcb->hasFlag(PcbFlags::CWND_INIT)) {
             // Recalculate initial CWND (RFC 5681 page 5).
-            con->m_ev.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+            con->m_v.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         } else {
             // The standards do not require updating cwnd for the new snd_mss,
             // but we have to make sure that cwnd does not become less than snd_mss.
@@ -760,8 +760,8 @@ public:
             // rtx_timer and no new ACK has been received since; since the cwnd would
             // have been set to snd_mss then, and should not have been changed since
             // (the latter is not trivial to see though).
-            if (con->m_ev.cwnd < pcb->snd_mss || pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-                con->m_ev.cwnd = pcb->snd_mss;
+            if (con->m_v.cwnd < pcb->snd_mss || pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                con->m_v.cwnd = pcb->snd_mss;
             }
         }
         
@@ -770,7 +770,7 @@ public:
         // idle timeout). Note that snd_mss affects pcb_need_rtx_timer only
         // when snd_wnd==0 (to determine if window probing is needed), hence
         // the condition here.
-        if (pcb_has_snd_outstanding(pcb) && con->m_ev.snd_wnd == 0) {
+        if (pcb_has_snd_outstanding(pcb) && con->m_v.snd_wnd == 0) {
             pcb_update_rtx_timer(pcb);
         }
     }
@@ -807,13 +807,13 @@ public:
         }
         
         // Check if the window has changed.
-        SeqType old_snd_wnd = con->m_ev.snd_wnd;
+        SeqType old_snd_wnd = con->m_v.snd_wnd;
         if (new_snd_wnd == old_snd_wnd) {
             return;
         }
         
         // Update the window.
-        con->m_ev.snd_wnd = new_snd_wnd;
+        con->m_v.snd_wnd = new_snd_wnd;
         
         // Set the flag OUT_PENDING to send any data that can now be
         // sent and to ensure the rtx_timer is reconfigured as needed
@@ -881,10 +881,10 @@ private:
             return false;
         }
         
-        AMBRO_ASSERT(con->m_snd_buf_cur.tot_len <= con->m_snd_buf.tot_len)
+        AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
         
-        return con->m_snd_buf_cur.tot_len < pcb->snd_mss &&
-               con->m_snd_psh_index <= con->m_snd_buf.tot_len - con->m_snd_buf_cur.tot_len &&
+        return con->m_v.snd_buf_cur.tot_len < pcb->snd_mss &&
+               con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len &&
                snd_open_in_state(pcb->state);
     }
     
@@ -912,7 +912,7 @@ private:
         } else {
             TcpConnection *con = pcb->con;
             if (AMBRO_LIKELY(con != nullptr)) {
-                if (con->m_snd_psh_index > offset && con->m_snd_psh_index <= offset + seg_data_len) {
+                if (con->m_v.snd_psh_index > offset && con->m_v.snd_psh_index <= offset + seg_data_len) {
                     seg_flags |= Tcp4FlagPsh;
                 }
             }
@@ -972,11 +972,11 @@ private:
         // Compute a maximum number of sequence counts to send.
         // We must not send more than one segment, but we must be
         // able to send at least something in case of window probes.
-        SeqType snd_wnd = (pcb->con != nullptr) ? pcb->con->m_ev.snd_wnd : 1;
+        SeqType snd_wnd = (pcb->con != nullptr) ? pcb->con->m_v.snd_wnd : 1;
         SeqType rem_wnd = APrinter::MinValueU(pcb->snd_mss, APrinter::MaxValue((SeqType)1, snd_wnd));
         
         // Send a segment from the start of the send buffer.
-        IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_snd_buf : IpBufRef{};
+        IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_v.snd_buf : IpBufRef{};
         bool fin = !snd_open_in_state(pcb->state);
         SeqType seg_seqlen;
         pcb_output_segment(pcb, data, fin, rem_wnd, &seg_seqlen);
@@ -999,8 +999,8 @@ private:
     {
         AMBRO_ASSERT(pcb->con != nullptr)
         
-        SeqType cwnd = pcb->con->m_ev.cwnd;
-        pcb->con->m_ev.cwnd = (cwnd_inc > UINT32_MAX - cwnd) ? UINT32_MAX : (cwnd + cwnd_inc);
+        SeqType cwnd = pcb->con->m_v.cwnd;
+        pcb->con->m_v.cwnd = (cwnd_inc > UINT32_MAX - cwnd) ? UINT32_MAX : (cwnd + cwnd_inc);
     }
     
     // Sets sshthresh according to RFC 5681 equation (4).
@@ -1011,7 +1011,7 @@ private:
         
         SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
         SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
-        pcb->con->m_ev.ssthresh = APrinter::MaxValue(half_flight_size, two_smss);
+        pcb->con->m_v.ssthresh = APrinter::MaxValue(half_flight_size, two_smss);
     }
     
     static void pcb_start_rtt_measurement (TcpPcb *pcb)
