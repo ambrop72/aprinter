@@ -845,7 +845,7 @@ private:
             
             // If the application called closeSending already,
             // call pcb_end_sending now that this can be done.
-            if ((con->m_v.flags & TcpConnection::Flags::SND_CLOSED) != 0) {
+            if (con->m_v.snd_closed) {
                 Output::pcb_end_sending(pcb);
             }
             

@@ -240,14 +240,6 @@ public:
         template <typename> friend class IpTcpProto_input;
         template <typename> friend class IpTcpProto_output;
         
-        // Flag definitions for m_v.flags.
-        struct Flags { enum : uint8_t {
-            STARTED      = 1 << 0, // We are not in INIT state.
-            SND_CLOSED   = 1 << 1, // Sending was closed.
-            END_SENT     = 1 << 2, // FIN was sent and acked.
-            END_RECEIVED = 1 << 3, // FIN was received.
-        }; };
-        
     public:
         /**
          * Initializes the connection object.
@@ -257,7 +249,7 @@ public:
         {
             MtuRef::init();
             m_v.pcb = nullptr;
-            m_v.flags = 0;
+            reset_flags();
         }
         
         /**
@@ -290,8 +282,7 @@ public:
                 TcpProto::pcb_con_abandoned(pcb, m_v.snd_buf.tot_len > 0, m_v.rcv_ann_thres);
             }
             
-            // Reset other variables.
-            m_v.flags = 0;
+            reset_flags();
             
             // NOTE: MtuRef has no deinit(), only reset is needed if it was setup.
         }
@@ -408,7 +399,7 @@ public:
             
             // Reset the source.
             src_con->m_v.pcb = nullptr;
-            src_con->m_v.flags = 0;
+            src_con->reset_flags();
         }
         
         /**
@@ -416,7 +407,7 @@ public:
          */
         inline bool isInit ()
         {
-            return m_v.flags == 0;
+            return !m_v.started;
         }
         
         /**
@@ -533,7 +524,7 @@ public:
         {
             assert_started();
             
-            return (m_v.flags & Flags::END_RECEIVED) != 0;
+            return m_v.end_received;
         }
         
         /**
@@ -632,7 +623,7 @@ public:
             m_v.snd_psh_index = m_v.snd_buf.tot_len;
             
             // Remember that sending is closed.
-            m_v.flags |= Flags::SND_CLOSED;
+            m_v.snd_closed = true;
             
             // Inform the output code, e.g. to adjust the PCB state
             // and send a FIN. But not in SYN_SENT, in that case the
@@ -650,7 +641,7 @@ public:
         {
             assert_started();
             
-            return (m_v.flags & Flags::SND_CLOSED) != 0;
+            return m_v.snd_closed;
         }
         
         /**
@@ -661,7 +652,7 @@ public:
         {
             assert_started();
             
-            return (m_v.flags & Flags::END_SENT) != 0;
+            return m_v.end_sent;
         }
         
         /**
@@ -684,18 +675,18 @@ public:
     private:
         void assert_init ()
         {
-            AMBRO_ASSERT(m_v.flags == 0)
+            AMBRO_ASSERT(!m_v.started && !m_v.snd_closed && !m_v.end_sent && !m_v.end_received)
             AMBRO_ASSERT(m_v.pcb == nullptr)
         }
         
         void assert_started ()
         {
-            AMBRO_ASSERT((m_v.flags & Flags::STARTED) != 0)
+            AMBRO_ASSERT(m_v.started)
             AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
                 state_is_active(m_v.pcb->state))
             AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->con == this)
             AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
-                snd_open_in_state(m_v.pcb->state) == ((m_v.flags & Flags::SND_CLOSED) == 0))
+                snd_open_in_state(m_v.pcb->state) == !m_v.snd_closed)
         }
         
         void assert_connected ()
@@ -707,7 +698,7 @@ public:
         void assert_sending ()
         {
             assert_started();
-            AMBRO_ASSERT((m_v.flags & Flags::SND_CLOSED) == 0)
+            AMBRO_ASSERT(!m_v.snd_closed)
         }
         
         void setup_common_started ()
@@ -725,7 +716,7 @@ public:
             m_v.ooseq.init();
             
             // Set STARTED flag to indicate we're no longer in INIT state.
-            m_v.flags = Flags::STARTED;
+            m_v.started = true;
         }
         
     private:
@@ -794,7 +785,7 @@ public:
         void data_sent (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT((m_v.flags & Flags::END_SENT) == 0)
+            AMBRO_ASSERT(!m_v.end_sent)
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
@@ -804,11 +795,11 @@ public:
         void end_sent ()
         {
             assert_connected();
-            AMBRO_ASSERT((m_v.flags & Flags::END_SENT) == 0)
-            AMBRO_ASSERT((m_v.flags & Flags::SND_CLOSED) != 0)
+            AMBRO_ASSERT(!m_v.end_sent)
+            AMBRO_ASSERT(m_v.snd_closed)
             
             // Remember that end was sent.
-            m_v.flags |= Flags::END_SENT;
+            m_v.end_sent = true;
             
             // Call the application callback.
             dataSent(0);
@@ -817,7 +808,7 @@ public:
         void data_received (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT((m_v.flags & Flags::END_RECEIVED) == 0)
+            AMBRO_ASSERT(!m_v.end_received)
             AMBRO_ASSERT(amount > 0)
             
             // Call the application callback.
@@ -827,10 +818,10 @@ public:
         void end_received ()
         {
             assert_connected();
-            AMBRO_ASSERT((m_v.flags & Flags::END_RECEIVED) == 0)
+            AMBRO_ASSERT(!m_v.end_received)
             
             // Remember that end was received.
-            m_v.flags |= Flags::END_RECEIVED;
+            m_v.end_received = true;
             
             // Call the application callback.
             dataReceived(0);
@@ -844,21 +835,32 @@ public:
             Output::pcb_pmtu_changed(m_v.pcb, pmtu);
         }
         
+        void reset_flags ()
+        {
+            m_v.started      = false;
+            m_v.snd_closed   = false;
+            m_v.end_sent     = false;
+            m_v.end_received = false;
+        }
+        
     private:
         struct Vars {
             TcpPcb *pcb;
             IpBufRef snd_buf;
             IpBufRef rcv_buf;
             IpBufRef snd_buf_cur;
-            SeqType snd_wnd;
+            SeqType snd_wnd : 30;
+            SeqType started : 1;
+            SeqType snd_closed : 1;
             SeqType cwnd;
             SeqType ssthresh;
             SeqType cwnd_acked;
             SeqType recover;
-            SeqType rcv_ann_thres;
+            SeqType rcv_ann_thres : 30;
+            SeqType end_sent : 1;
+            SeqType end_received : 1;
             OosBuffer ooseq;
             size_t snd_psh_index;
-            uint8_t flags;
         };
         
         Vars m_v;
