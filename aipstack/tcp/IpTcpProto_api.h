@@ -53,7 +53,7 @@ class IpTcpProto_api
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
     APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
-                                   PcbFlags, MtuRef, OosBuffer))
+                                   PcbFlags, MtuRef, OosBuffer, RttType))
     
 public:
     class TcpConnection;
@@ -859,6 +859,9 @@ public:
             SeqType rcv_ann_thres : 30;
             SeqType end_sent : 1;
             SeqType end_received : 1;
+            SeqType rtt_test_seq;
+            RttType rttvar;
+            RttType srtt;
             OosBuffer ooseq;
             size_t snd_psh_index;
         };

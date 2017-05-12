@@ -319,14 +319,27 @@ public:
         AMBRO_ASSERT(pcb->state == TcpState::ESTABLISHED)
         AMBRO_ASSERT(pcb->con != nullptr)
         
+        // If this is the end of RTT measurement (there was no retransmission),
+        // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
+        // to the initial value since it might have been increased in retransmissions.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+            Output::pcb_end_rtt_measurement(pcb);
+        } else {
+            pcb->rto = Constants::InitialRtxTime;
+        }
+        
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
-        // Initialize some variables. Note that snd_wnd was temporarily
-        // stuffed to rtt_test_seq (pcb_input_syn_sent_rcvd_processing).
+        // Read the snd_wnd which was temporarily stuffed to snd_una
+        // (pcb_input_syn_sent_rcvd_processing), and restore snd_una
+        SeqType snd_wnd = pcb->snd_una;
+        pcb->snd_una = pcb->snd_nxt;
+        
+        // Initialize some variables.
         TcpConnection *con = pcb->con;
-        con->m_v.snd_wnd = pcb->rtt_test_seq;
+        con->m_v.snd_wnd = snd_wnd;
         con->m_v.cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
         pcb->setFlag(PcbFlags::CWND_INIT);
         con->m_v.ssthresh = Constants::MaxWindow;
@@ -766,26 +779,20 @@ private:
         // Stop the retransmission timer.
         pcb->tim(RtxTimer()).unset(Context());
         
-        // Update snd_una due to one sequence count having been ACKed.
-        pcb->snd_una = tcp_meta.ack_num;
+        // NOTE: Not updating snd_una here since we will use it to store
+        // snd_wnd, it will be updated in pcb_complete_established_transition.
         
         // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
         // when the next segment is sent.
         pcb->setFlag(PcbFlags::RCV_WND_UPD);
         
-        // If this is the end of RTT measurement (there was no retransmission),
-        // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
-        // to the initial value since it might have been increased in retransmissions.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-            Output::pcb_end_rtt_measurement(pcb);
-        } else {
-            pcb->rto = Constants::InitialRtxTime;
-        }
-        
         // Calculate the initial send window (snd_wnd).
-        // Stuff it into rtt_test_seq temporarily. It will be put into
-        // its rightful place by pcb_complete_established_transition.
-        pcb->rtt_test_seq = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
+        // Stuff it into snd_una temporarily. It will be put into its
+        // rightful place by pcb_complete_established_transition where
+        // snd_una will also be restored to snd_nxt. We don't abuse snd_nxt
+        // for this because pcb_abort->pcb_send_rst could read snd_nxt in
+        // this state but there is no problem with snd_una.
+        pcb->snd_una = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
         
         TcpProto *tcp = pcb->tcp;
         

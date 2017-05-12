@@ -250,10 +250,7 @@ private:
         SeqType rcv_ann_wnd; // ensured to fit in size_t (in case size_t is 16-bit)
         
         // Round-trip-time and retransmission time management.
-        SeqType rtt_test_seq; // also transiently stores snd_wnd at transition to ESTABLISHED
         TimeType rtt_test_time;
-        RttType rttvar;
-        RttType srtt;
         RttType rto;
         
         // The maximum segment size we will send.
@@ -585,6 +582,10 @@ private:
         // Add the PCB to the unreferenced PCBs list.
         // This has not been done by TcpConnection.
         tcp->m_unrefed_pcbs_list.append({*pcb, *tcp}, *tcp);
+        
+        // Clear any RTT_PENDING flag since we've lost the variables
+        // needed for RTT measurement.
+        pcb->clearFlag(PcbFlags::RTT_PENDING);
         
         // Abort if in SYN_SENT state or some data is queued.
         // The pcb_abort() will decide whether to send an RST

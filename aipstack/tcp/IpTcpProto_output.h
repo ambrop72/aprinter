@@ -113,7 +113,7 @@ public:
             // Have we sent the SYN for the first time?
             if (pcb->snd_nxt == pcb->snd_una) {
                 // Start a round-trip-time measurement.
-                pcb_start_rtt_measurement(pcb);
+                pcb_start_rtt_measurement(pcb, true);
                 
                 // Bump snd_nxt.
                 pcb->snd_nxt = seq_add(pcb->snd_nxt, 1);
@@ -490,16 +490,22 @@ public:
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
         
-        // Handle end of round-trip-time measurement.
-        if (pcb->hasFlag(PcbFlags::RTT_PENDING) && seq_lt2(pcb->rtt_test_seq, ack_num)) {
-            // Update the RTT variables and RTO.
-            pcb_end_rtt_measurement(pcb);
-            
-            // Allow more CWND increase in congestion avoidance.
-            pcb->clearFlag(PcbFlags::CWND_INCRD);
-        }
-        
         TcpConnection *con = pcb->con;
+        
+        // Handle end of round-trip-time measurement.
+        if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+            // If we have RTT_PENDING outside of SYN_SENT/SYN_RCVD we must
+            // also have a TcpConnection (see pcb_con_abandoned, pcb_start_rtt_measurement).
+            AMBRO_ASSERT(con != nullptr)
+            
+            if (seq_lt2(con->m_v.rtt_test_seq, ack_num)) {
+                // Update the RTT variables and RTO.
+                pcb_end_rtt_measurement(pcb);
+                
+                // Allow more CWND increase in congestion avoidance.
+                pcb->clearFlag(PcbFlags::CWND_INCRD);
+            }
+        }
         
         // Connection was abandoned?
         if (AMBRO_UNLIKELY(con == nullptr)) {
@@ -633,20 +639,6 @@ public:
         }
     }
     
-    // Update the RTO from RTTVAR and SRTT, or to InitialRtxTime if no RTT_VALID.
-    static void pcb_update_rto (TcpPcb *pcb)
-    {
-        if (AMBRO_LIKELY(pcb->hasFlag(PcbFlags::RTT_VALID))) {
-            int const k = 4;
-            RttType k_rttvar = (pcb->rttvar > RttTypeMax / k) ? RttTypeMax : (k * pcb->rttvar);
-            RttType var_part = APrinter::MaxValue((RttType)1, k_rttvar);
-            RttType base_rto = (var_part > RttTypeMax - pcb->srtt) ? RttTypeMax : (pcb->srtt + var_part);
-            pcb->rto = APrinter::MaxValue(Constants::MinRtxTime, APrinter::MinValue(Constants::MaxRtxTime, base_rto));
-        } else {
-            pcb->rto = Constants::InitialRtxTime;
-        }
-    }
-    
     static TimeType pcb_rto_time (TcpPcb *pcb)
     {
         return (TimeType)pcb->rto << TcpProto::RttShift;
@@ -655,6 +647,7 @@ public:
     static void pcb_end_rtt_measurement (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->hasFlag(PcbFlags::RTT_PENDING))
+        AMBRO_ASSERT(pcb->con != nullptr)
         
         // Clear the flag to indicate end of RTT measurement.
         pcb->clearFlag(PcbFlags::RTT_PENDING);
@@ -663,19 +656,25 @@ public:
         TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
         RttType this_rtt = APrinter::MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
         
+        TcpConnection *con = pcb->con;
+        
         // Update RTTVAR and SRTT.
         if (!pcb->hasFlag(PcbFlags::RTT_VALID)) {
             pcb->setFlag(PcbFlags::RTT_VALID);
-            pcb->rttvar = this_rtt/2;
-            pcb->srtt = this_rtt;
+            con->m_v.rttvar = this_rtt/2;
+            con->m_v.srtt = this_rtt;
         } else {
-            RttType rtt_diff = APrinter::AbsoluteDiff(pcb->srtt, this_rtt);
-            pcb->rttvar = ((RttNextType)3 * pcb->rttvar + rtt_diff) / 4;
-            pcb->srtt = ((RttNextType)7 * pcb->srtt + this_rtt) / 8;
+            RttType rtt_diff = APrinter::AbsoluteDiff(con->m_v.srtt, this_rtt);
+            con->m_v.rttvar = ((RttNextType)3 * con->m_v.rttvar + rtt_diff) / 4;
+            con->m_v.srtt = ((RttNextType)7 * con->m_v.srtt + this_rtt) / 8;
         }
         
         // Update RTO.
-        pcb_update_rto(pcb);
+        int const k = 4;
+        RttType k_rttvar = (con->m_v.rttvar > RttTypeMax / k) ? RttTypeMax : (k * con->m_v.rttvar);
+        RttType var_part = APrinter::MaxValue((RttType)1, k_rttvar);
+        RttType base_rto = (var_part > RttTypeMax - con->m_v.srtt) ? RttTypeMax : (con->m_v.srtt + var_part);
+        pcb->rto = APrinter::MaxValue(Constants::MinRtxTime, APrinter::MinValue(Constants::MaxRtxTime, base_rto));
     }
     
     // This is called from the lower layers when sending failed but
@@ -932,18 +931,23 @@ private:
             
             // Stop a round-trip-time measurement if we have retransmitted
             // a segment containing the associated sequence number.
-            if (pcb->hasFlag(PcbFlags::RTT_PENDING) &&
-                seq_lte(seq_num, pcb->rtt_test_seq, pcb->snd_una) &&
-                seq_lt(pcb->rtt_test_seq, seg_endseq, pcb->snd_una))
-            {
-                pcb->clearFlag(PcbFlags::RTT_PENDING);
+            if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
+                TcpConnection *con = pcb->con;
+                AMBRO_ASSERT(con != nullptr) // justification in pcb_output_handle_acked
+                
+                if (seq_lte(seq_num, con->m_v.rtt_test_seq, pcb->snd_una) &&
+                    seq_lt(con->m_v.rtt_test_seq, seg_endseq, pcb->snd_una))
+                {
+                    pcb->clearFlag(PcbFlags::RTT_PENDING);
+                }
             }
             
             // Did we send anything new?
             if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
-                // Start a round-trip-time measurement if not already started.
-                if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
-                    pcb_start_rtt_measurement(pcb);
+                // Start a round-trip-time measurement if not already started
+                // and if we still have a TcpConnection.
+                if (!pcb->hasFlag(PcbFlags::RTT_PENDING) && pcb->con != nullptr) {
+                    pcb_start_rtt_measurement(pcb, false);
                 }
                 
                 // Bump snd_nxt.
@@ -1014,12 +1018,20 @@ private:
         pcb->con->m_v.ssthresh = APrinter::MaxValue(half_flight_size, two_smss);
     }
     
-    static void pcb_start_rtt_measurement (TcpPcb *pcb)
+    static void pcb_start_rtt_measurement (TcpPcb *pcb, bool syn)
     {
-        // Set the flag, remember the sequence number and the time.
+        AMBRO_ASSERT(!syn || pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(syn || can_output_in_state(pcb->state))
+        AMBRO_ASSERT(syn || pcb->con != nullptr)
+        
+        // Set the flag, remember the time.
         pcb->setFlag(PcbFlags::RTT_PENDING);
-        pcb->rtt_test_seq = pcb->snd_nxt;
         pcb->rtt_test_time = Clock::getTime(Context());
+        
+        // Remember the sequence number except for SYN.
+        if (AMBRO_LIKELY(!syn)) {
+            pcb->con->m_v.rtt_test_seq = pcb->snd_nxt;
+        }
     }
     
     static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
