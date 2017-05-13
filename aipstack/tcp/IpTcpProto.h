@@ -373,13 +373,13 @@ public:
     }
     
 private:
-    void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
+    void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) override final
     {
         Input::recvIp4Dgram(this, ip_meta, dgram);
     }
     
     void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                               Ip4DgramMeta const &ip_meta, IpBufRef dgram_initial) override final
+                               Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial) override final
     {
         Input::handleIp4DestUnreach(this, du_meta, ip_meta, dgram_initial);
     }

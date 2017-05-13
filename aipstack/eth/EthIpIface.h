@@ -184,7 +184,7 @@ public: // IpIfaceDriver
 private: // EthIfaceDriverCallback
     friend EthIfaceDriverCallback<EthIpIface>;
     
-    void recvFrame (IpBufRef frame)
+    void recvFrame (IpBufRef const &frame)
     {
         if (AMBRO_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
             return;

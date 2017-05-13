@@ -61,7 +61,7 @@ class IpTcpProto_input
     APRINTER_USE_ONEOF
     
 public:
-    static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
+    static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef const &dgram)
     {
         // The destination address must be the address of the incoming interface.
         if (AMBRO_UNLIKELY(!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr))) {
@@ -150,7 +150,7 @@ public:
     }
     
     static void handleIp4DestUnreach (TcpProto *tcp, Ip4DestUnreachMeta const &du_meta,
-                                      Ip4DgramMeta const &ip_meta, IpBufRef dgram_initial)
+                                      Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
     {
         // We only care about ICMP code "fragmentation needed and DF set".
         if (du_meta.icmp_code != Icmp4CodeDestUnreachFragNeeded) {
@@ -1085,7 +1085,7 @@ private:
     }
     
     static bool pcb_input_rcv_processing (TcpPcb *pcb, SeqType eff_rel_seq, bool seg_fin,
-                                          IpBufRef tcp_data)
+                                          IpBufRef const &tcp_data)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         

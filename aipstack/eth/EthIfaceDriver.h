@@ -51,7 +51,7 @@ public:
 };
 
 APRINTER_STATIC_INTERFACE(EthIfaceDriverCallback) {
-    APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef frame))
+    APRINTER_IFACE_FUNC(void, recvFrame, (IpBufRef const &frame))
     APRINTER_IFACE_FUNC(void, stateChanged, ())
 };
 

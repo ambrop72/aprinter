@@ -319,9 +319,9 @@ public:
     
     class ProtoListenerCallback {
     public:
-        virtual void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
+        virtual void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) = 0;
         virtual void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                                           Ip4DgramMeta const &ip_meta, IpBufRef dgram_initial) = 0;
+                                           Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial) = 0;
     };
     
     class ProtoListener {
@@ -376,7 +376,7 @@ public:
         }
         
     private:
-        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
+        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) = 0;
         
     private:
         APrinter::LinkedListNode<IfaceListenerLinkModel> m_list_node;
@@ -539,7 +539,7 @@ public:
             return m_have_addr ? &m_addr : nullptr;
         }
         
-        inline void recvIp4Packet (IpBufRef pkt)
+        inline void recvIp4Packet (IpBufRef const &pkt)
         {
             m_stack->processRecvedIp4Packet(this, pkt);
         }
@@ -604,7 +604,7 @@ public:
     };
     
 private:
-    void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
+    void processRecvedIp4Packet (Iface *iface, IpBufRef const &pkt)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
@@ -674,7 +674,7 @@ private:
         recvIp4Dgram(meta, dgram);
     }
     
-    void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
+    void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef const &dgram)
     {
         Iface *iface = meta.iface;
         uint8_t proto = meta.proto;
@@ -703,7 +703,7 @@ private:
         }
     }
     
-    void recvIcmp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
+    void recvIcmp4Dgram (Ip4DgramMeta const &meta, IpBufRef const &dgram)
     {
         // Sanity check source address - reject broadcast addresses.
         if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(meta))) {
@@ -750,7 +750,7 @@ private:
         }
     }
     
-    void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
+    void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef const &data, Ip4Addr dst_addr, Iface *iface)
     {
         // Can only reply when we have an address assigned.
         if (!iface->m_have_addr) {
@@ -781,7 +781,7 @@ private:
         sendIp4Dgram(meta, dgram);
     }
     
-    void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef icmp_data, Iface *iface)
+    void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef const &icmp_data, Iface *iface)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!icmp_data.hasHeader(Ip4Header::Size))) {

@@ -580,7 +580,7 @@ private:
         handle_dhcp_down(true);
     }
     
-    bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
+    bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) override final
     {
         {
             // Check that there is a UDP header.
@@ -610,7 +610,7 @@ private:
             }
             
             // Truncate data to UDP length.
-            dgram = dgram.subTo(udp_length);
+            IpBufRef udp_data = dgram.subTo(udp_length);
             
             // Check UDP checksum if provided.
             uint16_t checksum = udp_header.get(Udp4Header::Checksum());
@@ -620,14 +620,14 @@ private:
                 chksum_accum.addWords(&ip_meta.dst_addr.data);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
-                chksum_accum.addIpBuf(dgram);
+                chksum_accum.addIpBuf(udp_data);
                 if (chksum_accum.getChksum() != 0) {
                     goto accept;
                 }
             }
             
             // Process the DHCP payload.
-            IpBufRef dhcp_msg = dgram.hideHeader(Udp4Header::Size);
+            IpBufRef dhcp_msg = udp_data.hideHeader(Udp4Header::Size);
             processReceivedDhcpMessage(ip_meta.src_addr, dhcp_msg);
         }
         
@@ -640,7 +640,7 @@ private:
         return false;
     }
     
-    void processReceivedDhcpMessage (Ip4Addr src_addr, IpBufRef msg)
+    void processReceivedDhcpMessage (Ip4Addr src_addr, IpBufRef const &msg)
     {
         // In Resetting state we're not interested in any messages.
         if (m_state == DhcpState::Resetting) {
@@ -667,15 +667,15 @@ private:
         }
         
         // Skip the first header part.
-        msg = msg.hideHeader(DhcpHeader1::Size);
+        IpBufRef data = msg.hideHeader(DhcpHeader1::Size);
         
         // Get and skip the middle header part (sname and file).
-        IpBufRef dhcp_header2 = msg.subTo(DhcpHeader2::Size);
-        msg.skipBytes(DhcpHeader2::Size);
+        IpBufRef dhcp_header2 = data.subTo(DhcpHeader2::Size);
+        data.skipBytes(DhcpHeader2::Size);
         
         // Read and skip the final header part (magic number).
         DhcpHeader3::Val dhcp_header3;
-        msg.takeBytes(DhcpHeader3::Size, dhcp_header3.data);
+        data.takeBytes(DhcpHeader3::Size, dhcp_header3.data);
         
         // Check the magic number.
         if (dhcp_header3.get(DhcpHeader3::DhcpMagic()) != DhcpMagicNumber) {
@@ -684,7 +684,7 @@ private:
         
         // Parse DHCP options.
         DhcpRecvOptions opts;
-        if (!Options::parseOptions(dhcp_header2, msg, opts)) {
+        if (!Options::parseOptions(dhcp_header2, data, opts)) {
             return;
         }
         

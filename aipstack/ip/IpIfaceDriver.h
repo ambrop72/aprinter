@@ -65,7 +65,7 @@ public:
 
 APRINTER_STATIC_INTERFACE(IpIfaceDriverCallback) {
     APRINTER_IFACE_FUNC(IpIfaceIp4Addrs const *, getIp4Addrs, ())
-    APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef pkt))
+    APRINTER_IFACE_FUNC(void, recvIp4Packet, (IpBufRef const &pkt))
     APRINTER_IFACE_FUNC(void, stateChanged, ())
 };
 
