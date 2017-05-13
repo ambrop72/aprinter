@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,34 +22,28 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_TREE_COMPARE_H
-#define APRINTER_TREE_COMPARE_H
+#ifndef APRINTER_OPERATOR_KEY_COMPARE_H
+#define APRINTER_OPERATOR_KEY_COMPARE_H
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename LinkModel,
-    typename KeyFuncs
->
-class TreeCompare {
-    using State = typename LinkModel::State;
-    using Ref = typename LinkModel::Ref;
-    
+/**
+ * Provides static CompareKeys and KeysAreEqual functions
+ * implemented using < and == to be used with generic data
+ * structures.
+ */
+class OperatorKeyCompare {
 public:
-    inline static int compareEntries (State, Ref ref1, Ref ref2)
+    template <typename Key1, typename Key2>
+    inline static int CompareKeys (Key1 const &op1, Key2 const &op2)
     {
-        decltype(auto) key1 = KeyFuncs::GetKeyOfEntry(*ref1);
-        decltype(auto) key2 = KeyFuncs::GetKeyOfEntry(*ref2);
-        
-        return KeyFuncs::CompareKeys(key1, key2);
+        return (op1 < op2) ? -1 : (op1 == op2) ? 0 : 1;
     }
     
-    template <typename Key>
-    inline static int compareKeyEntry (State, Key const &key1, Ref ref2)
+    template <typename Key1, typename Key2>
+    inline static bool KeysAreEqual (Key1 const &op1, Key2 const &op2)
     {
-        decltype(auto) key2 = KeyFuncs::GetKeyOfEntry(*ref2);
-        
-        return KeyFuncs::CompareKeys(key1, key2);
+        return op1 == op2;
     }
 };
 

@@ -74,7 +74,7 @@ public:
         Ref findEntry (State st, LookupKeyArg key)
         {
             for (Ref e = m_list.first(st); !e.isNull(); e = m_list.next(e, st)) {
-                if (KeyFuncs::GetKeyOfEntry(*e) == key) {
+                if (KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*e), key)) {
                     if (!(e == m_list.first(st))) {
                         m_list.remove(e, st);
                         m_list.prepend(e, st);

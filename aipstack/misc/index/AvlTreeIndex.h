@@ -80,7 +80,8 @@ public:
         inline Ref findEntry (State st, LookupKeyArg key)
         {
             Ref entry = m_tree.template lookup<LookupKeyArg>(key, st);
-            AMBRO_ASSERT(entry.isNull() || KeyFuncs::GetKeyOfEntry(*entry) == key)
+            AMBRO_ASSERT(entry.isNull() ||
+                         KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*entry), key))
             return entry;
         }
         

@@ -33,6 +33,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/OneOf.h>
 #include <aipstack/misc/Buf.h>
+#include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Tcp4Proto.h>
 
 #include <aipstack/BeginNamespace.h>
@@ -297,6 +298,62 @@ public:
             return 4 * (SeqType)snd_mss;
         }
     }
+    
+    // Lookup key for TCP PCBs
+    struct PcbKey {
+        Ip4Addr local_addr;
+        Ip4Addr remote_addr;
+        PortType local_port;
+        PortType remote_port;
+    };
+    
+    // Provides comparison functions for PcbKey
+    class PcbKeyCompare {
+    public:
+        static int CompareKeys (PcbKey const &op1, PcbKey const &op2)
+        {
+            // Compare in an order that would need least
+            // comparisons with typical server usage.
+            
+            if (op1.remote_port < op2.remote_port) {
+                return -1;
+            }
+            if (op1.remote_port > op2.remote_port) {
+                return 1;
+            }
+            
+            if (op1.remote_addr < op2.remote_addr) {
+                return -1;
+            }
+            if (op1.remote_addr > op2.remote_addr) {
+                return 1;
+            }
+            
+            if (op1.local_port < op2.local_port) {
+                return -1;
+            }
+            if (op1.local_port > op2.local_port) {
+                return 1;
+            }
+
+            if (op1.local_addr < op2.local_addr) {
+                return -1;
+            }
+            if (op1.local_addr > op2.local_addr) {
+                return 1;
+            }
+            
+            return 0;
+        }
+        
+        static bool KeysAreEqual (PcbKey const &op1, PcbKey const &op2)
+        {
+            return op1.remote_port == op2.remote_port &&
+                   op1.remote_addr == op2.remote_addr &&
+                   op1.local_port  == op2.local_port  &&
+                   op1.local_addr  == op2.local_addr;
+        }
+    };
 };
 
 #include <aipstack/EndNamespace.h>

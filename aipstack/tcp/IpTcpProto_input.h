@@ -113,7 +113,8 @@ public:
         tcp_data.skipBytes(opts_len);
         
         // Try to handle using a PCB.
-        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.dst_addr, tcp_meta.local_port, ip_meta.src_addr, tcp_meta.remote_port);
+        TcpPcb *pcb = tcp->find_pcb({ip_meta.dst_addr, ip_meta.src_addr,
+                                     tcp_meta.local_port, tcp_meta.remote_port});
         if (AMBRO_LIKELY(pcb != nullptr)) {
             AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
             tcp->m_current_pcb = pcb;
@@ -171,7 +172,8 @@ public:
         SeqType seq_num      = tcp_header.get(Tcp4Header::SeqNum());
         
         // Look for a PCB associated with these addresses.
-        TcpPcb *pcb = tcp->find_pcb_by_addr(ip_meta.src_addr, local_port, ip_meta.dst_addr, remote_port);
+        TcpPcb *pcb = tcp->find_pcb({ip_meta.src_addr, ip_meta.dst_addr,
+                                     local_port, remote_port});
         if (pcb == nullptr) {
             return;
         }

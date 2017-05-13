@@ -40,6 +40,7 @@
 #include <aprinter/base/OneOf.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/OperatorKeyCompare.h>
 #include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/proto/IpAddr.h>
@@ -152,7 +153,7 @@ private:
     struct MtuIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::index_node) {};
     struct MtuFreeListAccessor : public APRINTER_MEMBER_ACCESSOR(&MtuEntry::free_list_node) {};
     
-    struct MtuIndexKeyFuncs {
+    struct MtuIndexKeyFuncs : public APrinter::OperatorKeyCompare {
         // Returns the key of an MTU entry for the index.
         inline static Ip4Addr GetKeyOfEntry (MtuEntry const &mtu_entry)
         {

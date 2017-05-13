@@ -29,8 +29,6 @@
 #include <stdint.h>
 #include <limits.h>
 
-#include <tuple>
-
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
@@ -102,7 +100,7 @@ private:
     using Input = IpTcpProto_input<IpTcpProto>;
     using Output = IpTcpProto_output<IpTcpProto>;
     
-    APRINTER_USE_TYPES1(TcpUtils, (TcpState, TcpOptions))
+    APRINTER_USE_TYPES1(TcpUtils, (TcpState, TcpOptions, PcbKey, PcbKeyCompare))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
                                  seq_diff))
@@ -156,14 +154,6 @@ private:
     // Instantiate the out-of-sequence buffering.
     APRINTER_MAKE_INSTANCE(OosBuffer, (TcpOosBufferService<NumOosSegs>))
     
-    // PCB key for the PCB index.
-    using PcbKey = std::tuple<
-        PortType, // remote_port
-        Ip4Addr,  // remote_addr
-        PortType, // local_port
-        Ip4Addr   // local_addr
-    >;
-    
     struct PcbLinkModel;
     
     // Instantiate the PCB index.
@@ -212,7 +202,9 @@ private:
         // Send retry request (inherited for efficiency).
         public IpSendRetry::Request,
         // PCB timers.
-        public PcbMultiTimer
+        public PcbMultiTimer,
+        // Local/remote IP address and port
+        public PcbKey
     {
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
@@ -234,12 +226,6 @@ private:
             // Pointer to any associated TcpConnection, otherwise.
             TcpConnection *con;
         };
-        
-        // Addresses and ports.
-        Ip4Addr local_addr;
-        Ip4Addr remote_addr;
-        PortType local_port;
-        PortType remote_port;
         
         // Sender variables.
         SeqType snd_una;
@@ -754,7 +740,7 @@ private:
             PortType port = m_next_ephemeral_port;
             m_next_ephemeral_port = (port < EphemeralPortLast) ? (port + 1) : EphemeralPortFirst;
             
-            if (find_pcb_by_addr(local_addr, port, remote_addr, remote_port) == nullptr) {
+            if (find_pcb({local_addr, remote_addr, port, remote_port}) == nullptr) {
                 return port;
             }
         }
@@ -778,11 +764,8 @@ private:
         }
     }
     
-    TcpPcb * find_pcb_by_addr (Ip4Addr local_addr, PortType local_port,
-                               Ip4Addr remote_addr, PortType remote_port)
+    TcpPcb * find_pcb (PcbKey const &key)
     {
-        PcbKey key{remote_port, remote_addr, local_port, local_addr};
-        
         // Look in the active index first.
         TcpPcb *pcb = m_pcb_index_active.findEntry(*this, key);
         AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
@@ -797,11 +780,13 @@ private:
     }
     
     // This is used by the two PCB indexes to obtain the keys
-    // definint the ordering of the PCBs.
-    struct PcbIndexKeyFuncs {
-        inline static PcbKey GetKeyOfEntry (TcpPcb &pcb)
+    // defining the ordering of the PCBs and compare keys.
+    // The key comparison functions are inherited from PcbKeyCompare.
+    struct PcbIndexKeyFuncs : public PcbKeyCompare {
+        inline static PcbKey const & GetKeyOfEntry (TcpPcb const &pcb)
         {
-            return PcbKey{pcb.remote_port, pcb.remote_addr, pcb.local_port, pcb.local_addr};
+            // TcpPcb inherits PcbKey so just return pcb.
+            return pcb;
         }
     };
     

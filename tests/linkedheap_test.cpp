@@ -35,6 +35,7 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/TreeCompare.h>
 #include <aprinter/structure/LinkedHeap.h>
+#include <aprinter/structure/OperatorKeyCompare.h>
 //#include <aprinter/structure/LinkedHeap_v1.h>
 //#include <aprinter/structure/LinkedHeap_v2.h>
 
@@ -49,7 +50,7 @@ struct Entry {
     int value;
 };
 
-struct KeyFuncs {
+struct KeyFuncs : public OperatorKeyCompare {
     static int GetKeyOfEntry (Entry const &e)
     {
         return e.value;
