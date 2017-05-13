@@ -771,7 +771,7 @@ private:
         AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
-        if (pcb == nullptr) {
+        if (AMBRO_UNLIKELY(pcb == nullptr)) {
             pcb = m_pcb_index_timewait.findEntry(*this, key);
             AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
         }
