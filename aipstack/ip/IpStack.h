@@ -654,6 +654,15 @@ private:
         
         // Check if the more-fragments flag is set or the fragment offset is nonzero.
         if (AMBRO_UNLIKELY((flags_offset & (Ip4FlagMF|Ip4OffsetMask)) != 0)) {
+            // Only accept fragmented packets which are unicasts to the
+            // incoming interface address. This is to prevent filling up
+            // our reassembly buffers with irrelevant packets. Note that
+            // we don't check this for non-fragmented packets for
+            // performance reasons, it generally up to protocol handlers.
+            if (!meta.iface->ip4AddrIsLocalAddr(meta.dst_addr)) {
+                return;
+            }
+            
             // Get the more-fragments flag and the fragment offset in bytes.
             bool more_fragments = (flags_offset & Ip4FlagMF) != 0;
             uint16_t fragment_offset = (flags_offset & Ip4OffsetMask) * 8;
