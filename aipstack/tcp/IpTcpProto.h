@@ -66,8 +66,7 @@
  * TCP protocol implementation.
  */
 template <typename Arg>
-class IpTcpProto :
-    private Arg::TheIpStack::ProtoListenerCallback
+class IpTcpProto
 {
     APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
                                     EphemeralPortFirst, EphemeralPortLast,
@@ -79,7 +78,7 @@ class IpTcpProto :
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_ONEOF
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, ProtoListener, Iface, MtuRef))
+    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, Iface, MtuRef))
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
@@ -314,9 +313,6 @@ public:
         // Remember things.
         m_stack = stack;
         
-        // Initialize the protocol listener for the TCP protocol number.
-        m_proto_listener.init(m_stack, Ip4ProtocolTcp, this);
-        
         // Initialize the list of listeners.
         m_listeners_list.init();
         
@@ -368,22 +364,20 @@ public:
             pcb.IpSendRetry::Request::deinit();
             pcb.PcbMultiTimer::deinit(Context());
         }
-        
-        m_proto_listener.deinit();
     }
     
-private:
-    void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) override final
+    inline void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram)
     {
         Input::recvIp4Dgram(this, ip_meta, dgram);
     }
     
-    void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                               Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial) override final
+    inline void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
+                                      Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
     {
         Input::handleIp4DestUnreach(this, du_meta, ip_meta, dgram_initial);
     }
     
+private:
     TcpPcb * allocate_pcb ()
     {
         // No PCB available?
@@ -806,7 +800,6 @@ private:
         APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
-    ProtoListener m_proto_listener;
     ListenersList m_listeners_list;
     TcpPcb *m_current_pcb;
     IpBufRef m_received_opts_buf;
@@ -829,6 +822,9 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     APRINTER_AS_TYPE(PcbIndexService),
     APRINTER_AS_VALUE(bool, LinkWithArrayIndices)
 ), (
+    // This tells IpStack which IP protocol we receive packets for.
+    using IpProtocolNumber = APrinter::WrapValue<uint8_t, Ip4ProtocolTcp>;
+    
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(BufAllocator),

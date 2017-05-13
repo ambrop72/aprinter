@@ -33,6 +33,12 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/Tuple.h>
+#include <aprinter/meta/TupleGet.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
@@ -83,7 +89,7 @@ struct Ip4DestUnreachMeta {
 template <typename Arg>
 class IpStack
 {
-    APRINTER_USE_TYPES1(Arg, (Params, Context, BufAllocator))
+    APRINTER_USE_TYPES1(Arg, (Params, Context, BufAllocator, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
     
     APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
@@ -96,6 +102,33 @@ class IpStack
     
     using PathMtuCacheService = IpPathMtuCacheService<typename Params::PathMtuParams>;
     APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<Context, IpStack>))
+    
+    // Instantiate the protocols.
+    template <int ProtocolIndex>
+    struct ProtocolHelper {
+        // Get the protocol service.
+        using ProtocolService = APrinter::TypeListGet<ProtocolServicesList, ProtocolIndex>;
+        
+        // Expose the protocol number for TypeListGetMapped (GetProtocolType).
+        using IpProtocolNumber = typename ProtocolService::IpProtocolNumber;
+        
+        // Instantiate the protocol.
+        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<Context, BufAllocator, IpStack>))
+        
+        // Helper function to get the pointer to the protocol.
+        inline static Protocol * get (IpStack *stack)
+        {
+            return APrinter::TupleFindElem<Protocol>(&stack->m_protocols);
+        }
+    };
+    using ProtocolHelpersList = APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
+    
+    // Create a list of the instantiated protocols, for the tuple.
+    template <typename Helper>
+    using ProtocolForHelper = typename Helper::Protocol;
+    using ProtocolsList = APrinter::MapTypeList<ProtocolHelpersList, APrinter::TemplateFunc<ProtocolForHelper>>;
+    
+    APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
 public:
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
@@ -121,17 +154,43 @@ public:
         m_path_mtu_cache.init(this);
         
         m_iface_list.init();
-        m_proto_listeners_list.init();
         m_next_id = 0;
+        
+        APrinter::ListFor<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+            Helper::get(this)->init(this);
+        }));
     }
     
     void deinit ()
     {
         AMBRO_ASSERT(m_iface_list.isEmpty())
-        AMBRO_ASSERT(m_proto_listeners_list.isEmpty())
+        
+        APrinter::ListForReverse<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+            Helper::get(this)->deinit();
+        }));
         
         m_path_mtu_cache.deinit();
         m_reassembly.deinit();
+    }
+    
+    /**
+     * Get the type of the protocol instance for a protocol number.
+     */
+    template <uint8_t ProtocolNumber>
+    using GetProtocolType = typename APrinter::TypeListGetMapped<
+        ProtocolHelpersList,
+        typename MemberTypeIpProtocolNumber::Get,
+        APrinter::WrapValue<uint8_t, ProtocolNumber>
+    >::Protocol;
+    
+    /**
+     * Get the pointer to a protocol instance given the instance
+     * type (as returned by GetProtocolType).
+     */
+    template <typename Protocol>
+    inline Protocol * getProtocol ()
+    {
+        return APrinter::TupleFindElem<Protocol>(&m_protocols);
     }
     
 public:
@@ -316,42 +375,6 @@ public:
         return !ip_meta.src_addr.isBroadcastOrMulticast() &&
                !ip_meta.iface->ip4AddrIsLocalBcast(ip_meta.src_addr);
     }
-    
-    class ProtoListenerCallback {
-    public:
-        virtual void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) = 0;
-        virtual void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                                           Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial) = 0;
-    };
-    
-    class ProtoListener {
-        friend IpStack;
-        
-    public:
-        void init (IpStack *stack, uint8_t proto, ProtoListenerCallback *callback)
-        {
-            AMBRO_ASSERT(stack != nullptr)
-            AMBRO_ASSERT(proto != Ip4ProtocolIcmp)
-            AMBRO_ASSERT(callback != nullptr)
-            
-            m_stack = stack;
-            m_callback = callback;
-            m_proto = proto;
-            
-            m_stack->m_proto_listeners_list.prepend(this);
-        }
-        
-        void deinit ()
-        {
-            m_stack->m_proto_listeners_list.remove(this);
-        }
-        
-    private:
-        IpStack *m_stack;
-        ProtoListenerCallback *m_callback;
-        APrinter::DoubleEndedListNode<ProtoListener> m_listeners_list_node;
-        uint8_t m_proto;
-    };
     
     class IfaceListener {
         friend IpStack;
@@ -701,9 +724,16 @@ private:
         }
         
         // Handle using a protocol listener if existing.
-        ProtoListener *lis = find_proto_listener(proto);
-        if (AMBRO_LIKELY(lis != nullptr)) {
-            return lis->m_callback->recvIp4Dgram(meta, dgram);
+        bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+            if (proto == Helper::IpProtocolNumber::Value) {
+                Helper::get(this)->recvIp4Dgram(meta, dgram);
+                return false;
+            }
+            return true;
+        }));
+        
+        if (!not_handled) {
+            return;
         }
         
         // Handle ICMP packets.
@@ -834,31 +864,23 @@ private:
         IpBufRef dgram_initial = icmp_data.hideHeader(header_len).subTo(data_len);
         
         // Dispatch based on the protocol.
-        ProtoListener *lis = find_proto_listener(ip_meta.proto);
-        if (lis != nullptr) {
-            return lis->m_callback->handleIp4DestUnreach(du_meta, ip_meta, dgram_initial);
-        }
-    }
-    
-    ProtoListener * find_proto_listener (uint8_t proto)
-    {
-        for (ProtoListener *lis = m_proto_listeners_list.first(); lis != nullptr; lis = m_proto_listeners_list.next(lis)) {
-            if (lis->m_proto == proto) {
-                return lis;
+        APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+            if (ip_meta.proto == Helper::IpProtocolNumber::Value) {
+                Helper::get(this)->handleIp4DestUnreach(du_meta, ip_meta, dgram_initial);
+                return false;
             }
-        }
-        return nullptr;
+            return true;
+        }));
     }
     
 private:
     using IfaceList = APrinter::DoubleEndedList<Iface, &Iface::m_iface_list_node, false>;
-    using ProtoListenersList = APrinter::DoubleEndedList<ProtoListener, &ProtoListener::m_listeners_list_node, false>;
     
     Reassembly m_reassembly;
     PathMtuCache m_path_mtu_cache;
     IfaceList m_iface_list;
-    ProtoListenersList m_proto_listeners_list;
     uint16_t m_next_id;
+    APrinter::Tuple<ProtocolsList> m_protocols;
 };
 
 APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
@@ -870,7 +892,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(BufAllocator)
+        APRINTER_AS_TYPE(BufAllocator),
+        APRINTER_AS_TYPE(ProtocolServicesList)
     ), (
         using Params = IpStackService;
         APRINTER_DEF_INSTANCE(Compose, IpStack)

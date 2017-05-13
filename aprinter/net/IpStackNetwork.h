@@ -31,6 +31,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -77,17 +78,6 @@ private:
     
     using TheBufAllocator = StackBufAllocator;
     
-    using TheIpStackService = AIpStack::IpStackService<
-        EthHeader::Size, // HeaderBeforeIp
-        IpTTL,           // IcmpTTL
-        Arg::Params::MaxReassPackets,
-        Arg::Params::MaxReassSize,
-        typename Arg::Params::PathMtuParams
-    >;
-    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator>))
-    
-    using Iface = typename TheIpStack::Iface;
-    
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
         IpTTL,
         NumTcpPcbs,
@@ -97,7 +87,19 @@ private:
         PcbIndexService,
         LinkWithArrayIndices
     >;
-    APRINTER_MAKE_INSTANCE(TheIpTcpProto, (TheIpTcpProtoService::template Compose<Context, TheBufAllocator, TheIpStack>))
+    
+    using ProtocolServicesList = APrinter::MakeTypeList<TheIpTcpProtoService>;
+    
+    using TheIpStackService = AIpStack::IpStackService<
+        EthHeader::Size, // HeaderBeforeIp
+        IpTTL,           // IcmpTTL
+        Arg::Params::MaxReassPackets,
+        Arg::Params::MaxReassSize,
+        typename Arg::Params::PathMtuParams
+    >;
+    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator, ProtocolServicesList>))
+    
+    using Iface = typename TheIpStack::Iface;
     
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
@@ -121,7 +123,7 @@ private:
     APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack, TheBufAllocator>))
     
 public:
-    using TcpProto = TheIpTcpProto;
+    using TcpProto = typename TheIpStack::template GetProtocolType<AIpStack::Ip4ProtocolTcp>;
     
     enum EthActivateState {NOT_ACTIVATED, ACTIVATING, ACTIVATE_FAILED, ACTIVATED};
     
@@ -142,7 +144,6 @@ public:
         TheEthernet::init(c);
         o->event_listeners.init();
         o->ip_stack.init();
-        o->ip_tcp_proto.init(&o->ip_stack);
         o->activation_state = NOT_ACTIVATED;
         o->driver_proxy.clear();
     }
@@ -153,7 +154,6 @@ public:
         AMBRO_ASSERT(o->event_listeners.isEmpty())
         
         deinit_iface();
-        o->ip_tcp_proto.deinit();
         o->ip_stack.deinit();
         TheEthernet::deinit(c);
     }
@@ -192,7 +192,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        return &o->ip_tcp_proto;
+        return o->ip_stack.template getProtocol<TcpProto>();
     }
     
     static NetworkParams getConfig (Context c)
@@ -486,7 +486,6 @@ public:
     >> {
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         TheIpStack ip_stack;
-        TheIpTcpProto ip_tcp_proto;
         EthActivateState activation_state;
         EthDriverProxy driver_proxy;
         TheEthIpIface eth_ip_iface;
