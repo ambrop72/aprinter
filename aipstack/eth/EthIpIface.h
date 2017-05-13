@@ -191,12 +191,7 @@ private: // EthIfaceDriverCallback
         }
         
         m_rx_eth_header = EthHeader::MakeRef(frame.getChunkPtr());
-        MacAddr dst_mac  = m_rx_eth_header.get(EthHeader::DstMac());
         uint16_t ethtype = m_rx_eth_header.get(EthHeader::EthType());
-        
-        if (AMBRO_UNLIKELY(dst_mac != *m_mac_addr) && dst_mac != MacAddr::BroadcastAddr()) {
-            return;
-        }
         
         auto pkt = frame.hideHeader(EthHeader::Size);
         
@@ -209,16 +204,15 @@ private: // EthIfaceDriverCallback
             }
             auto arp_header = ArpIp4Header::MakeRef(pkt.getChunkPtr());
             
-            MacAddr src_mac  = m_rx_eth_header.get(EthHeader::SrcMac());
-            
             if (arp_header.get(ArpIp4Header::HwType())       != ArpHwTypeEth  ||
                 arp_header.get(ArpIp4Header::ProtoType())    != EthTypeIpv4   ||
                 arp_header.get(ArpIp4Header::HwAddrLen())    != MacAddr::Size ||
-                arp_header.get(ArpIp4Header::ProtoAddrLen()) != Ip4Addr::Size ||
-                arp_header.get(ArpIp4Header::SrcHwAddr())    != src_mac)
+                arp_header.get(ArpIp4Header::ProtoAddrLen()) != Ip4Addr::Size)
             {
                 return;
             }
+            
+            MacAddr src_mac = arp_header.get(ArpIp4Header::SrcHwAddr());
             
             uint16_t op_type    = arp_header.get(ArpIp4Header::OpType());
             Ip4Addr src_ip_addr = arp_header.get(ArpIp4Header::SrcProtoAddr());

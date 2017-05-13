@@ -35,6 +35,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/Hints.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
@@ -433,7 +434,7 @@ private:
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         AMBRO_ASSERT(size2 == 0 || size1 > 0)
         
-        if (size1 == 0) {
+        if (AMBRO_UNLIKELY(size1 == 0)) {
             return;
         }
         
