@@ -44,7 +44,8 @@
 extern "C" uint16_t IpChksumInverted (char const *data, size_t len);
 #else
 
-uint16_t IpChksumInverted (char const *data, size_t len)
+APRINTER_NO_INLINE
+inline uint16_t IpChksumInverted (char const *data, size_t len)
 {
     char const *even_end = data + (len & (size_t)-2);
     uint32_t sum = 0;
