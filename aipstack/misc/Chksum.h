@@ -32,13 +32,19 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/Hints.h>
 #include <aipstack/misc/Buf.h>
+
+// NOTE: IpChksumInverted (and IpChksum) accept size_t len
+// but the length must not exceed 65535. This is okay since
+// checksums always apply to data within IP packets which
+// cannot be larget than that.
 
 #if AIPSTACK_EXTERNAL_CHKSUM
 extern "C" uint16_t IpChksumInverted (char const *data, size_t len);
 #else
 
-inline uint16_t IpChksumInverted (char const *data, size_t len)
+uint16_t IpChksumInverted (char const *data, size_t len)
 {
     char const *even_end = data + (len & (size_t)-2);
     uint32_t sum = 0;
@@ -69,43 +75,18 @@ inline uint16_t IpChksum (char const *data, size_t len)
 }
 
 class IpChksumAccumulator {
+private:
+    uint32_t m_sum;
+    
 public:
     inline IpChksumAccumulator()
-    : m_sum(0),
-      m_swapped(false)
-    {}
-    
-    void addChksum (uint16_t chksum_inverted, size_t len)
+    : m_sum(0)
     {
-        // Add the current 16-bit sum and the 16-bit sum of this data.
-        uint32_t sum32 = (uint32_t)m_sum + chksum_inverted;
-        
-        // Fold once to bring this back to 16 bits.
-        // At most one fold is needed - worst case if 0xFFFF+0xFFFF
-        // which sums to 0x1FFFE which is folded to 0xFFFF.
-        uint16_t sum = foldOnce(sum32);
-        
-        // If this is an odd-sized chunk, swap the sum and note
-        // that the swapping took place.
-        if (len % 2 != 0) {
-            sum = swapBytes(sum);
-            m_swapped = !m_swapped;
-        }
-        
-        // Update sum.
-        m_sum = sum;
-    }
-    
-    inline void addData (char const *data, size_t len)
-    {
-        uint16_t chksum_inverted = IpChksumInverted(data, len);
-        addChksum(chksum_inverted, len);
     }
     
     inline void addWord (APrinter::WrapType<uint16_t>, uint16_t word)
     {
-        uint32_t sum32 = (uint32_t)m_sum + word;
-        m_sum = foldOnce(sum32);
+        m_sum += word;
     }
     
     inline void addWord (APrinter::WrapType<uint32_t>, uint32_t word)
@@ -130,43 +111,67 @@ public:
     
     inline uint16_t getChksum ()
     {
-        uint16_t sum = m_sum;
-        
-        // Swap if needed.
-        if (m_swapped) {
-            sum = swapBytes(sum);
-        }
-        
-        return ~sum;
+        foldOnce();
+        foldOnce();
+        return ~m_sum;
     }
     
-    inline void addIpBuf (IpBufRef buf)
+    inline uint16_t getChksum (IpBufRef buf)
     {
-        do {
-            addData(buf.getChunkPtr(), buf.getChunkLength());
-        } while (buf.nextChunk());
+        if (buf.tot_len > 0) {
+            addIpBuf(buf);
+        }
+        return getChksum();
     }
     
 private:
-    inline static uint32_t foldOnce (uint32_t x)
+    inline void foldOnce ()
     {
-        return (x & UINT16_MAX) + (x >> 16);
+        m_sum = (m_sum & UINT16_MAX) + (m_sum >> 16);
     }
     
-    inline static uint16_t swapBytes (uint16_t x)
+    inline static uint32_t swapBytes (uint32_t x)
     {
-        return (x >> 8) | ((x & UINT16_C(0xFF)) << 8);
+        return ((x >> 8) & UINT32_C(0x00FF00FF)) | ((x << 8) & UINT32_C(0xFF00FF00));
     }
     
-    uint16_t m_sum;
-    bool m_swapped;
+    void addIpBuf (IpBufRef buf)
+    {
+        bool swapped = false;
+        
+        do {
+            size_t len = buf.getChunkLength();
+            
+            // Calculate sum of buffer.
+            uint16_t buf_sum = IpChksumInverted(buf.getChunkPtr(), len);
+            
+            // Add the buffer sum to our sum.
+            uint32_t old_sum = m_sum;
+            m_sum += buf_sum;
+            
+            // Fold back any overflow.
+            if (AMBRO_UNLIKELY(m_sum < old_sum)) {
+                m_sum++;
+            }
+            
+            // If the buffer has an odd length, swap bytes in sum.
+            if (len % 2 != 0) {
+                m_sum = swapBytes(m_sum);
+                swapped = !swapped;
+            }
+        } while (buf.nextChunk());
+        
+        // Swap bytes if we swapped an odd number of times.
+        if (swapped) {
+            m_sum = swapBytes(m_sum);
+        }
+    }
 };
 
 inline uint16_t IpChksum (IpBufRef buf)
 {
     IpChksumAccumulator accum;
-    accum.addIpBuf(buf);
-    return accum.getChksum();
+    return accum.getChksum(buf);
 }
 
 #include <aipstack/EndNamespace.h>

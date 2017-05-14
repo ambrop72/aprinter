@@ -96,8 +96,7 @@ public:
         chksum_accum.addWords(&ip_meta.dst_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
-        chksum_accum.addIpBuf(dgram);
-        if (AMBRO_UNLIKELY(chksum_accum.getChksum() != 0)) {
+        if (AMBRO_UNLIKELY(chksum_accum.getChksum(dgram) != 0)) {
             return;
         }
         

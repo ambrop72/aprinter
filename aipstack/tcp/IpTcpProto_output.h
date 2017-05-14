@@ -1078,8 +1078,7 @@ private:
         chksum_accum.addWords(&remote_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
-        chksum_accum.addIpBuf(dgram);
-        uint16_t calc_chksum = chksum_accum.getChksum();
+        uint16_t calc_chksum = chksum_accum.getChksum(dgram);
         tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
         
         // Send the datagram.

@@ -620,8 +620,7 @@ private:
                 chksum_accum.addWords(&ip_meta.dst_addr.data);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
-                chksum_accum.addIpBuf(udp_data);
-                if (chksum_accum.getChksum() != 0) {
+                if (chksum_accum.getChksum(udp_data) != 0) {
                     goto accept;
                 }
             }
@@ -1161,8 +1160,7 @@ private:
         chksum_accum.addWords(&ip_meta.dst_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), ip_meta.proto);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
-        chksum_accum.addIpBuf(dgram);
-        uint16_t checksum = chksum_accum.getChksum();
+        uint16_t checksum = chksum_accum.getChksum(dgram);
         if (checksum == 0) {
             checksum = std::numeric_limits<uint16_t>::max();
         }
