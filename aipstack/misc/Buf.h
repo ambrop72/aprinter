@@ -186,7 +186,10 @@ struct IpBufRef {
      */
     inline bool hasHeader (size_t amount) const
     {
-        return getChunkLength() >= amount;
+        AMBRO_ASSERT(node != nullptr)
+        AMBRO_ASSERT(offset <= node->len)
+        
+        return tot_len >= amount && node->len - offset >= amount;
     }
     
     /**
