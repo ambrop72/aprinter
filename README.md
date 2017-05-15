@@ -113,7 +113,7 @@ Below, the specific command used to flash manually are also shown.
 
 ### RAMPS
 ```
-avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
+avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter.hex:i"
 ```
 
 ### Melzi
@@ -121,7 +121,7 @@ avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME
 You will have to set the Debug jumper and play with the reset button to get the upload going.
 
 ```
-avrdude -p atmega1284p -P /dev/ttyUSB0 -b 57600 -c stk500v1 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
+avrdude -p atmega1284p -P /dev/ttyUSB0 -b 57600 -c stk500v1 -D -U "flash:w:$HOME/aprinter-build/aprinter.hex:i"
 ```
 
 ### Arduino Due
@@ -137,7 +137,7 @@ stty -F /dev/ttyACM0 1200
 Then upload the firmware using BOSSA (you can use the GUI if you like instead).
 
 ```
-bossac -p ttyACM0 -U false -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R 
+bossac -p ttyACM0 -U false -i -e -w -v -b ~/aprinter-build/aprinter.bin -R 
 ```
 
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
@@ -149,7 +149,7 @@ For communication with host software (not programming), the software supports bo
 Before flashing, you need to bring the chip to boot mode by pressing the erase button (near the Ethernet jack). If the board does not reset after flashing (despite us telling it to reset, go figure), you will have to power cycle.
 
 ```
-bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R
+bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter.bin -R
 ```
 
 ### Teensy 3
@@ -157,7 +157,7 @@ bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R
 You need to press the button on the board before trying to upload, to put the board into bootloader mode.
 
 ```
-teensy_loader_cli -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
+teensy_loader_cli -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter.hex"
 ```
 
 ## Feature documentation

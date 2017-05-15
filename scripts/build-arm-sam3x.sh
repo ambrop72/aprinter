@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 
-# Simple build script crafted for the APrinter project to support multiple 
-# architecture targets and build actions using an elegant commandline.
-# 
 # Copyright (c) 2014 Bernard `Guyzmo` Pratz
+# Copyright (c) 2017 Ambroz Bizjak
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -66,7 +64,7 @@ configure_sam3x() {
         -I"${ASF_DIR}/common/boards"
         -I"${ASF_DIR}/thirdparty/CMSIS/Include"
         -I"${ASF_DIR}"
-        -I aprinter/platform/at91sam
+        -I"${ROOT}/aprinter/platform/at91sam"
     )
     
     if [ "$AT91SAM_ADC_TRIGGER_ERRATUM" = "1" ]; then
@@ -83,10 +81,10 @@ configure_sam3x() {
         "${ASF_DIR}/sam/drivers/rstc/rstc.c"
         "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
-        "aprinter/platform/newlib_common.c"
+        "${ROOT}/aprinter/platform/newlib_common.c"
     )
     CXX_SOURCES+=(
-        "aprinter/platform/at91sam/at91sam_support.cpp"
+        "${ROOT}/aprinter/platform/at91sam/at91sam_support.cpp"
     )
 
     if [ $USE_USB_SERIAL -gt 0 ]; then

@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 
-# Simple build script crafted for the APrinter project to support multiple 
-# architecture targets and build actions using an elegant commandline.
-# 
 # Copyright (c) 2014 Bernard `Guyzmo` Pratz
+# Copyright (c) 2017 Ambroz Bizjak
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -36,41 +34,22 @@ create_depends_dir() {
 
 configure() {
     local target_name=$1
-    echo "  Configuring for target ${target_name}"
+    local main_file=$2
+    
+    echo "  Configuring"
     
     target_${target_name}
     
-    : ${SOURCE_NAME:=${target_name}}
-    SOURCE=$SPATH/aprinter-${SOURCE_NAME}.cpp
-    TARGET=$BUILD/aprinter-${target_name}
+    SOURCE=$main_file
     
     configure_${PLATFORM}
 }
 
 build() {
-    mkdir -p "${BUILD}"
     ${RUNBUILD}
 }
 
 # Utility functions
-
-checksum() {
-    echo "   Checksum validation"
-    declare -a checksums=("${!1}")
-    printf "%s\n" "${checksums[@]}" | shasum -a 256 -c -
-}
-
-# http://stackoverflow.com/a/15736713/1290438
-in_array() {
-    local -r NEEDLE=$1
-    shift
-    local value
-    for value in "$@"
-    do
-        [[ $value == "$NEEDLE" ]] && return 0
-    done
-    return 1
-}
 
 fail() {
     echo $1

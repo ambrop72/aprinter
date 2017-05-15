@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 
-# Simple build script crafted for the APrinter project to support multiple 
-# architecture targets and build actions using an elegant commandline.
-# 
 # Copyright (c) 2014 Bernard `Guyzmo` Pratz
+# Copyright (c) 2017 Ambroz Bizjak
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -49,7 +47,7 @@ configure_stm32f4() {
         fail "Unsupported STM_CHIP"
     fi
 
-    LINKER_SCRIPT=aprinter/platform/stm32f4/${STM_CHIP}.ld
+    LINKER_SCRIPT=${ROOT}/aprinter/platform/stm32f4/${STM_CHIP}.ld
     
     configure_arm
     
@@ -65,8 +63,8 @@ configure_stm32f4() {
             "${USB_DIR}/Core/Src/usbd_ctlreq.c"
             "${USB_DIR}/Core/Src/usbd_ioreq.c"
             "${USB_DIR}/Class/CDC/Src/usbd_cdc.c"
-            "aprinter/platform/stm32f4/usbd_conf.c"
-            "aprinter/platform/stm32f4/usbd_desc.c"
+            "${ROOT}/aprinter/platform/stm32f4/usbd_conf.c"
+            "${ROOT}/aprinter/platform/stm32f4/usbd_desc.c"
         )
         
         if [[ $USB_MODE = "FS" ]]; then
@@ -98,7 +96,7 @@ configure_stm32f4() {
         -DPLL_P_DIV_VALUE=${PLL_P_DIV_VALUE} -DPLL_Q_DIV_VALUE=${PLL_Q_DIV_VALUE}
         -DAPB1_PRESC_DIV=${APB1_PRESC_DIV} -DAPB2_PRESC_DIV=${APB2_PRESC_DIV}
         "${USB_FLAGS[@]}"
-        -I aprinter/platform/stm32f4
+        -I "${ROOT}/aprinter/platform/stm32f4"
         -I "${CMSIS_DIR}/Include"
         -I "${STM32CUBEF4_DIR}/Drivers/CMSIS/Include"
         -I "${HAL_DIR}/Inc"
@@ -107,7 +105,7 @@ configure_stm32f4() {
     )
     
     CXX_SOURCES+=(
-        "aprinter/platform/stm32f4/stm32f4_support.cpp"
+        "${ROOT}/aprinter/platform/stm32f4/stm32f4_support.cpp"
     )
     C_SOURCES+=(
         "${TEMPLATES_DIR}/system_stm32f4xx.c"
@@ -117,7 +115,7 @@ configure_stm32f4() {
         "${HAL_DIR}/Src/stm32f4xx_hal_iwdg.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_gpio.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_dma.c"
-        "aprinter/platform/newlib_common.c"
+        "${ROOT}/aprinter/platform/newlib_common.c"
         "${USB_C_SOURCES[@]}" "${SDCARD_C_SOURCES[@]}"
     )
     ASM_SOURCES+=(

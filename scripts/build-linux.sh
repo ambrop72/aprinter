@@ -27,7 +27,7 @@ configure_linux() {
     )
     FLAGS_C_CXX=(
         -DNDEBUG
-        -I.
+        -I"${ROOT}"
         -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal
         "${EXTRA_COMPILE_FLAGS[@]}"
@@ -37,7 +37,8 @@ configure_linux() {
     )
     
     C_SOURCES=( $(eval echo "$EXTRA_C_SOURCES") )
-    CXX_SOURCES=( $(eval echo "$EXTRA_CXX_SOURCES") "${SOURCE}" aprinter/platform/linux/linux_support.cpp )
+    CXX_SOURCES=( $(eval echo "$EXTRA_CXX_SOURCES") "${SOURCE}"
+                  "${ROOT}/aprinter/platform/linux/linux_support.cpp" )
 
     OBJS=()
     
@@ -67,8 +68,8 @@ build_linux() {
     done
     
     echo "   Linking objects"
-    ( $V ; "${HOST_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${TARGET}.elf" -lpthread -lrt -lm )
+    ( $V ; "${HOST_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${BUILD}/aprinter.elf" -lpthread -lrt -lm )
     
     echo "   Size of build: "
-    "$HOST_SIZE" "${TARGET}.elf" | sed 's/^/    /'
+    "$HOST_SIZE" "${BUILD}/aprinter.elf" | sed 's/^/    /'
 }

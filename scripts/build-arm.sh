@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 
-# Simple build script crafted for the APrinter project to support multiple 
-# architecture targets and build actions using an elegant commandline.
-# 
 # Copyright (c) 2014 Bernard `Guyzmo` Pratz
+# Copyright (c) 2017 Ambroz Bizjak
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -66,7 +64,7 @@ configure_arm() {
     FLAGS_C_CXX=(
         -DNDEBUG
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
-        -I.
+        -I"${ROOT}"
         -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal -Wno-deprecated-register
         -ffunction-sections -fdata-sections
@@ -122,13 +120,13 @@ build_arm() {
     
     echo "   Linking objects"
     ( $V ;
-    "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${TARGET}.elf" -lm
+    "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${BUILD}/aprinter.elf" -lm
 
     echo "   Size of build: "
-    "$ARM_SIZE" "${TARGET}.elf" | sed 's/^/    /'
+    "$ARM_SIZE" "${BUILD}/aprinter.elf" | sed 's/^/    /'
     
     echo "   Building images"
-    "${ARM_OBJCOPY}" --output-target=binary "${TARGET}.elf" "${TARGET}.bin"
-    "${ARM_OBJCOPY}" --output-target=ihex "${TARGET}.elf" "${TARGET}.hex"
+    "${ARM_OBJCOPY}" --output-target=binary "${BUILD}/aprinter.elf" "${BUILD}/aprinter.bin"
+    "${ARM_OBJCOPY}" --output-target=ihex "${BUILD}/aprinter.elf" "${BUILD}/aprinter.hex"
     )
 }

@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # 
-# Simple build script crafted for the APrinter project to support multiple 
-# architecture targets and build actions using an elegant commandline.
-# 
 # Copyright (c) 2014 Bernard `Guyzmo` Pratz
+# Copyright (c) 2017 Ambroz Bizjak
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -67,12 +65,12 @@ configure_teensy() {
         "${TEENSY3}/usb_desc.c"
         "${TEENSY3}/usb_mem.c"
         "${TEENSY3}/usb_serial.c"
-        "aprinter/platform/teensy3/aprinter_teensy_eeprom.c"
-        "aprinter/platform/newlib_common.c"
+        "${ROOT}/aprinter/platform/teensy3/aprinter_teensy_eeprom.c"
+        "${ROOT}/aprinter/platform/newlib_common.c"
     )
 
     CXX_SOURCES+=(
-        "aprinter/platform/teensy3/teensy3_support.cpp"
+        "${ROOT}/aprinter/platform/teensy3/teensy3_support.cpp"
     )
 
     # define target functions

@@ -1,0 +1,2 @@
+file /home/ambro/aprinter-build/aprinter.elf
+target remote 127.0.0.1:3333

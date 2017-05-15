@@ -41,7 +41,10 @@ let
     
     board = builtins.getAttr boardName boardDefinitions;
     
-    collectSources = suffix: (stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix suffix) extraSources));
+    collectSources = suffix:
+        (stdenv.lib.concatStringsSep " " (map
+            (src: if (stdenv.lib.hasPrefix "$" src) then src else "\${ROOT}/${src}")
+            (stdenv.lib.filter (stdenv.lib.hasSuffix suffix) extraSources)));
     
     targetVars = {
         PLATFORM = board.platform;
@@ -117,29 +120,27 @@ stdenv.mkDerivation rec {
     
     name = "aprinter-${buildName}";
     
-    src = aprinterSource;
-    
     buildInputs = stdenv.lib.optional (buildWithClang && isLinux) clang;
     
+    unpackPhase = "true";
+    
     configurePhase = ''
-        rm -rf config
-        mkdir config
-        ln -s ${targetFile} config/nixbuild.sh
-        mkdir -p main
-        ln -s ${mainFile} main/aprinter-nixbuild.cpp
+        echo configure
+        mkdir build
+        cd build
     '';
     
     buildPhase = ''
         CFLAGS="${compileFlags}" \
         CXXFLAGS="${compileFlags}" \
         CCXXLDFLAGS="${ccxxldFlags}" \
-        ${bash}/bin/bash ./build.sh nixbuild ${if verboseBuild then "-v" else ""} build
+        ${bash}/bin/bash ${aprinterSource}/build.sh ${targetFile} ${mainFile} ${if verboseBuild then "-v" else ""}
     '';
     
     installPhase = ''
         mkdir -p $out
     '' + stdenv.lib.concatStrings (map (outputType: ''
-        [ -e build/aprinter-nixbuild.${outputType} ] && cp build/aprinter-nixbuild.${outputType} $out/
+        [ -e aprinter.${outputType} ] && cp aprinter.${outputType} $out/
     '') desiredOutputs);
     
     dontStrip = true;
