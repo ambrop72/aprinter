@@ -43,7 +43,6 @@ class Mk20Watchdog {
     
 public:
     struct Object;
-    using Params = TParams;
     
 private:
     static_assert(Params::Toval >= 4, "");

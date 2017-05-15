@@ -62,8 +62,8 @@ class Teensy3Type(object):
     
     def flash_cmds(self, opts):
         if opts['port'] is not None:
-            report_error('port specification is not supported by teensy_loader_cli')
-        return [['teensy_loader_cli', '-mmcu=mk20dx128', opts['image_file']]]
+            report_error('port specification is not supported by teensy-loader-cli')
+        return [['teensy-loader-cli', '-mmcu=mk20dx128', opts['image_file']]]
 
 class Stm32f4Type(object):
     SUPPORTED_EXTENSIONS = ['.elf', '.bin']
