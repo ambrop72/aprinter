@@ -22,11 +22,11 @@ python -B flash.py -f ~/aprinter-build/aprinter-nixbuild.hex -t melzi_programmer
 # STM32F4-Discovery:
 openocd -f interface/stlink-v2.cfg -f target/stm32f4x_stlink.cfg -c 'tpiu config internal /home/ambro/swo uart off 168000000'
 # Teensy3 with Discovery:
-openocd -f interface/stlink-v2.cfg -f /home/ambro/k20.cfg -c 'tpiu config internal /home/ambro/swo uart off 96000000; init; reset halt'
+openocd -f interface/stlink-v2.cfg -f /home/ambro/k20.cfg -c 'tpiu config internal /home/ambro/swo uart off 96000000; init; halt'
 # Teensy3 with JTAG:
-openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; reset halt'
+openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; halt'
 # Duet
-openocd -f interface/stlink-v2.cfg -c "set CPUTAPID 0x2ba01477; source [find target/at91sam3ax_8x.cfg]"
+openocd -f interface/stlink-v2.cfg -c "set CPUTAPID 0x2ba01477; source [find target/at91sam3ax_8x.cfg]; init; halt"
 
 # OpenOCD telnet
 telnet 127.0.0.1 4444
@@ -44,16 +44,16 @@ openocd -f /home/ambro/neodb.cfg -f /home/ambro/k20.cfg -c 'init; kinetis mdm ma
 arm-none-eabi-nm --print-size --size-sort -td ~/aprinter-build/aprinter-nixbuild.elf |egrep ' (b|B|d|D|g|G) '
 
 # Download network speed test.
-curl http://192.168.111.142/downloadTest >/dev/null
+curl http://192.168.111.110/downloadTest >/dev/null
 
 # Upload network speed test.
-python -B upload.py -s 512 -l 100000000 | pv | nc 192.168.111.142 80
+python -B upload.py -s 512 -l 100000000 | pv | nc 192.168.111.110 80
 
 # Download file from SD card.
-time curl http://192.168.111.142/dino.gcode >/dev/null
+time curl http://192.168.111.110/dino.gcode >/dev/null
 
 # Upload file to SD card.
-time python -B upload.py -s 512 -l 100000000 -p /rr_upload?name=a.gcode | pv | nc 192.168.111.142 80
+time python -B upload.py -s 512 -l 100000000 -p /rr_upload?name=a.gcode | pv | nc 192.168.111.110 80
 
 # Test writing file to SD card.
 M935 F0.txt S10000000 D1111111111111122222222222222222333333

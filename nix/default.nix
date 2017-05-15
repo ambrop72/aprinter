@@ -42,6 +42,9 @@ rec {
     /* ARM toolchain but with newlib optimized for size. */
     gcc-arm-embedded-fromsrc-optsize = gcc-arm-embedded-fromsrc.override { optimizeForSize = true; };
     
+    /* GDB for ARM. */
+    gdb-arm = pkgs.callPackage ./gdb-arm.nix {};
+    
     /* Clang with newlib optimized for size. */
     clang-arm-embedded-optize = clang-arm-embedded.override {
         gcc-arm-embedded = gcc-arm-embedded-fromsrc-optsize;
