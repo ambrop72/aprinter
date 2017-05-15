@@ -99,7 +99,7 @@ let
     ];
     
     ccxxldFlags = stdenv.lib.concatStringsSep " " [
-        (stdenv.lib.optionalString debugSymbols "-g1")
+        (stdenv.lib.optionalString debugSymbols "-g")
     ];
 in
 
