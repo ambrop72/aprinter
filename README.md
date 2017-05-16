@@ -14,6 +14,8 @@ Here is a list of the boards which are supported out of the box. This means that
 The following machines are supported out of the box (meaning that a functional Configuration section is provided).
 - RepRapPro Fisher.
 
+**You should not use the latest version in git with Teensy 3, it is suspected it can brick the device**
+
 ## Major functionality
 
 - Supports many geometries (in addition to Cartesian): linear-delta, rotational-delta, SCARA (like Morgan) and CoreXY. New geometries can be added by implementing a foward and inverse coordinate transformation. A processor with sufficient speed and RAM is needed (not AVR).
