@@ -28,8 +28,8 @@ stdenv.mkDerivation {
     
     src = fetchgit {
         url = https://github.com/PaulStoffregen/cores;
-        rev = "e31e49bc2060d59caea15b8b7b55482c1c4cbab3";
-        sha256 = "1cy2zwlw7s12vm8gfam4gvzf766n2l90lmm9ypk1lp1zmdbp40pj";
+        rev = "528c6e51823f9e704c9c6cee829a84a77c389326";
+        sha256 = "07qaidl3qvqaqg4lphvj0g39z4hjnkdhv16laqx0sv4c1lr72f4c";
     };
     
     patches = [
