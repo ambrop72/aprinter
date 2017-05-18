@@ -634,34 +634,35 @@ private:
             return;
         }
         
-        // Read some IP header fields.
+        // Get a reference to the IP header.
         auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
-        uint8_t version_ihl    = ip4_header.get(Ip4Header::VersionIhl());
-        uint16_t total_len     = ip4_header.get(Ip4Header::TotalLen());
-        uint16_t flags_offset  = ip4_header.get(Ip4Header::FlagsOffset());
         
-        // Create the datagram meta-info struct.
-        Ip4DgramMeta const meta = {
-            ip4_header.get(Ip4Header::SrcAddr()),
-            ip4_header.get(Ip4Header::DstAddr()),
-            ip4_header.get(Ip4Header::TimeToLive()),
-            ip4_header.get(Ip4Header::Protocol()),
-            iface
-        };
+        // Check IP version and header length...
+        uint8_t version_ihl = ip4_header.get(Ip4Header::VersionIhl());
+        uint8_t header_len;
         
-        // Check IP version.
-        if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
-            return;
-        }
-        
-        // Check header length.
-        // We require the entire header to fit into the first buffer.
-        uint8_t header_len = (version_ihl & Ip4IhlMask) * 4;
-        if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !pkt.hasHeader(header_len))) {
-            return;
+        // Fast path is that the version is correctly 4 and the header
+        // length is minimal (5 words = 20 bytes).
+        if (AMBRO_LIKELY(version_ihl == ((4 << Ip4VersionShift) | 5))) {
+            // Header length is minimal, no options. There is no need to check
+            // pkt.hasHeader(header_len) since that was already done above.
+            header_len = Ip4Header::Size;
+        } else {
+            // Check IP version.
+            if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
+                return;
+            }
+            
+            // Check header length.
+            // We require the entire header to fit into the first buffer.
+            header_len = (version_ihl & Ip4IhlMask) * 4;
+            if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !pkt.hasHeader(header_len))) {
+                return;
+            }
         }
         
         // Check total length.
+        uint16_t total_len = ip4_header.get(Ip4Header::TotalLen());
         if (AMBRO_UNLIKELY(total_len < header_len || total_len > pkt.tot_len)) {
             return;
         }
@@ -675,7 +676,17 @@ private:
         // Create a reference to the payload.
         IpBufRef dgram = pkt.hideHeader(header_len).subTo(total_len - header_len);
         
+        // Create the datagram meta-info struct.
+        Ip4DgramMeta const meta = {
+            ip4_header.get(Ip4Header::SrcAddr()),
+            ip4_header.get(Ip4Header::DstAddr()),
+            ip4_header.get(Ip4Header::TimeToLive()),
+            ip4_header.get(Ip4Header::Protocol()),
+            iface
+        };
+        
         // Check if the more-fragments flag is set or the fragment offset is nonzero.
+        uint16_t flags_offset = ip4_header.get(Ip4Header::FlagsOffset());
         if (AMBRO_UNLIKELY((flags_offset & (Ip4FlagMF|Ip4OffsetMask)) != 0)) {
             // Only accept fragmented packets which are unicasts to the
             // incoming interface address. This is to prevent filling up
