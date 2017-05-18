@@ -199,35 +199,7 @@ private: // EthIfaceDriverCallback
             m_callback->recvIp4Packet(pkt);
         }
         else if (ethtype == EthTypeArp) {
-            if (!pkt.hasHeader(ArpIp4Header::Size)) {
-                return;
-            }
-            auto arp_header = ArpIp4Header::MakeRef(pkt.getChunkPtr());
-            
-            if (arp_header.get(ArpIp4Header::HwType())       != ArpHwTypeEth  ||
-                arp_header.get(ArpIp4Header::ProtoType())    != EthTypeIpv4   ||
-                arp_header.get(ArpIp4Header::HwAddrLen())    != MacAddr::Size ||
-                arp_header.get(ArpIp4Header::ProtoAddrLen()) != Ip4Addr::Size)
-            {
-                return;
-            }
-            
-            MacAddr src_mac = arp_header.get(ArpIp4Header::SrcHwAddr());
-            
-            uint16_t op_type    = arp_header.get(ArpIp4Header::OpType());
-            Ip4Addr src_ip_addr = arp_header.get(ArpIp4Header::SrcProtoAddr());
-            
-            save_hw_addr(src_ip_addr, src_mac);
-            
-            if (op_type == ArpOpTypeRequest) {
-                IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
-                
-                if (ifaddr != nullptr &&
-                    arp_header.get(ArpIp4Header::DstProtoAddr()) == ifaddr->addr)
-                {
-                    send_arp_packet(ArpOpTypeReply, src_mac, src_ip_addr);
-                }
-            }
+            recvArpPacket(pkt);
         }
     }
     
@@ -269,6 +241,39 @@ private:
         Ip4Addr ip_addr;
         IpSendRetry::List retry_list;
     };
+    
+    void recvArpPacket (IpBufRef const &pkt)
+    {
+        if (!pkt.hasHeader(ArpIp4Header::Size)) {
+            return;
+        }
+        auto arp_header = ArpIp4Header::MakeRef(pkt.getChunkPtr());
+        
+        if (arp_header.get(ArpIp4Header::HwType())       != ArpHwTypeEth  ||
+            arp_header.get(ArpIp4Header::ProtoType())    != EthTypeIpv4   ||
+            arp_header.get(ArpIp4Header::HwAddrLen())    != MacAddr::Size ||
+            arp_header.get(ArpIp4Header::ProtoAddrLen()) != Ip4Addr::Size)
+        {
+            return;
+        }
+        
+        MacAddr src_mac = arp_header.get(ArpIp4Header::SrcHwAddr());
+        
+        uint16_t op_type    = arp_header.get(ArpIp4Header::OpType());
+        Ip4Addr src_ip_addr = arp_header.get(ArpIp4Header::SrcProtoAddr());
+        
+        save_hw_addr(src_ip_addr, src_mac);
+        
+        if (op_type == ArpOpTypeRequest) {
+            IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+            
+            if (ifaddr != nullptr &&
+                arp_header.get(ArpIp4Header::DstProtoAddr()) == ifaddr->addr)
+            {
+                send_arp_packet(ArpOpTypeReply, src_mac, src_ip_addr);
+            }
+        }
+    }
     
     IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetry::Request *retryReq)
     {
