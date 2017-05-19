@@ -580,7 +580,7 @@ private:
         handle_dhcp_down(true);
     }
     
-    bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) override final
+    bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
     {
         {
             // Check that there is a UDP header.

@@ -366,7 +366,7 @@ public:
         }
     }
     
-    inline void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram)
+    inline void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
         Input::recvIp4Dgram(this, ip_meta, dgram);
     }

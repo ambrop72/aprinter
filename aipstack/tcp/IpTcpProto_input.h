@@ -61,7 +61,7 @@ class IpTcpProto_input
     APRINTER_USE_ONEOF
     
 public:
-    static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef const &dgram)
+    static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
     {
         // The destination address must be the address of the incoming interface.
         if (AMBRO_UNLIKELY(!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr))) {

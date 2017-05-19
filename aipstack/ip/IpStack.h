@@ -399,7 +399,7 @@ public:
         }
         
     private:
-        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef const &dgram) = 0;
+        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
         
     private:
         APrinter::LinkedListNode<IfaceListenerLinkModel> m_list_node;
@@ -562,7 +562,7 @@ public:
             return m_have_addr ? &m_addr : nullptr;
         }
         
-        inline void recvIp4Packet (IpBufRef const &pkt)
+        inline void recvIp4Packet (IpBufRef pkt)
         {
             m_stack->processRecvedIp4Packet(this, pkt);
         }
@@ -627,7 +627,7 @@ public:
     };
     
 private:
-    void processRecvedIp4Packet (Iface *iface, IpBufRef const &pkt)
+    void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
@@ -717,7 +717,7 @@ private:
         recvIp4Dgram(meta, dgram);
     }
     
-    void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef const &dgram)
+    void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
     {
         Iface *iface = meta.iface;
         uint8_t proto = meta.proto;

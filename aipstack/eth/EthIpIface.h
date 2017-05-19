@@ -184,7 +184,7 @@ public: // IpIfaceDriver
 private: // EthIfaceDriverCallback
     friend EthIfaceDriverCallback<EthIpIface>;
     
-    void recvFrame (IpBufRef const &frame)
+    void recvFrame (IpBufRef frame)
     {
         if (AMBRO_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
             return;
@@ -242,7 +242,7 @@ private:
         IpSendRetry::List retry_list;
     };
     
-    void recvArpPacket (IpBufRef const &pkt)
+    void recvArpPacket (IpBufRef pkt)
     {
         if (!pkt.hasHeader(ArpIp4Header::Size)) {
             return;
