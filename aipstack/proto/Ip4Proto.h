@@ -34,16 +34,14 @@
 #include <aipstack/BeginNamespace.h>
 
 APRINTER_TSTRUCT(Ip4Header,
-    (VersionIhl,   uint8_t)
-    (DscpEcn,      uint8_t)
-    (TotalLen,     uint16_t)
-    (Ident,        uint16_t)
-    (FlagsOffset,  uint16_t)
-    (TimeToLive,   uint8_t)
-    (Protocol,     uint8_t)
-    (HeaderChksum, uint16_t)
-    (SrcAddr,      Ip4Addr)
-    (DstAddr,      Ip4Addr)
+    (VersionIhlDscpEcn, uint16_t)
+    (TotalLen,          uint16_t)
+    (Ident,             uint16_t)
+    (FlagsOffset,       uint16_t)
+    (TtlProto,          uint16_t)
+    (HeaderChksum,      uint16_t)
+    (SrcAddr,           Ip4Addr)
+    (DstAddr,           Ip4Addr)
 )
 
 static int const Ip4VersionShift = 4;

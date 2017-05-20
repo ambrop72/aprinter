@@ -325,7 +325,7 @@ public:
                 // If no interface is provided, find the interface for the initial PMTU.
                 if (iface == nullptr) {
                     Ip4Addr route_addr;
-                    if (!cache->m_ip_stack->routeIp4(remote_addr, nullptr, &iface, &route_addr)) {
+                    if (!cache->m_ip_stack->routeIp4(remote_addr, &iface, &route_addr)) {
                         return false;
                     }
                 }
@@ -482,7 +482,7 @@ private:
         // Find the route to the destination.
         Iface *iface;
         Ip4Addr route_addr;
-        if (!m_ip_stack->routeIp4(mtu_entry.remote_addr, nullptr, &iface, &route_addr)) {
+        if (!m_ip_stack->routeIp4(mtu_entry.remote_addr, &iface, &route_addr)) {
             // Couldn't find an interface, will try again next timeout.
         } else {
             // Reset the PMTU to that of the interface.

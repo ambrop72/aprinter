@@ -106,8 +106,7 @@ public:
         // Send the segment.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
                                window_size, flags, &tcp_opts};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                             tcp_meta, IpBufRef{}, pcb);
+        IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, pcb);
         
         if (err == IpErr::SUCCESS) {
             // Have we sent the SYN for the first time?
@@ -133,8 +132,7 @@ public:
         // Send it.
         TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
                                window_size, Tcp4FlagAck};
-        send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                 tcp_meta, IpBufRef{}, pcb);
+        send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, pcb);
     }
     
     // Send an RST for this PCB.
@@ -863,7 +861,7 @@ public:
     {
         FlagsType flags = Tcp4FlagRst | (ack ? Tcp4FlagAck : 0);
         TcpSegMeta tcp_meta = {local_port, remote_port, seq_num, ack_num, 0, flags};
-        send_tcp(tcp, local_addr, remote_addr, tcp_meta, IpBufRef{}, nullptr);
+        send_tcp_nodata(tcp, local_addr, remote_addr, tcp_meta, nullptr);
     }
     
 private:
@@ -905,24 +903,27 @@ private:
         // Determine segment flags, calculate sequence length.
         FlagsType seg_flags = Tcp4FlagAck;
         SeqType seg_seqlen = seg_data_len;
-        if (seg_data_len == data.tot_len && fin && rem_wnd > seg_data_len) {
+        if (fin && seg_data_len == data.tot_len && rem_wnd > seg_data_len) {
             seg_flags |= Tcp4FlagFin|Tcp4FlagPsh;
             seg_seqlen++;
         } else {
             TcpConnection *con = pcb->con;
             if (AMBRO_LIKELY(con != nullptr)) {
-                if (con->m_v.snd_psh_index > offset && con->m_v.snd_psh_index <= offset + seg_data_len) {
+                // This is a bit more efficient way to check:
+                // snd_psh_index > offset && snd_psh_index <= offset + seg_data_len
+                // Do not remove the cast to size_t, it ensures modulo arithmetic.
+                // Thanks to Simon Stienen for this most efficient formula.
+                if ((size_t)(con->m_v.snd_psh_index + ~offset) < seg_data_len) {
                     seg_flags |= Tcp4FlagPsh;
                 }
             }
         }
         
-        // Send the segment.
+        // Calculate the sequence number.
         SeqType seq_num = seq_add(pcb->snd_una, offset);
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, seq_num, pcb->rcv_nxt,
-                               Input::pcb_ann_wnd(pcb), seg_flags};
-        IpErr err = send_tcp(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                             tcp_meta, data.subTo(seg_data_len), pcb);
+        
+        // Send the segment.
+        IpErr err = pcb_send_fast(pcb, seq_num, seg_flags, data.subTo(seg_data_len));
         
         // These things are needed only when a segment was sent.
         if (AMBRO_LIKELY(err == IpErr::SUCCESS)) {
@@ -935,15 +936,15 @@ private:
                 TcpConnection *con = pcb->con;
                 AMBRO_ASSERT(con != nullptr) // justification in pcb_output_handle_acked
                 
-                if (seq_lte(seq_num, con->m_v.rtt_test_seq, pcb->snd_una) &&
-                    seq_lt(con->m_v.rtt_test_seq, seg_endseq, pcb->snd_una))
+                if (seq_lt2(seq_num, con->m_v.rtt_test_seq) &&
+                    seq_lt2(con->m_v.rtt_test_seq, seg_endseq))
                 {
                     pcb->clearFlag(PcbFlags::RTT_PENDING);
                 }
             }
             
             // Did we send anything new?
-            if (seq_lt(pcb->snd_nxt, seg_endseq, pcb->snd_una)) {
+            if (seq_lt2(pcb->snd_nxt, seg_endseq)) {
                 // Start a round-trip-time measurement if not already started
                 // and if we still have a TcpConnection.
                 if (!pcb->hasFlag(PcbFlags::RTT_PENDING) && pcb->con != nullptr) {
@@ -1034,9 +1035,76 @@ private:
         }
     }
     
-    static IpErr send_tcp (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-                           TcpSegMeta const &tcp_meta, IpBufRef data,
-                           IpSendRetry::Request *retryReq)
+    // This is made to be inlined into pcb_output_segment to optimize sending.
+    // It should not be used elsewhere (send_tcp_nodata is for all other sending).
+    AMBRO_ALWAYS_INLINE
+    static IpErr pcb_send_fast (TcpPcb *pcb, SeqType seq_num, FlagsType seg_flags, IpBufRef data)
+    {
+        // Allocate memory for headers.
+        TxAllocHelper<BufAllocator, Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
+            dgram_alloc(Tcp4Header::Size);
+        
+        // Caculate the offset+flags field.
+        FlagsType offset_flags = ((FlagsType)5 << TcpOffsetShift) | seg_flags;
+        
+        // Calculate the window to announce.
+        uint16_t window_size = Input::pcb_ann_wnd(pcb);
+        
+        // The header parts of the checksum will be calculated inline,
+        IpChksumAccumulator chksum_accum;
+        
+        // Adding constants to checksum is more easily optimized if done first.
+        // Add protocol field of pseudo-header.
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+        
+        // Write the TCP header...
+        auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
+        
+        tcp_header.set(Tcp4Header::SrcPort(),     pcb->local_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), pcb->local_port);
+        
+        tcp_header.set(Tcp4Header::DstPort(),     pcb->remote_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), pcb->remote_port);
+        
+        tcp_header.set(Tcp4Header::SeqNum(),      seq_num);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
+        
+        tcp_header.set(Tcp4Header::AckNum(),      pcb->rcv_nxt);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), pcb->rcv_nxt);
+        
+        tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
+        
+        tcp_header.set(Tcp4Header::WindowSize(),  window_size);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), window_size);
+        
+        tcp_header.set(Tcp4Header::UrgentPtr(),   0);
+        
+        // Construct the datagram reference including any data.
+        IpBufNode data_node;
+        if (AMBRO_LIKELY(data.tot_len > 0)) {
+            data_node = data.toNode();
+            dgram_alloc.setNext(&data_node, data.tot_len);
+        }
+        
+        // Add remaining pseudo-header to checksum (protocol was added above).
+        chksum_accum.addWords(&pcb->local_addr.data);
+        chksum_accum.addWords(&pcb->remote_addr.data);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Tcp4Header::Size + data.tot_len);
+        
+        // Complete and write checksum.
+        uint16_t calc_chksum = chksum_accum.getChksum(data);
+        tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
+        
+        // Send the datagram.
+        IpBufRef dgram = dgram_alloc.getBufRef();
+        return pcb->tcp->m_stack->sendIp4DgramFast(pcb->local_addr, pcb->remote_addr,
+            TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags);
+    }
+    
+    static IpErr send_tcp_nodata (
+        TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
+        TcpSegMeta const &tcp_meta, IpSendRetry::Request *retryReq)
     {
         // Compute length of TCP options.
         uint8_t opts_len = (tcp_meta.opts != nullptr) ? TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
@@ -1065,11 +1133,6 @@ private:
         }
         
         // Construct the datagram reference including any data.
-        IpBufNode data_node;
-        if (data.tot_len > 0) {
-            data_node = data.toNode();
-            dgram_alloc.setNext(&data_node, data.tot_len);
-        }
         IpBufRef dgram = dgram_alloc.getBufRef();
         
         // Calculate TCP checksum.
@@ -1082,8 +1145,8 @@ private:
         tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
         
         // Send the datagram.
-        Ip4DgramMeta meta = {local_addr, remote_addr, TcpProto::TcpTTL, Ip4ProtocolTcp};
-        return tcp->m_stack->sendIp4Dgram(meta, dgram, retryReq, Constants::TcpIpSendFlags);
+        return tcp->m_stack->sendIp4DgramFast(local_addr, remote_addr, TcpProto::TcpTTL,
+            Ip4ProtocolTcp, dgram, retryReq, Constants::TcpIpSendFlags);
     }
 };
 

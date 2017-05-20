@@ -110,6 +110,18 @@ public:
         addWords<WordType, NumWords>(*words);
     }
     
+    inline void addEvenBytes (char const *ptr, size_t num_bytes)
+    {
+        AMBRO_ASSERT(num_bytes % 2 == 0)
+        
+        char const *endptr = ptr + num_bytes;
+        while (ptr < endptr) {
+            uint16_t word = APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>(ptr);
+            ptr += 2;
+            addWord(APrinter::WrapType<uint16_t>(), word);
+        }
+    }
+    
     inline uint16_t getChksum ()
     {
         foldOnce();

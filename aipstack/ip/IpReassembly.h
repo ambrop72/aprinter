@@ -336,7 +336,7 @@ private:
             if (reass_hdr.get(Ip4Header::Ident())    == ident &&
                 reass_hdr.get(Ip4Header::SrcAddr())  == src_addr &&
                 reass_hdr.get(Ip4Header::DstAddr())  == dst_addr &&
-                reass_hdr.get(Ip4Header::Protocol()) == proto)
+                (uint8_t)reass_hdr.get(Ip4Header::TtlProto()) == proto)
             {
                 found_entry = &reass;
             }

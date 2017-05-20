@@ -179,6 +179,23 @@ struct IpBufRef {
     }
     
     /**
+     * Extends the memory range backward in the first buffer
+     * assuming there is space.
+     * 
+     * The amount must be less then or equal to offset.
+     */
+    inline IpBufRef revealHeaderMust (size_t amount) const
+    {
+        AMBRO_ASSERT(amount <= offset)
+        
+        return IpBufRef {
+            node,
+            (size_t)(offset  - amount),
+            (size_t)(tot_len + amount)
+        };
+    }
+    
+    /**
      * Checks if there is at least amount bytes available
      * in the first chunk of the memory range.
      * 

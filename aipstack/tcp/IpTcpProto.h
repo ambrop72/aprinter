@@ -651,7 +651,7 @@ private:
         // Determine the local interface.
         Iface *iface;
         Ip4Addr route_addr;
-        if (!m_stack->routeIp4(remote_addr, nullptr, &iface, &route_addr)) {
+        if (!m_stack->routeIp4(remote_addr, &iface, &route_addr)) {
             return IpErr::NO_IP_ROUTE;
         }
         
