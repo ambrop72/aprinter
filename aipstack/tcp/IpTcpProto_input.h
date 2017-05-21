@@ -211,7 +211,7 @@ public:
             Output::pcb_requeue_everything(pcb);
             
             // Retransmit using pcb_output_queued.
-            Output::pcb_output_queued(pcb, true);
+            Output::pcb_output_queued(pcb);
         }
     }
     
