@@ -210,7 +210,18 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        return pcb->sndBufLen() > 0 || !snd_open_in_state(pcb->state);
+        // If sending was close, FIN is outstanding.
+        if (AMBRO_UNLIKELY(!snd_open_in_state(pcb->state))) {
+            return true;
+        }
+        
+        // PCB must still have a TcpConnection, if not sending would
+        // have been closed not open.
+        TcpConnection *con = pcb->con;
+        AMBRO_ASSERT(con != nullptr)
+        
+        // Check whether there is any data in the send buffer.
+        return con->m_v.snd_buf.tot_len > 0;
     }
     
     // Determine if the rtx_timer needs to be running for retransmission
