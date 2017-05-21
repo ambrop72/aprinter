@@ -976,7 +976,7 @@ private:
                 }
                 
                 // Advance the send buffer.
-                size_t cur_offset = Output::pcb_snd_offset(pcb);
+                size_t cur_offset = con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
                 if (data_acked >= cur_offset) {
                     con->m_v.snd_buf_cur.skipBytes(data_acked - cur_offset);
                     con->m_v.snd_buf = con->m_v.snd_buf_cur;

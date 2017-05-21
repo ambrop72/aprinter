@@ -267,32 +267,35 @@ public:
             return false;
         }
         
-        SeqType full_wnd;
+        SeqType rem_wnd;
         IpBufRef dummy_snd_buf_cur;
         IpBufRef *snd_buf_cur;
         
         TcpConnection *con = pcb->con;
         if (AMBRO_UNLIKELY(con == nullptr)) {
             // Abandoned connection -> assume there is some window, use dummy snd_buf_cur.
-            full_wnd = 1;
+            rem_wnd = 1;
             dummy_snd_buf_cur = IpBufRef{};
             snd_buf_cur = &dummy_snd_buf_cur;
         } else {
-            // Referenced connection -> take real things from TcpConnection.
+            // Referenced connection.
+            AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
+            AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+            
             // Calculate the miniumum of snd_wnd and cwnd which is how much
             // we can send relative to the start of the send buffer.
-            AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
-            full_wnd = APrinter::MinValue(con->m_v.snd_wnd, con->m_v.cwnd);
+            SeqType full_wnd = APrinter::MinValue(con->m_v.snd_wnd, con->m_v.cwnd);
+            
+            // Calculate the remaining window relative to snd_buf_cur.
+            size_t snd_offset = con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
+            if (AMBRO_LIKELY(snd_offset <= full_wnd)) {
+                rem_wnd = full_wnd - snd_offset;
+            } else {
+                rem_wnd = 0;
+            }
+            
+            // Use and update real snd_buf_cur.
             snd_buf_cur = &con->m_v.snd_buf_cur;
-        }
-        
-        // Calculate the remaining window relative to the current send offset.
-        SeqType rem_wnd;
-        size_t snd_offset = pcb_snd_offset(pcb);
-        if (AMBRO_LIKELY(snd_offset <= full_wnd)) {
-            rem_wnd = full_wnd - snd_offset;
-        } else {
-            rem_wnd = 0;
         }
         
         // Will need to know if we sent anything.
