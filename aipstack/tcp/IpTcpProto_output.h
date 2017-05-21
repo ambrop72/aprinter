@@ -172,6 +172,11 @@ public:
     static void pcb_end_sending (TcpPcb *pcb)
     {
         AMBRO_ASSERT(snd_open_in_state(pcb->state))
+        // If sending was closed without abandoning the connection, the push
+        // index must have been set to one past the end of the send buffer
+        // (see assert above). This is relied upon by pcb_may_delay_snd.
+        AMBRO_ASSERT(pcb->con == nullptr ||
+                     pcb->con->m_v.snd_psh_index == pcb->con->m_v.snd_buf.tot_len + 1)
         
         // Make the appropriate state transition.
         if (pcb->state == TcpState::ESTABLISHED) {
@@ -893,9 +898,19 @@ private:
         
         AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
         
-        return con->m_v.snd_buf_cur.tot_len < pcb->snd_mss &&
-               con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len &&
-               snd_open_in_state(pcb->state);
+        // We can delay sending if less than snd_mss data is queued
+        // to be sent and none of this data is being pushed and sending
+        // was not closed.
+        bool may_delay = 
+            con->m_v.snd_buf_cur.tot_len < pcb->snd_mss &&
+            con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
+        
+        // To optimize this check, when sending is closed the snd_psh_index
+        // is moved one past the end of snd_buf. So assert that if sending is
+        // closed the result is false.
+        AMBRO_ASSERT(snd_open_in_state(pcb->state) || !may_delay)
+        
+        return may_delay;
     }
     
     static IpErr pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd,

@@ -53,7 +53,7 @@ class IpTcpProto_input
                                    OptionFlags, PortType))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
-                                 state_is_synsent_synrcvd))
+                                 state_is_synsent_synrcvd, snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
                                    AbrtTimer, RtxTimer, OutputTimer, MtuRef, TheIpStack))
@@ -965,7 +965,6 @@ private:
                 AMBRO_ASSERT(con != nullptr)
                 AMBRO_ASSERT(data_acked <= con->m_v.snd_buf.tot_len)
                 AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
-                AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
                 
                 // The snd_wnd needs adjustment because it is relative to snd_una.
                 // It is okay to adjust for acked data only not FIN since after
@@ -991,6 +990,11 @@ private:
                 } else {
                     con->m_v.snd_psh_index = 0;
                 }
+                
+                // If sending was closed the push index must (still)
+                // point to one past the end of the send buffer.
+                AMBRO_ASSERT(snd_open_in_state(pcb->state) ||
+                             con->m_v.snd_psh_index == con->m_v.snd_buf.tot_len + 1)
                 
                 // Report data-sent event to the user.
                 if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_sent(data_acked); }))) {
