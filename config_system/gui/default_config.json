@@ -360,16 +360,19 @@
       ],
       "name": "RADDS",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -911,16 +914,19 @@
       ],
       "name": "RAMPS-FD",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -1347,16 +1353,19 @@
       ],
       "name": "4pi",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -1751,16 +1760,19 @@
       ],
       "name": "Teensy 3",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2175,16 +2187,19 @@
       ],
       "name": "RAMPS 1.3",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2545,16 +2560,19 @@
       ],
       "name": "Melzi",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": false,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2954,16 +2972,19 @@
       ],
       "name": "STM32F429I-Discovery",
       "development": {
-        "EnableBasicTestModule": true,
-        "AssertionsEnabled": true,
+        "EnableStubCommandModule": true,
+        "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
-        "VerboseBuild": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -3112,7 +3133,7 @@
         "platform": {
           "_compoundName": "Stm32f4",
           "adc": {
-            "ClockDivider": 2,
+            "ClockDivider": 8,
             "SampleTimeSelection": 7,
             "_compoundName": "Stm32f4Adc"
           },
@@ -3320,16 +3341,19 @@
       ],
       "name": "STM32F407-Discovery",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
-        "VerboseBuild": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -3694,16 +3718,19 @@
       ],
       "name": "Duet v0.6",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
-        "VerboseBuild": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -3712,12 +3739,12 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MaxReassSize": 1480,
+          "MtuIndexService": "MruListIndex",
           "ArpProtectCount": 8,
           "EthernetDriver": {
             "MiiDriver": {
-              "NumRxBufers": 48,
-              "NumTxBufers": 4,
+              "NumRxBufers": 60,
+              "NumTxBufers": 5,
               "_compoundName": "At91SamEmacMii"
             },
             "PhyDriver": {
@@ -3730,39 +3757,44 @@
           "IpAddress": "192.168.111.63",
           "IpGateway": "192.168.111.1",
           "IpNetmask": "255.255.255.0",
+          "LinkWithArrayIndices": true,
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "MaxReassPackets": 1,
+          "MaxReassSize": 1480,
           "DhcpEnabled": true,
+          "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 16,
-          "NumOosSegs": 4,
-          "NumTcpPcbs": 16,
-          "TcpWndUpdThrDiv": 4,
+          "NumOosSegs": 2,
+          "NumTcpPcbs": 25,
+          "PcbIndexService": "MruListIndex",
+          "TcpWndUpdThrDiv": 5,
           "_compoundName": "Network",
           "tcpconsole": {
             "MaxClients": 1,
             "MaxCommandSize": 128,
-            "MaxParts": 16,
-            "MaxPcbs": 4,
+            "MaxParts": 10,
+            "MaxPcbs": 100,
             "Port": 23,
             "RecvBufferSize": 2920,
             "SendBufTimeout": 5,
-            "SendBufferSize": 4380,
+            "SendBufferSize": 2920,
             "SendEndTimeout": 10,
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "MaxPcbs": 10,
+            "MaxPcbs": 100,
             "AllowPersistent": false,
             "GcodeSendBufTimeout": 5,
             "InactivityTimeout": 10,
             "JsonBufferSize": 512,
             "MaxClients": 2,
             "MaxGcodeCommandSize": 128,
-            "MaxGcodeParts": 16,
+            "MaxGcodeParts": 10,
             "EnableDebug": false,
             "NumGcodeSlots": 1,
             "Port": 80,
+            "QueueRecvBufferSize": 410,
             "QueueSize": 8,
             "QueueTimeout": 10,
             "RecvBufferSize": 2920,
@@ -4037,16 +4069,19 @@
       ],
       "name": "Linux Test",
       "development": {
-        "EnableBasicTestModule": true,
+        "EnableStubCommandModule": true,
         "AssertionsEnabled": true,
         "DebugSymbols": true,
         "DetectOverloadEnabled": false,
-        "DisableWatchdog": false,
-        "BuildWithClang": false,
+        "EnableBasicTestModule": true,
         "EnableBulkOutputTest": true,
-        "EnableStubCommandModule": true,
+        "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
         "VerboseBuild": true,
+        "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -4055,7 +4090,7 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MaxReassSize": 10000,
+          "MtuIndexService": "MruListIndex",
           "ArpProtectCount": 16,
           "EthernetDriver": {
             "_compoundName": "LinuxTapEthernet"
@@ -4063,13 +4098,17 @@
           "IpAddress": "192.168.64.10",
           "IpGateway": "192.168.64.1",
           "IpNetmask": "255.255.255.0",
+          "LinkWithArrayIndices": true,
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "MaxReassPackets": 2,
+          "MaxReassSize": 10000,
           "DhcpEnabled": false,
+          "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 32,
           "NumOosSegs": 4,
           "NumTcpPcbs": 512,
+          "PcbIndexService": "MruListIndex",
           "TcpWndUpdThrDiv": 4,
           "_compoundName": "Network",
           "tcpconsole": {
@@ -4096,6 +4135,7 @@
             "EnableDebug": false,
             "NumGcodeSlots": 8,
             "Port": 80,
+            "QueueRecvBufferSize": 410,
             "QueueSize": 64,
             "QueueTimeout": 10,
             "RecvBufferSize": 50000,
@@ -7328,6 +7368,6 @@
     }
   ],
   "_compoundName": "editor",
-  "selected_config": "RADDS example",
+  "selected_config": "Fisher example",
   "version": 1
 }
