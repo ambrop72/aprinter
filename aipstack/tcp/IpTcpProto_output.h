@@ -258,15 +258,15 @@ public:
         }
         
         SeqType rem_wnd;
-        IpBufRef dummy_snd_buf_cur;
         IpBufRef *snd_buf_cur;
+        IpBufRef dummy_snd_buf_cur;
         
         TcpConnection *con = pcb->con;
         if (AMBRO_UNLIKELY(con == nullptr)) {
             // Abandoned connection -> assume there is some window, use dummy snd_buf_cur.
             rem_wnd = 1;
-            dummy_snd_buf_cur = IpBufRef{};
             snd_buf_cur = &dummy_snd_buf_cur;
+            dummy_snd_buf_cur = IpBufRef{};
         } else {
             // Referenced connection.
             AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
@@ -291,14 +291,13 @@ public:
         // Will need to know if we sent anything.
         bool sent = false;
         
-        // While we have something to send and some window is available...
-        while ((snd_buf_cur->tot_len > 0 || pcb->hasFlag(PcbFlags::FIN_PENDING)) && rem_wnd > 0) {
-            // If we have less than MSS of data left to send which is
-            // not being pushed (due to sendPush or close), delay sending.
-            if (pcb_may_delay_snd(pcb)) {
-                break;
-            }
-            
+        // Send segments while:
+        // - we have some data or FIN queued for sending, and
+        // - there is some window available, and
+        // - there is no need to delay in expectation of a larger segment.
+        while ((snd_buf_cur->tot_len > 0 || pcb->hasFlag(PcbFlags::FIN_PENDING)) && 
+                rem_wnd > 0 && !pcb_may_delay_snd(pcb))
+        {
             // Send a segment.
             bool fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
             SeqType seg_seqlen;
@@ -317,19 +316,29 @@ public:
                 break;
             }
             
-            AMBRO_ASSERT(seg_seqlen > 0 && seg_seqlen <= rem_wnd)
+            // If we were successful we must have sent something and not more
+            // than the window allowed or more than we had to send.
+            AMBRO_ASSERT(seg_seqlen > 0)
+            AMBRO_ASSERT(seg_seqlen <= rem_wnd)
+            AMBRO_ASSERT(seg_seqlen <= snd_buf_cur->tot_len + fin)
             
-            // Advance snd_buf_cur over any data just sent.
-            size_t data_sent = APrinter::MinValueU(seg_seqlen, snd_buf_cur->tot_len);
-            if (AMBRO_LIKELY(data_sent > 0)) {
-                snd_buf_cur->skipBytes(data_sent);
+            // Check sent sequence length to see if a FIN was sent.
+            size_t data_sent;
+            if (AMBRO_UNLIKELY(seg_seqlen > snd_buf_cur->tot_len)) {
+                // FIN was sent, so all remaining data was sent.
+                data_sent = snd_buf_cur->tot_len;
+                
+                // Clear the FIN_PENDING flag.
+                AMBRO_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
+                pcb->clearFlag(PcbFlags::FIN_PENDING);
+            } else {
+                // Only data was sent.
+                data_sent = seg_seqlen;
             }
             
-            // If we sent a FIN, clear the FIN_PENDING flag.
-            if (seg_seqlen > data_sent) {
-                AMBRO_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
-                AMBRO_ASSERT(seg_seqlen - 1 == data_sent)
-                pcb->clearFlag(PcbFlags::FIN_PENDING);
+            // Advance snd_buf_cur over any data just sent.
+            if (AMBRO_LIKELY(data_sent > 0)) {
+                snd_buf_cur->skipBytes(data_sent);
             }
             
             // Update local state.
