@@ -46,11 +46,14 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
-#include <aipstack/ip/IpIfaceDriver.h>
+#include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/hw/IpEthHw.h>
-#include <aipstack/eth/EthIfaceDriver.h>
 
 #include <aipstack/BeginNamespace.h>
+
+struct EthIfaceState {
+    bool link_up;
+};
 
 template <typename Arg>
 class EthIpIface;
@@ -59,18 +62,18 @@ template <typename Arg>
 APRINTER_DECL_TIMERS_CLASS(EthIpIfaceTimers, typename Arg::Context, EthIpIface<Arg>, (ArpTimer))
 
 template <typename Arg>
-class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
+class EthIpIface : public Arg::Iface,
     private EthIpIfaceTimers<Arg>::Timers,
-    private EthIfaceDriverCallback<EthIpIface<Arg>>,
     private IpEthHw::HwIface
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
-    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, IpCallbackImpl))
+    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, Iface))
     
     APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
-    
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
+    
+    using IpStack = typename Iface::IfaceIpStack;
     
     APRINTER_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
     
@@ -91,17 +94,12 @@ class EthIpIface : public IpIfaceDriver<typename Arg::IpCallbackImpl>,
     static uint8_t const ArpRefreshTimeout = 3;
     
 public:
-    using CallbackImpl = EthIpIface;
-    
-    void init (EthIfaceDriver<CallbackImpl> *driver)
+    void init (IpStack *stack)
     {
         tim(ArpTimer()).init(Context());
         m_arp_observable.init();
-        m_driver = driver;
-        m_callback = nullptr;
         
-        m_driver->setCallback(this);
-        m_mac_addr = m_driver->getMacAddr();
+        m_mac_addr = driverGetMacAddr();
         
         m_first_arp_entry = 0;
         
@@ -114,34 +112,68 @@ public:
         }
         
         tim(ArpTimer()).appendAfter(Context(), ArpTimerTicks);
+        
+        Iface::init(stack);
     }
     
     void deinit ()
     {
+        Iface::deinit();
+        
         AMBRO_ASSERT(!m_arp_observable.hasObservers())
         
         for (auto &e : m_arp_entries) {
             e.retry_list.deinit();
         }
         
-        m_driver->setCallback(nullptr);
         tim(ArpTimer()).deinit(Context());
     }
     
-public: // IpIfaceDriver
-    void setCallback (IpIfaceDriverCallback<IpCallbackImpl> *callback) override final
+protected:
+    // These functions are implemented or called by the Ethernet driver.
+    
+    virtual MacAddr const * driverGetMacAddr () = 0;
+    
+    virtual size_t driverGetEthMtu () = 0;
+    
+    virtual IpErr driverSendFrame (IpBufRef frame) = 0;
+    
+    virtual EthIfaceState driverGetEthState () = 0;
+    
+    void recvFrameFromDriver (IpBufRef frame)
     {
-        m_callback = callback;
+        if (AMBRO_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
+            return;
+        }
+        
+        m_rx_eth_header = EthHeader::MakeRef(frame.getChunkPtr());
+        uint16_t ethtype = m_rx_eth_header.get(EthHeader::EthType());
+        
+        auto pkt = frame.hideHeader(EthHeader::Size);
+        
+        if (AMBRO_LIKELY(ethtype == EthTypeIpv4)) {
+            Iface::recvIp4PacketFromDriver(pkt);
+        }
+        else if (ethtype == EthTypeArp) {
+            recvArpPacket(pkt);
+        }
     }
     
-    size_t getIpMtu () override final
+    inline void ethStateChangedFromDriver ()
     {
-        size_t eth_mtu = m_driver->getEthMtu();
+        Iface::stateChangedFromDriver();
+    }
+    
+private:
+    size_t driverGetIpMtu () override final
+    {
+        size_t eth_mtu = driverGetEthMtu();
         AMBRO_ASSERT(eth_mtu >= EthHeader::Size)
         return eth_mtu - EthHeader::Size;
     }
     
-    IpErr sendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr, IpSendRetry::Request *retryReq) override final
+    IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
+                               IpSendRetry::Request *retryReq) override final
     {
         MacAddr dst_mac;
         IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac, retryReq);
@@ -159,53 +191,26 @@ public: // IpIfaceDriver
         eth_header.set(EthHeader::SrcMac(),  *m_mac_addr);
         eth_header.set(EthHeader::EthType(), EthTypeIpv4);
         
-        return m_driver->sendFrame(frame);
+        return driverSendFrame(frame);
     }
     
-    IpHwType getHwType () override final
+    IpHwType driverGetHwType () override final
     {
         return IpHwType::Ethernet;
     }
     
-    void * getHwIface () override final
+    void * driverGetHwIface () override final
     {
         return static_cast<IpEthHw::HwIface *>(this);
     }
     
-    IpIfaceDriverState getState () override final
+    IpIfaceDriverState driverGetState () override final
     {
-        EthIfaceState eth_state = m_driver->getState();
+        EthIfaceState eth_state = driverGetEthState();
         
         IpIfaceDriverState state = {};
         state.link_up = eth_state.link_up;
         return state;
-    }
-    
-private: // EthIfaceDriverCallback
-    friend EthIfaceDriverCallback<EthIpIface>;
-    
-    void recvFrame (IpBufRef frame)
-    {
-        if (AMBRO_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
-            return;
-        }
-        
-        m_rx_eth_header = EthHeader::MakeRef(frame.getChunkPtr());
-        uint16_t ethtype = m_rx_eth_header.get(EthHeader::EthType());
-        
-        auto pkt = frame.hideHeader(EthHeader::Size);
-        
-        if (AMBRO_LIKELY(ethtype == EthTypeIpv4)) {
-            m_callback->recvIp4Packet(pkt);
-        }
-        else if (ethtype == EthTypeArp) {
-            recvArpPacket(pkt);
-        }
-    }
-    
-    void stateChanged ()
-    {
-        m_callback->stateChanged();
     }
     
 private: // IpEthHw::HwIface
@@ -265,7 +270,7 @@ private:
         save_hw_addr(src_ip_addr, src_mac);
         
         if (op_type == ArpOpTypeRequest) {
-            IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+            IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
             
             if (ifaddr != nullptr &&
                 arp_header.get(ArpIp4Header::DstProtoAddr()) == ifaddr->addr)
@@ -388,7 +393,7 @@ private:
                 return GetArpEntryRes::InvalidAddr;
             }
             
-            IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+            IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
             if (ifaddr == nullptr) {
                 return GetArpEntryRes::InvalidAddr;
             }
@@ -454,7 +459,7 @@ private:
         eth_header.set(EthHeader::SrcMac(), *m_mac_addr);
         eth_header.set(EthHeader::EthType(), EthTypeArp);
         
-        IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+        IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
         Ip4Addr src_addr = (ifaddr != nullptr) ? ifaddr->addr : Ip4Addr::ZeroAddr();
         
         auto arp_header = ArpIp4Header::MakeRef(frame_alloc.getPtr() + EthHeader::Size);
@@ -468,14 +473,14 @@ private:
         arp_header.set(ArpIp4Header::DstHwAddr(),    dst_mac);
         arp_header.set(ArpIp4Header::DstProtoAddr(), dst_ipaddr);
         
-        return m_driver->sendFrame(frame_alloc.getBufRef());
+        return driverSendFrame(frame_alloc.getBufRef());
     }
     
     void timerExpired (ArpTimer, Context)
     {
         tim(ArpTimer()).appendAfter(Context(), ArpTimerTicks);
         
-        IpIfaceIp4Addrs const *ifaddr = m_callback->getIp4Addrs();
+        IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
         
         for (auto &e : m_arp_entries) {
             if (e.state == ArpEntryState::FREE) {
@@ -525,8 +530,6 @@ private:
     
 private:
     Observable m_arp_observable;
-    EthIfaceDriver<CallbackImpl> *m_driver;
-    IpIfaceDriverCallback<IpCallbackImpl> *m_callback;
     MacAddr const *m_mac_addr;
     ArpEntryIndexType m_first_arp_entry;
     EthHeader::Ref m_rx_eth_header;
@@ -541,7 +544,7 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(BufAllocator),
-        APRINTER_AS_TYPE(IpCallbackImpl)
+        APRINTER_AS_TYPE(Iface)
     ), (
         using Params = EthIpIfaceService;
         APRINTER_DEF_INSTANCE(Compose, EthIpIface)

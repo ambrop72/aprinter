@@ -112,7 +112,7 @@ private:
         ArpProtectCount,
         0 // HeaderBeforeEth
     >;
-    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator, typename Iface::CallbackImpl>))
+    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator, Iface>))
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
         64, // DhcpTTL
@@ -145,7 +145,6 @@ public:
         o->event_listeners.init();
         o->ip_stack.init();
         o->activation_state = NOT_ACTIVATED;
-        o->driver_proxy.clear();
     }
     
     static void deinit (Context c)
@@ -178,7 +177,6 @@ public:
         deinit_iface();
         TheEthernet::reset(c);
         o->activation_state = NOT_ACTIVATED;
-        o->driver_proxy.clear();
     }
     
     static bool isActivated (Context c)
@@ -317,27 +315,14 @@ private:
                 o->dhcp_client.deinit();
             }
             o->ip_iface.deinit();
-            o->eth_ip_iface.deinit();
         }
     }
     
-    using DriverCallbackImpl = typename TheEthIpIface::CallbackImpl;
-    
-    class EthDriverProxy : public AIpStack::EthIfaceDriver<DriverCallbackImpl> {
+    class MyIface : public TheEthIpIface {
         friend IpStackNetwork;
         
-        void clear ()
-        {
-            m_callback = nullptr;
-        }
-        
-    public:
-        void setCallback (AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *callback) override final
-        {
-            m_callback = callback;
-        }
-        
-        MacAddr const * getMacAddr () override final
+    private:
+        MacAddr const * driverGetMacAddr () override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -345,7 +330,7 @@ private:
             return TheEthernet::getMacAddr(Context());
         }
         
-        size_t getEthMtu () override final
+        size_t driverGetEthMtu () override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -353,7 +338,7 @@ private:
             return EthMTU;
         }
         
-        IpErr sendFrame (IpBufRef frame) override final
+        IpErr driverSendFrame (IpBufRef frame) override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -361,7 +346,7 @@ private:
             return TheEthernet::sendFrame(Context(), &frame);
         }
         
-        EthIfaceState getState () override final
+        EthIfaceState driverGetEthState () override final
         {
             auto *o = Object::self(Context());
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
@@ -370,9 +355,6 @@ private:
             state.link_up = TheEthernet::getLinkUp(Context());
             return state;
         }
-        
-    private:
-        AIpStack::EthIfaceDriverCallback<DriverCallbackImpl> *m_callback;
     };
     
     static void ethernet_activate_handler (Context c, bool error)
@@ -386,10 +368,7 @@ private:
             o->activation_state = ACTIVATED;
             o->dhcp_enabled = false;
             
-            o->eth_ip_iface.init(&o->driver_proxy);
-            AMBRO_ASSERT(o->driver_proxy.m_callback != nullptr)
-            
-            o->ip_iface.init(&o->ip_stack, &o->eth_ip_iface);
+            o->ip_iface.init(&o->ip_stack);
             
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
@@ -420,7 +399,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-        o->driver_proxy.m_callback->stateChanged();
+        o->ip_iface.ethStateChangedFromDriver();
         
         NetworkEvent event{NetworkEventType::LINK};
         event.link.up = link_status;
@@ -442,7 +421,7 @@ private:
         IpBufNode node1 = {data1, size1, &node2};        
         IpBufRef frame = {&node1, 0, (size_t)(size1 + size2)};
         
-        o->driver_proxy.m_callback->recvFrame(frame);
+        o->ip_iface.recvFrameFromDriver(frame);
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&IpStackNetwork::ethernet_receive_handler) {};
     
@@ -487,12 +466,10 @@ public:
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         TheIpStack ip_stack;
         EthActivateState activation_state;
-        EthDriverProxy driver_proxy;
-        TheEthIpIface eth_ip_iface;
         bool dhcp_enabled;
         TheIpDhcpClient dhcp_client;
         DhcpClientCallback dhcp_client_callback;
-        Iface ip_iface;
+        MyIface ip_iface;
         NetworkParams config;
     };
 };

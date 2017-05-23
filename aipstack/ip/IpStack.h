@@ -56,7 +56,6 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
-#include <aipstack/ip/IpIfaceDriver.h>
 #include <aipstack/ip/IpReassembly.h>
 #include <aipstack/ip/IpPathMtuCache.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
@@ -72,6 +71,18 @@ struct IpIfaceIp4AddrSetting {
 struct IpIfaceIp4GatewaySetting {
     bool present;
     Ip4Addr addr;
+};
+
+struct IpIfaceIp4Addrs {
+    Ip4Addr addr;
+    Ip4Addr netmask;
+    Ip4Addr netaddr;
+    Ip4Addr bcastaddr;
+    uint8_t prefix;
+};
+
+struct IpIfaceDriverState {
+    bool link_up;
 };
 
 struct IpSendFlags {
@@ -297,7 +308,7 @@ public:
         // Send the packet to the driver.
         // Fast path is no fragmentation, this permits tail call optimization.
         if (AMBRO_LIKELY((ip_flags & (Ip4FlagMF >> 8)) == 0)) {
-            return route_iface->m_driver->sendIp4Packet(pkt, route_addr, retryReq);
+            return route_iface->driverSendIp4Packet(pkt, route_addr, retryReq);
         }
         
         // Slow path...
@@ -368,7 +379,7 @@ public:
         ip4_header.set(Ip4Header::HeaderChksum(), chksum.getChksum());
         
         // Send the packet to the driver.
-        return route_iface->m_driver->sendIp4Packet(pkt, route_addr, retryReq);
+        return route_iface->driverSendIp4Packet(pkt, route_addr, retryReq);
     }
     
 private:
@@ -379,7 +390,7 @@ private:
         uint16_t pkt_send_len = Ip4RoundFragMength(Ip4Header::Size, route_iface->getMtu());
         
         // Send the first fragment.
-        IpErr err = route_iface->m_driver->sendIp4Packet(pkt.subTo(pkt_send_len), route_addr, retryReq);
+        IpErr err = route_iface->driverSendIp4Packet(pkt.subTo(pkt_send_len), route_addr, retryReq);
         if (err != IpErr::SUCCESS) {
             return err;
         }
@@ -425,7 +436,7 @@ private:
             IpBufRef frag_pkt = pkt.subHeaderToContinuedBy(Ip4Header::Size, &data_node, pkt_send_len, &header_node);
             
             // Send the packet to the driver.
-            err = route_iface->m_driver->sendIp4Packet(frag_pkt, route_addr, retryReq);
+            err = route_iface->driverSendIp4Packet(frag_pkt, route_addr, retryReq);
             
             // If this was the last fragment or there was an error, return.
             if (!more_fragments || err != IpErr::SUCCESS) {
@@ -558,35 +569,28 @@ private:
         APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node), IfaceListenerLinkModel, false>;
     
 public:
-    class Iface :
-        private IpIfaceDriverCallback<Iface>
-    {
+    class Iface {
         friend IpStack;
         
     public:
-        using CallbackImpl = Iface;
+        using IfaceIpStack = IpStack;
         
-        void init (IpStack *stack, IpIfaceDriver<CallbackImpl> *driver)
+        void init (IpStack *stack)
         {
             AMBRO_ASSERT(stack != nullptr)
-            AMBRO_ASSERT(driver != nullptr)
             
             // Initialize stuffs.
             m_stack = stack;
-            m_driver = driver;
-            m_hw_type = driver->getHwType();
-            m_hw_iface = driver->getHwIface();
+            m_hw_type = driverGetHwType();
+            m_hw_iface = driverGetHwIface();
             m_have_addr = false;
             m_have_gateway = false;
             m_listeners_list.init();
             m_state_observable.init();
             
             // Get the MTU.
-            m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, m_driver->getIpMtu());
+            m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, driverGetIpMtu());
             AMBRO_ASSERT(m_ip_mtu >= MinMTU)
-            
-            // Connect driver callbacks.
-            m_driver->setCallback(this);
             
             // Register interface.
             m_stack->m_iface_list.prepend(this);
@@ -599,9 +603,6 @@ public:
             
             // Unregister interface.
             m_stack->m_iface_list.remove(this);
-            
-            // Disconnect driver callbacks.
-            m_driver->setCallback(nullptr);
         }
         
         void setIp4Addr (IpIfaceIp4AddrSetting value)
@@ -679,23 +680,34 @@ public:
         
         inline IpIfaceDriverState getDriverState ()
         {
-            return m_driver->getState();
+            return driverGetState();
         }
         
-    private:
-        friend IpIfaceDriverCallback<Iface>;
+    protected:
+        // These functions are implemented or called by the IP driver.
         
-        inline IpIfaceIp4Addrs const * getIp4Addrs ()
-        {
-            return m_have_addr ? &m_addr : nullptr;
-        }
+        virtual size_t driverGetIpMtu () = 0;
         
-        inline void recvIp4Packet (IpBufRef pkt)
+        virtual IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
+                                           IpSendRetry::Request *sendRetryReq) = 0;
+        
+        virtual IpHwType driverGetHwType () = 0;
+        
+        virtual void * driverGetHwIface () = 0;
+        
+        virtual IpIfaceDriverState driverGetState () = 0;
+        
+        inline void recvIp4PacketFromDriver (IpBufRef pkt)
         {
             m_stack->processRecvedIp4Packet(this, pkt);
         }
         
-        void stateChanged ()
+        inline IpIfaceIp4Addrs const * getIp4AddrsFromDriver ()
+        {
+            return m_have_addr ? &m_addr : nullptr;
+        }
+        
+        void stateChangedFromDriver ()
         {
             m_state_observable.template notifyObservers<false>([&](Observer &observer_base) {
                 IfaceStateObserver &observer = static_cast<IfaceStateObserver &>(observer_base);
@@ -708,7 +720,6 @@ public:
         IfaceListenerList m_listeners_list;
         Observable m_state_observable;
         IpStack *m_stack;
-        IpIfaceDriver<CallbackImpl> *m_driver;
         void *m_hw_iface;
         uint16_t m_ip_mtu;
         IpIfaceIp4Addrs m_addr;
