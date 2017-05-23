@@ -65,19 +65,6 @@ public:
         return pcb->hasFlag(PcbFlags::FIN_SENT) && pcb->snd_una == pcb->snd_nxt;
     }
     
-    // Calculate the offset of the current send buffer position.
-    static size_t pcb_snd_offset (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        
-        TcpConnection *con = pcb->con;
-        if (AMBRO_UNLIKELY(con == nullptr)) {
-            return 0;
-        }
-        AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
-        return con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
-    }
-    
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
     static void pcb_send_syn (TcpPcb *pcb)
     {
@@ -243,8 +230,11 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
-        return pcb_snd_offset(pcb) > 0 ||
-               (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
+        TcpConnection *con = pcb->con;
+        return
+            (AMBRO_LIKELY(con != nullptr) &&
+                con->m_v.snd_buf_cur.tot_len < con->m_v.snd_buf.tot_len) ||
+            (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
     }
     
     /**
