@@ -211,18 +211,6 @@ public:
         return con->m_v.snd_buf.tot_len > 0;
     }
     
-    // Determine if the rtx_timer needs to be running for retransmission
-    // or window probe.
-    static bool pcb_need_rtx_timer (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        TcpConnection *con = pcb->con;
-        return (con == nullptr || con->m_v.snd_wnd == 0) ?
-            !pcb_may_delay_snd(pcb) : pcb_has_snd_unacked(pcb);
-    }
-    
     // Determine if there is any data or FIN which is no longer queued for
     // sending but has not been ACKed. This is NOT necessarily the same as
     // snd_una!=snd_nxt due to requeuing in pcb_rtx_timer_handler.
@@ -244,18 +232,7 @@ public:
     static bool pcb_output_queued (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
-        
-        // Is there nothing outstanding to be sent or ACKed?
-        if (AMBRO_UNLIKELY(!pcb_has_snd_outstanding(pcb))) {
-            // Start timer for idle timeout unless already running for idle timeout.
-            // NOTE: We might set the idle timer even if it has already expired and
-            // nothing has been sent since, but this is not really a problem.
-            if (!pcb->tim(RtxTimer()).isSet(Context()) || !pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
-                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
-                pcb->setFlag(PcbFlags::IDLE_TIMER);
-            }
-            return false;
-        }
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         SeqType rem_wnd;
         IpBufRef *snd_buf_cur;
@@ -346,29 +323,29 @@ public:
             sent = true;
         }
         
-        // Start or stop the rtx_timer as needed.
-        pcb_update_rtx_timer(pcb);
-        
-        return sent;
-    }
-    
-    // Start or stop the rtx_timer for retransmission or window probe as needed.
-    static void pcb_update_rtx_timer (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        if (pcb_need_rtx_timer(pcb)) {
-            // Start timer for retransmission or window probe, if not already
-            // or if it was running for idle timeout.
-            if (!pcb->tim(RtxTimer()).isSet(Context()) || pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
-                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
-                pcb->clearFlag(PcbFlags::IDLE_TIMER);
-            }
-        } else {
-            // Stop the timer.
+        // If the IDLE_TIMER flag is set, clear it and ensure that the RtxTimer
+        // is set. This way the code below for setting the timer does not need
+        // to concern itself with the idle timeout, and performance is improved
+        // for sending with no idle timeouts in between.
+        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
+            pcb->clearFlag(PcbFlags::IDLE_TIMER);
             pcb->tim(RtxTimer()).unset(Context());
         }
+        
+        // If the retransmission timer is already running then leave it.
+        // Otherwise start it if we have sent and unacknowledged data or
+        // if we have zero window (to send windor probe). Note that for
+        // zero window it would not be wrong to have an extra condition
+        // !pcb_may_delay_snd but we don't for simplicity.
+        if (!pcb->tim(RtxTimer()).isSet(Context())) {
+            if (AMBRO_LIKELY(pcb_has_snd_unacked(pcb)) ||
+                (pcb->con != nullptr && pcb->con->m_v.snd_wnd == 0))
+            {
+                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
+            }
+        }
+        
+        return sent;
     }
     
     static void pcb_output_timer_handler (TcpPcb *pcb)
@@ -376,13 +353,15 @@ public:
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         
         // Send any unsent data as permissible.
-        pcb_output_queued(pcb);
+        if (AMBRO_LIKELY(pcb_has_snd_outstanding(pcb))) {
+            pcb_output_queued(pcb);
+        }
     }
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
     {
-        // For any state change that invalidates can_output_in_state the timer is
-        // also stopped (pcb_abort, pcb_go_to_time_wait).
+        // This timer is only for SYN_SENT, SYN_RCVD and can_output_in_state
+        // states. In any change to another state the timer would be stopped.
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD) ||
                      can_output_in_state(pcb->state))
         
@@ -390,12 +369,17 @@ public:
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
             // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
             // could only be invalidated by sending some new data:
-            // 1) pcb_output_queued will in any case set/unset the timer how it needs to be.
+            // 1) pcb_output_queued which would stop the idle timeout when any data is sent
             // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
             // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
+            
+            // Clear the IDLE_TIMER flag. This is not strictly necessarily but is mostly
+            // cosmetical and for a minor performance gain in pcb_output_queued where it
+            // avoids clearing this flag and redundantly stopping the timer.
+            pcb->clearFlag(PcbFlags::IDLE_TIMER);
             
             // We need to check that pcb->con is not null, specifically for the case
             // where pcb_con_abandoned->pcb_end_sending just sets the output timer and
@@ -418,31 +402,45 @@ public:
             return;
         }
         
+        // Check if this is for SYN or SYN-ACK retransmission.
+        bool syn_sent_rcvd = pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD);
+        
+        // We must have something outstanding to be sent or acked.
+        // This was the case when we were sent and if that changed
+        // the timer would have been unset.
+        AMBRO_ASSERT(syn_sent_rcvd || pcb_has_snd_outstanding(pcb))
+        
+        // Check for spurious timer expiration after timer is no longer
+        // needed (no unacked data and no zero window).
+        if (!syn_sent_rcvd && !pcb_has_snd_unacked(pcb) &&
+            (pcb->con == nullptr || pcb->con->m_v.snd_wnd != 0))
+        {
+            // Return without restarting the timer.
+            return;
+        }
+        
         // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
         pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
         pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
         
-        // If this for a SYN or SYN-ACK retransmission, retransmit and return.
-        if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
+        // If this for SYN or SYN-ACK retransmission, retransmit and return.
+        if (syn_sent_rcvd) {
             pcb_send_syn(pcb);
             return;
         }
         
-        // If the timer was set for retransmission or window probe, the precondition
-        // pcb_need_rtx_timer must still hold. Anything that would have invalidated
-        // that would have stopped the timer.
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        AMBRO_ASSERT(pcb_need_rtx_timer(pcb))
-        
         TcpConnection *con = pcb->con;
         
         if (con == nullptr || con->m_v.snd_wnd == 0) {
-            // Send a window probe.
-            // Note that for an abandoned connection (where snd_wnd is gone),
-            // a FIN retransmission would also be handled by this case.
+            // This is for:
+            // - FIN retransmission or window probe after connection was
+            //   abandoned (we don't disinguish these two cases).
+            // - Zero window probe while not abandoned.
             pcb_output_front(pcb);
         } else {
+            // This is for data or FIN retransmission while not abandoned.
+            
             // Check for first retransmission.
             if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
                 // Set flag to indicate there has been a retransmission.
@@ -504,10 +502,6 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        // Stop the rtx_timer. Consider that the state changes done by Input
-        // just after this might invalidate the asserts in pcb_rtx_timer_handler.
-        pcb->tim(RtxTimer()).unset(Context());
         
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
@@ -709,7 +703,7 @@ public:
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
             pcb_send_syn(pcb);
         }
-        else if (can_output_in_state(pcb->state)) {
+        else if (can_output_in_state(pcb->state) && pcb_has_snd_outstanding(pcb)) {
             // Output queued data.
             pcb_output_queued(pcb);
         }
@@ -735,7 +729,7 @@ public:
     // This is called when the MtuRef notifies us that the PMTU has
     // changed. It is very important that we do not reset/deinit any
     // MtuRef here (including this PCB's, such as through pcb_abort).
-    inline static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
+    static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD, TcpState::TIME_WAIT))
         AMBRO_ASSERT(pcb->con != nullptr)
@@ -786,39 +780,12 @@ public:
             }
         }
         
-        // The change of snd_mss might have broken the invariant that the
-        // rtx_timer is started if and only if pcb_need_rtx_timer (ignoring
-        // idle timeout). Note that snd_mss affects pcb_need_rtx_timer only
-        // when snd_wnd==0 (to determine if window probing is needed), hence
-        // the condition here.
-        if (pcb_has_snd_outstanding(pcb) && con->m_v.snd_wnd == 0) {
-            pcb_update_rtx_timer(pcb);
-        }
-        
         // NOTE: If we decreased snd_mss, pcb_output_queued may be able to send
         // something more when it was previously delaying due to pcb_may_delay_snd.
         // But we don't bother ensuring such a transmission happens immediately.
         // This is not a real case of blocked transmission because we only promise
         // tranamission when at least base_snd_mss data is queued. In other words
         // the user is anyway expected to queue more data or push.
-    }
-    
-    // Sets the OutputTimer to expire after no longer than OutputTimerTicks.
-    static void pcb_set_output_timer_for_output (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        
-        // If the OUT_RETRY flag is set, clear it and ensure that
-        // the OutputTimer is stopped before the check below.
-        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
-            pcb->clearFlag(PcbFlags::OUT_RETRY);
-            pcb->tim(OutputTimer()).unset(Context());
-        }
-        
-        // Set the timer if it is not running already.
-        if (!pcb->tim(OutputTimer()).isSet(Context())) {
-            pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
-        }
     }
     
     // Update the snd_wnd to the given value.
@@ -844,19 +811,17 @@ public:
         con->m_v.snd_wnd = new_snd_wnd;
         
         // Set the flag OUT_PENDING to send any data that can now be
-        // sent and to ensure the rtx_timer is reconfigured as needed
-        // (the change may have invalidated pcb_need_rtx_timer).
+        // sent and to ensure the rtx_timer is reconfigured as needed.
         pcb->setFlag(PcbFlags::OUT_PENDING);
         
         // If the window now became zero or nonzero while we have outstanding,
         // data to be sent/acked, make sure the rtx_timer is stopped. Because
         // if it is currently set for one kind of message (retransmission or
-        // window probe) and we didn't stop it, pcb_update_rtx_timer would
-        // assume it was set for the other kind of  message and we may end up
-        // sending that message at the wrong time.
+        // window probe) it might otherwise expire send the other kind too early.
+        // If the timer is actually needed it will be (re-)started
+        // by pcb_output_queued due to setting OUT_PENDING.
         if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0)) &&
-            can_output_in_state(pcb->state) &&
-            pcb_has_snd_outstanding(pcb))
+            can_output_in_state(pcb->state) && pcb_has_snd_outstanding(pcb))
         {
             pcb->tim(RtxTimer()).unset(Context());
         }
@@ -896,6 +861,24 @@ public:
     }
     
 private:
+    // Sets the OutputTimer to expire after no longer than OutputTimerTicks.
+    static void pcb_set_output_timer_for_output (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        
+        // If the OUT_RETRY flag is set, clear it and ensure that
+        // the OutputTimer is stopped before the check below.
+        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
+            pcb->clearFlag(PcbFlags::OUT_RETRY);
+            pcb->tim(OutputTimer()).unset(Context());
+        }
+        
+        // Set the timer if it is not running already.
+        if (!pcb->tim(OutputTimer()).isSet(Context())) {
+            pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
+        }
+    }
+    
     // Determine if sending can be delayed in expectation of a larger segment.
     static bool pcb_may_delay_snd (TcpPcb *pcb)
     {

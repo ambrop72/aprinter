@@ -506,7 +506,9 @@ private:
         // Output if needed.
         if (pcb->hasAndClearFlag(PcbFlags::OUT_PENDING)) {
             // Can only output if in the right state.
-            if (can_output_in_state(pcb->state)) {
+            if (AMBRO_LIKELY(can_output_in_state(pcb->state) &&
+                             Output::pcb_has_snd_outstanding(pcb)))
+            {
                 // Output queued data.
                 bool sent_ack = Output::pcb_output_queued(pcb);
                 if (sent_ack) {
@@ -938,17 +940,12 @@ private:
             // The amount of acknowledged sequence numbers was already calculated.
             AMBRO_ASSERT(acked == seq_diff(tcp_meta.ack_num, pcb->snd_una))
             
-            // Inform Output that something was acked. This includes stopping
-            // the rtx_timer, RTT measurement, congestion control processing,
-            // completing fast recovery.
+            // Inform Output that something was acked. This performs RTT
+            // measurement and congestion control related processing.
             Output::pcb_output_handle_acked(pcb, tcp_meta.ack_num, acked);
             
             // Update snd_una due to sequences having been ACKed.
             pcb->snd_una = tcp_meta.ack_num;
-            
-            // Schedule pcb_output, so that the rtx_timer will be restarted
-            // if needed (for retransmission or zero-window probe).
-            pcb->setFlag(PcbFlags::OUT_PENDING);
             
             // Check if our FIN has just been acked.
             bool fin_acked = Output::pcb_fin_acked(pcb);
@@ -1007,7 +1004,7 @@ private:
             
             if (AMBRO_UNLIKELY(fin_acked)) {
                 // We must be in a state where we had queued a FIN for sending
-                // but have not send it or received its acknowledgement yet.
+                // but have not received its acknowledgement yet.
                 AMBRO_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
                                                  TcpState::LAST_ACK))
                 
@@ -1022,8 +1019,9 @@ private:
                     pcb->state = TcpState::FIN_WAIT_2;
                     
                     // At this transition output_timer and rtx_timer must be unset
-                    // due to assert in their handlers (rtx_timer was unset above).
+                    // due to assert in their handlers.
                     pcb->tim(OutputTimer()).unset(Context());
+                    pcb->tim(RtxTimer()).unset(Context());
                     
                     // Reset the MTU reference.
                     if (pcb->con != nullptr) {
@@ -1041,6 +1039,24 @@ private:
                     // Close the PCB.
                     TcpProto::pcb_abort(pcb, false);
                     return false;
+                }
+            } else {
+                // Some data was ACKed but not FIN.
+                AMBRO_ASSERT(can_output_in_state(pcb->state))
+                
+                // Is any data or FIN outstanding?
+                if (Output::pcb_has_snd_outstanding(pcb)) {
+                    // Stop the rtx_timer since any running timeout is no longer
+                    // valid due to something having been acked.
+                    pcb->tim(RtxTimer()).unset(Context());
+                    
+                    // Schedule pcb_output_queued, so that the rtx_timer will be
+                    // restarted if needed (for retransmission or zero-window probe).
+                    pcb->setFlag(PcbFlags::OUT_PENDING);
+                } else {
+                    // Start the idle timeout.
+                    pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+                    pcb->setFlag(PcbFlags::IDLE_TIMER);
                 }
             }
         }
