@@ -423,7 +423,6 @@ def setup_platform(gen, config, key):
     
     @platform_sel.option('Teensy3')
     def option(platform):
-        platform.path().error('Teensy 3 support is broken and might brick device')
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
         gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
     
