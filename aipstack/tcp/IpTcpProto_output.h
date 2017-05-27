@@ -183,6 +183,7 @@ public:
     static void pcb_push_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Schedule a call to pcb_output soon.
         if (pcb == pcb->tcp->m_current_pcb) {
@@ -801,6 +802,11 @@ public:
             return;
         }
         
+        // We don't need window updates in states where output is no longer possible.
+        if (AMBRO_UNLIKELY(!can_output_in_state(pcb->state))) {
+            return;
+        }
+        
         // Check if the window has changed.
         SeqType old_snd_wnd = con->m_v.snd_wnd;
         if (new_snd_wnd == old_snd_wnd) {
@@ -810,20 +816,21 @@ public:
         // Update the window.
         con->m_v.snd_wnd = new_snd_wnd;
         
-        // Set the flag OUT_PENDING to send any data that can now be
-        // sent and to ensure the rtx_timer is reconfigured as needed.
-        pcb->setFlag(PcbFlags::OUT_PENDING);
-        
-        // If the window now became zero or nonzero while we have outstanding,
-        // data to be sent/acked, make sure the rtx_timer is stopped. Because
-        // if it is currently set for one kind of message (retransmission or
-        // window probe) it might otherwise expire send the other kind too early.
-        // If the timer is actually needed it will be (re-)started
-        // by pcb_output_queued due to setting OUT_PENDING.
-        if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0)) &&
-            can_output_in_state(pcb->state) && pcb_has_snd_outstanding(pcb))
-        {
-            pcb->tim(RtxTimer()).unset(Context());
+        // Is there any data or FIN outstanding to be sent/acked?
+        if (pcb_has_snd_outstanding(pcb)) {
+            // Set the flag OUT_PENDING so that more can be sent due to window
+            // enlargement or (unlikely) window probing can start due to window
+            // shrinkage.
+            pcb->setFlag(PcbFlags::OUT_PENDING);
+            
+            // If the window now became zero or nonzero, make sure the rtx_timer
+            // is stopped. Because if it is currently set for one kind of message
+            // (retransmission or window probe) it might otherwise expire and send
+            // the other kind too early. If the timer is actually needed it will
+            // be restarted by pcb_output_queued due to setting OUT_PENDING.
+            if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0))) {
+                pcb->tim(RtxTimer()).unset(Context());
+            }
         }
     }
     

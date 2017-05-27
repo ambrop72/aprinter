@@ -505,16 +505,14 @@ private:
         
         // Output if needed.
         if (pcb->hasAndClearFlag(PcbFlags::OUT_PENDING)) {
-            // Can only output if in the right state.
-            if (AMBRO_LIKELY(can_output_in_state(pcb->state) &&
-                             Output::pcb_has_snd_outstanding(pcb)))
-            {
-                // Output queued data.
-                bool sent_ack = Output::pcb_output_queued(pcb);
-                if (sent_ack) {
-                    // An ACK was sent, no need for empty ACK.
-                    pcb->clearFlag(PcbFlags::ACK_PENDING);
-                }
+            // These are implied by the OUT_PENDING flag.
+            AMBRO_ASSERT(can_output_in_state(pcb->state))
+            AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
+            
+            // Output queued data.
+            if (Output::pcb_output_queued(pcb)) {
+                // An ACK was sent along, no need for empty ACK.
+                pcb->clearFlag(PcbFlags::ACK_PENDING);
             }
         }
         
@@ -955,7 +953,7 @@ private:
             AMBRO_ASSERT(data_acked_seq <= SIZE_MAX)
             size_t data_acked = data_acked_seq;
             
-            if (data_acked > 0) {
+            if (AMBRO_LIKELY(data_acked > 0)) {
                 // We necessarily still have a TcpConnection, if the connection was
                 // abandoned with unsent/unacked data, it would have been aborted.
                 TcpConnection *con = pcb->con;
@@ -1023,6 +1021,9 @@ private:
                     pcb->tim(OutputTimer()).unset(Context());
                     pcb->tim(RtxTimer()).unset(Context());
                     
+                    // Clear the OUT_PENDING flag due to its preconditions.
+                    pcb->clearFlag(PcbFlags::OUT_PENDING);
+                    
                     // Reset the MTU reference.
                     if (pcb->con != nullptr) {
                         pcb->con->MtuRef::reset(pcb->tcp->m_stack);
@@ -1045,7 +1046,7 @@ private:
                 AMBRO_ASSERT(can_output_in_state(pcb->state))
                 
                 // Is any data or FIN outstanding?
-                if (Output::pcb_has_snd_outstanding(pcb)) {
+                if (AMBRO_LIKELY(Output::pcb_has_snd_outstanding(pcb))) {
                     // Stop the rtx_timer since any running timeout is no longer
                     // valid due to something having been acked.
                     pcb->tim(RtxTimer()).unset(Context());
@@ -1057,6 +1058,9 @@ private:
                     // Start the idle timeout.
                     pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
                     pcb->setFlag(PcbFlags::IDLE_TIMER);
+                    
+                    // Clear the OUT_PENDING flag due to its preconditions.
+                    pcb->clearFlag(PcbFlags::OUT_PENDING);
                 }
             }
         }

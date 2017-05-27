@@ -109,20 +109,37 @@ private:
     // PCB flags, see flags in TcpPcb.
     using FlagsType = uint16_t;
     struct PcbFlags { enum : FlagsType {
-        ACK_PENDING = (FlagsType)1 << 0,  // ACK is needed; used in input processing
-        OUT_PENDING = (FlagsType)1 << 1,  // pcb_output is needed; used in input processing
-        FIN_SENT    = (FlagsType)1 << 2,  // A FIN has been sent, and is included in snd_nxt
-        FIN_PENDING = (FlagsType)1 << 3,  // A FIN is to be transmitted
-        RTT_PENDING = (FlagsType)1 << 4,  // Round-trip-time is being measured
-        RTT_VALID   = (FlagsType)1 << 5,  // Round-trip-time is not in initial state
-        CWND_INCRD  = (FlagsType)1 << 6,  // cwnd has been increaded by snd_mss this round-trip
-        RTX_ACTIVE  = (FlagsType)1 << 7,  // A segment has been retransmitted and not yet acked
-        RECOVER     = (FlagsType)1 << 8,  // The recover variable valid (and >=snd_una)
-        IDLE_TIMER  = (FlagsType)1 << 9,  // If rtx_timer is running it is for idle timeout
-        WND_SCALE   = (FlagsType)1 << 10, // Window scaling is used
-        CWND_INIT   = (FlagsType)1 << 11, // Current cwnd is the initial cwnd
-        OUT_RETRY   = (FlagsType)1 << 12, // If OutputTimer is set it is for OutputRetry*Ticks
-        RCV_WND_UPD = (FlagsType)1 << 13, // rcv_ann_wnd needs update before sending a segment
+        // ACK is needed; used in input processing
+        ACK_PENDING = (FlagsType)1 << 0,
+        // pcb_output_queued should be called at the end of input processing.
+        // This flag must imply can_output_in_state and pcb_has_snd_outstanding
+        // at the point in pcb_input where it is checked. Any change that would
+        // break this implication must clear the flag.
+        OUT_PENDING = (FlagsType)1 << 1,
+        // A FIN was sent at least once and is included in snd_nxt
+        FIN_SENT    = (FlagsType)1 << 2,
+        // A FIN is to queued for sending
+        FIN_PENDING = (FlagsType)1 << 3,
+        // Round-trip-time is being measured
+        RTT_PENDING = (FlagsType)1 << 4,
+        // Round-trip-time is not in initial state
+        RTT_VALID   = (FlagsType)1 << 5,
+        // cwnd has been increaded by snd_mss this round-trip
+        CWND_INCRD  = (FlagsType)1 << 6,
+        // A segment has been retransmitted and not yet acked
+        RTX_ACTIVE  = (FlagsType)1 << 7,
+        // The recover variable valid (and >=snd_una)
+        RECOVER     = (FlagsType)1 << 8,
+        // If rtx_timer is running it is for idle timeout
+        IDLE_TIMER  = (FlagsType)1 << 9,
+        // Window scaling is used
+        WND_SCALE   = (FlagsType)1 << 10,
+        // Current cwnd is the initial cwnd
+        CWND_INIT   = (FlagsType)1 << 11,
+        // If OutputTimer is set it is for OutputRetry*Ticks
+        OUT_RETRY   = (FlagsType)1 << 12,
+        // rcv_ann_wnd needs update before sending a segment
+        RCV_WND_UPD = (FlagsType)1 << 13,
         // NOTE: Currently no more bits are available, see TcpPcb::flags.
     }; };
     
@@ -493,6 +510,9 @@ private:
         // Stop these timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
+        
+        // Clear the OUT_PENDING flag due to its preconditions.
+        pcb->clearFlag(PcbFlags::OUT_PENDING);
         
         // Start the TIME_WAIT timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);

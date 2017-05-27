@@ -672,7 +672,9 @@ public:
             m_v.snd_psh_index = m_v.snd_buf.tot_len;
             
             // Tell the output code to push, if necessary.
-            if (m_v.pcb != nullptr && snd_open_in_state(m_v.pcb->state)) {
+            if (m_v.pcb != nullptr && snd_open_in_state(m_v.pcb->state) &&
+                m_v.snd_buf.tot_len > 0)
+            {
                 Output::pcb_push_output(m_v.pcb);
             }
         }
