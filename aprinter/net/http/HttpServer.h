@@ -1373,7 +1373,9 @@ private:
             AMBRO_ASSERT(length > 0)
             
             // Get the send buffer reference and sanity check the length / space.
+#ifdef AMBROLIB_ASSERTIONS
             size_t con_space_avail = m_send_ring_buf.getFreeLen(*this);
+#endif
             AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
             AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
