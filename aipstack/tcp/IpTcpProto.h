@@ -616,23 +616,16 @@ private:
         pcb_abort(pcb);
     }
     
-    // This is used from input processing to call one of the TcpConnection
-    // private functions then check whether the PCB is still alive.
-    template <typename Action>
-    inline static bool pcb_event (TcpPcb *pcb, Action action)
+    // This is used to check within pcb_input if the PCB was aborted
+    // while performing a user callback.
+    inline static bool pcb_aborted_in_callback (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
-        AMBRO_ASSERT(pcb->state != TcpState::SYN_RCVD)
-        AMBRO_ASSERT(pcb->con == nullptr || pcb->con->m_v.pcb == pcb)
-        
-        if (pcb->con == nullptr) {
-            return true;
-        }
-        
+        // It is safe to read pcb->tcp since PCBs cannot just go away
+        // while in input processing. If the PCB was aborted or even
+        // reused, the tcp pointer must still be valid.
         IpTcpProto *tcp = pcb->tcp;
-        action(pcb->con);
-        
-        return tcp->m_current_pcb != nullptr;
+        AMBRO_ASSERT(tcp->m_current_pcb == pcb || tcp->m_current_pcb == nullptr)
+        return tcp->m_current_pcb == nullptr;
     }
     
     static inline SeqType make_iss ()

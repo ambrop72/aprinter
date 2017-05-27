@@ -57,7 +57,7 @@ class IpTcpProto_input
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
                                    AbrtTimer, RtxTimer, OutputTimer, MtuRef, TheIpStack))
-    APRINTER_USE_VALS(TcpProto, (NumOosSegs))
+    APRINTER_USE_VALS(TcpProto, (NumOosSegs, pcb_aborted_in_callback))
     APRINTER_USE_ONEOF
     
 public:
@@ -992,7 +992,8 @@ private:
                              con->m_v.snd_psh_index == con->m_v.snd_buf.tot_len + 1)
                 
                 // Report data-sent event to the user.
-                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_sent(data_acked); }))) {
+                con->data_sent(data_acked);
+                if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -1006,11 +1007,15 @@ private:
                 AMBRO_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
                                                  TcpState::LAST_ACK))
                 
-                // Tell TcpConnection and application about end sent.
-                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->end_sent(); }))) {
-                    return false;
+                // Tell TcpConnection and application (if any) about end sent.
+                TcpConnection *con = pcb->con;
+                if (AMBRO_LIKELY(con != nullptr)) {
+                    con->end_sent();
+                    if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                        return false;
+                    }
+                    // Possible transitions in callback (except to CLOSED): none.
                 }
-                // Possible transitions in callback (except to CLOSED): none.
                 
                 if (pcb->state == TcpState::FIN_WAIT_1) {
                     // FIN is acked in FIN_WAIT_1, transition to FIN_WAIT_2.
@@ -1240,8 +1245,13 @@ private:
             }
             
             if (AMBRO_LIKELY(rcv_datalen > 0)) {
+                // Must have TcpConnection here (or we would have bailed out before).
+                TcpConnection *con = pcb->con;
+                AMBRO_ASSERT(con != nullptr)
+                
                 // Give any data to the user.
-                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->data_received(rcv_datalen); }))) {
+                con->data_received(rcv_datalen);
+                if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -1250,12 +1260,16 @@ private:
             }
             
             if (AMBRO_UNLIKELY(rcv_fin)) {
-                // Tell TcpConnection and application about end received.
-                if (AMBRO_UNLIKELY(!TcpProto::pcb_event(pcb, [&](auto con) { con->end_received(); }))) {
-                    return false;
+                // Tell TcpConnection and application (if any) about end received.
+                TcpConnection *con = pcb->con;
+                if (AMBRO_LIKELY(con != nullptr)) {
+                    con->end_received();
+                    if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                        return false;
+                    }
+                    // Possible transitions in callback (except to CLOSED):
+                    // - CLOSE_WAIT->LAST_ACK
                 }
-                // Possible transitions in callback (except to CLOSED):
-                // - CLOSE_WAIT->LAST_ACK
                 
                 // Complete transition from FIN_WAIT_2 to TIME_WAIT.
                 if (pcb->state == TcpState::FIN_WAIT_2_TIME_WAIT) {
