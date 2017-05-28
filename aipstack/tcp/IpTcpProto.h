@@ -507,7 +507,7 @@ private:
         tcp->m_pcb_index_active.removeEntry(*tcp, {*pcb, *tcp});
         tcp->m_pcb_index_timewait.addEntry(*tcp, {*pcb, *tcp});
         
-        // Stop these timers due to asserts in their handlers.
+        // Stop timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
         pcb->tim(RtxTimer()).unset(Context());
         
@@ -516,6 +516,26 @@ private:
         
         // Start the TIME_WAIT timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
+    }
+    
+    static void pcb_go_to_fin_wait_2 (TcpPcb *pcb)
+    {
+        AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_1)
+        
+        // Change state.
+        pcb->state = TcpState::FIN_WAIT_2;
+        
+        // Stop these timers due to asserts in their handlers.
+        pcb->tim(OutputTimer()).unset(Context());
+        pcb->tim(RtxTimer()).unset(Context());
+        
+        // Clear the OUT_PENDING flag due to its preconditions.
+        pcb->clearFlag(PcbFlags::OUT_PENDING);
+        
+        // Reset the MTU reference.
+        if (pcb->con != nullptr) {
+            pcb->con->MtuRef::reset(pcb->tcp->m_stack);
+        }
     }
     
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)

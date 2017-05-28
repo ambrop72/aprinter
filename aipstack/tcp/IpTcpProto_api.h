@@ -565,7 +565,7 @@ public:
             // same as we don't allow calling this with nonempty snd_buf.
             m_v.snd_buf_cur = snd_buf;
             
-            if (m_v.pcb != nullptr) {
+            if (AMBRO_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_v.pcb);
             }
@@ -588,7 +588,7 @@ public:
             // Also adjust snd_buf_cur.
             m_v.snd_buf_cur.tot_len += amount;
         
-            if (m_v.pcb != nullptr) {
+            if (AMBRO_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_v.pcb);
             }

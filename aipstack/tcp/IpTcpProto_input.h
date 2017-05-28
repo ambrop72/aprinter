@@ -1019,20 +1019,7 @@ private:
                 
                 if (pcb->state == TcpState::FIN_WAIT_1) {
                     // FIN is acked in FIN_WAIT_1, transition to FIN_WAIT_2.
-                    pcb->state = TcpState::FIN_WAIT_2;
-                    
-                    // At this transition output_timer and rtx_timer must be unset
-                    // due to assert in their handlers.
-                    pcb->tim(OutputTimer()).unset(Context());
-                    pcb->tim(RtxTimer()).unset(Context());
-                    
-                    // Clear the OUT_PENDING flag due to its preconditions.
-                    pcb->clearFlag(PcbFlags::OUT_PENDING);
-                    
-                    // Reset the MTU reference.
-                    if (pcb->con != nullptr) {
-                        pcb->con->MtuRef::reset(pcb->tcp->m_stack);
-                    }
+                    TcpProto::pcb_go_to_fin_wait_2(pcb);
                 }
                 else if (pcb->state == TcpState::CLOSING) {
                     // Transition to TIME_WAIT.
@@ -1066,6 +1053,9 @@ private:
                     
                     // Clear the OUT_PENDING flag due to its preconditions.
                     pcb->clearFlag(PcbFlags::OUT_PENDING);
+                    
+                    // Stop the output timer due to assert in its handler.
+                    pcb->tim(OutputTimer()).unset(Context());
                 }
             }
         }

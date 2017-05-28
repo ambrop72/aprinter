@@ -149,8 +149,9 @@ public:
     static void pcb_snd_buf_extended (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || snd_open_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || pcb_has_snd_outstanding(pcb))
         
-        if (pcb->state != TcpState::SYN_SENT) {
+        if (AMBRO_LIKELY(pcb->state != TcpState::SYN_SENT)) {
             // Set the output timer.
             pcb_set_output_timer_for_output(pcb);
         }
@@ -352,11 +353,10 @@ public:
     static void pcb_output_timer_handler (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Send any unsent data as permissible.
-        if (AMBRO_LIKELY(pcb_has_snd_outstanding(pcb))) {
-            pcb_output_queued(pcb);
-        }
+        pcb_output_queued(pcb);
     }
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
@@ -872,6 +872,7 @@ private:
     static void pcb_set_output_timer_for_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // If the OUT_RETRY flag is set, clear it and ensure that
         // the OutputTimer is stopped before the check below.
