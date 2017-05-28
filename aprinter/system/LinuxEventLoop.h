@@ -227,16 +227,6 @@ public:
                 dispatch_queued_events(c);
             }
             
-            // Dispatch any pending fastevents.
-            for (auto i : LoopRangeAuto(Extra<>::NumFastEvents)) {
-                // Atomically set the pending flag to false and check if it was true.
-                if (extra(c)->m_event_pending[i].exchange(false)) {
-                    // Call the handler.
-                    extra(c)->m_event_handler[i](c);
-                    dispatch_queued_events(c);
-                }
-            }
-            
             // Process epoll events.
             while (o->cur_epoll_event < o->num_epoll_events) {
                 // Take an event.
@@ -274,6 +264,19 @@ public:
                         fdev->m_handler(c, events);
                         dispatch_queued_events(c);
                     }
+                }
+            }
+            
+            // Dispatch any pending fastevents.
+            // It is important to do this after reading the eventfd above.
+            // If we did it before, we might miss an event that wrote into
+            // the eventfd after checking.
+            for (auto i : LoopRangeAuto(Extra<>::NumFastEvents)) {
+                // Atomically set the pending flag to false and check if it was true.
+                if (extra(c)->m_event_pending[i].exchange(false)) {
+                    // Call the handler.
+                    extra(c)->m_event_handler[i](c);
+                    dispatch_queued_events(c);
                 }
             }
             
