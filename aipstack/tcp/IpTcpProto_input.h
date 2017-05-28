@@ -987,9 +987,9 @@ private:
                 }
                 
                 // If sending was closed the push index must (still)
-                // point to one past the end of the send buffer.
+                // point to the end of the send buffer.
                 AMBRO_ASSERT(snd_open_in_state(pcb->state) ||
-                             con->m_v.snd_psh_index == con->m_v.snd_buf.tot_len + 1)
+                             con->m_v.snd_psh_index == con->m_v.snd_buf.tot_len)
                 
                 // Report data-sent event to the user.
                 con->data_sent(data_acked);

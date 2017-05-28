@@ -619,8 +619,8 @@ public:
         {
             assert_sending();
             
-            // Set the push index to one past the end of the send buffer.
-            m_v.snd_psh_index = m_v.snd_buf.tot_len + 1;
+            // Set the push index to the end of the send buffer.
+            m_v.snd_psh_index = m_v.snd_buf.tot_len;
             
             // Remember that sending is closed.
             m_v.snd_closed = true;
@@ -663,7 +663,7 @@ public:
         {
             assert_started();
             
-            // Avoid reverting snd_psh_index after closeSending.
+            // No need to do anything after closeSending.
             if (m_v.snd_closed) {
                 return;
             }

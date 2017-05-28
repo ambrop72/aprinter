@@ -161,10 +161,9 @@ public:
     {
         AMBRO_ASSERT(snd_open_in_state(pcb->state))
         // If sending was closed without abandoning the connection, the push
-        // index must have been set to one past the end of the send buffer
-        // (see assert above). This is relied upon by pcb_may_delay_snd.
+        // index must have been set to the end of the send buffer.
         AMBRO_ASSERT(pcb->con == nullptr ||
-                     pcb->con->m_v.snd_psh_index == pcb->con->m_v.snd_buf.tot_len + 1)
+                     pcb->con->m_v.snd_psh_index == pcb->con->m_v.snd_buf.tot_len)
         
         // Make the appropriate state transition.
         if (pcb->state == TcpState::ESTABLISHED) {
@@ -239,13 +238,17 @@ public:
         SeqType rem_wnd;
         IpBufRef *snd_buf_cur;
         IpBufRef dummy_snd_buf_cur;
+        size_t data_threshold;
         
         TcpConnection *con = pcb->con;
         if (AMBRO_UNLIKELY(con == nullptr)) {
-            // Abandoned connection -> assume there is some window, use dummy snd_buf_cur.
+            // Abandoned connection. Assume there is some window, use dummy snd_buf_cur,
+            // set data_threshold to 0 so the snd_buf_cur->tot_len condition in the send
+            // loop is always false.
             rem_wnd = 1;
             snd_buf_cur = &dummy_snd_buf_cur;
             dummy_snd_buf_cur = IpBufRef{};
+            data_threshold = 0;
         } else {
             // Referenced connection.
             AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
@@ -265,17 +268,23 @@ public:
             
             // Use and update real snd_buf_cur.
             snd_buf_cur = &con->m_v.snd_buf_cur;
+            
+            // Calculate the threshold length for the remaining unsent data above
+            // which sending will not be delayed. This calculation achieves that
+            // delay is only allowed if we have less than snd_mss data left and none
+            // of this is being pushed via snd_psh_index.
+            AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
+            size_t psh_to_end = con->m_v.snd_buf.tot_len - con->m_v.snd_psh_index;
+            data_threshold = APrinter::MinValue(psh_to_end, (size_t)(pcb->snd_mss - 1));
         }
         
         // Will need to know if we sent anything.
         bool sent = false;
         
-        // Send segments while:
-        // - we have some data or FIN queued for sending, and
-        // - there is some window available, and
-        // - there is no need to delay in expectation of a larger segment.
-        while ((snd_buf_cur->tot_len > 0 || pcb->hasFlag(PcbFlags::FIN_PENDING)) && 
-                rem_wnd > 0 && !pcb_may_delay_snd(pcb))
+        // Send segments while we have some non-delayable data or FIN
+        // queued, and there is some window availabe.
+        while ((snd_buf_cur->tot_len > data_threshold ||
+                pcb->hasFlag(PcbFlags::FIN_PENDING)) && rem_wnd > 0)
         {
             // Send a segment.
             bool fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
@@ -885,36 +894,6 @@ private:
         if (!pcb->tim(OutputTimer()).isSet(Context())) {
             pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
         }
-    }
-    
-    // Determine if sending can be delayed in expectation of a larger segment.
-    static bool pcb_may_delay_snd (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        
-        // If the connection was abandoned, sending must have been closed and
-        // there is no reason to delay sending since there will be no more data.
-        TcpConnection *con = pcb->con;
-        if (AMBRO_UNLIKELY(con == nullptr)) {
-            AMBRO_ASSERT(!snd_open_in_state(pcb->state))
-            return false;
-        }
-        
-        AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
-        
-        // We can delay sending if less than snd_mss data is queued
-        // to be sent and none of this data is being pushed and sending
-        // was not closed.
-        bool may_delay = 
-            con->m_v.snd_buf_cur.tot_len < pcb->snd_mss &&
-            con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
-        
-        // To optimize this check, when sending is closed the snd_psh_index
-        // is moved one past the end of snd_buf. So assert that if sending is
-        // closed the result is false.
-        AMBRO_ASSERT(snd_open_in_state(pcb->state) || !may_delay)
-        
-        return may_delay;
     }
     
     static IpErr pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd,
