@@ -210,8 +210,8 @@ public:
             // Requeue everything for retransmission.
             Output::pcb_requeue_everything(pcb);
             
-            // Retransmit using pcb_output_queued.
-            Output::pcb_output_queued(pcb);
+            // Retransmit using pcb_output_active.
+            Output::pcb_output_active(pcb, false);
         }
     }
     
@@ -510,7 +510,7 @@ private:
             AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             
             // Output queued data.
-            if (Output::pcb_output_queued(pcb)) {
+            if (Output::pcb_output(pcb, false)) {
                 // An ACK was sent along, no need for empty ACK.
                 pcb->clearFlag(PcbFlags::ACK_PENDING);
             }
@@ -1043,8 +1043,9 @@ private:
                     // valid due to something having been acked.
                     pcb->tim(RtxTimer()).unset(Context());
                     
-                    // Schedule pcb_output_queued, so that the rtx_timer will be
-                    // restarted if needed (for retransmission or zero-window probe).
+                    // Schedule pcb_output_active/pcb_output_abandoned, so that the
+                    // rtx_timer will be restarted if needed (for retransmission or
+                    // window probe).
                     pcb->setFlag(PcbFlags::OUT_PENDING);
                 } else {
                     // Start the idle timeout.

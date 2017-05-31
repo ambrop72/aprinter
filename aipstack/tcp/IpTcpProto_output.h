@@ -227,69 +227,94 @@ public:
     }
     
     /**
-     * Transmits previously unsent data as permissible and controls the
-     * rtx_timer. Returns whether something has been sent.
+     * With rtx_or_window_probe==false, transmits queued data as permissible
+     * and controls the rtx_timer, and returns whether anything has been sent.
+     * 
+     * With rtx_or_window_probe==true, sends one segment from the start of
+     * the send buffer, does nothing else and always returns true. It does
+     * not change the queue position (snd_buf_cur and FIN_PENDING). In this
+     * case it only respects snd_wnd not cwnd, and forces sending of at least
+     * one sequence count.
      */
-    static bool pcb_output_queued (TcpPcb *pcb)
+    APRINTER_NO_INLINE
+    static bool pcb_output_active (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        SeqType rem_wnd;
-        IpBufRef *snd_buf_cur;
-        IpBufRef dummy_snd_buf_cur;
-        size_t data_threshold;
+        AMBRO_ASSERT(pcb->con != nullptr)
         
         TcpConnection *con = pcb->con;
-        if (AMBRO_UNLIKELY(con == nullptr)) {
-            // Abandoned connection. Assume there is some window, use dummy snd_buf_cur,
-            // set data_threshold to 0 so the snd_buf_cur->tot_len condition in the send
-            // loop is always false.
-            rem_wnd = 1;
-            snd_buf_cur = &dummy_snd_buf_cur;
-            dummy_snd_buf_cur = IpBufRef{};
+        
+        IpBufRef *snd_buf_cur;
+        SeqType rem_wnd;
+        size_t data_threshold;
+        bool fin;
+        
+        if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+            // Send from the start of the start buffer. We take care to not
+            // modify the real snd_buf via the snd_buf_cur pointer.
+            snd_buf_cur = &con->m_v.snd_buf;
+            
+            // Send no more than allowed by the receiver window but at
+            // least one count. We can ignore the congestion window.
+            rem_wnd = APrinter::MaxValue((SeqType)1, con->m_v.snd_wnd);
+            
+            // Set the data_threshold to zero to not inhibit sending.
             data_threshold = 0;
+            
+            // Allow sending a FIN if sending was closed.
+            fin = !snd_open_in_state(pcb->state);
+            
+            // Note that in this case the send loop condition will always
+            // be true, pcb_output_segment will be called once and then this
+            // function will return.
         } else {
-            // Referenced connection.
             AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
             AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+            AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
+            
+            // Use and update real snd_buf_cur.
+            snd_buf_cur = &con->m_v.snd_buf_cur;
             
             // Calculate the miniumum of snd_wnd and cwnd which is how much
             // we can send relative to the start of the send buffer.
             SeqType full_wnd = APrinter::MinValue(con->m_v.snd_wnd, con->m_v.cwnd);
             
             // Calculate the remaining window relative to snd_buf_cur.
-            size_t snd_offset = con->m_v.snd_buf.tot_len - con->m_v.snd_buf_cur.tot_len;
+            size_t snd_offset = con->m_v.snd_buf.tot_len - snd_buf_cur->tot_len;
             if (AMBRO_LIKELY(snd_offset <= full_wnd)) {
                 rem_wnd = full_wnd - snd_offset;
             } else {
                 rem_wnd = 0;
             }
             
-            // Use and update real snd_buf_cur.
-            snd_buf_cur = &con->m_v.snd_buf_cur;
-            
             // Calculate the threshold length for the remaining unsent data above
             // which sending will not be delayed. This calculation achieves that
             // delay is only allowed if we have less than snd_mss data left and none
             // of this is being pushed via snd_psh_index.
-            AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
             size_t psh_to_end = con->m_v.snd_buf.tot_len - con->m_v.snd_psh_index;
             data_threshold = APrinter::MinValue(psh_to_end, (size_t)(pcb->snd_mss - 1));
+            
+            // Allow sending a FIN if it is queued.
+            fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
         }
         
         // Will need to know if we sent anything.
         bool sent = false;
         
         // Send segments while we have some non-delayable data or FIN
-        // queued, and there is some window availabe.
-        while ((snd_buf_cur->tot_len > data_threshold ||
-                pcb->hasFlag(PcbFlags::FIN_PENDING)) && rem_wnd > 0)
-        {
+        // queued, and there is some window availabe. But for the case
+        // of rtx_or_window_probe, this condition is always true.
+        while ((snd_buf_cur->tot_len > data_threshold || fin) && rem_wnd > 0) {
             // Send a segment.
-            bool fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
             SeqType seg_seqlen;
             IpErr err = pcb_output_segment(pcb, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
+            
+            // If this was for retransmission or window probe, don't do anything
+            // else than sending. The return value is unused so no need to check err.
+            if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+                return true;
+            }
             
             // If there was an error sending the segment, stop for now.
             if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
@@ -313,12 +338,17 @@ public:
             // Check sent sequence length to see if a FIN was sent.
             size_t data_sent;
             if (AMBRO_UNLIKELY(seg_seqlen > snd_buf_cur->tot_len)) {
-                // FIN was sent, so all remaining data was sent.
+                // FIN was sent, we must still have FIN_PENDING.
+                AMBRO_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
+                
+                // All remaining data was sent.
                 data_sent = snd_buf_cur->tot_len;
                 
                 // Clear the FIN_PENDING flag.
-                AMBRO_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
                 pcb->clearFlag(PcbFlags::FIN_PENDING);
+                
+                // Clear the local fin flag to let the loop stop.
+                fin = false;
             } else {
                 // Only data was sent.
                 data_sent = seg_seqlen;
@@ -349,9 +379,7 @@ public:
         // zero window it would not be wrong to have an extra condition
         // !pcb_may_delay_snd but we don't for simplicity.
         if (!pcb->tim(RtxTimer()).isSet(Context())) {
-            if (AMBRO_LIKELY(pcb_has_snd_unacked(pcb)) ||
-                (pcb->con != nullptr && pcb->con->m_v.snd_wnd == 0))
-            {
+            if (AMBRO_LIKELY(pcb_has_snd_unacked(pcb)) || pcb->con->m_v.snd_wnd == 0) {
                 pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
             }
         }
@@ -359,13 +387,102 @@ public:
         return sent;
     }
     
-    static void pcb_output_timer_handler (TcpPcb *pcb)
+    /**
+     * This is the equivalent of pcb_output_active for abandoned PCBs.
+     */
+    APRINTER_NO_INLINE
+    static bool pcb_output_abandoned (TcpPcb *pcb, bool rtx_or_window_probe)
+    {
+        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->con == nullptr)
+        AMBRO_ASSERT(!snd_open_in_state(pcb->state)) // implied by above
+        
+        // Send a FIN if rtx_or_window_probe or otherwise if FIN is queued.
+        bool fin = rtx_or_window_probe ? true : pcb->hasFlag(PcbFlags::FIN_PENDING);
+        
+        // Will need to know if we sent anything.
+        bool sent = false;
+        
+        // Send a FIN if it is queued.
+        if (fin) do {
+            // Send a FIN segment.
+            uint16_t window_size = Input::pcb_ann_wnd(pcb);
+            TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una,
+                                   pcb->rcv_nxt, Tcp4FlagAck|Tcp4FlagFin|Tcp4FlagPsh};
+            IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr,
+                                        tcp_meta, pcb);
+            
+            // On success take note of what was sent.
+            if (AMBRO_LIKELY(err == IpErr::SUCCESS)) {
+                // Set the FIN_SENT flag.
+                pcb->setFlag(PcbFlags::FIN_SENT);
+                
+                // Bump snd_nxt if needed.
+                if (pcb->snd_nxt == pcb->snd_una) {
+                    pcb->snd_nxt++;
+                }
+            }
+            
+            // If this was for retransmission or window probe, don't do anything
+            // else. The return value is unused so no need to check err.
+            if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+                return true;
+            }
+            
+            // If there was an error sending the segment, stop for now.
+            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+                // Set the OutputTimer to retry after OutputRetryTicks. Also set the flag
+                // OUT_RETRY which allows code that typically sets the OutputTimer to
+                // OutputTimerTicks to see that and reset it despite being already set.
+                // This avoids undesired delays.
+                TimeType after = (err == IpErr::BUFFER_FULL) ?
+                    Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
+                pcb->tim(OutputTimer()).appendAfter(Context(), after);
+                pcb->setFlag(PcbFlags::OUT_RETRY);
+                break;
+            }
+            
+            // Clear the FIN_PENDING flag.
+            pcb->clearFlag(PcbFlags::FIN_PENDING);
+            
+            // Take note that we sent something.
+            sent = true;
+        } while (false);
+        
+        // Deal with the idle timeout (as in pcb_output_active).
+        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
+            pcb->clearFlag(PcbFlags::IDLE_TIMER);
+            pcb->tim(RtxTimer()).unset(Context());
+        }
+        
+        // Set the retransmission timer as needed. This is really the same as
+        // in pcb_output_active, the logic just reduces to this.
+        if (!pcb->tim(RtxTimer()).isSet(Context())) {
+            if (AMBRO_LIKELY(!pcb->hasFlag(PcbFlags::FIN_PENDING))) {
+                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
+            }
+        }
+        
+        return sent;
+    }
+    
+    // Calls pcb_output_active or pcb_output_abandoned as appropriate.
+    inline static bool pcb_output (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
-        // Send any unsent data as permissible.
-        pcb_output_queued(pcb);
+        if (AMBRO_LIKELY(pcb->con != nullptr)) {
+            return pcb_output_active(pcb, rtx_or_window_probe);
+        } else {
+            return pcb_output_abandoned(pcb, rtx_or_window_probe);
+        }
+    }
+    
+    // OutputTimer handler. Sends any queued data/FIN as permissible.
+    inline static void pcb_output_timer_handler (TcpPcb *pcb)
+    {
+        pcb_output(pcb, false);
     }
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
@@ -379,7 +496,8 @@ public:
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
             // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
             // could only be invalidated by sending some new data:
-            // 1) pcb_output_queued which would stop the idle timeout when any data is sent
+            // 1) pcb_output_active/pcb_output_abandoned which would stop the idle timeout
+            //    when anything is sent
             // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
             // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
             //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
@@ -387,13 +505,13 @@ public:
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
             
             // Clear the IDLE_TIMER flag. This is not strictly necessarily but is mostly
-            // cosmetical and for a minor performance gain in pcb_output_queued where it
+            // cosmetical and for a minor performance gain in pcb_output_active where it
             // avoids clearing this flag and redundantly stopping the timer.
             pcb->clearFlag(PcbFlags::IDLE_TIMER);
             
             // We need to check that pcb->con is not null, specifically for the case
             // where pcb_con_abandoned->pcb_end_sending just sets the output timer and
-            // then a previosly set idle timeout expires before pcb_output_queued is
+            // then a previosly set idle timeout expires before pcb_output_active is
             // called by the output timer.
             TcpConnection *con = pcb->con;
             if (AMBRO_LIKELY(con != nullptr)) {
@@ -447,7 +565,7 @@ public:
             // - FIN retransmission or window probe after connection was
             //   abandoned (we don't disinguish these two cases).
             // - Zero window probe while not abandoned.
-            pcb_output_front(pcb);
+            pcb_output(pcb, true);
         } else {
             // This is for data or FIN retransmission while not abandoned.
             
@@ -478,13 +596,13 @@ public:
             // Requeue all data and FIN.
             pcb_requeue_everything(pcb);
             
-            // Retransmit using pcb_output_queued.
-            pcb_output_queued(pcb);
+            // Retransmit using pcb_output_active.
+            pcb_output_active(pcb, false);
             
             // NOTE: There may be a remote possibility that nothing was sent
-            // by pcb_output_queued, if snd_mss increased to allow delaying
+            // by pcb_output_active, if snd_mss increased to allow delaying
             // sending (pcb_may_delay_snd). In that case the rtx_timer would
-            // have been unset by pcb_output_queued, but we still did all the
+            // have been unset by pcb_output_active, but we still did all the
             // congestion related state changes above and that's fine.
         }
     }
@@ -584,7 +702,7 @@ public:
                 pcb->num_dupack = 0;
             } else {
                 // Retransmit the first unacknowledged segment.
-                pcb_output_front(pcb);
+                pcb_output_active(pcb, true);
                 
                 // Deflate CWND by the amount of data ACKed.
                 // Be careful to not bring CWND below snd_mss.
@@ -627,7 +745,7 @@ public:
         }
         
         // Do the retransmission.
-        pcb_output_front(pcb);
+        pcb_output(pcb, true);
         
         TcpConnection *con = pcb->con;
         if (AMBRO_LIKELY(con != nullptr)) {
@@ -714,8 +832,7 @@ public:
             pcb_send_syn(pcb);
         }
         else if (can_output_in_state(pcb->state) && pcb_has_snd_outstanding(pcb)) {
-            // Output queued data.
-            pcb_output_queued(pcb);
+            pcb_output(pcb, false);
         }
     }
     
@@ -790,7 +907,7 @@ public:
             }
         }
         
-        // NOTE: If we decreased snd_mss, pcb_output_queued may be able to send
+        // NOTE: If we decreased snd_mss, pcb_output_active may be able to send
         // something more when it was previously delaying due to pcb_may_delay_snd.
         // But we don't bother ensuring such a transmission happens immediately.
         // This is not a real case of blocked transmission because we only promise
@@ -836,7 +953,7 @@ public:
             // is stopped. Because if it is currently set for one kind of message
             // (retransmission or window probe) it might otherwise expire and send
             // the other kind too early. If the timer is actually needed it will
-            // be restarted by pcb_output_queued due to setting OUT_PENDING.
+            // be restarted by pcb_output_active due to setting OUT_PENDING.
             if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0))) {
                 pcb->tim(RtxTimer()).unset(Context());
             }
@@ -896,10 +1013,14 @@ private:
         }
     }
     
+    // This function sends data/FIN for referenced PCBs. It is designed to be
+    // inlined into pcb_output_active and should not be called from elsewhere.
+    AMBRO_ALWAYS_INLINE
     static IpErr pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd,
                                      SeqType *out_seg_seqlen)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->con != nullptr)
         AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
         AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
         AMBRO_ASSERT(data.tot_len > 0 || fin)
@@ -928,20 +1049,13 @@ private:
             }
         }
         
-        size_t offset;
-        TcpConnection *con = pcb->con;
-        if (AMBRO_UNLIKELY(con == nullptr)) {
-            // No send buffer, buffer offset is zero.
-            offset = 0;
-        } else {
-            // Determine offset from start of send buffer.
-            offset = con->m_v.snd_buf.tot_len - rem_data_len;
-            
-            // Set the PSH flag if the push index is within this segment.
-            size_t psh_index = con->m_v.snd_psh_index;
-            if (TcpUtils::InOpenClosedIntervalStartLen(offset, data.tot_len, psh_index)) {
-                seg_flags |= Tcp4FlagPsh;
-            }
+        // Determine offset from start of send buffer.
+        size_t offset = pcb->con->m_v.snd_buf.tot_len - rem_data_len;
+        
+        // Set the PSH flag if the push index is within this segment.
+        size_t psh_index = pcb->con->m_v.snd_psh_index;
+        if (TcpUtils::InOpenClosedIntervalStartLen(offset, data.tot_len, psh_index)) {
+            seg_flags |= Tcp4FlagPsh;
         }
         
         // Calculate the sequence number.
@@ -967,10 +1081,7 @@ private:
         // Stop a round-trip-time measurement if we have retransmitted
         // a segment containing the associated sequence number.
         if (AMBRO_LIKELY(pcb->hasFlag(PcbFlags::RTT_PENDING))) {
-            TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con != nullptr) // justification in pcb_output_handle_acked
-            
-            if (AMBRO_UNLIKELY(seq_diff(con->m_v.rtt_test_seq, seq_num) < seg_seqlen)) {
+            if (AMBRO_UNLIKELY(seq_diff(pcb->con->m_v.rtt_test_seq, seq_num) < seg_seqlen)) {
                 pcb->clearFlag(PcbFlags::RTT_PENDING);
             }
         }
@@ -991,27 +1102,6 @@ private:
         }
         
         return IpErr::SUCCESS;
-    }
-    
-    /**
-     * Transmits one segment starting at the front of the send buffer.
-     * Used for retransmission and window probing.
-     */
-    static void pcb_output_front (TcpPcb *pcb)
-    {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        
-        // Compute a maximum number of sequence counts to send.
-        // We must be able to send at least something in case of window probes.
-        SeqType rem_wnd = (pcb->con != nullptr) ?
-            APrinter::MaxValue((SeqType)1, pcb->con->m_v.snd_wnd) : 1;
-        
-        // Send a segment from the start of the send buffer.
-        IpBufRef data = (pcb->con != nullptr) ? pcb->con->m_v.snd_buf : IpBufRef{};
-        bool fin = !snd_open_in_state(pcb->state);
-        SeqType seg_seqlen;
-        pcb_output_segment(pcb, data, fin, rem_wnd, &seg_seqlen);
     }
     
     static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
