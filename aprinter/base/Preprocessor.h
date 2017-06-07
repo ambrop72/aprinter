@@ -33,6 +33,8 @@
 
 #define APRINTER_REMOVE_PARENS(...) __VA_ARGS__
 
+#define APRINTER_ARRAY_LEN(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 #include "Preprocessor_MacroMap.h"
 
 #define APRINTER_USE_TYPE1(namespace, type_name) using type_name = typename namespace::type_name;

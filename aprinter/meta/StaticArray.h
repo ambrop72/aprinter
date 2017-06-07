@@ -60,6 +60,14 @@ public:
         return ProgPtr<ElemType>::Make(data.arr)[index];
     }
     
+    template <int Index>
+    struct ReadAt {
+        inline static constexpr ElemType value ()
+        {
+            return ElemValue<Index>::value();
+        }
+    };
+    
 private:
     static StaticArrayStruct<ElemType, Size> AMBRO_PROGMEM const data;
 };

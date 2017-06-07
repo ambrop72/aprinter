@@ -2023,6 +2023,11 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_aprinter_include('printer/thermistor/Max31855Formula.h')
                     return 'Max31855FormulaService'
                 
+                @conversion_sel.option('E3dPt100')
+                def option(conversion_config):
+                    gen.add_aprinter_include('printer/thermistor/InterpolationTableThermistor_tables.h')
+                    return TemplateExpr('InterpolationTableThermistorService', ['InterpolationTableE3dPt100'])
+                
                 conversion = heater.do_selection('conversion', conversion_sel)
                 
                 for control in heater.enter_config('control'):

@@ -612,6 +612,7 @@ def editor():
                         ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=600)
                     ]),
                     ce.Compound('Max31855Formula', title='MAX31855 conversion', attrs=[]),
+                    ce.Compound('E3dPt100', title='E3D PT100 Amplifier', attrs=[]),
                 ]),
                 ce.Compound('control', key='control', title='PID control parameters', attrs=[
                     ce.Float(key='ControlInterval', title='Invoke the PID control algorithm every [s]', default=0.2),
