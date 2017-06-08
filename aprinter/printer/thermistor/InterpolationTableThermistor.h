@@ -93,15 +93,19 @@ public:
         
         AMBRO_ASSERT(j == i + 1)
         
-        FpType frac = (adc - adc_i) / (adc_j - adc_i);
-        
         FpType temp_i = TempArray::readAt(i);
         FpType temp_j = TempArray::readAt(j);
         
-        return temp_i + frac * (temp_j - temp_i);
+        return interpolate(adc, adc_i, adc_j, temp_i, temp_j);
     }
 
 private:
+    static constexpr FpType interpolate (FpType x, FpType x1, FpType x2, FpType y1, FpType y2)
+    {
+        FpType frac = (x - x1) / (x2 - x1);
+        return ((FpType)1 - frac) * y1 + frac * y2;
+    }
+    
     // This is given to StaticArray to get the value of each AdcArray element.
     template <int EntryIndex>
     class GetAdcArrayEntry {
@@ -155,11 +159,11 @@ private:
         static constexpr double TempJ = TempArray::template ReadAt<IndexJ>::value();
         
         AMBRO_STRUCT_IF(CheckEnd, IndexJ == IndexI + 1) {
-            static constexpr double Frac = (Temp::value() - TempI) / (TempJ - TempI);
             static constexpr double AdcI = AdcArray::template ReadAt<IndexI>::value();
             static constexpr double AdcJ = AdcArray::template ReadAt<IndexJ>::value();
             
-            using Result = AMBRO_WRAP_DOUBLE(AdcI + Frac * (AdcJ - AdcI));
+            using Result = AMBRO_WRAP_DOUBLE(
+                interpolate(Temp::value(), TempI, TempJ, AdcI, AdcJ));
         }
         AMBRO_STRUCT_ELSE(CheckEnd) {
             static int const IndexK = (IndexI + IndexJ) / 2;
@@ -233,12 +237,10 @@ private:
         
         AMBRO_ASSERT(j == i + 1)
         
-        FpType frac = (temp - temp_i) / (temp_j - temp_i);
-        
         FpType adc_i = AdcArray::readAt(i);
         FpType adc_j = AdcArray::readAt(j);
         
-        return adc_i + frac * (adc_j - adc_i);
+        return interpolate(temp, temp_i, temp_j, adc_i, adc_j);
     }
     
     // Define Expr function class which uses StaticTempToAdcStart for
