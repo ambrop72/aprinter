@@ -316,16 +316,9 @@ public:
                 return true;
             }
             
-            // If there was an error sending the segment, stop for now.
+            // If there was an error sending the segment, stop for now and retry later.
             if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
-                // Set the OutputTimer to retry after OutputRetryTicks. Also set the flag
-                // OUT_RETRY which allows code that typically sets the OutputTimer to
-                // OutputTimerTicks to see that and reset it despite being already set.
-                // This avoids undesired delays.
-                TimeType after = (err == IpErr::BUFFER_FULL) ?
-                    Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
-                pcb->tim(OutputTimer()).appendAfter(Context(), after);
-                pcb->setFlag(PcbFlags::OUT_RETRY);
+                pcb_set_output_timer_for_retry(pcb, err);
                 break;
             }
             
@@ -395,7 +388,9 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr)
-        AMBRO_ASSERT(!snd_open_in_state(pcb->state)) // implied by above
+        // below are implied by con == nullptr, see also pcb_con_abandoned
+        AMBRO_ASSERT(!snd_open_in_state(pcb->state))
+        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER))
         
         // Send a FIN if rtx_or_window_probe or otherwise if FIN is queued.
         bool fin = rtx_or_window_probe ? true : pcb->hasFlag(PcbFlags::FIN_PENDING);
@@ -429,16 +424,9 @@ public:
                 return true;
             }
             
-            // If there was an error sending the segment, stop for now.
+            // If there was an error sending the segment, stop for now and retry later.
             if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
-                // Set the OutputTimer to retry after OutputRetryTicks. Also set the flag
-                // OUT_RETRY which allows code that typically sets the OutputTimer to
-                // OutputTimerTicks to see that and reset it despite being already set.
-                // This avoids undesired delays.
-                TimeType after = (err == IpErr::BUFFER_FULL) ?
-                    Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
-                pcb->tim(OutputTimer()).appendAfter(Context(), after);
-                pcb->setFlag(PcbFlags::OUT_RETRY);
+                pcb_set_output_timer_for_retry(pcb, err);
                 break;
             }
             
@@ -448,12 +436,6 @@ public:
             // Take note that we sent something.
             sent = true;
         } while (false);
-        
-        // Deal with the idle timeout (as in pcb_output_active).
-        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
-            pcb->clearFlag(PcbFlags::IDLE_TIMER);
-            pcb->tim(RtxTimer()).unset(Context());
-        }
         
         // Set the retransmission timer as needed. This is really the same as
         // in pcb_output_active, the logic just reduces to this.
@@ -494,37 +476,39 @@ public:
         
         // Is this an idle timeout?
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
-            // If the timer was set for idle timeout, the precondition !pcb_has_snd_unacked
-            // could only be invalidated by sending some new data:
-            // 1) pcb_output_active/pcb_output_abandoned which would stop the idle timeout
-            //    when anything is sent
-            // 2) pcb_rtx_timer_handler can obviously not send anything before this check.
-            // 3) fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
-            //    pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
+            // When the idle timer was set, !pcb_has_snd_outstanding held. However
+            // for the expiration we have a relaxed precondition (implied by the former),
+            // that is !pcb_has_snd_unacked and that the connection is not abandoned.
+            
+            // 1) !pcb_has_snd_unacked could only be invalidated by sending data/FIN:
+            //    - pcb_output_active/pcb_output_abandoned which would stop the idle
+            //      timeout when anything is sent.
+            //    - pcb_rtx_timer_handler can obviously not send anything before here.
+            //    - Fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
+            //      pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
+            // 2) pcb->con != nullptr could only be invalidated when the connection is
+            //    abandoned, and pcb_con_abandoned would stop the idle timeout.
+            
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
+            AMBRO_ASSERT(pcb->con != nullptr)
             
             // Clear the IDLE_TIMER flag. This is not strictly necessarily but is mostly
             // cosmetical and for a minor performance gain in pcb_output_active where it
             // avoids clearing this flag and redundantly stopping the timer.
             pcb->clearFlag(PcbFlags::IDLE_TIMER);
             
-            // We need to check that pcb->con is not null, specifically for the case
-            // where pcb_con_abandoned->pcb_end_sending just sets the output timer and
-            // then a previosly set idle timeout expires before pcb_output_active is
-            // called by the output timer.
             TcpConnection *con = pcb->con;
-            if (AMBRO_LIKELY(con != nullptr)) {
-                // Reduce the CWND (RFC 5681 section 4.1).
-                // Also reset cwnd_acked to avoid old accumulated value
-                // from causing an undesired cwnd increase later.
-                SeqType initial_cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
-                if (con->m_v.cwnd >= initial_cwnd) {
-                    con->m_v.cwnd = initial_cwnd;
-                    pcb->setFlag(PcbFlags::CWND_INIT);
-                }
-                con->m_v.cwnd_acked = 0;
+            
+            // Reduce the CWND (RFC 5681 section 4.1).
+            // Also reset cwnd_acked to avoid old accumulated value
+            // from causing an undesired cwnd increase later.
+            SeqType initial_cwnd = TcpUtils::calc_initial_cwnd(pcb->snd_mss);
+            if (con->m_v.cwnd >= initial_cwnd) {
+                con->m_v.cwnd = initial_cwnd;
+                pcb->setFlag(PcbFlags::CWND_INIT);
             }
+            con->m_v.cwnd_acked = 0;
             
             // This is all, the remainder of this function is for retransmission.
             return;
@@ -994,7 +978,7 @@ public:
     }
     
 private:
-    // Sets the OutputTimer to expire after no longer than OutputTimerTicks.
+    // Set the OutputTimer to expire after no longer than OutputTimerTicks.
     static void pcb_set_output_timer_for_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -1011,6 +995,18 @@ private:
         if (!pcb->tim(OutputTimer()).isSet(Context())) {
             pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
         }
+    }
+    
+    // Set the OutputTimer for retrying sending.
+    static void pcb_set_output_timer_for_retry (TcpPcb *pcb, IpErr err)
+    {
+        // Set the timer based on the error. Also set the flag OUT_RETRY which
+        // allows pcb_set_output_timer_for_output to reset the timer it despite
+        // being already set, avoiding undesired delays.
+        TimeType after = (err == IpErr::BUFFER_FULL) ?
+            Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
+        pcb->tim(OutputTimer()).appendAfter(Context(), after);
+        pcb->setFlag(PcbFlags::OUT_RETRY);
     }
     
     // This function sends data/FIN for referenced PCBs. It is designed to be

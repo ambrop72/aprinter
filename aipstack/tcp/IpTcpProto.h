@@ -614,6 +614,13 @@ private:
             return pcb_abort(pcb);
         }
         
+        // Make sure any idle timeout is stopped, because pcb_rtx_timer_handler
+        // requires the connection to not be abandoned when the idle timeout expires.
+        if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
+            pcb->clearFlag(PcbFlags::IDLE_TIMER);
+            pcb->tim(RtxTimer()).unset(Context());
+        }
+        
         // Arrange for sending the FIN.
         if (snd_open_in_state(pcb->state)) {
             Output::pcb_end_sending(pcb);
