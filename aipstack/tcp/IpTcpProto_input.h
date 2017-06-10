@@ -95,18 +95,21 @@ public:
             return;
         }
         
-        // Check data offset.
-        uint8_t data_offset = (tcp_meta.flags >> TcpOffsetShift) * 4;
-        if (AMBRO_UNLIKELY(data_offset < Tcp4Header::Size ||
-                           data_offset > dgram.tot_len))
-        {
+        // Get a buffer reference starting at the option data.
+        IpBufRef tcp_data = dgram.hideHeader(Tcp4Header::Size);
+        
+        // Get the data offset and calculate many bytes of options there options are.
+        // Note that if data_offset is less than Tcp4Header::Size, the difference
+        // will wrap around which the next check relies on.
+        size_t data_offset = (tcp_meta.flags >> TcpOffsetShift) * 4;
+        size_t opts_len = data_offset - Tcp4Header::Size;
+
+        // Check that data offset is within [Tcp4Header::Size, dgram.tot_len].
+        // The former bound is checked indirectly since opts_len would have
+        // wrapped around.
+        if (AMBRO_UNLIKELY(opts_len > tcp_data.tot_len)) {
             return;
         }
-        
-        // Get a buffer reference starting at the option data and compute
-        // how many bytes of options there options are.
-        IpBufRef tcp_data = dgram.hideHeader(Tcp4Header::Size);
-        uint8_t opts_len = data_offset - Tcp4Header::Size;
         
         // Remember the options region and skip over the options.
         // The options will only be parsed when they are needed,
