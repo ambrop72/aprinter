@@ -279,7 +279,7 @@ public:
                 m_v.pcb = nullptr;
                 
                 // Handle abandonment of connection.
-                TcpProto::pcb_con_abandoned(pcb, m_v.snd_buf.tot_len > 0, m_v.rcv_ann_thres);
+                TcpProto::pcb_abandoned(pcb, m_v.snd_buf.tot_len > 0, m_v.rcv_ann_thres);
             }
             
             reset_flags();
@@ -682,7 +682,8 @@ public:
     private:
         void assert_init ()
         {
-            AMBRO_ASSERT(!m_v.started && !m_v.snd_closed && !m_v.end_sent && !m_v.end_received)
+            AMBRO_ASSERT(!m_v.started && !m_v.snd_closed &&
+                         !m_v.end_sent && !m_v.end_received)
             AMBRO_ASSERT(m_v.pcb == nullptr)
         }
         

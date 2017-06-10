@@ -36,6 +36,7 @@
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/BinaryTools.h>
+
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/proto/Ip4Proto.h>
@@ -51,13 +52,13 @@ class IpTcpProto_input
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
                                    OptionFlags, PortType))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
+    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
                                  state_is_synsent_synrcvd, snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer, MtuRef, TheIpStack))
-    APRINTER_USE_VALS(TcpProto, (NumOosSegs, pcb_aborted_in_callback))
+                                   AbrtTimer, RtxTimer, OutputTimer, TheIpStack))
+    APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
     APRINTER_USE_ONEOF
     
 public:
@@ -84,12 +85,6 @@ public:
         tcp_meta.flags       = tcp_header.get(Tcp4Header::OffsetFlags());
         tcp_meta.window_size = tcp_header.get(Tcp4Header::WindowSize());
         
-        // Check data offset.
-        uint8_t data_offset = (tcp_meta.flags >> TcpOffsetShift) * 4;
-        if (AMBRO_UNLIKELY(data_offset < Tcp4Header::Size || data_offset > dgram.tot_len)) {
-            return;
-        }
-        
         // Check TCP checksum.
         IpChksumAccumulator chksum_accum;
         chksum_accum.addWords(&ip_meta.src_addr.data);
@@ -97,6 +92,14 @@ public:
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         if (AMBRO_UNLIKELY(chksum_accum.getChksum(dgram) != 0)) {
+            return;
+        }
+        
+        // Check data offset.
+        uint8_t data_offset = (tcp_meta.flags >> TcpOffsetShift) * 4;
+        if (AMBRO_UNLIKELY(data_offset < Tcp4Header::Size ||
+                           data_offset > dgram.tot_len))
+        {
             return;
         }
         
@@ -133,7 +136,9 @@ public:
         }
         
         // Try to handle using a listener.
-        for (TcpListener *lis = tcp->m_listeners_list.first(); lis != nullptr; lis = tcp->m_listeners_list.next(lis)) {
+        for (TcpListener *lis = tcp->m_listeners_list.first();
+             lis != nullptr; lis = tcp->m_listeners_list.next(lis))
+        {
             AMBRO_ASSERT(lis->m_listening)
             if (lis->m_port == tcp_meta.local_port &&
                 (lis->m_addr == ip_meta.dst_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
@@ -149,7 +154,7 @@ public:
     }
     
     static void handleIp4DestUnreach (TcpProto *tcp, Ip4DestUnreachMeta const &du_meta,
-                                      Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
+                                Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
     {
         // We only care about ICMP code "fragmentation needed and DF set".
         if (du_meta.icmp_code != Icmp4CodeDestUnreachFragNeeded) {
@@ -179,7 +184,9 @@ public:
         
         // Check that the PCB state is one where output is possible and that the
         // received sequence number is between snd_una and snd_nxt inclusive.
-        if (!can_output_in_state(pcb->state) || !seq_lte(seq_num, pcb->snd_nxt, pcb->snd_una)) {
+        if (!can_output_in_state(pcb->state) ||
+            !seq_lte(seq_num, pcb->snd_nxt, pcb->snd_una))
+        {
             return;
         }
         
@@ -290,7 +297,8 @@ public:
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
         // This is our heuristic for the window increment.
-        SeqType min_window = APrinter::MaxValue(rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
+        SeqType min_window =
+            APrinter::MaxValue(rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
         
         // Make sure it fits in size_t (relevant if size_t is 16-bit),
         // to ensure the invariant that rcv_ann_wnd always fits in size_t.
@@ -378,7 +386,9 @@ private:
             
             // Calculate the base_snd_mss.
             uint16_t base_snd_mss;
-            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(iface_mss, tcp->m_received_opts, &base_snd_mss)) {
+            if (!TcpUtils::calc_snd_mss<Constants::MinAllowedMss>(
+                    iface_mss, tcp->m_received_opts, &base_snd_mss))
+            {
                 goto refuse;
             }
             
@@ -396,7 +406,8 @@ private:
             // NOTE: rcv_ann_wnd fits into size_t as required since m_initial_rcv_wnd
             // also does (TcpListener::setInitialReceiveWindow).
             AMBRO_ASSERT(lis->m_initial_rcv_wnd <= SIZE_MAX)
-            SeqType rcv_wnd = APrinter::MinValueU((uint16_t)UINT16_MAX, lis->m_initial_rcv_wnd);
+            SeqType rcv_wnd =
+                APrinter::MinValueU((uint16_t)UINT16_MAX, lis->m_initial_rcv_wnd);
             
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
@@ -424,7 +435,8 @@ private:
             // Handle window scaling option.
             if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 pcb->setFlag(PcbFlags::WND_SCALE);
-                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
+                pcb->snd_wnd_shift =
+                    APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
                 pcb->rcv_wnd_shift = Constants::RcvWndShift;
             }
             
@@ -470,7 +482,9 @@ private:
         SeqType eff_rel_seq;
         bool seg_fin;
         SeqType acked;
-        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_rel_seq, seg_fin, acked)) {
+        if (!pcb_input_basic_processing(pcb, tcp_meta, tcp_data, eff_rel_seq,
+                                        seg_fin, acked))
+        {
             return;
         }
         
@@ -529,11 +543,11 @@ private:
                                             bool &seg_fin, SeqType &acked)
     {
         // Get the RST, SYN and ACK flags.
-        FlagsType flags_rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
+        FlagsType rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
         
         // Handle uncommon flags (RST set, SYN set or ACK not set).
-        if (AMBRO_UNLIKELY(flags_rst_syn_ack != Tcp4FlagAck)) {
-            if (!pcb_uncommon_flags_processing(pcb, flags_rst_syn_ack, tcp_meta, tcp_data)) {
+        if (AMBRO_UNLIKELY(rst_syn_ack != Tcp4FlagAck)) {
+            if (!pcb_uncommon_flags_processing(pcb, rst_syn_ack, tcp_meta, tcp_data)) {
                 return false;
             }
         }
@@ -561,7 +575,8 @@ private:
             // Calculate the right edge of the receive window.
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
             if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD)) {
-                SeqType avail_wnd = APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxWindow);
+                SeqType avail_wnd =
+                    APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxWindow);
                 rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
             }
             
@@ -615,8 +630,8 @@ private:
                         tcp_data.tot_len = left_keep;
                     }
                     else if (right_edge_in_window) {
-                        // The segment contains some already received data (seq_num < rcv_nxt),
-                        // remove this data from the front.
+                        // The segment contains some already received data
+                        // (seq_num < rcv_nxt), remove this data from the front.
                         SeqType left_trim = -eff_rel_seq;
                         AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
                         AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
@@ -655,7 +670,7 @@ private:
     }
     
     static bool pcb_uncommon_flags_processing (TcpPcb *pcb, FlagsType flags_rst_syn_ack,
-                                               TcpSegMeta const &tcp_meta, IpBufRef const &tcp_data)
+                                    TcpSegMeta const &tcp_meta, IpBufRef const &tcp_data)
     {
         bool continue_processing = false;
         
@@ -707,7 +722,8 @@ private:
                     // This seems to be a retransmission of the SYN, retransmit our
                     // SYN+ACK and bump the abort timeout.
                     Output::pcb_send_syn(pcb);
-                    pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
+                    pcb->tim(AbrtTimer()).appendAfter(Context(),
+                                                      Constants::SynRcvdTimeoutTicks);
                 }
                 else {
                     Output::pcb_send_empty_ack(pcb);
@@ -725,7 +741,8 @@ private:
         return continue_processing;
     }
     
-    static bool pcb_input_syn_sent_rcvd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked)
+    static bool pcb_input_syn_sent_rcvd_processing (
+            TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked)
     {
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         AMBRO_ASSERT(pcb->state != TcpState::SYN_SENT || pcb->con != nullptr)
@@ -827,7 +844,8 @@ private:
                 // this incoming segment has already been read above using
                 // pcb_decode_wnd_size while snd_wnd_shift was still zero, which
                 // is correct because the window size in a SYN-ACK is unscaled.
-                pcb->snd_wnd_shift = APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
+                pcb->snd_wnd_shift =
+                    APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
             } else {
                 // Remote did not send the window scale option, which means we
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
@@ -919,7 +937,8 @@ private:
     static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta,
                                               SeqType acked, size_t orig_data_len)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+                                         TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
         // If this PCB is unreferenced, move it to the front of the unreferenced list.
         if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
@@ -1071,7 +1090,9 @@ private:
                 pcb->con != nullptr &&
                 pcb_decode_wnd_size(pcb, tcp_meta.window_size) == pcb->con->m_v.snd_wnd
             ) {
-                if (pcb->num_dupack < Constants::FastRtxDupAcks + Constants::MaxAdditionaDupAcks) {
+                if (pcb->num_dupack < Constants::FastRtxDupAcks +
+                                      Constants::MaxAdditionaDupAcks)
+                {
                     pcb->num_dupack++;
                     if (pcb->num_dupack == Constants::FastRtxDupAcks) {
                         Output::pcb_fast_rtx_dup_acks_received(pcb);

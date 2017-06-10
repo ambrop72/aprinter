@@ -227,7 +227,8 @@ public:
                 if (num_ooseq < NumOosSegs) {
                     if (pos < num_ooseq) {
                         need_ack = true;
-                        std::move_backward(&m_ooseq[pos], &m_ooseq[num_ooseq], &m_ooseq[num_ooseq + 1]);
+                        std::move_backward(&m_ooseq[pos],
+                                           &m_ooseq[num_ooseq], &m_ooseq[num_ooseq + 1]);
                     }
                     m_ooseq[pos] = OosSeg{seg_start, seg_end};
                     num_ooseq++;
@@ -254,13 +255,15 @@ public:
                     // Merge the extended segment [pos] with any subsequent segments
                     // that it now intersects or touches.
                     IndexType merge_pos = pos + 1;
-                    while (merge_pos < num_ooseq && !seq_lt(seg_end, m_ooseq[merge_pos].start, rcv_nxt)) {
+                    while (merge_pos < num_ooseq &&
+                           !seq_lt(seg_end, m_ooseq[merge_pos].start, rcv_nxt))
+                    {
                         // Segment at [merge_pos] cannot be a FIN, for similar reasons that
                         // [pos] could not be above.
                         AMBRO_ASSERT(!m_ooseq[merge_pos].isFin())
                         
-                        // If the extended segment [pos] extends no more than to the end
-                        // of [merge_pos], then [merge_pos] is the last segment to be merged.
+                        // If the extended segment [pos] extends no more than to the end of
+                        // [merge_pos], then [merge_pos] is the last segment to be merged.
                         if (seq_lte(seg_end, m_ooseq[merge_pos].end, rcv_nxt)) {
                             // Make sure [pos] includes the entire [merge_pos].
                             m_ooseq[pos].end = m_ooseq[merge_pos].end;
@@ -279,7 +282,8 @@ public:
                     IndexType num_merged = merge_pos - (pos + 1);
                     if (num_merged > 0) {
                         if (merge_pos < num_ooseq) {
-                            std::move(&m_ooseq[merge_pos], &m_ooseq[num_ooseq], &m_ooseq[pos + 1]);
+                            std::move(&m_ooseq[merge_pos],
+                                      &m_ooseq[num_ooseq], &m_ooseq[pos + 1]);
                         }
                         num_ooseq -= num_merged;
                     }
@@ -288,7 +292,9 @@ public:
         }
         
         // If we got a FIN, remember it if not already and there is space.
-        if (seg_fin && (num_ooseq == 0 || !m_ooseq[num_ooseq - 1].isFin()) && num_ooseq < NumOosSegs) {
+        if (seg_fin && (num_ooseq == 0 || !m_ooseq[num_ooseq - 1].isFin()) &&
+            num_ooseq < NumOosSegs)
+        {
             m_ooseq[num_ooseq] = OosSeg::MakeFin(seg_end);
             num_ooseq++;
         }

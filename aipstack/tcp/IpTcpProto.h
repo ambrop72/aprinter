@@ -147,7 +147,8 @@ private:
     // to obtain granularity between 1ms and 2ms.
     static int const RttShift = APrinter::BitsInFloat(1e-3 / Clock::time_unit);
     static_assert(RttShift >= 0, "");
-    static constexpr double RttTimeFreq = Clock::time_freq / APrinter::PowerOfTwoFunc<double>(RttShift);
+    static constexpr double RttTimeFreq =
+        Clock::time_freq / APrinter::PowerOfTwoFunc<double>(RttShift);
     
     // We store such scaled times in 16-bit variables.
     // This gives us a range of at least 65 seconds.
@@ -299,16 +300,30 @@ private:
             return false;
         }
         
-        // Convenience functions for buffer length.
+        // Convenience function to get receive buffer length.
         // WARNING: Must not be called in SYN_RCVD state because in
         // that case the "lis" union memeber is valid not "con".
-        inline size_t sndBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_v.snd_buf.tot_len : 0; }
-        inline size_t rcvBufLen () { return AMBRO_LIKELY(con != nullptr) ? con->m_v.rcv_buf.tot_len : 0; }
+        inline size_t rcvBufLen ()
+        {
+            return AMBRO_LIKELY(con != nullptr) ? con->m_v.rcv_buf.tot_len : 0;
+        }
         
         // Trampolines for timer handlers.
-        inline void timerExpired (AbrtTimer, Context) { pcb_abrt_timer_handler(this); }
-        inline void timerExpired (OutputTimer, Context) { Output::pcb_output_timer_handler(this); }
-        inline void timerExpired (RtxTimer, Context) { Output::pcb_rtx_timer_handler(this); }
+        
+        inline void timerExpired (AbrtTimer, Context)
+        {
+            pcb_abrt_timer_handler(this);
+        }
+        
+        inline void timerExpired (OutputTimer, Context)
+        {
+            Output::pcb_output_timer_handler(this);
+        }
+        
+        inline void timerExpired (RtxTimer, Context)
+        {
+            Output::pcb_rtx_timer_handler(this);
+        }
         
         // Send retry callback.
         void retrySending () override final { Output::pcb_send_retry(this); }
@@ -389,7 +404,7 @@ public:
     }
     
     inline void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                                      Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
+                Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
     {
         Input::handleIp4DestUnreach(this, du_meta, ip_meta, dgram_initial);
     }
@@ -593,7 +608,7 @@ private:
     
     // This is called from TcpConnection::reset when the TcpConnection
     // is abandoning the PCB.
-    static void pcb_con_abandoned (TcpPcb *pcb, bool snd_buf_nonempty, SeqType rcv_ann_thres)
+    static void pcb_abandoned (TcpPcb *pcb, bool snd_buf_nonempty, SeqType rcv_ann_thres)
     {
         AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection just cleared it
@@ -662,7 +677,9 @@ private:
     
     TcpListener * find_listener (Ip4Addr addr, PortType port)
     {
-        for (TcpListener *lis = m_listeners_list.first(); lis != nullptr; lis = m_listeners_list.next(lis)) {
+        for (TcpListener *lis = m_listeners_list.first();
+             lis != nullptr; lis = m_listeners_list.next(lis))
+        {
             AMBRO_ASSERT(lis->m_listening)
             if (lis->m_addr == addr && lis->m_port == port) {
                 return lis;
@@ -768,11 +785,13 @@ private:
         return IpErr::SUCCESS;
     }
     
-    PortType get_ephemeral_port (Ip4Addr local_addr, Ip4Addr remote_addr, PortType remote_port)
+    PortType get_ephemeral_port (Ip4Addr local_addr,
+                                 Ip4Addr remote_addr, PortType remote_port)
     {
         for (PortType i : APrinter::LoopRangeAuto(NumEphemeralPorts)) {
             PortType port = m_next_ephemeral_port;
-            m_next_ephemeral_port = (port < EphemeralPortLast) ? (port + 1) : EphemeralPortFirst;
+            m_next_ephemeral_port = (port < EphemeralPortLast) ?
+                (port + 1) : EphemeralPortFirst;
             
             if (find_pcb({local_addr, remote_addr, port, remote_port}) == nullptr) {
                 return port;
@@ -802,7 +821,8 @@ private:
     {
         // Look in the active index first.
         TcpPcb *pcb = m_pcb_index_active.findEntry(*this, key);
-        AMBRO_ASSERT(pcb == nullptr || pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
+        AMBRO_ASSERT(pcb == nullptr ||
+                     pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
         if (AMBRO_UNLIKELY(pcb == nullptr)) {
@@ -834,7 +854,8 @@ private:
     APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
     
 private:
-    using ListenersList = APrinter::DoubleEndedList<TcpListener, &TcpListener::m_listeners_node, false>;
+    using ListenersList = APrinter::DoubleEndedList<
+        TcpListener, &TcpListener::m_listeners_node, false>;
     
     using UnrefedPcbsList = APrinter::LinkedList<
         APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;

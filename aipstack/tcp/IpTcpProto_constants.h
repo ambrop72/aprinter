@@ -30,6 +30,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/Preprocessor.h>
+
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
@@ -53,13 +54,14 @@ public:
     
     // Common flags passed to IpStack::sendIp4Dgram.
     // We disable fragmentation of TCP segments sent by us, due to PMTUD.
-    static uint8_t const TcpIpSendFlags = IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
+    static uint8_t const TcpIpSendFlags =
+        IpSendFlags::DontFragmentNow | IpSendFlags::DontFragmentFlag;
     
 public:
     // Maximum theoreticaly possible send and receive window.
     static SeqType const MaxWindow = UINT32_C(0x3fffffff);
     
-    // Default threshold for sending a window update (overridable by setWindowUpdateThreshold).
+    // Default window update threshold (overridable by setWindowUpdateThreshold).
     static SeqType const DefaultWndAnnThreshold = 2700;
     
     // How old at most an ACK may be to be considered acceptable (MAX.SND.WND in RFC 5961).
@@ -93,7 +95,7 @@ public:
     static RttType const MinRtxTime               = 0.25 * RttTimeFreq;
     
     // Maximum retransmission time (need care not to overflow RttType).
-    static RttType const MaxRtxTime = APrinter::MinValue(RttTypeMaxDbl, 60.0 * RttTimeFreq);
+    static RttType const MaxRtxTime = APrinter::MinValue(RttTypeMaxDbl, 60. * RttTimeFreq);
     
     // Number of duplicate ACKs to trigger fast retransmit/recovery.
     static uint8_t const FastRtxDupAcks = 3;
@@ -110,7 +112,8 @@ public:
     static SeqType const MinAbandonRcvWndIncr = UINT16_MAX;
     
 public:
-    static int const DupAckBits = APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
+    static int const DupAckBits =
+        APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
 };
 
 #include <aipstack/EndNamespace.h>

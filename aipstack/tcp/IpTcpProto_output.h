@@ -33,6 +33,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
+
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/Allocator.h>
@@ -48,12 +49,12 @@ class IpTcpProto_output
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, PortType, TcpState, TcpSegMeta,
                                    OptionFlags, TcpOptions))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt, seq_lt2, tcplen,
-                                 can_output_in_state, accepting_data_in_state,
+    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, tcplen, can_output_in_state,
                                  snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
                                    Input, Clock, TimeType, RttType, RttNextType, Constants,
-                                   OutputTimer, RtxTimer, TheIpStack, MtuRef, TcpConnection))
+                                   OutputTimer, RtxTimer, TheIpStack, MtuRef,
+                                   TcpConnection))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -74,7 +75,8 @@ public:
         TcpOptions tcp_opts;
         tcp_opts.options = OptionFlags::MSS;
         // The iface_mss is stored in a variable otherwise unused in this state.
-        tcp_opts.mss = (pcb->state == TcpState::SYN_SENT) ? pcb->base_snd_mss : pcb->snd_mss;
+        tcp_opts.mss = (pcb->state == TcpState::SYN_SENT) ?
+            pcb->base_snd_mss : pcb->snd_mss;
         
         // Send the window scale option if needed.
         if (pcb->hasFlag(PcbFlags::WND_SCALE)) {
@@ -91,9 +93,10 @@ public:
             ((pcb->state == TcpState::SYN_RCVD) ? Tcp4FlagAck : 0);
         
         // Send the segment.
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una, pcb->rcv_nxt,
-                               window_size, flags, &tcp_opts};
-        IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, pcb);
+        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una,
+                               pcb->rcv_nxt, window_size, flags, &tcp_opts};
+        IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr,
+                                    pcb->remote_addr, tcp_meta, pcb);
         
         if (err == IpErr::SUCCESS) {
             // Have we sent the SYN for the first time?
@@ -117,8 +120,8 @@ public:
         uint16_t window_size = Input::pcb_ann_wnd(pcb);
         
         // Send it.
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt, pcb->rcv_nxt,
-                               window_size, Tcp4FlagAck};
+        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt,
+                               pcb->rcv_nxt, window_size, Tcp4FlagAck};
         send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, pcb);
     }
     
@@ -388,7 +391,7 @@ public:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr)
-        // below are implied by con == nullptr, see also pcb_con_abandoned
+        // below are implied by con == nullptr, see also pcb_abandoned
         AMBRO_ASSERT(!snd_open_in_state(pcb->state))
         AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER))
         
@@ -487,7 +490,7 @@ public:
             //    - Fast-recovery related sending (pcb_fast_rtx_dup_acks_received,
             //      pcb_output_handle_acked) can only happen when pcb_has_snd_unacked.
             // 2) pcb->con != nullptr could only be invalidated when the connection is
-            //    abandoned, and pcb_con_abandoned would stop the idle timeout.
+            //    abandoned, and pcb_abandoned would stop the idle timeout.
             
             AMBRO_ASSERT(can_output_in_state(pcb->state))
             AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
@@ -623,7 +626,7 @@ public:
         // Handle end of round-trip-time measurement.
         if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
             // If we have RTT_PENDING outside of SYN_SENT/SYN_RCVD we must
-            // also have a TcpConnection (see pcb_con_abandoned, pcb_start_rtt_measurement).
+            // also have a TcpConnection (see pcb_abandoned, pcb_start_rtt_measurement).
             AMBRO_ASSERT(con != nullptr)
             
             if (seq_lt2(con->m_v.rtt_test_seq, ack_num)) {
@@ -653,7 +656,8 @@ public:
                 // Congestion avoidance.
                 if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
                     // Increment cwnd_acked.
-                    con->m_v.cwnd_acked = (acked > UINT32_MAX - con->m_v.cwnd_acked) ? UINT32_MAX : (con->m_v.cwnd_acked + acked);
+                    con->m_v.cwnd_acked = (acked > UINT32_MAX - con->m_v.cwnd_acked) ?
+                        UINT32_MAX : (con->m_v.cwnd_acked + acked);
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
@@ -674,13 +678,14 @@ public:
             AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
             
             // If all data up to recover is being ACKed, exit fast recovery.
-            if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt(ack_num, con->m_v.recover, pcb->snd_una)) {
+            if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt2(ack_num, con->m_v.recover)) {
                 // Deflate the CWND.
                 // Note, cwnd>=snd_mss is respected because ssthresh>=snd_mss.
                 SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
                 AMBRO_ASSERT(con->m_v.ssthresh >= pcb->snd_mss)
                 con->m_v.cwnd = APrinter::MinValue(con->m_v.ssthresh,
-                    seq_add(APrinter::MaxValue(flight_size, (SeqType)pcb->snd_mss), pcb->snd_mss));
+                    seq_add(APrinter::MaxValue(flight_size, (SeqType)pcb->snd_mss),
+                            pcb->snd_mss));
                 
                 // Reset num_dupack to indicate end of fast recovery.
                 pcb->num_dupack = 0;
@@ -691,7 +696,8 @@ public:
                 // Deflate CWND by the amount of data ACKed.
                 // Be careful to not bring CWND below snd_mss.
                 AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
-                con->m_v.cwnd -= APrinter::MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
+                con->m_v.cwnd -=
+                    APrinter::MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
                 
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
@@ -705,7 +711,7 @@ public:
         // leave recover behind snd_una, clear the recover flag to indicate
         // that recover is no longer valid and assumed <snd_una.
         if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::RECOVER)) &&
-            con != nullptr && !seq_lte(ack_num, con->m_v.recover, pcb->snd_una))
+            con != nullptr && seq_lt2(con->m_v.recover, ack_num))
         {
             pcb->clearFlag(PcbFlags::RECOVER);
         }
@@ -742,7 +748,8 @@ public:
             
             // Update cwnd.
             SeqType three_mss = 3 * (SeqType)pcb->snd_mss;
-            con->m_v.cwnd = (three_mss > UINT32_MAX - con->m_v.ssthresh) ? UINT32_MAX : (con->m_v.ssthresh + three_mss);
+            con->m_v.cwnd = (three_mss > UINT32_MAX - con->m_v.ssthresh) ?
+                UINT32_MAX : (con->m_v.ssthresh + three_mss);
             pcb->clearFlag(PcbFlags::CWND_INIT);
             
             // Schedule output due to possible CWND increase.
@@ -799,10 +806,13 @@ public:
         
         // Update RTO.
         int const k = 4;
-        RttType k_rttvar = (con->m_v.rttvar > RttTypeMax / k) ? RttTypeMax : (k * con->m_v.rttvar);
+        RttType k_rttvar = (con->m_v.rttvar > RttTypeMax / k) ?
+            RttTypeMax : (k * con->m_v.rttvar);
         RttType var_part = APrinter::MaxValue((RttType)1, k_rttvar);
-        RttType base_rto = (var_part > RttTypeMax - con->m_v.srtt) ? RttTypeMax : (con->m_v.srtt + var_part);
-        pcb->rto = APrinter::MaxValue(Constants::MinRtxTime, APrinter::MinValue(Constants::MaxRtxTime, base_rto));
+        RttType base_rto = (var_part > RttTypeMax - con->m_v.srtt) ?
+            RttTypeMax : (con->m_v.srtt + var_part);
+        pcb->rto = APrinter::MaxValue(Constants::MinRtxTime,
+                                      APrinter::MinValue(Constants::MaxRtxTime, base_rto));
     }
     
     // This is called from the lower layers when sending failed but
@@ -831,7 +841,8 @@ public:
         
         // This snd_mss cannot be less than MinAllowedMss:
         // - base_snd_mss was explicitly checked in TcpUtils::calc_snd_mss.
-        // - mtu-Ip4TcpHeaderSize cannot be less because MinAllowedMss==MinMTU-Ip4TcpHeaderSize.
+        // - mtu-Ip4TcpHeaderSize cannot be less because
+        //   MinAllowedMss==MinMTU-Ip4TcpHeaderSize.
         AMBRO_ASSERT(snd_mss >= Constants::MinAllowedMss)
         
         return snd_mss;
@@ -842,7 +853,8 @@ public:
     // MtuRef here (including this PCB's, such as through pcb_abort).
     static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD, TcpState::TIME_WAIT))
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+                                         TcpState::SYN_RCVD, TcpState::TIME_WAIT))
         AMBRO_ASSERT(pcb->con != nullptr)
         AMBRO_ASSERT(pcb->con->MtuRef::isSetup())
         
@@ -902,7 +914,8 @@ public:
     // Update the snd_wnd to the given value.
     static void pcb_update_snd_wnd (TcpPcb *pcb, SeqType new_snd_wnd)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+                                         TcpState::SYN_SENT, TcpState::SYN_RCVD))
         // With maximum snd_wnd_shift=14, MaxWindow or more cannot be reported.
         AMBRO_ASSERT(new_snd_wnd <= Constants::MaxWindow)
         
@@ -1017,7 +1030,7 @@ private:
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb->con != nullptr)
-        AMBRO_ASSERT(data.tot_len <= pcb->sndBufLen())
+        AMBRO_ASSERT(data.tot_len <= pcb->con->m_v.snd_buf.tot_len)
         AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
         AMBRO_ASSERT(data.tot_len > 0 || fin)
         AMBRO_ASSERT(rem_wnd > 0)
@@ -1029,7 +1042,8 @@ private:
         // - remaining data in the send buffer,
         // - remaining available window,
         // - maximum segment size.
-        data.tot_len = APrinter::MinValueU(rem_data_len, APrinter::MinValueU(rem_wnd, pcb->snd_mss));
+        data.tot_len = APrinter::MinValueU(rem_data_len,
+                                           APrinter::MinValueU(rem_wnd, pcb->snd_mss));
         
         // We always send the ACK flag, others may be added below.
         FlagsType seg_flags = Tcp4FlagAck;
@@ -1077,7 +1091,8 @@ private:
         // Stop a round-trip-time measurement if we have retransmitted
         // a segment containing the associated sequence number.
         if (AMBRO_LIKELY(pcb->hasFlag(PcbFlags::RTT_PENDING))) {
-            if (AMBRO_UNLIKELY(seq_diff(pcb->con->m_v.rtt_test_seq, seq_num) < seg_seqlen)) {
+            if (AMBRO_UNLIKELY(seq_diff(pcb->con->m_v.rtt_test_seq, seq_num) < seg_seqlen))
+            {
                 pcb->clearFlag(PcbFlags::RTT_PENDING);
             }
         }
@@ -1118,7 +1133,8 @@ private:
         AMBRO_ASSERT(pcb->con != nullptr)
         
         SeqType cwnd = pcb->con->m_v.cwnd;
-        pcb->con->m_v.cwnd = (cwnd_inc > UINT32_MAX - cwnd) ? UINT32_MAX : (cwnd + cwnd_inc);
+        pcb->con->m_v.cwnd = (cwnd_inc > UINT32_MAX - cwnd) ?
+            UINT32_MAX : (cwnd + cwnd_inc);
     }
     
     // Sets sshthresh according to RFC 5681 equation (4).
@@ -1151,10 +1167,12 @@ private:
     // This is made to be inlined into pcb_output_segment to optimize sending.
     // It should not be used elsewhere (send_tcp_nodata is for all other sending).
     AMBRO_ALWAYS_INLINE
-    static IpErr pcb_send_fast (TcpPcb *pcb, SeqType seq_num, FlagsType seg_flags, IpBufRef data)
+    static IpErr pcb_send_fast (TcpPcb *pcb, SeqType seq_num,
+                                FlagsType seg_flags, IpBufRef data)
     {
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator, Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
+        TxAllocHelper<BufAllocator,
+                      Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
             dgram_alloc(Tcp4Header::Size);
         
         // Caculate the offset+flags field.
@@ -1203,7 +1221,8 @@ private:
         // Add remaining pseudo-header to checksum (protocol was added above).
         chksum_accum.addWords(&pcb->local_addr.data);
         chksum_accum.addWords(&pcb->remote_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Tcp4Header::Size + data.tot_len);
+        chksum_accum.addWord(
+            APrinter::WrapType<uint16_t>(), Tcp4Header::Size + data.tot_len);
         
         // Complete and write checksum.
         uint16_t calc_chksum = chksum_accum.getChksum(data);
@@ -1220,14 +1239,17 @@ private:
         TcpSegMeta const &tcp_meta, IpSendRetry::Request *retryReq)
     {
         // Compute length of TCP options.
-        uint8_t opts_len = (tcp_meta.opts != nullptr) ? TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
+        uint8_t opts_len = (tcp_meta.opts != nullptr) ?
+            TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
         
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator, Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
+        TxAllocHelper<BufAllocator,
+                      Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
             dgram_alloc(Tcp4Header::Size+opts_len);
         
         // Caculate the offset+flags field.
-        FlagsType offset_flags = ((FlagsType)(5+opts_len/4) << TcpOffsetShift) | tcp_meta.flags;
+        FlagsType offset_flags =
+            ((FlagsType)(5+opts_len/4) << TcpOffsetShift) | tcp_meta.flags;
         
         // Write the TCP header.
         auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
@@ -1242,7 +1264,8 @@ private:
         
         // Write any TCP options.
         if (tcp_meta.opts != nullptr) {
-            TcpUtils::write_options(*tcp_meta.opts, dgram_alloc.getPtr() + Tcp4Header::Size);
+            TcpUtils::write_options(*tcp_meta.opts,
+                                    dgram_alloc.getPtr() + Tcp4Header::Size);
         }
         
         // Construct the datagram reference including any data.
