@@ -1132,21 +1132,12 @@ private:
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
         
-        // We only get here if the segment fits into the receive window,
-        // this is assured by pcb_input_basic_processing.
-        // It is also ensured that pcb->rcv_ann_wnd fits into size_t
-        // and we need this here to avoid oveflows in the check below.
+        // We only get here if the segment fits into the receive window, this is assured
+        // by pcb_input_basic_processing. It is also ensured that pcb->rcv_ann_wnd fits
+        // into size_t and we need this to avoid oveflows in buffer space checks below.
         if (SIZE_MAX < UINT32_MAX) {
             AMBRO_ASSERT(eff_rel_seq <= SIZE_MAX)
             AMBRO_ASSERT(tcp_data.tot_len <= SIZE_MAX - eff_rel_seq)
-        }
-        
-        // Abort the connection if we have no place to put received data.
-        // This includes when the connection was abandoned.
-        if (AMBRO_UNLIKELY(tcp_data.tot_len > 0 &&
-                           pcb->rcvBufLen() < eff_rel_seq + tcp_data.tot_len)) {
-            TcpProto::pcb_abort(pcb, true);
-            return false;
         }
         
         TcpConnection *con = pcb->con;
@@ -1164,16 +1155,26 @@ private:
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
             
-            // Copy any received data into the receive buffer, shifting it.
             if (rcv_datalen > 0) {
-                AMBRO_ASSERT(con != nullptr)
+                // Check that there is buffer space available for the received data.
+                // If not then abort the connection. This can happen if the connection
+                // was abandoned or the application failed to provide buffer for the
+                // initial receive window.
+                if (AMBRO_UNLIKELY(con == nullptr ||
+                                   con->m_v.rcv_buf.tot_len < rcv_datalen))
+                {
+                    TcpProto::pcb_abort(pcb, true);
+                    return false;
+                }
+                
+                // Copy any received data into the receive buffer, shifting it.
                 con->m_v.rcv_buf.giveBuf(tcp_data);
             }
         } else {
+            // Check that the connection is not abandoned. If abandoned then abort the
+            // connection, since we cannot accept any data or update out-of-sequence
+            // information,
             if (AMBRO_UNLIKELY(con == nullptr)) {
-                // Received out-of-sequence segment after connection was abandoned,
-                // this implies that there is some unacceptable data remaining ->
-                // reset connection.
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -1195,8 +1196,16 @@ private:
                 pcb->setFlag(PcbFlags::ACK_PENDING);
             }
             
-            // Copy any received data into the receive buffer.
             if (tcp_data.tot_len > 0) {
+                // Check that there is buffer space available for the received data.
+                if (AMBRO_UNLIKELY(
+                    con->m_v.rcv_buf.tot_len < eff_rel_seq + tcp_data.tot_len))
+                {
+                    TcpProto::pcb_abort(pcb, true);
+                    return false;
+                }
+                
+                // Copy any received data into the receive buffer.
                 IpBufRef dst_buf = con->m_v.rcv_buf;
                 dst_buf.skipBytes(eff_rel_seq);
                 dst_buf.giveBuf(tcp_data);
