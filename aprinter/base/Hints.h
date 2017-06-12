@@ -33,7 +33,12 @@
 #define APRINTER_NO_INLINE __attribute__((noinline))
 #define APRINTER_NO_RETURN __attribute__((noreturn))
 #define APRINTER_RESTRICT __restrict__
+
+#ifndef __clang__
 #define APRINTER_UNROLL_LOOPS __attribute__((optimize("unroll-loops")))
+#else
+#define APRINTER_UNROLL_LOOPS
+#endif
 
 #else
 
