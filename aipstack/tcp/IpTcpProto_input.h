@@ -1146,11 +1146,22 @@ private:
         size_t rcv_datalen;
         bool rcv_fin;
         
+        // Handling for abandoned connection
+        if (AMBRO_UNLIKELY(con == nullptr)) {
+            // If the segment is out-of-sequence, or has any data, abort the
+            // connection since we cannot accept any more data.
+            if (AMBRO_UNLIKELY(eff_rel_seq != 0 || tcp_data.tot_len != 0)) {
+                TcpProto::pcb_abort(pcb, true);
+                return false;
+            }
+            
+            // Processing possibly only a FIN.
+            rcv_datalen = 0;
+            rcv_fin = seg_fin;
+        }
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        if (AMBRO_LIKELY(eff_rel_seq == 0 &&
-                         (con == nullptr || con->m_v.ooseq.isNothingBuffered())))
-        {
+        else if (AMBRO_LIKELY(eff_rel_seq == 0 && con->m_v.ooseq.isNothingBuffered())) {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
@@ -1158,11 +1169,8 @@ private:
             if (rcv_datalen > 0) {
                 // Check that there is buffer space available for the received data.
                 // If not then abort the connection. This can happen if the connection
-                // was abandoned or the application failed to provide buffer for the
-                // initial receive window.
-                if (AMBRO_UNLIKELY(con == nullptr ||
-                                   con->m_v.rcv_buf.tot_len < rcv_datalen))
-                {
+                // failed to provide buffer for the initial receive window.
+                if (AMBRO_UNLIKELY(con->m_v.rcv_buf.tot_len < rcv_datalen)) {
                     TcpProto::pcb_abort(pcb, true);
                     return false;
                 }
@@ -1170,15 +1178,9 @@ private:
                 // Copy any received data into the receive buffer, shifting it.
                 con->m_v.rcv_buf.giveBuf(tcp_data);
             }
-        } else {
-            // Check that the connection is not abandoned. If abandoned then abort the
-            // connection, since we cannot accept any data or update out-of-sequence
-            // information,
-            if (AMBRO_UNLIKELY(con == nullptr)) {
-                TcpProto::pcb_abort(pcb, true);
-                return false;
-            }
-            
+        }
+        // Slow path performs out-of-sequence buffering.
+        else {
             // Update information about out-of-sequence data and FIN.
             SeqType eff_seq = seq_add(pcb->rcv_nxt, eff_rel_seq);
             bool need_ack;
@@ -1225,11 +1227,11 @@ private:
             }
         }
         
+        // Compute the amount of processed sequence numbers.
+        SeqType rcv_seqlen = (SeqType)rcv_datalen + rcv_fin;
+        
         // Accept anything newly received.
-        if (rcv_datalen > 0 || rcv_fin) {
-            // Compute the amount of processed sequence numbers.
-            SeqType rcv_seqlen = rcv_datalen + rcv_fin;
-            
+        if (rcv_seqlen > 0) {
             // Adjust rcv_nxt due to newly received data.
             pcb->rcv_nxt = seq_add(pcb->rcv_nxt, rcv_seqlen);
             
