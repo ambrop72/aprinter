@@ -571,9 +571,9 @@ private:
         } else {
             // Calculate the right edge of the receive window.
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
-            if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD)) {
-                SeqType avail_wnd =
-                    APrinter::MinValueU(pcb->rcvBufLen(), Constants::MaxWindow);
+            if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD && pcb->con != nullptr)) {
+                size_t rcv_buf_len = pcb->con->m_v.rcv_buf.tot_len;
+                SeqType avail_wnd = APrinter::MinValueU(rcv_buf_len, Constants::MaxWindow);
                 rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
             }
             
