@@ -817,6 +817,7 @@ private:
         }
     }
     
+    // Find a PCB by address tuple.
     TcpPcb * find_pcb (PcbKey const &key)
     {
         // Look in the active index first.
@@ -831,6 +832,23 @@ private:
         }
         
         return pcb;
+    }
+    
+    // Find a listener by local address and port. This also considers listeners bound
+    // to wildcard address since it is used to associate received segments with a listener.
+    TcpListener * find_listener_for_rx (Ip4Addr local_addr, PortType local_port)
+    {
+        for (TcpListener *lis = m_listeners_list.first();
+             lis != nullptr; lis = m_listeners_list.next(lis))
+        {
+            AMBRO_ASSERT(lis->m_listening)
+            if (lis->m_port == local_port &&
+                (lis->m_addr == local_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
+            {
+                return lis;
+            }
+        }
+        return nullptr;
     }
     
     // This is used by the two PCB indexes to obtain the keys

@@ -139,15 +139,9 @@ public:
         }
         
         // Try to handle using a listener.
-        for (TcpListener *lis = tcp->m_listeners_list.first();
-             lis != nullptr; lis = tcp->m_listeners_list.next(lis))
-        {
-            AMBRO_ASSERT(lis->m_listening)
-            if (lis->m_port == tcp_meta.local_port &&
-                (lis->m_addr == ip_meta.dst_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
-            {
-                return listen_input(lis, ip_meta, tcp_meta, tcp_data.tot_len);
-            }
+        TcpListener *lis = tcp->find_listener_for_rx(ip_meta.dst_addr, tcp_meta.local_port);
+        if (lis != nullptr) {
+            return listen_input(lis, ip_meta, tcp_meta, tcp_data.tot_len);
         }
         
         // Reply with RST, unless this is an RST.
@@ -1227,9 +1221,18 @@ private:
             }
         }
         
-        // Compute the amount of processed sequence numbers.
+        // Compute the amount of processed sequence numbers. Note that rcv_fin
+        // is not used from now on, instead rcv_seqlen and rcv_datalen are compared.
         SeqType rcv_seqlen = (SeqType)rcv_datalen + rcv_fin;
         
+        // Process received data/FIN.
+        return pcb_process_received(pcb, rcv_seqlen, rcv_datalen);
+    }
+    
+    // Update state due to any received data (e.g. rcv_nxt), make state transitions
+    // due to any received FIN, and call associated application callbacks.
+    static bool pcb_process_received (TcpPcb *pcb, SeqType rcv_seqlen, size_t rcv_datalen)
+    {
         // Accept anything newly received.
         if (rcv_seqlen > 0) {
             // Adjust rcv_nxt due to newly received data.
@@ -1247,14 +1250,15 @@ private:
             
             // Due to window scaling the reduction of rcv_ann_wnd may
             // permit announcing more window, so set the flag which forces
-            // pcb_ann_wnd to update the window a segment is sent.
+            // pcb_ann_wnd to update the window when a segment is sent.
             pcb->setFlag(PcbFlags::RCV_WND_UPD);
             
             // Make sure an ACK is sent.
             pcb->setFlag(PcbFlags::ACK_PENDING);
             
-            if (AMBRO_UNLIKELY(rcv_fin)) {
-                // Make appropriate state transitions due to receiving a FIN.
+            // Processing a FIN?
+            if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
+                // Make the appropriate state transition.
                 if (pcb->state == TcpState::ESTABLISHED) {
                     pcb->state = TcpState::CLOSE_WAIT;
                 }
@@ -1270,6 +1274,7 @@ private:
                 }
             }
             
+            // Processing any data?
             if (AMBRO_LIKELY(rcv_datalen > 0)) {
                 // Must have TcpConnection here (or we would have bailed out before).
                 TcpConnection *con = pcb->con;
@@ -1285,7 +1290,8 @@ private:
                 // - CLOSE_WAIT->LAST_ACK
             }
             
-            if (AMBRO_UNLIKELY(rcv_fin)) {
+            // Processing a FIN?
+            if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
                 // Tell TcpConnection and application (if any) about end received.
                 TcpConnection *con = pcb->con;
                 if (AMBRO_LIKELY(con != nullptr)) {
@@ -1307,6 +1313,7 @@ private:
         return true;
     }
     
+    // Apply window scaling to a received window size value.
     inline static SeqType pcb_decode_wnd_size (TcpPcb *pcb, uint16_t rx_wnd_size)
     {
         return (SeqType)rx_wnd_size << pcb->snd_wnd_shift;
