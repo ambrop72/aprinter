@@ -138,7 +138,7 @@ private:
         CWND_INIT   = (FlagsType)1 << 11,
         // If OutputTimer is set it is for OutputRetry*Ticks
         OUT_RETRY   = (FlagsType)1 << 12,
-        // rcv_ann_wnd needs update before sending a segment
+        // rcv_ann_wnd needs update before sending a segment, implies con != nullptr
         RCV_WND_UPD = (FlagsType)1 << 13,
         // NOTE: Currently no more bits are available, see TcpPcb::flags.
     }; };
@@ -298,14 +298,6 @@ private:
                 return true;
             }
             return false;
-        }
-        
-        // Convenience function to get receive buffer length.
-        // WARNING: Must not be called in SYN_RCVD state because in
-        // that case the "lis" union memeber is valid not "con".
-        inline size_t rcvBufLen ()
-        {
-            return AMBRO_LIKELY(con != nullptr) ? con->m_v.rcv_buf.tot_len : 0;
         }
         
         // Trampolines for timer handlers.
@@ -621,6 +613,9 @@ private:
         // Clear any RTT_PENDING flag since we've lost the variables
         // needed for RTT measurement.
         pcb->clearFlag(PcbFlags::RTT_PENDING);
+        
+        // Clear RCV_WND_UPD flag since this flag must imply con != nullptr.
+        pcb->clearFlag(PcbFlags::RCV_WND_UPD);
         
         // Abort if in SYN_SENT state or some data is queued.
         // The pcb_abort() will decide whether to send an RST

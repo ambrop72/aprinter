@@ -236,6 +236,10 @@ public:
             // state change which may allow advertising more window will set
             // this flag.
             if (pcb->hasAndClearFlag(PcbFlags::RCV_WND_UPD)) {
+                // RCV_WND_UPD implies con != nullptr as needed by pcb_calc_wnd_update.
+                AMBRO_ASSERT(pcb->con != nullptr)
+                
+                // Calculate how much window can be announced and bump rcv_ann_wnd.
                 SeqType ann_wnd = pcb_calc_wnd_update(pcb);
                 if (ann_wnd > pcb->rcv_ann_wnd) {
                     pcb->rcv_ann_wnd = ann_wnd;
@@ -333,6 +337,11 @@ public:
         } else {
             pcb->rto = Constants::InitialRtxTime;
         }
+        
+        // Set the flag RCV_WND_UPD to make sure that pcb_ann_wnd updates rcv_ann_wnd
+        // when the next segment is sent. This is done here instead of
+        // pcb_input_syn_sent_rcvd_processing because it must imply pcb->con != nullptr.
+        pcb->setFlag(PcbFlags::RCV_WND_UPD);
         
         // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
         // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
@@ -687,8 +696,8 @@ private:
                     TcpProto::pcb_abort(pcb, false);
                 }
                 // NOTE: We check simply against rcv_ann_wnd and don't bother calculating
-                // the formally correct rcv_wnd based on rcvBufLen. This means that we
-                // would ignore an RST that is outside the announced window but still
+                // the formally correct rcv_wnd based on pcb->con->rcv_buf. This means that
+                // we would ignore an RST that is outside the announced window but still
                 // within the actual window for which we would accept data. This is not
                 // a problem.
                 // NOTE: But we are slightly violating RFC 5961 by allowing seq_num at
@@ -796,10 +805,6 @@ private:
         
         // NOTE: Not updating snd_una here since we will use it to store
         // snd_wnd, it will be updated in pcb_complete_established_transition.
-        
-        // Set the flag to make sure that pcb_ann_wnd updates rcv_ann_wnd
-        // when the next segment is sent.
-        pcb->setFlag(PcbFlags::RCV_WND_UPD);
         
         // Calculate the initial send window (snd_wnd).
         // Stuff it into snd_una temporarily. It will be put into its
@@ -1251,11 +1256,6 @@ private:
             pcb->rcv_ann_wnd = 0;
         }
         
-        // Due to window scaling the reduction of rcv_ann_wnd may
-        // permit announcing more window, so set the flag which forces
-        // pcb_ann_wnd to update the window when a segment is sent.
-        pcb->setFlag(PcbFlags::RCV_WND_UPD);
-        
         // Make sure an ACK is sent.
         pcb->setFlag(PcbFlags::ACK_PENDING);
         
@@ -1282,6 +1282,13 @@ private:
             // Must have TcpConnection here (or we would have bailed out before).
             TcpConnection *con = pcb->con;
             AMBRO_ASSERT(con != nullptr)
+            
+            // Due to window scaling the reduction of rcv_ann_wnd may permit announcing more
+            // window, so set the flag which forces pcb_ann_wnd to update the window when a
+            // segment is sent. Note that RCV_WND_UPD must imply con != nullptr which is why
+            // this is here in this branch. Window updates after receiving FIN are
+            // irrelevant so this is sufficient.
+            pcb->setFlag(PcbFlags::RCV_WND_UPD);
             
             // Give any data to the user.
             con->data_received(rcv_datalen);
@@ -1332,6 +1339,7 @@ private:
     static SeqType pcb_calc_wnd_update (TcpPcb *pcb)
     {
         AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        AMBRO_ASSERT(pcb->con != nullptr)
         
         // Calculate the maximum window that can be announced with the the
         // current window scale factor.
@@ -1340,16 +1348,15 @@ private:
         // Calculate the minimum of the available buffer space and the maximum
         // window that can be announced. There is no need to also clamp to
         // MaxWindow since max_ann will be less than MaxWindow.
-        SeqType bounded_wnd = APrinter::MinValueU(pcb->rcvBufLen(), max_ann);
+        SeqType bounded_wnd = APrinter::MinValueU(pcb->con->m_v.rcv_buf.tot_len, max_ann);
         
         // Clear the lowest order bits which cannot be sent with the current
         // window scale factor. The already calculated max_ann is suitable
         // as a mask for this (consider that bounded_wnd<=max_ann).
         SeqType ann_wnd = bounded_wnd & max_ann;
         
-        // Result which may be assigned to pcb->rcv_ann_wnd is guaranteed
-        // to fit into size_t as required since it is <=rcvBufLen which is
-        // a size_t.
+        // Result which may be assigned to pcb->rcv_ann_wnd is guaranteed to fit
+        // into size_t as required since it is <=rcv_buf.tot_len which is a size_t.
         return ann_wnd;
     }
     
