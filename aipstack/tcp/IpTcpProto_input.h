@@ -1233,80 +1233,82 @@ private:
     // due to any received FIN, and call associated application callbacks.
     static bool pcb_process_received (TcpPcb *pcb, SeqType rcv_seqlen, size_t rcv_datalen)
     {
-        // Accept anything newly received.
-        if (rcv_seqlen > 0) {
-            // Adjust rcv_nxt due to newly received data.
-            pcb->rcv_nxt = seq_add(pcb->rcv_nxt, rcv_seqlen);
-            
-            // Adjust rcv_ann_wnd which is relative to rcv_nxt.
-            // Note, it is possible that rcv_seqlen is greater than rcv_ann_wnd
-            // in case the peer send data before receiving a window update
-            // permitting that.
-            if (AMBRO_LIKELY(rcv_seqlen <= pcb->rcv_ann_wnd)) {
-                pcb->rcv_ann_wnd -= rcv_seqlen;
-            } else {
-                pcb->rcv_ann_wnd = 0;
+        // If nothing was received we have nothing to do.
+        if (rcv_seqlen == 0) {
+            return true;
+        }
+        
+        // Adjust rcv_nxt due to newly received data.
+        pcb->rcv_nxt = seq_add(pcb->rcv_nxt, rcv_seqlen);
+        
+        // Adjust rcv_ann_wnd which is relative to rcv_nxt.
+        // Note, it is possible that rcv_seqlen is greater than rcv_ann_wnd
+        // in case the peer send data before receiving a window update
+        // permitting that.
+        if (AMBRO_LIKELY(rcv_seqlen <= pcb->rcv_ann_wnd)) {
+            pcb->rcv_ann_wnd -= rcv_seqlen;
+        } else {
+            pcb->rcv_ann_wnd = 0;
+        }
+        
+        // Due to window scaling the reduction of rcv_ann_wnd may
+        // permit announcing more window, so set the flag which forces
+        // pcb_ann_wnd to update the window when a segment is sent.
+        pcb->setFlag(PcbFlags::RCV_WND_UPD);
+        
+        // Make sure an ACK is sent.
+        pcb->setFlag(PcbFlags::ACK_PENDING);
+        
+        // Processing a FIN?
+        if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
+            // Make the appropriate state transition.
+            if (pcb->state == TcpState::ESTABLISHED) {
+                pcb->state = TcpState::CLOSE_WAIT;
             }
-            
-            // Due to window scaling the reduction of rcv_ann_wnd may
-            // permit announcing more window, so set the flag which forces
-            // pcb_ann_wnd to update the window when a segment is sent.
-            pcb->setFlag(PcbFlags::RCV_WND_UPD);
-            
-            // Make sure an ACK is sent.
-            pcb->setFlag(PcbFlags::ACK_PENDING);
-            
-            // Processing a FIN?
-            if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
-                // Make the appropriate state transition.
-                if (pcb->state == TcpState::ESTABLISHED) {
-                    pcb->state = TcpState::CLOSE_WAIT;
-                }
-                else if (pcb->state == TcpState::FIN_WAIT_1) {
-                    pcb->state = TcpState::CLOSING;
-                }
-                else {
-                    AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
-                    // Go to FIN_WAIT_2_TIME_WAIT and below continue to TIME_WAIT.
-                    // This way we inhibit any cb_rcv_buf_extended processing from
-                    // the dataReceived callback below.
-                    pcb->state = TcpState::FIN_WAIT_2_TIME_WAIT;
-                }
+            else if (pcb->state == TcpState::FIN_WAIT_1) {
+                pcb->state = TcpState::CLOSING;
             }
+            else {
+                AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
+                // Go to FIN_WAIT_2_TIME_WAIT and below continue to TIME_WAIT.
+                // This way we inhibit any cb_rcv_buf_extended processing from
+                // the dataReceived callback below.
+                pcb->state = TcpState::FIN_WAIT_2_TIME_WAIT;
+            }
+        }
+        
+        // Processing any data?
+        if (AMBRO_LIKELY(rcv_datalen > 0)) {
+            // Must have TcpConnection here (or we would have bailed out before).
+            TcpConnection *con = pcb->con;
+            AMBRO_ASSERT(con != nullptr)
             
-            // Processing any data?
-            if (AMBRO_LIKELY(rcv_datalen > 0)) {
-                // Must have TcpConnection here (or we would have bailed out before).
-                TcpConnection *con = pcb->con;
-                AMBRO_ASSERT(con != nullptr)
-                
-                // Give any data to the user.
-                con->data_received(rcv_datalen);
+            // Give any data to the user.
+            con->data_received(rcv_datalen);
+            if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                return false;
+            }
+            // Possible transitions in callback (except to CLOSED):
+            // - ESTABLISHED->FIN_WAIT_1
+            // - CLOSE_WAIT->LAST_ACK
+        }
+        
+        // Processing a FIN?
+        if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
+            // Tell TcpConnection and application (if any) about end received.
+            TcpConnection *con = pcb->con;
+            if (AMBRO_LIKELY(con != nullptr)) {
+                con->end_received();
                 if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
-                // - ESTABLISHED->FIN_WAIT_1
                 // - CLOSE_WAIT->LAST_ACK
             }
             
-            // Processing a FIN?
-            if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
-                // Tell TcpConnection and application (if any) about end received.
-                TcpConnection *con = pcb->con;
-                if (AMBRO_LIKELY(con != nullptr)) {
-                    con->end_received();
-                    if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
-                        return false;
-                    }
-                    // Possible transitions in callback (except to CLOSED):
-                    // - CLOSE_WAIT->LAST_ACK
-                }
-                
-                // Complete transition from FIN_WAIT_2 to TIME_WAIT.
-                if (pcb->state == TcpState::FIN_WAIT_2_TIME_WAIT) {
-                    TcpProto::pcb_go_to_time_wait(pcb);
-                }
+            // Complete transition from FIN_WAIT_2 to TIME_WAIT.
+            if (pcb->state == TcpState::FIN_WAIT_2_TIME_WAIT) {
+                TcpProto::pcb_go_to_time_wait(pcb);
             }
         }
         
