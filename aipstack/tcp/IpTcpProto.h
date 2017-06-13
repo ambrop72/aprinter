@@ -300,6 +300,29 @@ private:
             return false;
         }
         
+        // Check if we are called from PCB input processing (pcb_input).
+        inline bool inInputProcessing ()
+        {
+            return this == tcp->m_current_pcb;
+        }
+        
+        // Apply delayed timer updates. This must be called after any PCB timer
+        // has been changed before returning to the event loop.
+        inline void doDelayedTimerUpdate ()
+        {
+            PcbMultiTimer::doDelayedUpdate(Context());
+        }
+        
+        // Call doDelayedTimerUpdate if not called from input processing (pcb_input).
+        // The update is not needed if called from pcb_input as it will be done at
+        // return from pcb_input.
+        inline void doDelayedTimerUpdateIfNeeded ()
+        {
+            if (!inInputProcessing()) {
+                doDelayedTimerUpdate();
+            }
+        }
+        
         // Trampolines for timer handlers.
         
         inline void timerExpired (AbrtTimer, Context)
@@ -491,6 +514,8 @@ private:
         tcp->pcb_assert_closed(pcb);
     }
     
+    // NOTE: doDelayedTimerUpdate must be called after return.
+    // We are okay because this is only called from pcb_input.
     static void pcb_go_to_time_wait (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD,
@@ -525,6 +550,8 @@ private:
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
     }
     
+    // NOTE: doDelayedTimerUpdate must be called after return.
+    // We are okay because this is only called from pcb_input.
     static void pcb_go_to_fin_wait_2 (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_1)
@@ -644,6 +671,8 @@ private:
         
         // Start the abort timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::AbandonedTimeoutTicks);
+        
+        pcb->doDelayedTimerUpdateIfNeeded();
     }
     
     static void pcb_abrt_timer_handler (TcpPcb *pcb)
@@ -771,6 +800,8 @@ private:
         
         // Start the retransmission timer.
         pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+        
+        pcb->doDelayedTimerUpdate();
         
         // Send the SYN.
         Output::pcb_send_syn(pcb);

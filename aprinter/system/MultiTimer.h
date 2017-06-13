@@ -56,37 +56,35 @@ public:
         appendAt(c, time);
     }
     
-    void appendAt (Context c, TimeType time)
+    inline void appendAt (Context c, TimeType time)
     {
         mt().m_times[MT::TimerIndex(TimerId())] = time;
-        mt().m_state |= MT::TimerBit(TimerId());
-        mt().updateTimer(c);
+        mt().m_state |= MT::TimerBit(TimerId()) | MT::DirtyBit;
     }
     
-    void appendNowNotAlready (Context c)
+    inline void appendNowNotAlready (Context c)
     {
         appendAtNotAlready(c, Context::Clock::getTime(c));
     }
     
-    void appendAfter (Context c, TimeType after_time)
+    inline void appendAfter (Context c, TimeType after_time)
     {
         appendAt(c, Context::Clock::getTime(c) + after_time);
     }
     
-    void appendAfterNotAlready (Context c, TimeType after_time)
+    inline void appendAfterNotAlready (Context c, TimeType after_time)
     {
         appendAtNotAlready(c, Context::Clock::getTime(c) + after_time);
     }
     
-    void appendAfterPrevious (Context c, TimeType after_time)
+    inline void appendAfterPrevious (Context c, TimeType after_time)
     {
         appendAtNotAlready(c, getSetTime(c) + after_time);
     }
     
-    void unset (Context c)
+    inline void unset (Context c)
     {
-        mt().m_state &= ~MT::TimerBit(TimerId());
-        mt().updateTimer(c);
+        mt().m_state = (mt().m_state & ~MT::TimerBit(TimerId())) | MT::DirtyBit;
     }
     
 private:
@@ -111,7 +109,7 @@ class MultiTimer :
     static int const NumTimers = sizeof...(TimerIds);
     using TimerIdsList = MakeTypeList<TimerIds...>;
     
-    using StateType = ChooseInt<NumTimers, false>;
+    using StateType = ChooseInt<NumTimers + 1, false>;
     
     template <typename TimerId>
     static constexpr int TimerIndex (TimerId)
@@ -124,6 +122,8 @@ class MultiTimer :
     {
         return (StateType)1 << TimerIndex(TimerId());
     }
+    
+    static constexpr StateType DirtyBit = (StateType)1 << NumTimers;
     
 private:
     // UserData would be placed in front of m_state using up
@@ -155,9 +155,20 @@ public:
         return static_cast<MultiTimerOne<TimedEvent, MultiTimer, TimerId> &>(*this);
     }
     
+    inline void doDelayedUpdate (Context c)
+    {
+        // Do an update if the dirty bit is set.
+        if ((m_state & DirtyBit) != 0) {
+            updateTimer(c);
+        }
+    }
+    
 private:
     void updateTimer (Context c)
     {
+        // Clear the dirty bit.
+        m_state &= ~DirtyBit;
+        
         StateType state = m_state;
         
         if (state == 0) {
@@ -193,6 +204,9 @@ private:
     
     void handleTimerExpired (Context c) override final
     {
+        // Any delayed update must have been applied before returning to event loop.
+        AMBRO_ASSERT((m_state & DirtyBit) == 0)
+        
         TimeType set_time = TimedEvent::getSetTime(c);
         
         bool not_handled = ListForBreak<TimerIdsList>([&] APRINTER_TL(TimerId,

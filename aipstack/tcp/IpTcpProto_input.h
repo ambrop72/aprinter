@@ -56,8 +56,8 @@ class IpTcpProto_input
                                  can_output_in_state, accepting_data_in_state,
                                  state_is_synsent_synrcvd, snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
-                                   TcpPcb, PcbFlags, Output, Constants,
-                                   AbrtTimer, RtxTimer, OutputTimer, TheIpStack))
+                                   TcpPcb, PcbFlags, Output, Constants, AbrtTimer, RtxTimer,
+                                   OutputTimer, TheIpStack))
     APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
     APRINTER_USE_ONEOF
     
@@ -124,7 +124,10 @@ public:
             AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
             tcp->m_current_pcb = pcb;
             pcb_input(pcb, tcp_meta, tcp_data);
-            tcp->m_current_pcb = nullptr;
+            if (AMBRO_LIKELY(tcp->m_current_pcb != nullptr)) {
+                tcp->m_current_pcb->doDelayedTimerUpdate();
+                tcp->m_current_pcb = nullptr;
+            }
             return;
         }
         
@@ -216,6 +219,9 @@ public:
             
             // Retransmit using pcb_output_active.
             Output::pcb_output_active(pcb, false);
+            
+            // Delayed timer update is needed by pcb_output_active.
+            pcb->doDelayedTimerUpdate();
         }
     }
     
@@ -461,6 +467,8 @@ private:
             
             // Start the retransmission timer.
             pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+            
+            pcb->doDelayedTimerUpdate();
             
             // Reply with a SYN-ACK.
             Output::pcb_send_syn(pcb);

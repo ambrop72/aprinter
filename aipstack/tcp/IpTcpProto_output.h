@@ -142,7 +142,7 @@ public:
         // If we're in input processing just set a flag that ACK is
         // needed which will be picked up at the end, otherwise send
         // an ACK ourselves.
-        if (pcb->tcp->m_current_pcb == pcb) {
+        if (pcb->inInputProcessing()) {
             pcb->setFlag(PcbFlags::ACK_PENDING);
         } else {
             pcb_send_empty_ack(pcb);
@@ -157,6 +157,9 @@ public:
         if (AMBRO_LIKELY(pcb->state != TcpState::SYN_SENT)) {
             // Set the output timer.
             pcb_set_output_timer_for_output(pcb);
+            
+            // Delayed timer update is needed by pcb_set_output_timer_for_output.
+            pcb->doDelayedTimerUpdateIfNeeded();
         }
     }
     
@@ -189,10 +192,14 @@ public:
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Schedule a call to pcb_output soon.
-        if (pcb == pcb->tcp->m_current_pcb) {
+        if (pcb->inInputProcessing()) {
             pcb->setFlag(PcbFlags::OUT_PENDING);
         } else {
+            // Schedule the output timer to call pcb_output.
             pcb_set_output_timer_for_output(pcb);
+            
+            // Delayed timer update is needed by pcb_set_output_timer_for_output.
+            pcb->doDelayedTimerUpdateIfNeeded();
         }
     }
     
@@ -232,6 +239,7 @@ public:
     /**
      * With rtx_or_window_probe==false, transmits queued data as permissible
      * and controls the rtx_timer, and returns whether anything has been sent.
+     * NOTE: doDelayedTimerUpdate must be called after return.
      * 
      * With rtx_or_window_probe==true, sends one segment from the start of
      * the send buffer, does nothing else and always returns true. It does
@@ -385,6 +393,7 @@ public:
     
     /**
      * This is the equivalent of pcb_output_active for abandoned PCBs.
+     * NOTE: doDelayedTimerUpdate must be called after return.
      */
     APRINTER_NO_INLINE
     static bool pcb_output_abandoned (TcpPcb *pcb, bool rtx_or_window_probe)
@@ -451,7 +460,10 @@ public:
         return sent;
     }
     
-    // Calls pcb_output_active or pcb_output_abandoned as appropriate.
+    /**
+     * Calls pcb_output_active or pcb_output_abandoned as appropriate.
+     * NOTE: doDelayedTimerUpdate must be called after return.
+     */
     inline static bool pcb_output (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -467,7 +479,11 @@ public:
     // OutputTimer handler. Sends any queued data/FIN as permissible.
     inline static void pcb_output_timer_handler (TcpPcb *pcb)
     {
+        // Output using pcb_output.
         pcb_output(pcb, false);
+        
+        // Delayed timer update is needed by pcb_output.
+        pcb->doDelayedTimerUpdate();
     }
     
     static void pcb_rtx_timer_handler (TcpPcb *pcb)
@@ -539,59 +555,61 @@ public:
         pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
         pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
         
-        // If this for SYN or SYN-ACK retransmission, retransmit and return.
         if (syn_sent_rcvd) {
+            // Retransmit SYN or SYN-ACK.
             pcb_send_syn(pcb);
-            return;
-        }
-        
-        TcpConnection *con = pcb->con;
-        
-        if (con == nullptr || con->m_v.snd_wnd == 0) {
-            // This is for:
-            // - FIN retransmission or window probe after connection was
-            //   abandoned (we don't disinguish these two cases).
-            // - Zero window probe while not abandoned.
-            pcb_output(pcb, true);
         } else {
-            // This is for data or FIN retransmission while not abandoned.
+            TcpConnection *con = pcb->con;
             
-            // Check for first retransmission.
-            if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-                // Set flag to indicate there has been a retransmission.
-                // This will be cleared upon new ACK.
-                pcb->setFlag(PcbFlags::RTX_ACTIVE);
+            if (con == nullptr || con->m_v.snd_wnd == 0) {
+                // This is for:
+                // - FIN retransmission or window probe after connection was
+                //   abandoned (we don't disinguish these two cases).
+                // - Zero window probe while not abandoned.
+                pcb_output(pcb, true);
+            } else {
+                // This is for data or FIN retransmission while not abandoned.
                 
-                // Update ssthresh (RFC 5681).
-                pcb_update_ssthresh_for_rtx(pcb);
+                // Check for first retransmission.
+                if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                    // Set flag to indicate there has been a retransmission.
+                    // This will be cleared upon new ACK.
+                    pcb->setFlag(PcbFlags::RTX_ACTIVE);
+                    
+                    // Update ssthresh (RFC 5681).
+                    pcb_update_ssthresh_for_rtx(pcb);
+                }
+                
+                // Set cwnd to one segment (RFC 5681).
+                // Also reset cwnd_acked to avoid old accumulated value
+                // from causing an undesired cwnd increase later.
+                con->m_v.cwnd = pcb->snd_mss;
+                pcb->clearFlag(PcbFlags::CWND_INIT);
+                con->m_v.cwnd_acked = 0;
+                
+                // Set recover.
+                pcb->setFlag(PcbFlags::RECOVER);
+                con->m_v.recover = pcb->snd_nxt;
+                
+                // Exit any fast recovery.
+                pcb->num_dupack = 0;
+                
+                // Requeue all data and FIN.
+                pcb_requeue_everything(pcb);
+                
+                // Retransmit using pcb_output_active.
+                pcb_output_active(pcb, false);
+                
+                // NOTE: There may be a remote possibility that nothing was sent
+                // by pcb_output_active, if snd_mss increased to allow delaying
+                // sending (pcb_may_delay_snd). In that case the rtx_timer would
+                // have been unset by pcb_output_active, but we still did all the
+                // congestion related state changes above and that's fine.
             }
-            
-            // Set cwnd to one segment (RFC 5681).
-            // Also reset cwnd_acked to avoid old accumulated value
-            // from causing an undesired cwnd increase later.
-            con->m_v.cwnd = pcb->snd_mss;
-            pcb->clearFlag(PcbFlags::CWND_INIT);
-            con->m_v.cwnd_acked = 0;
-            
-            // Set recover.
-            pcb->setFlag(PcbFlags::RECOVER);
-            con->m_v.recover = pcb->snd_nxt;
-            
-            // Exit any fast recovery.
-            pcb->num_dupack = 0;
-            
-            // Requeue all data and FIN.
-            pcb_requeue_everything(pcb);
-            
-            // Retransmit using pcb_output_active.
-            pcb_output_active(pcb, false);
-            
-            // NOTE: There may be a remote possibility that nothing was sent
-            // by pcb_output_active, if snd_mss increased to allow delaying
-            // sending (pcb_may_delay_snd). In that case the rtx_timer would
-            // have been unset by pcb_output_active, but we still did all the
-            // congestion related state changes above and that's fine.
         }
+        
+        // Delayed timer update is needed by RtxTimer and pcb_output/pcb_output_active.
+        pcb->doDelayedTimerUpdate();
     }
     
     static void pcb_requeue_everything (TcpPcb *pcb)
@@ -823,10 +841,15 @@ public:
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
+            // Retry sending SYN or SYN-ACK.
             pcb_send_syn(pcb);
         }
         else if (can_output_in_state(pcb->state) && pcb_has_snd_outstanding(pcb)) {
+            // Try sending data/FIN as permissible.
             pcb_output(pcb, false);
+            
+            // Delayed timer update is needed by pcb_output.
+            pcb->doDelayedTimerUpdate();
         }
     }
     
@@ -912,6 +935,7 @@ public:
     }
     
     // Update the snd_wnd to the given value.
+    // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_update_snd_wnd (TcpPcb *pcb, SeqType new_snd_wnd)
     {
         AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
@@ -992,6 +1016,7 @@ public:
     
 private:
     // Set the OutputTimer to expire after no longer than OutputTimerTicks.
+    // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_set_output_timer_for_output (TcpPcb *pcb)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -1011,6 +1036,7 @@ private:
     }
     
     // Set the OutputTimer for retrying sending.
+    // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_set_output_timer_for_retry (TcpPcb *pcb, IpErr err)
     {
         // Set the timer based on the error. Also set the flag OUT_RETRY which
