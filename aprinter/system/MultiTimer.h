@@ -164,20 +164,20 @@ public:
     inline void doDelayedUpdate (Context c)
     {
         // Do an update if the dirty bit is set.
-        if ((m_state & DirtyBit) != 0) {
-            updateTimer(c);
+        StateType state = m_state;
+        if ((state & DirtyBit) != 0) {
+            updateTimer(c, state);
         }
     }
     
 private:
-    void updateTimer (Context c)
+    void updateTimer (Context c, StateType state)
     {
-        // Clear the dirty bit.
-        m_state &= ~DirtyBit;
+        // Clear the dirty bit and write back state.
+        state &= ~DirtyBit;
+        m_state = state;
         
-        StateType state = m_state;
-        
-        if (state == 0) {
+        if (AMBRO_UNLIKELY(state == 0)) {
             // No user timer is set, unset the underlying timer.
             TimedEvent::unset(c);
             return;
