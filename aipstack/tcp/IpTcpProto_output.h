@@ -49,8 +49,8 @@ class IpTcpProto_output
 {
     APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, PortType, TcpState, TcpSegMeta,
                                    OptionFlags, TcpOptions))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, tcplen, can_output_in_state,
-                                 snd_open_in_state))
+    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
+                                 can_output_in_state, snd_open_in_state))
     APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
                                    Input, Clock, TimeType, RttType, RttNextType, Constants,
                                    OutputTimer, RtxTimer, TheIpStack, MtuRef,
@@ -682,11 +682,7 @@ public:
                 // Congestion avoidance.
                 if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
                     // Increment cwnd_acked.
-                    SeqType cwnd_acked = con->m_v.cwnd_acked + acked;
-                    if (cwnd_acked < acked) {
-                        cwnd_acked = UINT32_MAX;
-                    }
-                    con->m_v.cwnd_acked = cwnd_acked;
+                    con->m_v.cwnd_acked = seq_add_sat(con->m_v.cwnd_acked, acked);
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
@@ -731,7 +727,7 @@ public:
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
                 if (acked >= pcb->snd_mss) {
-                    con_increase_cwnd(con, pcb->snd_mss);
+                    con->m_v.cwnd = seq_add_sat(con->m_v.cwnd, pcb->snd_mss);
                 }
             }
         }
@@ -777,8 +773,7 @@ public:
             
             // Update cwnd.
             SeqType three_mss = 3 * (SeqType)pcb->snd_mss;
-            con->m_v.cwnd = (three_mss > UINT32_MAX - con->m_v.ssthresh) ?
-                UINT32_MAX : (con->m_v.ssthresh + three_mss);
+            con->m_v.cwnd = seq_add_sat(con->m_v.ssthresh, three_mss);
             pcb->clearFlag(PcbFlags::CWND_INIT);
             
             // Schedule output due to possible CWND increase.
@@ -796,7 +791,7 @@ public:
         
         if (AMBRO_LIKELY(pcb->con != nullptr)) {
             // Increment CWND by snd_mss.
-            con_increase_cwnd(pcb->con, pcb->snd_mss);
+            pcb->con->m_v.cwnd = seq_add_sat(pcb->con->m_v.cwnd, pcb->snd_mss);
             
             // Schedule output due to possible CWND increase.
             pcb->setFlag(PcbFlags::OUT_PENDING);
@@ -1159,19 +1154,10 @@ private:
         
         // Increase cwnd by acked but no more than snd_mss.
         SeqType cwnd_inc = APrinter::MinValueU(acked, pcb->snd_mss);
-        con_increase_cwnd(pcb->con, cwnd_inc);
+        pcb->con->m_v.cwnd = seq_add_sat(pcb->con->m_v.cwnd, cwnd_inc);
         
         // No longer have initial CWND.
         pcb->clearFlag(PcbFlags::CWND_INIT);
-    }
-    
-    static void con_increase_cwnd (TcpConnection *con, SeqType cwnd_inc)
-    {
-        SeqType cwnd = con->m_v.cwnd + cwnd_inc;
-        if (cwnd < cwnd_inc) {
-            cwnd = UINT32_MAX;
-        }
-        con->m_v.cwnd = cwnd;
     }
     
     // Sets sshthresh according to RFC 5681 equation (4).

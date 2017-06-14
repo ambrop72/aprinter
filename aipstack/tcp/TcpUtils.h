@@ -124,6 +124,15 @@ public:
         return (SeqType)(op1 - op2);
     }
     
+    static inline SeqType seq_add_sat (SeqType op1, SeqType op2)
+    {
+        SeqType sum = op1 + op2;
+        if (sum < op2) {
+            sum = UINT32_MAX;
+        }
+        return sum;
+    }
+    
     static inline bool seq_lte (SeqType op1, SeqType op2, SeqType ref)
     {
         return (seq_diff(op1, ref) <= seq_diff(op2, ref));
