@@ -121,13 +121,7 @@ public:
         TcpPcb *pcb = tcp->find_pcb({ip_meta.dst_addr, ip_meta.src_addr,
                                      tcp_meta.local_port, tcp_meta.remote_port});
         if (AMBRO_LIKELY(pcb != nullptr)) {
-            AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
-            tcp->m_current_pcb = pcb;
-            pcb_input(pcb, tcp_meta, tcp_data);
-            if (AMBRO_LIKELY(tcp->m_current_pcb != nullptr)) {
-                tcp->m_current_pcb->doDelayedTimerUpdate();
-                tcp->m_current_pcb = nullptr;
-            }
+            pcb_input(tcp, pcb, tcp_meta, tcp_data);
             return;
         }
         
@@ -480,7 +474,30 @@ private:
         Output::send_rst_reply(lis->m_tcp, ip_meta, tcp_meta, tcp_data_len);
     }
     
-    static void pcb_input (TcpPcb *pcb, TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
+    static void pcb_input (TcpProto *tcp, TcpPcb *pcb, TcpSegMeta const &tcp_meta,
+                           IpBufRef tcp_data)
+    {
+        // The m_current_pcb is set only during pcb_input execution and points to
+        // the PCB for which input is being processed.
+        AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
+        
+        // Set the m_current_pcb to this PCB.
+        tcp->m_current_pcb = pcb;
+        
+        // Do the input processing.
+        pcb_input_core(pcb, tcp_meta, tcp_data);
+        
+        // Is the PCB still alive (was not aborted)?
+        if (AMBRO_LIKELY(tcp->m_current_pcb != nullptr)) {
+            // Perform delayed timer updated (code within pcb_input_core relies on this).
+            tcp->m_current_pcb->doDelayedTimerUpdate();
+            
+            // Clear m_current_pcb.
+            tcp->m_current_pcb = nullptr;
+        }
+    }
+    
+    static void pcb_input_core (TcpPcb *pcb, TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
