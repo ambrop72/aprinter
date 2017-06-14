@@ -682,8 +682,11 @@ public:
                 // Congestion avoidance.
                 if (!pcb->hasFlag(PcbFlags::CWND_INCRD)) {
                     // Increment cwnd_acked.
-                    con->m_v.cwnd_acked = (acked > UINT32_MAX - con->m_v.cwnd_acked) ?
-                        UINT32_MAX : (con->m_v.cwnd_acked + acked);
+                    SeqType cwnd_acked = con->m_v.cwnd_acked + acked;
+                    if (cwnd_acked < acked) {
+                        cwnd_acked = UINT32_MAX;
+                    }
+                    con->m_v.cwnd_acked = cwnd_acked;
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
@@ -728,7 +731,7 @@ public:
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
                 if (acked >= pcb->snd_mss) {
-                    pcb_increase_cwnd(pcb, pcb->snd_mss);
+                    con_increase_cwnd(con, pcb->snd_mss);
                 }
             }
         }
@@ -793,7 +796,7 @@ public:
         
         if (AMBRO_LIKELY(pcb->con != nullptr)) {
             // Increment CWND by snd_mss.
-            pcb_increase_cwnd(pcb, pcb->snd_mss);
+            con_increase_cwnd(pcb->con, pcb->snd_mss);
             
             // Schedule output due to possible CWND increase.
             pcb->setFlag(PcbFlags::OUT_PENDING);
@@ -1156,19 +1159,19 @@ private:
         
         // Increase cwnd by acked but no more than snd_mss.
         SeqType cwnd_inc = APrinter::MinValueU(acked, pcb->snd_mss);
-        pcb_increase_cwnd(pcb, cwnd_inc);
+        con_increase_cwnd(pcb->con, cwnd_inc);
         
         // No longer have initial CWND.
         pcb->clearFlag(PcbFlags::CWND_INIT);
     }
     
-    static void pcb_increase_cwnd (TcpPcb *pcb, SeqType cwnd_inc)
+    static void con_increase_cwnd (TcpConnection *con, SeqType cwnd_inc)
     {
-        AMBRO_ASSERT(pcb->con != nullptr)
-        
-        SeqType cwnd = pcb->con->m_v.cwnd;
-        pcb->con->m_v.cwnd = (cwnd_inc > UINT32_MAX - cwnd) ?
-            UINT32_MAX : (cwnd + cwnd_inc);
+        SeqType cwnd = con->m_v.cwnd + cwnd_inc;
+        if (cwnd < cwnd_inc) {
+            cwnd = UINT32_MAX;
+        }
+        con->m_v.cwnd = cwnd;
     }
     
     // Sets sshthresh according to RFC 5681 equation (4).
