@@ -679,7 +679,12 @@ private:
     {
         AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
         
+        // Abort the PCB.
         pcb_abort(pcb);
+        
+        // NOTE: A MultiTimer callback would normally need to call doDelayedTimerUpdate
+        // before returning to the event loop but pcb_abort calls PcbMultiTimer::unsetAll
+        // which is also sufficient.
     }
     
     // This is used to check within pcb_input if the PCB was aborted

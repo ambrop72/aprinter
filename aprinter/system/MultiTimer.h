@@ -40,6 +40,12 @@ class MultiTimerOne
     APRINTER_USE_TYPES1(TimedEvent, (Context, TimeType))
     
 public:
+    // WARNING: After calling any function which adjusts the timer state and
+    // after timer expiration, MultiTimer::doDelayedUpdate must be called
+    // before control returns to the event loop, or unsetAll or deinit. This
+    // is an optimization which allows preventing redundant updates of the
+    // underlying timer.
+    
     inline bool isSet (Context c)
     {
         return (mt().m_state & MT::TimerBit(TimerId())) != 0;
@@ -214,8 +220,10 @@ private:
             if ((m_state & MultiTimer::TimerBit(TimerId())) != 0 &&
                 m_times[MultiTimer::TimerIndex(TimerId())] == set_time)
             {
-                m_state &= ~MultiTimer::TimerBit(TimerId());
-                this->updateTimer(c);
+                // Clear the timer bit and set the dirty bit. The timer callback is
+                // responsible for calling doDelayedUpdate or one of the functions that
+                // reset things.
+                m_state = (m_state & ~MultiTimer::TimerBit(TimerId())) | DirtyBit;
                 static_cast<Impl *>(this)->timerExpired(TimerId(), c);
                 return false;
             }

@@ -482,11 +482,21 @@ public:
         // Output using pcb_output.
         pcb_output(pcb, false);
         
-        // Delayed timer update is needed by pcb_output.
+        // Delayed timer update is needed by timer expiration and pcb_output.
         pcb->doDelayedTimerUpdate();
     }
     
-    static void pcb_rtx_timer_handler (TcpPcb *pcb)
+    inline static void pcb_rtx_timer_handler (TcpPcb *pcb)
+    {
+        // Handle retransmission or idle timeout.
+        pcb_rtx_timer_handler_core(pcb);
+        
+        // Delayed timer update is needed by timer expiration and
+        // pcb_rtx_timer_handler_core.
+        pcb->doDelayedTimerUpdate();
+    }
+    
+    static void pcb_rtx_timer_handler_core (TcpPcb *pcb)
     {
         // This timer is only for SYN_SENT, SYN_RCVD and can_output_in_state
         // states. In any change to another state the timer would be stopped.
@@ -555,61 +565,59 @@ public:
         pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
         pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
         
+        // In SYN_SENT and SYN_RCVD, only retransmit the SYN or SYN-ACK.
         if (syn_sent_rcvd) {
-            // Retransmit SYN or SYN-ACK.
             pcb_send_syn(pcb);
-        } else {
-            TcpConnection *con = pcb->con;
-            
-            if (con == nullptr || con->m_v.snd_wnd == 0) {
-                // This is for:
-                // - FIN retransmission or window probe after connection was
-                //   abandoned (we don't disinguish these two cases).
-                // - Zero window probe while not abandoned.
-                pcb_output(pcb, true);
-            } else {
-                // This is for data or FIN retransmission while not abandoned.
-                
-                // Check for first retransmission.
-                if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
-                    // Set flag to indicate there has been a retransmission.
-                    // This will be cleared upon new ACK.
-                    pcb->setFlag(PcbFlags::RTX_ACTIVE);
-                    
-                    // Update ssthresh (RFC 5681).
-                    pcb_update_ssthresh_for_rtx(pcb);
-                }
-                
-                // Set cwnd to one segment (RFC 5681).
-                // Also reset cwnd_acked to avoid old accumulated value
-                // from causing an undesired cwnd increase later.
-                con->m_v.cwnd = pcb->snd_mss;
-                pcb->clearFlag(PcbFlags::CWND_INIT);
-                con->m_v.cwnd_acked = 0;
-                
-                // Set recover.
-                pcb->setFlag(PcbFlags::RECOVER);
-                con->m_v.recover = pcb->snd_nxt;
-                
-                // Exit any fast recovery.
-                pcb->num_dupack = 0;
-                
-                // Requeue all data and FIN.
-                pcb_requeue_everything(pcb);
-                
-                // Retransmit using pcb_output_active.
-                pcb_output_active(pcb, false);
-                
-                // NOTE: There may be a remote possibility that nothing was sent
-                // by pcb_output_active, if snd_mss increased to allow delaying
-                // sending (pcb_may_delay_snd). In that case the rtx_timer would
-                // have been unset by pcb_output_active, but we still did all the
-                // congestion related state changes above and that's fine.
-            }
+            return;
         }
         
-        // Delayed timer update is needed by RtxTimer and pcb_output/pcb_output_active.
-        pcb->doDelayedTimerUpdate();
+        TcpConnection *con = pcb->con;
+        
+        if (con == nullptr || con->m_v.snd_wnd == 0) {
+            // This is for:
+            // - FIN retransmission or window probe after connection was
+            //   abandoned (we don't disinguish these two cases).
+            // - Zero window probe while not abandoned.
+            pcb_output(pcb, true);
+        } else {
+            // This is for data or FIN retransmission while not abandoned.
+            
+            // Check for first retransmission.
+            if (!pcb->hasFlag(PcbFlags::RTX_ACTIVE)) {
+                // Set flag to indicate there has been a retransmission.
+                // This will be cleared upon new ACK.
+                pcb->setFlag(PcbFlags::RTX_ACTIVE);
+                
+                // Update ssthresh (RFC 5681).
+                pcb_update_ssthresh_for_rtx(pcb);
+            }
+            
+            // Set cwnd to one segment (RFC 5681).
+            // Also reset cwnd_acked to avoid old accumulated value
+            // from causing an undesired cwnd increase later.
+            con->m_v.cwnd = pcb->snd_mss;
+            pcb->clearFlag(PcbFlags::CWND_INIT);
+            con->m_v.cwnd_acked = 0;
+            
+            // Set recover.
+            pcb->setFlag(PcbFlags::RECOVER);
+            con->m_v.recover = pcb->snd_nxt;
+            
+            // Exit any fast recovery.
+            pcb->num_dupack = 0;
+            
+            // Requeue all data and FIN.
+            pcb_requeue_everything(pcb);
+            
+            // Retransmit using pcb_output_active.
+            pcb_output_active(pcb, false);
+            
+            // NOTE: There may be a remote possibility that nothing was sent
+            // by pcb_output_active, if snd_mss increased to allow delaying
+            // sending (pcb_may_delay_snd). In that case the rtx_timer would
+            // have been unset by pcb_output_active, but we still did all the
+            // congestion related state changes above and that's fine.
+        }
     }
     
     static void pcb_requeue_everything (TcpPcb *pcb)
