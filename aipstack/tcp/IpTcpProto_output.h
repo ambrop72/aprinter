@@ -238,7 +238,7 @@ public:
     
     /**
      * With rtx_or_window_probe==false, transmits queued data as permissible
-     * and controls the rtx_timer, and returns whether anything has been sent.
+     * and controls the rtx_timer.
      * NOTE: doDelayedTimerUpdate must be called after return.
      * 
      * With rtx_or_window_probe==true, sends one segment from the start of
@@ -248,7 +248,7 @@ public:
      * one sequence count.
      */
     APRINTER_NO_INLINE
-    static bool pcb_output_active (TcpPcb *pcb, bool rtx_or_window_probe)
+    static void pcb_output_active (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
@@ -310,9 +310,6 @@ public:
             fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
         }
         
-        // Will need to know if we sent anything.
-        bool sent = false;
-        
         // Send segments while we have some non-delayable data or FIN
         // queued, and there is some window availabe. But for the case
         // of rtx_or_window_probe, this condition is always true.
@@ -322,9 +319,9 @@ public:
             IpErr err = pcb_output_segment(pcb, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
             
             // If this was for retransmission or window probe, don't do anything
-            // else than sending. The return value is unused so no need to check err.
+            // else than sending.
             if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
-                return true;
+                return;
             }
             
             // If there was an error sending the segment, stop for now and retry later.
@@ -363,9 +360,11 @@ public:
                 snd_buf_cur->skipBytes(data_sent);
             }
             
-            // Update local state.
+            // Decrement remaining window.
             rem_wnd -= seg_seqlen;
-            sent = true;
+            
+            // Clear ACK_PENDING flag to avoid sending an empty ACK needlessly.
+            pcb->clearFlag(PcbFlags::ACK_PENDING);
         }
         
         // If the IDLE_TIMER flag is set, clear it and ensure that the RtxTimer
@@ -387,8 +386,6 @@ public:
                 pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
             }
         }
-        
-        return sent;
     }
     
     /**
@@ -396,7 +393,7 @@ public:
      * NOTE: doDelayedTimerUpdate must be called after return.
      */
     APRINTER_NO_INLINE
-    static bool pcb_output_abandoned (TcpPcb *pcb, bool rtx_or_window_probe)
+    static void pcb_output_abandoned (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb->con == nullptr)
@@ -406,9 +403,6 @@ public:
         
         // Send a FIN if rtx_or_window_probe or otherwise if FIN is queued.
         bool fin = rtx_or_window_probe ? true : pcb->hasFlag(PcbFlags::FIN_PENDING);
-        
-        // Will need to know if we sent anything.
-        bool sent = false;
         
         // Send a FIN if it is queued.
         if (fin) do {
@@ -430,10 +424,9 @@ public:
                 }
             }
             
-            // If this was for retransmission or window probe, don't do anything
-            // else. The return value is unused so no need to check err.
+            // If this was for retransmission or window probe, don't do anything else.
             if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
-                return true;
+                return;
             }
             
             // If there was an error sending the segment, stop for now and retry later.
@@ -445,8 +438,8 @@ public:
             // Clear the FIN_PENDING flag.
             pcb->clearFlag(PcbFlags::FIN_PENDING);
             
-            // Take note that we sent something.
-            sent = true;
+            // Clear ACK_PENDING flag to avoid sending an empty ACK needlessly.
+            pcb->clearFlag(PcbFlags::ACK_PENDING);
         } while (false);
         
         // Set the retransmission timer as needed. This is really the same as
@@ -456,23 +449,21 @@ public:
                 pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
             }
         }
-        
-        return sent;
     }
     
     /**
      * Calls pcb_output_active or pcb_output_abandoned as appropriate.
      * NOTE: doDelayedTimerUpdate must be called after return.
      */
-    inline static bool pcb_output (TcpPcb *pcb, bool rtx_or_window_probe)
+    inline static void pcb_output (TcpPcb *pcb, bool rtx_or_window_probe)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
         AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
         
         if (AMBRO_LIKELY(pcb->con != nullptr)) {
-            return pcb_output_active(pcb, rtx_or_window_probe);
+            pcb_output_active(pcb, rtx_or_window_probe);
         } else {
-            return pcb_output_abandoned(pcb, rtx_or_window_probe);
+            pcb_output_abandoned(pcb, rtx_or_window_probe);
         }
     }
     

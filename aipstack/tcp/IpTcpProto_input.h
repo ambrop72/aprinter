@@ -555,10 +555,7 @@ private:
             AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             
             // Output queued data.
-            if (Output::pcb_output(pcb, false)) {
-                // An ACK was sent along, no need for empty ACK.
-                pcb->clearFlag(PcbFlags::ACK_PENDING);
-            }
+            Output::pcb_output(pcb, false);
         }
         
         // Send an empty ACK if desired.
