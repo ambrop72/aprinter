@@ -1127,7 +1127,7 @@ private:
         if (AMBRO_LIKELY(seq_lt2(pcb->snd_nxt, seg_endseq))) {
             // Start a round-trip-time measurement if not already started
             // and if we still have a TcpConnection.
-            if (!pcb->hasFlag(PcbFlags::RTT_PENDING) && pcb->con != nullptr) {
+            if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
                 pcb_start_rtt_measurement(pcb, false);
             }
             
