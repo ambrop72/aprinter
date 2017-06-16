@@ -1185,8 +1185,7 @@ private:
                                 FlagsType seg_flags, IpBufRef data)
     {
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator,
-                      Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
+        TxAllocHelper<BufAllocator, Tcp4Header::Size, HeaderBeforeIp4Dgram>
             dgram_alloc(Tcp4Header::Size);
         
         // Caculate the offset+flags field.
@@ -1195,7 +1194,7 @@ private:
         // Calculate the window to announce.
         uint16_t window_size = Input::pcb_ann_wnd(pcb);
         
-        // The header parts of the checksum will be calculated inline,
+        // The header parts of the checksum will be calculated inline.
         IpChksumAccumulator chksum_accum;
         
         // Adding constants to checksum is more easily optimized if done first.
@@ -1265,15 +1264,34 @@ private:
         FlagsType offset_flags =
             ((FlagsType)(5+opts_len/4) << TcpOffsetShift) | tcp_meta.flags;
         
-        // Write the TCP header.
+        // The header parts of the checksum will be calculated inline.
+        IpChksumAccumulator chksum_accum;
+        
+        // Adding constants to checksum is more easily optimized if done first.
+        // Add protocol field of pseudo-header.
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+        
+        // Write the TCP header...
         auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
+        
         tcp_header.set(Tcp4Header::SrcPort(),     tcp_meta.local_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(),tcp_meta.local_port);
+        
         tcp_header.set(Tcp4Header::DstPort(),     tcp_meta.remote_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), tcp_meta.remote_port);
+        
         tcp_header.set(Tcp4Header::SeqNum(),      tcp_meta.seq_num);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), tcp_meta.seq_num);
+        
         tcp_header.set(Tcp4Header::AckNum(),      tcp_meta.ack_num);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), tcp_meta.ack_num);
+        
         tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
+        
         tcp_header.set(Tcp4Header::WindowSize(),  tcp_meta.window_size);
-        tcp_header.set(Tcp4Header::Checksum(),    0);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), tcp_meta.window_size);
+        
         tcp_header.set(Tcp4Header::UrgentPtr(),   0);
         
         // Write any TCP options.
@@ -1285,13 +1303,13 @@ private:
         // Construct the datagram reference including any data.
         IpBufRef dgram = dgram_alloc.getBufRef();
         
-        // Calculate TCP checksum.
-        IpChksumAccumulator chksum_accum;
+        // Add remaining pseudo-header to checksum (protocol was added above).
         chksum_accum.addWords(&local_addr.data);
         chksum_accum.addWords(&remote_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
-        uint16_t calc_chksum = chksum_accum.getChksum(dgram);
+        
+        // Complete and write checksum.
+        uint16_t calc_chksum = chksum_accum.getChksum(dgram.hideHeader(Tcp4Header::Size));
         tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
         
         // Send the datagram.
