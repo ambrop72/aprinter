@@ -33,17 +33,25 @@
 
 #include <aipstack/BeginNamespace.h>
 
+struct TxAllocHelperUninitialized {};
+
 template <size_t MaxSize, size_t HeaderBefore>
 class TxAllocHelper {
     static size_t const TotalMaxSize = HeaderBefore + MaxSize;
     
 public:
-    inline TxAllocHelper (size_t size)
+    inline TxAllocHelper (TxAllocHelperUninitialized)
     {
-        AMBRO_ASSERT(size <= MaxSize)
-        
-        m_node = IpBufNode{m_data, size_t(HeaderBefore + size), nullptr};
-        m_tot_len = size;
+        m_node.ptr = m_data;
+#ifdef AMBROLIB_ASSERTIONS
+        m_initialized = false;
+#endif
+    }
+    
+    inline TxAllocHelper (size_t size)
+    : TxAllocHelper(TxAllocHelperUninitialized())
+    {
+        reset(size);
     }
     
     inline void reset (size_t size)
@@ -54,6 +62,9 @@ public:
         m_node.len = HeaderBefore + size;
         m_node.next = nullptr;
         m_tot_len = size;
+#ifdef AMBROLIB_ASSERTIONS
+        m_initialized = true;
+#endif
     }
     
     inline char * getPtr ()
@@ -63,6 +74,7 @@ public:
     
     inline void changeSize (size_t size)
     {
+        AMBRO_ASSERT(m_initialized)
         AMBRO_ASSERT(m_node.next == nullptr)
         AMBRO_ASSERT(size <= MaxSize)
         
@@ -72,6 +84,7 @@ public:
     
     inline void setNext (IpBufNode const *next_node, size_t next_len)
     {
+        AMBRO_ASSERT(m_initialized)
         AMBRO_ASSERT(m_node.next == nullptr)
         AMBRO_ASSERT(m_node.len == HeaderBefore + m_tot_len)
         AMBRO_ASSERT(next_node != nullptr)
@@ -82,6 +95,8 @@ public:
     
     inline IpBufRef getBufRef ()
     {
+        AMBRO_ASSERT(m_initialized)
+        
         return IpBufRef{&m_node, HeaderBefore, m_tot_len};
     }
     
@@ -89,6 +104,9 @@ private:
     IpBufNode m_node;
     size_t m_tot_len;
     char m_data[TotalMaxSize];
+#ifdef AMBROLIB_ASSERTIONS
+    bool m_initialized;
+#endif
 };
 
 #include <aipstack/EndNamespace.h>

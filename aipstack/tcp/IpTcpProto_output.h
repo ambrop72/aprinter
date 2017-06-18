@@ -1192,7 +1192,7 @@ private:
         
     public:
         inline PcbOutputHelper ()
-        : dgram_alloc(Tcp4Header::Size),
+        : dgram_alloc(TxAllocHelperUninitialized()),
           prepared(false)
         {
             // We try to do as little as possible here since it would be a waste if
@@ -1203,12 +1203,12 @@ private:
         
         IpErr sendSegment (TcpPcb *pcb, SeqType seq_num, FlagsType seg_flags, IpBufRef data)
         {
+            // Reset the TxAllocHelper.
+            dgram_alloc.reset(Tcp4Header::Size);
+            
+            // If this is the first tranamission, prepare common things.
             if (!prepared) {
-                // First tranamission, prepare common things.
                 prepare(pcb);
-            } else {
-                // Another transmission, reset dgram_alloc to initial state.
-                dgram_alloc.reset(Tcp4Header::Size);
             }
             
             // Continue calculating the checksum from the partial calculation.
