@@ -72,7 +72,7 @@ class IpTcpProto
                                     EphemeralPortFirst, EphemeralPortLast,
                                     LinkWithArrayIndices))
     APRINTER_USE_TYPES1(Arg::Params, (PcbIndexService))
-    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, TheIpStack))
+    APRINTER_USE_TYPES1(Arg, (Context, TheIpStack))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
@@ -937,7 +937,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(BufAllocator),
         APRINTER_AS_TYPE(TheIpStack)
     ), (
         using Params = IpTcpProtoService;

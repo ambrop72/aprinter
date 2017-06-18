@@ -41,7 +41,6 @@
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Allocator.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>
@@ -54,8 +53,8 @@ template <typename Arg>
 class IpStackNetwork {
     APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
     
-    APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, StackBufAllocator,
-                                   IpBufRef, IpBufNode, MacAddr, IpErr, Ip4Addr, EthIfaceState))
+    APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, IpBufRef, IpBufNode,
+                                   MacAddr, IpErr, Ip4Addr, EthIfaceState))
     
     APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService))
     APRINTER_USE_VALS(Params, (NumArpEntries, ArpProtectCount, NumTcpPcbs, NumOosSegs,
@@ -76,8 +75,6 @@ public:
 private:
     static uint8_t const IpTTL = 64;
     
-    using TheBufAllocator = StackBufAllocator;
-    
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
         IpTTL,
         NumTcpPcbs,
@@ -97,7 +94,7 @@ private:
         Arg::Params::MaxReassSize,
         typename Arg::Params::PathMtuParams
     >;
-    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, TheBufAllocator, ProtocolServicesList>))
+    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, ProtocolServicesList>))
     
     using Iface = typename TheIpStack::Iface;
     
@@ -112,7 +109,7 @@ private:
         ArpProtectCount,
         0 // HeaderBeforeEth
     >;
-    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, TheBufAllocator, Iface>))
+    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, Iface>))
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
         64, // DhcpTTL
@@ -120,7 +117,7 @@ private:
         0,  // MaxClientIdSize
         0   // MaxVendorClassIdSize
     >;
-    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack, TheBufAllocator>))
+    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack>))
     
 public:
     using TcpProto = typename TheIpStack::template GetProtocolType<AIpStack::Ip4ProtocolTcp>;

@@ -36,7 +36,7 @@
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
-#include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Err.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
@@ -51,10 +51,9 @@ class IpTcpProto_output
                                    OptionFlags, TcpOptions))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
                                  can_output_in_state, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, BufAllocator,
-                                   Input, Clock, TimeType, RttType, RttNextType, Constants,
-                                   OutputTimer, RtxTimer, TheIpStack, MtuRef,
-                                   TcpConnection))
+    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, Input, Clock,
+                                   TimeType, RttType, RttNextType, Constants, OutputTimer,
+                                   RtxTimer, TheIpStack, MtuRef, TcpConnection))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -1187,7 +1186,7 @@ private:
     
     class PcbOutputHelper {
     private:
-        TxAllocHelper<BufAllocator, Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
+        TxAllocHelper<Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
         bool prepared;
         typename IpChksumAccumulator::State partial_chksum_state;
         
@@ -1299,8 +1298,7 @@ private:
             TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
         
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator,
-                      Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
+        TxAllocHelper<Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
             dgram_alloc(Tcp4Header::Size+opts_len);
         
         // Caculate the offset+flags field.

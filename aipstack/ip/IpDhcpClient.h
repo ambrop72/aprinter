@@ -44,7 +44,7 @@
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
-#include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
@@ -106,7 +106,7 @@ class IpDhcpClient :
     private IpSendRetry::Request,
     private IpEthHw::ArpObserver
 {
-    APRINTER_USE_TYPES1(Arg, (Context, IpStack, BufAllocator))
+    APRINTER_USE_TYPES1(Arg, (Context, IpStack))
     APRINTER_USE_VALS(Arg::Params, (DhcpTTL, MaxDnsServers, MaxClientIdSize, MaxVendorClassIdSize))
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
     APRINTER_USE_TYPES1(Context, (Clock))
@@ -1111,7 +1111,7 @@ private:
         }
         
         // Get a buffer for the message.
-        using AllocHelperType = TxAllocHelper<BufAllocator, MaxDhcpSendMsgSize, HeaderBeforeIp4Dgram>;
+        using AllocHelperType = TxAllocHelper<MaxDhcpSendMsgSize, HeaderBeforeIp4Dgram>;
         AllocHelperType dgram_alloc(MaxDhcpSendMsgSize);
         
         // Write the DHCP header.
@@ -1187,8 +1187,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(IpStack),
-        APRINTER_AS_TYPE(BufAllocator)
+        APRINTER_AS_TYPE(IpStack)
     ), (
         using Params = IpDhcpClientService;
         APRINTER_DEF_INSTANCE(Compose, IpDhcpClient)

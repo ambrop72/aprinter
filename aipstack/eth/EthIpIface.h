@@ -41,7 +41,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
-#include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
@@ -67,7 +67,7 @@ class EthIpIface : public Arg::Iface,
     private IpEthHw::HwIface
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
-    APRINTER_USE_TYPES1(Arg, (Context, BufAllocator, Iface))
+    APRINTER_USE_TYPES1(Arg, (Context, Iface))
     
     APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
     APRINTER_USE_TYPE1(Context, Clock)
@@ -452,7 +452,7 @@ private:
     
     IpErr send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
     {
-        TxAllocHelper<BufAllocator, EthArpPktSize, HeaderBeforeEth> frame_alloc(EthArpPktSize);
+        TxAllocHelper<EthArpPktSize, HeaderBeforeEth> frame_alloc(EthArpPktSize);
         
         auto eth_header = EthHeader::MakeRef(frame_alloc.getPtr());
         eth_header.set(EthHeader::DstMac(), dst_mac);
@@ -543,7 +543,6 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(BufAllocator),
         APRINTER_AS_TYPE(Iface)
     ), (
         using Params = EthIpIfaceService;

@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AIPSTACK_ALLOCATOR_H
-#define AIPSTACK_ALLOCATOR_H
+#ifndef AIPSTACK_TX_ALLOC_HELPER_H
+#define AIPSTACK_TX_ALLOC_HELPER_H
 
 #include <stddef.h>
 
@@ -33,41 +33,23 @@
 
 #include <aipstack/BeginNamespace.h>
 
-class StackBufAllocator {
-public:
-    template <size_t MaxSize_>
-    class Allocation {
-    public:
-        static size_t const MaxSize = MaxSize_;
-        
-        inline char * getPtr ()
-        {
-            return m_data;
-        }
-        
-    private:
-        char m_data[MaxSize];
-    };
-};
-
-template <typename Allocator, size_t MaxSize, size_t HeaderBefore>
+template <size_t MaxSize, size_t HeaderBefore>
 class TxAllocHelper {
     static size_t const TotalMaxSize = HeaderBefore + MaxSize;
-    using Allocation = typename Allocator::template Allocation<TotalMaxSize>;
     
 public:
     inline TxAllocHelper (size_t size)
     {
         AMBRO_ASSERT(size <= MaxSize)
         
-        m_node = IpBufNode{m_alloc.getPtr(), size_t(HeaderBefore + size), nullptr};
+        m_node = IpBufNode{m_data, size_t(HeaderBefore + size), nullptr};
         m_tot_len = size;
     }
     
     inline void reset (size_t size)
     {
         AMBRO_ASSERT(size <= MaxSize)
-        AMBRO_ASSERT(m_node.ptr == m_alloc.getPtr())
+        AMBRO_ASSERT(m_node.ptr == m_data)
         
         m_node.len = HeaderBefore + size;
         m_node.next = nullptr;
@@ -76,7 +58,7 @@ public:
     
     inline char * getPtr ()
     {
-        return m_alloc.getPtr() + HeaderBefore;
+        return m_data + HeaderBefore;
     }
     
     inline void changeSize (size_t size)
@@ -106,7 +88,7 @@ public:
 private:
     IpBufNode m_node;
     size_t m_tot_len;
-    typename Allocator::template Allocation<HeaderBefore + MaxSize> m_alloc;
+    char m_data[TotalMaxSize];
 };
 
 #include <aipstack/EndNamespace.h>

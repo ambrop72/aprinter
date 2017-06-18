@@ -52,7 +52,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/SendRetry.h>
-#include <aipstack/misc/Allocator.h>
+#include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -111,7 +111,7 @@ struct Ip4DestUnreachMeta {
 template <typename Arg>
 class IpStack
 {
-    APRINTER_USE_TYPES1(Arg, (Params, Context, BufAllocator, ProtocolServicesList))
+    APRINTER_USE_TYPES1(Arg, (Params, Context, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
     
     APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
@@ -135,7 +135,7 @@ class IpStack
         using IpProtocolNumber = typename ProtocolService::IpProtocolNumber;
         
         // Instantiate the protocol.
-        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<Context, BufAllocator, IpStack>))
+        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<Context, IpStack>))
         
         // Helper function to get the pointer to the protocol.
         inline static Protocol * get (IpStack *stack)
@@ -974,7 +974,7 @@ private:
         }
         
         // Allocate memory for headers.
-        TxAllocHelper<BufAllocator, Icmp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc(Icmp4Header::Size);
+        TxAllocHelper<Icmp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc(Icmp4Header::Size);
         
         // Write the ICMP header.
         auto icmp4_header = Icmp4Header::MakeRef(dgram_alloc.getPtr());
@@ -1070,7 +1070,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
-        APRINTER_AS_TYPE(BufAllocator),
         APRINTER_AS_TYPE(ProtocolServicesList)
     ), (
         using Params = IpStackService;
