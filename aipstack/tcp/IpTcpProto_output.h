@@ -1186,14 +1186,15 @@ private:
     
     class PcbOutputHelper {
     private:
-        TxAllocHelper<Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
         bool prepared;
         typename IpChksumAccumulator::State partial_chksum_state;
+        typename TheIpStack::Ip4SendRouteInfo route_info;
+        TxAllocHelper<Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
         
     public:
         inline PcbOutputHelper ()
-        : dgram_alloc(TxAllocHelperUninitialized()),
-          prepared(false)
+        : prepared(false),
+          dgram_alloc(TxAllocHelperUninitialized())
         {
             // We try to do as little as possible here since it would be a waste if
             // pcb_output_active() then determines that nothing needs to be sent.
@@ -1208,7 +1209,10 @@ private:
             
             // If this is the first tranamission, prepare common things.
             if (!prepared) {
-                prepare(pcb);
+                IpErr err = prepareCommon(pcb);
+                if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+                    return err;
+                }
             }
             
             // Continue calculating the checksum from the partial calculation.
@@ -1245,12 +1249,20 @@ private:
             
             // Send it.
             return pcb->tcp->m_stack->sendIp4DgramFast(pcb->local_addr, pcb->remote_addr,
-                TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags);
+                TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags,
+                &route_info);
         }
         
     private:
-        void prepare (TcpPcb *pcb)
+        IpErr prepareCommon (TcpPcb *pcb)
         {
+            // Get the route information.
+            bool route_ok = pcb->tcp->m_stack->routeIp4(
+                pcb->remote_addr, &route_info.route_iface, &route_info.route_addr);
+            if (AMBRO_UNLIKELY(!route_ok)) {
+                return IpErr::NO_IP_ROUTE;
+            }
+            
             // We will calculate part of the checksum.
             IpChksumAccumulator chksum;
             
@@ -1286,6 +1298,7 @@ private:
             partial_chksum_state = chksum.getState();
             
             prepared = true;
+            return IpErr::SUCCESS;
         }
     };
     
@@ -1355,7 +1368,7 @@ private:
         
         // Send the datagram.
         return tcp->m_stack->sendIp4DgramFast(local_addr, remote_addr, TcpProto::TcpTTL,
-            Ip4ProtocolTcp, dgram, retryReq, Constants::TcpIpSendFlags);
+            Ip4ProtocolTcp, dgram, retryReq, Constants::TcpIpSendFlags, nullptr);
     }
 };
 

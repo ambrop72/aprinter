@@ -315,13 +315,19 @@ public:
         return send_fragmented(pkt, route_iface, route_addr, ip_flags, retryReq);
     }
     
+    // This is used to pass predetermined route info to sendIp4DgramFast.
+    struct Ip4SendRouteInfo {
+        Iface *route_iface;
+        Ip4Addr route_addr;
+    };
+    
     // Optimized send function. It does not support fragmentation or
     // forcing an interface, and is always inlined. It also does not
     // sanity check that there is space for the IP header.
     AMBRO_ALWAYS_INLINE
     IpErr sendIp4DgramFast (Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t ttl,
                             uint8_t proto, IpBufRef dgram, IpSendRetry::Request *retryReq,
-                            uint8_t send_flags)
+                            uint8_t send_flags, Ip4SendRouteInfo const *route_info)
     {
         AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
@@ -333,8 +339,14 @@ public:
         // Find an interface and address for output.
         Iface *route_iface;
         Ip4Addr route_addr;
-        if (AMBRO_UNLIKELY(!routeIp4(dst_addr, &route_iface, &route_addr))) {
-            return IpErr::NO_IP_ROUTE;
+        if (route_info != nullptr) {
+            AMBRO_ASSERT(route_info->route_iface != nullptr)
+            route_iface = route_info->route_iface;
+            route_addr = route_info->route_addr;
+        } else {
+            if (AMBRO_UNLIKELY(!routeIp4(dst_addr, &route_iface, &route_addr))) {
+                return IpErr::NO_IP_ROUTE;
+            }
         }
         
         // Compute the common IP flags (remove internal flags).
