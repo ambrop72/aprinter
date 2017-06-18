@@ -80,9 +80,21 @@ private:
     uint32_t m_sum;
     
 public:
-    inline IpChksumAccumulator()
+    enum State : uint32_t {};
+    
+    inline IpChksumAccumulator ()
     : m_sum(0)
     {
+    }
+    
+    inline IpChksumAccumulator (State state)
+    : m_sum(state)
+    {
+    }
+    
+    inline State getState () const
+    {
+        return State(m_sum);
     }
     
     inline void addWord (APrinter::WrapType<uint16_t>, uint16_t word)

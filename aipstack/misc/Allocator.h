@@ -35,42 +35,42 @@
 
 class StackBufAllocator {
 public:
-    template <size_t MaxSize>
+    template <size_t MaxSize_>
     class Allocation {
     public:
-        inline Allocation(size_t size)
-        : m_size(size)
-        {
-            AMBRO_ASSERT(size <= MaxSize)
-        }
+        static size_t const MaxSize = MaxSize_;
         
         inline char * getPtr ()
         {
             return m_data;
         }
         
-        inline size_t getSize ()
-        {
-            return m_size;
-        }
-        
     private:
-        size_t m_size;
         char m_data[MaxSize];
     };
 };
 
 template <typename Allocator, size_t MaxSize, size_t HeaderBefore>
 class TxAllocHelper {
+    static size_t const TotalMaxSize = HeaderBefore + MaxSize;
+    using Allocation = typename Allocator::template Allocation<TotalMaxSize>;
+    
 public:
     inline TxAllocHelper (size_t size)
-    : m_alloc(HeaderBefore + size)
     {
-        m_node = IpBufNode {
-            m_alloc.getPtr(),
-            size_t(HeaderBefore + size),
-            nullptr
-        };
+        AMBRO_ASSERT(size <= MaxSize)
+        
+        m_node = IpBufNode{m_alloc.getPtr(), size_t(HeaderBefore + size), nullptr};
+        m_tot_len = size;
+    }
+    
+    inline void reset (size_t size)
+    {
+        AMBRO_ASSERT(size <= MaxSize)
+        AMBRO_ASSERT(m_node.ptr == m_alloc.getPtr())
+        
+        m_node.len = HeaderBefore + size;
+        m_node.next = nullptr;
         m_tot_len = size;
     }
     
@@ -82,7 +82,7 @@ public:
     inline void changeSize (size_t size)
     {
         AMBRO_ASSERT(m_node.next == nullptr)
-        AMBRO_ASSERT(size <= m_alloc.getSize() - HeaderBefore)
+        AMBRO_ASSERT(size <= MaxSize)
         
         m_node.len = HeaderBefore + size;
         m_tot_len = size;
@@ -100,11 +100,7 @@ public:
     
     inline IpBufRef getBufRef ()
     {
-        return IpBufRef {
-            &m_node,
-            HeaderBefore,
-            m_tot_len
-        };
+        return IpBufRef{&m_node, HeaderBefore, m_tot_len};
     }
     
 private:

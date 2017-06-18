@@ -310,13 +310,17 @@ public:
             fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
         }
         
+        // Create the output helper (which optimizes sending multiple segments at a time).
+        PcbOutputHelper output_helper;
+        
         // Send segments while we have some non-delayable data or FIN
         // queued, and there is some window availabe. But for the case
         // of rtx_or_window_probe, this condition is always true.
         while ((snd_buf_cur->tot_len > data_threshold || fin) && rem_wnd > 0) {
             // Send a segment.
             SeqType seg_seqlen;
-            IpErr err = pcb_output_segment(pcb, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
+            IpErr err = pcb_output_segment(
+                pcb, output_helper, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
             
             // If this was for retransmission or window probe, don't do anything
             // else than sending.
@@ -1012,6 +1016,8 @@ public:
     }
     
 private:
+    class PcbOutputHelper;
+    
     // Set the OutputTimer to expire after no longer than OutputTimerTicks.
     // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_set_output_timer_for_output (TcpPcb *pcb)
@@ -1048,7 +1054,8 @@ private:
     // This function sends data/FIN for referenced PCBs. It is designed to be
     // inlined into pcb_output_active and should not be called from elsewhere.
     AMBRO_ALWAYS_INLINE
-    static IpErr pcb_output_segment (TcpPcb *pcb, IpBufRef data, bool fin, SeqType rem_wnd,
+    static IpErr pcb_output_segment (TcpPcb *pcb, PcbOutputHelper &helper,
+                                     IpBufRef data, bool fin, SeqType rem_wnd,
                                      SeqType *out_seg_seqlen)
     {
         AMBRO_ASSERT(can_output_in_state(pcb->state))
@@ -1095,7 +1102,7 @@ private:
         SeqType seq_num = seq_add(pcb->snd_una, offset);
         
         // Send the segment.
-        IpErr err = pcb_send_fast(pcb, seq_num, seg_flags, data);
+        IpErr err = helper.sendSegment(pcb, seq_num, seg_flags, data);
         if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
             return err;
         }
@@ -1178,74 +1185,110 @@ private:
         }
     }
     
-    // This is made to be inlined into pcb_output_segment to optimize sending.
-    // It should not be used elsewhere (send_tcp_nodata is for all other sending).
-    AMBRO_ALWAYS_INLINE
-    static IpErr pcb_send_fast (TcpPcb *pcb, SeqType seq_num,
-                                FlagsType seg_flags, IpBufRef data)
-    {
-        // Allocate memory for headers.
-        TxAllocHelper<BufAllocator, Tcp4Header::Size, HeaderBeforeIp4Dgram>
-            dgram_alloc(Tcp4Header::Size);
+    class PcbOutputHelper {
+    private:
+        TxAllocHelper<BufAllocator, Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
+        bool prepared;
+        typename IpChksumAccumulator::State partial_chksum_state;
         
-        // Caculate the offset+flags field.
-        FlagsType offset_flags = ((FlagsType)5 << TcpOffsetShift) | seg_flags;
-        
-        // Calculate the window to announce.
-        uint16_t window_size = Input::pcb_ann_wnd(pcb);
-        
-        // The header parts of the checksum will be calculated inline.
-        IpChksumAccumulator chksum_accum;
-        
-        // Adding constants to checksum is more easily optimized if done first.
-        // Add protocol field of pseudo-header.
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
-        
-        // Write the TCP header...
-        auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
-        
-        tcp_header.set(Tcp4Header::SrcPort(),     pcb->local_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), pcb->local_port);
-        
-        tcp_header.set(Tcp4Header::DstPort(),     pcb->remote_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), pcb->remote_port);
-        
-        tcp_header.set(Tcp4Header::SeqNum(),      seq_num);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
-        
-        tcp_header.set(Tcp4Header::AckNum(),      pcb->rcv_nxt);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), pcb->rcv_nxt);
-        
-        tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
-        
-        tcp_header.set(Tcp4Header::WindowSize(),  window_size);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), window_size);
-        
-        tcp_header.set(Tcp4Header::UrgentPtr(),   0);
-        
-        // Construct the datagram reference including any data.
-        IpBufNode data_node;
-        if (AMBRO_LIKELY(data.tot_len > 0)) {
-            data_node = data.toNode();
-            dgram_alloc.setNext(&data_node, data.tot_len);
+    public:
+        inline PcbOutputHelper ()
+        : dgram_alloc(Tcp4Header::Size),
+          prepared(false)
+        {
+            // We try to do as little as possible here since it would be a waste if
+            // pcb_output_active() then determines that nothing needs to be sent.
+            // At the first sendSegment call, we will call prepare() to setup common
+            // things, to optimize sending multiple segments at a time.
         }
         
-        // Add remaining pseudo-header to checksum (protocol was added above).
-        chksum_accum.addWords(&pcb->local_addr.data);
-        chksum_accum.addWords(&pcb->remote_addr.data);
-        chksum_accum.addWord(
-            APrinter::WrapType<uint16_t>(), Tcp4Header::Size + data.tot_len);
+        IpErr sendSegment (TcpPcb *pcb, SeqType seq_num, FlagsType seg_flags, IpBufRef data)
+        {
+            if (!prepared) {
+                // First tranamission, prepare common things.
+                prepare(pcb);
+            } else {
+                // Another transmission, reset dgram_alloc to initial state.
+                dgram_alloc.reset(Tcp4Header::Size);
+            }
+            
+            // Continue calculating the checksum from the partial calculation.
+            IpChksumAccumulator chksum(partial_chksum_state);
+            
+            // Write remaining TCP header fields...
+            auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
+            
+            // Sequence number
+            tcp_header.set(Tcp4Header::SeqNum(), seq_num);
+            chksum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
+            
+            // Offset+flags
+            FlagsType offset_flags = ((FlagsType)5 << TcpOffsetShift) | seg_flags;
+            tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
+            chksum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
+            
+            // Add TCP length to checksum.
+            uint16_t tcp_len = Tcp4Header::Size + data.tot_len;
+            chksum.addWord(APrinter::WrapType<uint16_t>(), tcp_len);
+            
+            // Include any data.
+            IpBufNode data_node;
+            if (AMBRO_LIKELY(data.tot_len > 0)) {
+                data_node = data.toNode();
+                dgram_alloc.setNext(&data_node, data.tot_len);
+            }
+            
+            // Calculate checksum.
+            tcp_header.set(Tcp4Header::Checksum(), chksum.getChksum(data));
+            
+            // Get the complete datagram reference starting with the TCP header.
+            IpBufRef dgram = dgram_alloc.getBufRef();
+            
+            // Send it.
+            return pcb->tcp->m_stack->sendIp4DgramFast(pcb->local_addr, pcb->remote_addr,
+                TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags);
+        }
         
-        // Complete and write checksum.
-        uint16_t calc_chksum = chksum_accum.getChksum(data);
-        tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
-        
-        // Send the datagram.
-        IpBufRef dgram = dgram_alloc.getBufRef();
-        return pcb->tcp->m_stack->sendIp4DgramFast(pcb->local_addr, pcb->remote_addr,
-            TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags);
-    }
+    private:
+        void prepare (TcpPcb *pcb)
+        {
+            // We will calculate part of the checksum.
+            IpChksumAccumulator chksum;
+            
+            // Add known pseudo-header fields to checksum.
+            chksum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+            chksum.addWords(&pcb->local_addr.data);
+            chksum.addWords(&pcb->remote_addr.data);
+            
+            // Write known TCP header fields...
+            auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
+            
+            // Source port
+            tcp_header.set(Tcp4Header::SrcPort(), pcb->local_port);
+            chksum.addWord(APrinter::WrapType<uint16_t>(), pcb->local_port);
+            
+            // Destination port
+            tcp_header.set(Tcp4Header::DstPort(), pcb->remote_port);
+            chksum.addWord(APrinter::WrapType<uint16_t>(), pcb->remote_port);
+            
+            // Acknowledgement
+            tcp_header.set(Tcp4Header::AckNum(), pcb->rcv_nxt);
+            chksum.addWord(APrinter::WrapType<uint32_t>(), pcb->rcv_nxt);
+            
+            // Window size (update it first)
+            uint16_t window_size = Input::pcb_ann_wnd(pcb);
+            tcp_header.set(Tcp4Header::WindowSize(), window_size);
+            chksum.addWord(APrinter::WrapType<uint16_t>(), window_size);
+            
+            // Urgent pointer
+            tcp_header.set(Tcp4Header::UrgentPtr(), 0);
+            
+            // Store the state of the partial checksum.
+            partial_chksum_state = chksum.getState();
+            
+            prepared = true;
+        }
+    };
     
     static IpErr send_tcp_nodata (
         TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
