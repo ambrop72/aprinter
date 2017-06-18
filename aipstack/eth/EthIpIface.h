@@ -280,38 +280,49 @@ private:
         }
     }
     
+    AMBRO_ALWAYS_INLINE
     IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetry::Request *retryReq)
     {
-        ArpEntry *entry;
-        GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
-        
-        if (AMBRO_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
-            if (get_res == GetArpEntryRes::BroadcastAddr) {
-                *mac_addr = MacAddr::BroadcastAddr();
-                return IpErr::SUCCESS;
+        ArpEntry *entry = &m_arp_entries[m_first_arp_entry];
+        if (AMBRO_LIKELY(entry->state != ArpEntryState::FREE && entry->ip_addr == ip_addr)) {
+            // Fast path: the first entry is a match.
+            entry->weak = false;
+        } else {
+            // Slow path: use get_arp_entry.
+            GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
+            
+            if (AMBRO_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
+                if (get_res == GetArpEntryRes::BroadcastAddr) {
+                    *mac_addr = MacAddr::BroadcastAddr();
+                    return IpErr::SUCCESS;
+                }
+                return IpErr::NO_HW_ROUTE;
             }
-            return IpErr::NO_HW_ROUTE;
         }
         
-        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::FREE)) {
-            entry->state = ArpEntryState::QUERY;
-            entry->time_left = ArpQueryTimeout;
-            send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
+        if (AMBRO_LIKELY(entry->state >= ArpEntryState::VALID)) {
+            // Note: REFRESHING entry never has time_left==0 so no need to check
+            // for VALID state here.
+            if (AMBRO_UNLIKELY(entry->time_left == 0)) {
+                entry->state = ArpEntryState::REFRESHING;
+                entry->time_left = ArpRefreshTimeout;
+                send_arp_packet(ArpOpTypeRequest, entry->mac_addr, entry->ip_addr);
+            }
+            
+            *mac_addr = entry->mac_addr;
+            return IpErr::SUCCESS;
         }
-        
-        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::QUERY)) {
+        else {
+            if (entry->state == ArpEntryState::FREE) {
+                entry->state = ArpEntryState::QUERY;
+                entry->time_left = ArpQueryTimeout;
+                send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
+            }
+            
             entry->retry_list.addRequest(retryReq);
+            
             return IpErr::ARP_QUERY;
         }
-        
-        if (AMBRO_UNLIKELY(entry->state == ArpEntryState::VALID && entry->time_left == 0)) {
-            entry->state = ArpEntryState::REFRESHING;
-            entry->time_left = ArpRefreshTimeout;
-            send_arp_packet(ArpOpTypeRequest, entry->mac_addr, entry->ip_addr);
-        }
-        
-        *mac_addr = entry->mac_addr;
-        return IpErr::SUCCESS;
     }
     
     void save_hw_addr (Ip4Addr ip_addr, MacAddr mac_addr)

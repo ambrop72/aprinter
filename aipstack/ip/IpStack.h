@@ -86,20 +86,13 @@ struct IpIfaceDriverState {
 };
 
 struct IpSendFlags {
-    static int const InternalBits = 1;
-    static uint8_t const InternalMask = (1 << InternalBits) - 1;
-    
-    enum : uint8_t {
-        // These are internal not real IP flags. They can be
-        // removed by masking with ~InternalMask.
-        DontFragmentNow  = 1 << 0,
-        
+    enum : uint16_t {
         // These are real IP flags, the bits are correct but
         // relative to the high byte of FlagsOffset.
-        DontFragmentFlag = Ip4FlagDF >> 8,
+        DontFragmentFlag = Ip4FlagDF,
         
         // Mask of all allowed flags passed to send functions.
-        AllFlags = DontFragmentNow|DontFragmentFlag,
+        AllFlags = DontFragmentFlag,
     };
 };
 
@@ -216,58 +209,87 @@ public:
     }
     
 public:
-    struct Ip4DgramMeta {
+    // Constains TTL and protocol (directly maps to IPv4 header bits).
+    class TtlProto {
+    public:
+        uint16_t value;
+        
+    public:
+        TtlProto () = default;
+        
+        constexpr inline TtlProto (uint16_t ttl_proto)
+        : value(ttl_proto)
+        {
+        }
+        
+        constexpr inline TtlProto (uint8_t ttl, uint8_t proto)
+        : value(((uint16_t)ttl << 8) | proto)
+        {
+        }
+        
+        constexpr inline uint8_t ttl () const
+        {
+            return uint8_t(value >> 8);
+        }
+        
+        constexpr inline uint8_t proto () const
+        {
+            return uint8_t(value);
+        }
+    };
+    
+    // Encapsulates route information returned by routeIp4.
+    // This must not be cached because the interface could go away.
+    struct Ip4RouteInfo {
+        Iface *iface;
+        Ip4Addr addr;
+    };
+    
+    // Encapsulates information about a received IPv4 datagram.
+    struct Ip4RxInfo {
         Ip4Addr src_addr;
         Ip4Addr dst_addr;
-        uint8_t ttl;
-        uint8_t proto;
+        TtlProto ttl_proto;
         Iface *iface;
     };
     
-    IpErr sendIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram,
-                        IpSendRetry::Request *retryReq = nullptr, uint8_t send_flags = 0)
+    APRINTER_NO_INLINE
+    IpErr sendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto, IpBufRef dgram,
+                        Iface *iface, IpSendRetry::Request *retryReq, uint16_t send_flags)
     {
         AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
         
         // Reveal IP header.
-        IpBufRef pkt;
-        if (AMBRO_UNLIKELY(!dgram.revealHeader(Ip4Header::Size, &pkt))) {
-            return IpErr::NO_HEADER_SPACE;
-        }
+        IpBufRef pkt = dgram.revealHeaderMust(Ip4Header::Size);
         
         // Find an interface and address for output.
-        Iface *route_iface;
-        Ip4Addr route_addr;
+        Ip4RouteInfo route_info;
         bool route_ok;
-        if (AMBRO_UNLIKELY(meta.iface != nullptr)) {
-            route_ok = routeIp4ForceIface(meta.dst_addr, meta.iface, &route_iface, &route_addr);
+        if (AMBRO_UNLIKELY(iface != nullptr)) {
+            route_ok = routeIp4ForceIface(addrs.remote_addr, iface, route_info);
         } else {
-            route_ok = routeIp4(meta.dst_addr, &route_iface, &route_addr);
+            route_ok = routeIp4(addrs.remote_addr, route_info);
         }
         if (AMBRO_UNLIKELY(!route_ok)) {
             return IpErr::NO_IP_ROUTE;
         }
         
-        // Compute the common IP flags (remove internal flags).
-        // This is relative to the high byte of FlagsOffset.
-        uint8_t ip_flags = send_flags & ~IpSendFlags::InternalMask;
-        
         // Check if fragmentation is needed...
         uint16_t pkt_send_len;
         
-        if (AMBRO_UNLIKELY(pkt.tot_len > route_iface->getMtu())) {
+        if (AMBRO_UNLIKELY(pkt.tot_len > route_info.iface->getMtu())) {
             // Reject fragmentation?
-            uint8_t df_flags = IpSendFlags::DontFragmentNow|IpSendFlags::DontFragmentFlag;
-            if ((send_flags & df_flags) != 0) {
+            if (AMBRO_UNLIKELY((send_flags & IpSendFlags::DontFragmentFlag) != 0)) {
                 return IpErr::FRAG_NEEDED;
             }
             
             // Calculate length of first fragment.
-            pkt_send_len = Ip4RoundFragMength(Ip4Header::Size, route_iface->getMtu());
+            pkt_send_len = Ip4RoundFragLen(Ip4Header::Size, route_info.iface->getMtu());
             
             // Set the MoreFragments IP flag (will be cleared for the last fragment).
-            ip_flags |= Ip4FlagMF >> 8;
+            send_flags |= Ip4FlagMF;
         } else {
             // First packet has all the data.
             pkt_send_len = pkt.tot_len;
@@ -288,121 +310,42 @@ public:
         chksum.addWord(APrinter::WrapType<uint16_t>(), ident);
         ip4_header.set(Ip4Header::Ident(), ident);
         
-        uint16_t flags_offset = (uint16_t)ip_flags << 8;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), flags_offset);
-        ip4_header.set(Ip4Header::FlagsOffset(), flags_offset);
+        chksum.addWord(APrinter::WrapType<uint16_t>(), send_flags);
+        ip4_header.set(Ip4Header::FlagsOffset(), send_flags);
         
-        uint16_t ttl_proto = ((uint16_t)meta.ttl << 8) | meta.proto;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto);
-        ip4_header.set(Ip4Header::TtlProto(), ttl_proto);
+        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
+        ip4_header.set(Ip4Header::TtlProto(), ttl_proto.value);
         
-        chksum.addWords(&meta.src_addr.data);
-        ip4_header.set(Ip4Header::SrcAddr(), meta.src_addr);
+        chksum.addWords(&addrs.local_addr.data);
+        ip4_header.set(Ip4Header::SrcAddr(), addrs.local_addr);
         
-        chksum.addWords(&meta.dst_addr.data);
-        ip4_header.set(Ip4Header::DstAddr(), meta.dst_addr);
+        chksum.addWords(&addrs.remote_addr.data);
+        ip4_header.set(Ip4Header::DstAddr(), addrs.remote_addr);
         
         // Set the IP header checksum.
         ip4_header.set(Ip4Header::HeaderChksum(), chksum.getChksum());
         
         // Send the packet to the driver.
         // Fast path is no fragmentation, this permits tail call optimization.
-        if (AMBRO_LIKELY((ip_flags & (Ip4FlagMF >> 8)) == 0)) {
-            return route_iface->driverSendIp4Packet(pkt, route_addr, retryReq);
+        if (AMBRO_LIKELY((send_flags & Ip4FlagMF) == 0)) {
+            return route_info.iface->driverSendIp4Packet(pkt, route_info.addr, retryReq);
         }
         
         // Slow path...
-        return send_fragmented(pkt, route_iface, route_addr, ip_flags, retryReq);
-    }
-    
-    // This is used to pass predetermined route info to sendIp4DgramFast.
-    struct Ip4SendRouteInfo {
-        Iface *route_iface;
-        Ip4Addr route_addr;
-    };
-    
-    // Optimized send function. It does not support fragmentation or
-    // forcing an interface, and is always inlined. It also does not
-    // sanity check that there is space for the IP header.
-    AMBRO_ALWAYS_INLINE
-    IpErr sendIp4DgramFast (Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t ttl,
-                            uint8_t proto, IpBufRef dgram, IpSendRetry::Request *retryReq,
-                            uint8_t send_flags, Ip4SendRouteInfo const *route_info)
-    {
-        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
-        AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
-        AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
-        
-        // Reveal IP header.
-        IpBufRef pkt = dgram.revealHeaderMust(Ip4Header::Size);
-        
-        // Find an interface and address for output.
-        Iface *route_iface;
-        Ip4Addr route_addr;
-        if (route_info != nullptr) {
-            AMBRO_ASSERT(route_info->route_iface != nullptr)
-            route_iface = route_info->route_iface;
-            route_addr = route_info->route_addr;
-        } else {
-            if (AMBRO_UNLIKELY(!routeIp4(dst_addr, &route_iface, &route_addr))) {
-                return IpErr::NO_IP_ROUTE;
-            }
-        }
-        
-        // Compute the common IP flags (remove internal flags).
-        // This is relative to the high byte of FlagsOffset.
-        uint8_t ip_flags = send_flags & ~IpSendFlags::InternalMask;
-        
-        // This function does not support fragmentation.
-        if (AMBRO_UNLIKELY(pkt.tot_len > route_iface->getMtu())) {
-            return IpErr::FRAG_NEEDED;
-        }
-        
-        // Write IP header fields and calculate header checksum inline...
-        auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
-        IpChksumAccumulator chksum;
-        
-        uint16_t version_ihl_dscp_ecn = (uint16_t)((4 << Ip4VersionShift) | 5) << 8;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), version_ihl_dscp_ecn);
-        ip4_header.set(Ip4Header::VersionIhlDscpEcn(), version_ihl_dscp_ecn);
-        
-        chksum.addWord(APrinter::WrapType<uint16_t>(), pkt.tot_len);
-        ip4_header.set(Ip4Header::TotalLen(), pkt.tot_len);
-        
-        uint16_t ident = m_next_id++; // generate identification number
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ident);
-        ip4_header.set(Ip4Header::Ident(), ident);
-        
-        uint16_t flags_offset = (uint16_t)ip_flags << 8;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), flags_offset);
-        ip4_header.set(Ip4Header::FlagsOffset(), flags_offset);
-        
-        uint16_t ttl_proto = ((uint16_t)ttl << 8) | proto;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto);
-        ip4_header.set(Ip4Header::TtlProto(), ttl_proto);
-        
-        chksum.addWords(&src_addr.data);
-        ip4_header.set(Ip4Header::SrcAddr(), src_addr);
-        
-        chksum.addWords(&dst_addr.data);
-        ip4_header.set(Ip4Header::DstAddr(), dst_addr);
-        
-        // Set the IP header checksum.
-        ip4_header.set(Ip4Header::HeaderChksum(), chksum.getChksum());
-        
-        // Send the packet to the driver.
-        return route_iface->driverSendIp4Packet(pkt, route_addr, retryReq);
+        return send_fragmented(pkt, route_info, send_flags, retryReq);
     }
     
 private:
-    IpErr send_fragmented (IpBufRef pkt, Iface *route_iface, Ip4Addr route_addr,
-                           uint8_t ip_flags, IpSendRetry::Request *retryReq)
+    IpErr send_fragmented (IpBufRef pkt, Ip4RouteInfo route_info,
+                           uint16_t send_flags, IpSendRetry::Request *retryReq)
     {
         // Recalculate pkt_send_len (not passed for optimization).
-        uint16_t pkt_send_len = Ip4RoundFragMength(Ip4Header::Size, route_iface->getMtu());
+        uint16_t pkt_send_len = Ip4RoundFragLen(
+            Ip4Header::Size, route_info.iface->getMtu());
         
         // Send the first fragment.
-        IpErr err = route_iface->driverSendIp4Packet(pkt.subTo(pkt_send_len), route_addr, retryReq);
+        IpErr err = route_info.iface->driverSendIp4Packet(
+            pkt.subTo(pkt_send_len), route_info.addr, retryReq);
         if (err != IpErr::SUCCESS) {
             return err;
         }
@@ -417,24 +360,24 @@ private:
         // Send remaining fragments.
         while (true) {
             // We must send fragments such that the fragment offset is a multiple of 8.
-            // This is achieved by Ip4RoundFragMength.
+            // This is achieved by Ip4RoundFragLen.
             AMBRO_ASSERT(fragment_offset % 8 == 0)
             
             // If this is the last fragment, calculate its length and clear
             // the MoreFragments flag. Otherwise pkt_send_len is still correct
             // and MoreFragments still set.
             size_t rem_pkt_length = Ip4Header::Size + dgram.tot_len;
-            bool more_fragments = rem_pkt_length > route_iface->getMtu();
+            bool more_fragments = rem_pkt_length > route_info.iface->getMtu();
             if (!more_fragments) {
                 pkt_send_len = rem_pkt_length;
-                ip_flags &= ~(Ip4FlagMF >> 8);
+                send_flags &= ~Ip4FlagMF;
             }
             
             auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
             
             // Write the fragment-specific IP header fields.
             ip4_header.set(Ip4Header::TotalLen(),     pkt_send_len);
-            ip4_header.set(Ip4Header::FlagsOffset(),  ((uint16_t)ip_flags << 8) | (fragment_offset / 8));
+            ip4_header.set(Ip4Header::FlagsOffset(),  send_flags | (fragment_offset / 8));
             ip4_header.set(Ip4Header::HeaderChksum(), 0);
             
             // Calculate the IP header checksum.
@@ -445,10 +388,12 @@ private:
             // Construct a packet with header and partial data.
             IpBufNode data_node = dgram.toNode();
             IpBufNode header_node;
-            IpBufRef frag_pkt = pkt.subHeaderToContinuedBy(Ip4Header::Size, &data_node, pkt_send_len, &header_node);
+            IpBufRef frag_pkt = pkt.subHeaderToContinuedBy(
+                Ip4Header::Size, &data_node, pkt_send_len, &header_node);
             
             // Send the packet to the driver.
-            err = route_iface->driverSendIp4Packet(frag_pkt, route_addr, retryReq);
+            err = route_info.iface->driverSendIp4Packet(
+                frag_pkt, route_info.addr, retryReq);
             
             // If this was the last fragment or there was an error, return.
             if (!more_fragments || err != IpErr::SUCCESS) {
@@ -463,7 +408,87 @@ private:
     }
     
 public:
-    bool routeIp4 (Ip4Addr dst_addr, Iface **route_iface, Ip4Addr *route_addr)
+    // This struct holds reusable data for sending multiple packets efficiently.
+    // It is filled in by prepareSendIp4Dgram and then used in sendIp4DgramFast.
+    // Note that it includes a pointer to an interface which could go away so it
+    // must not be cached.
+    struct Ip4SendPrepared {
+        Ip4RouteInfo route_info;
+        IpChksumAccumulator::State partial_chksum_state;
+    };
+    
+    AMBRO_ALWAYS_INLINE
+    IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto, char *header_ptr,
+                               uint16_t send_flags, Ip4SendPrepared &prep)
+    {
+        AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
+        
+        // Get routing information (fill in route_info).
+        if (AMBRO_UNLIKELY(!routeIp4(addrs.remote_addr, prep.route_info))) {
+            return IpErr::NO_IP_ROUTE;
+        }
+        
+        // Write IP header fields and calculate partial header checksum inline...
+        auto ip4_header = Ip4Header::MakeRef(header_ptr);
+        IpChksumAccumulator chksum;
+        
+        uint16_t version_ihl_dscp_ecn = (uint16_t)((4 << Ip4VersionShift) | 5) << 8;
+        chksum.addWord(APrinter::WrapType<uint16_t>(), version_ihl_dscp_ecn);
+        ip4_header.set(Ip4Header::VersionIhlDscpEcn(), version_ihl_dscp_ecn);
+        
+        chksum.addWord(APrinter::WrapType<uint16_t>(), send_flags);
+        ip4_header.set(Ip4Header::FlagsOffset(), send_flags);
+        
+        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
+        ip4_header.set(Ip4Header::TtlProto(), ttl_proto.value);
+        
+        chksum.addWords(&addrs.local_addr.data);
+        ip4_header.set(Ip4Header::SrcAddr(), addrs.local_addr);
+        
+        chksum.addWords(&addrs.remote_addr.data);
+        ip4_header.set(Ip4Header::DstAddr(), addrs.remote_addr);
+        
+        // Save the partial header checksum.
+        prep.partial_chksum_state = chksum.getState();
+        
+        return IpErr::SUCCESS;
+    }
+    
+    AMBRO_ALWAYS_INLINE
+    IpErr sendIp4DgramFast (Ip4SendPrepared const &prep, IpBufRef dgram,
+                            IpSendRetry::Request *retryReq)
+    {
+        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
+        
+        // Reveal IP header.
+        IpBufRef pkt = dgram.revealHeaderMust(Ip4Header::Size);
+        
+        // This function does not support fragmentation.
+        if (AMBRO_UNLIKELY(pkt.tot_len > prep.route_info.iface->getMtu())) {
+            return IpErr::FRAG_NEEDED;
+        }
+        
+        // Write remaining IP header fields and continue calculating header checksum...
+        auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
+        IpChksumAccumulator chksum(prep.partial_chksum_state);
+        
+        chksum.addWord(APrinter::WrapType<uint16_t>(), pkt.tot_len);
+        ip4_header.set(Ip4Header::TotalLen(), pkt.tot_len);
+        
+        uint16_t ident = m_next_id++; // generate identification number
+        chksum.addWord(APrinter::WrapType<uint16_t>(), ident);
+        ip4_header.set(Ip4Header::Ident(), ident);
+        
+        // Set the IP header checksum.
+        ip4_header.set(Ip4Header::HeaderChksum(), chksum.getChksum());
+        
+        // Send the packet to the driver.
+        return prep.route_info.iface->driverSendIp4Packet(
+            pkt, prep.route_info.addr, retryReq);
+    }
+    
+    bool routeIp4 (Ip4Addr dst_addr, Ip4RouteInfo &route_info)
     {
         // Look for an interface where dst_addr is inside the local subnet
         // (and in case of multiple matches find a most specific one).
@@ -490,13 +515,13 @@ public:
             return false;
         }
         
-        *route_iface = best_iface;
-        *route_addr = (best_prefix >= 0) ? dst_addr : best_iface->m_gateway;
+        route_info.iface = best_iface;
+        route_info.addr = (best_prefix >= 0) ? dst_addr : best_iface->m_gateway;
         
         return true;
     }
     
-    bool routeIp4ForceIface (Ip4Addr dst_addr, Iface *force_iface, Iface **route_iface, Ip4Addr *route_addr)
+    bool routeIp4ForceIface (Ip4Addr dst_addr, Iface *force_iface, Ip4RouteInfo &route_info)
     {
         AMBRO_ASSERT(force_iface != nullptr)
         
@@ -504,15 +529,15 @@ public:
         // interface is considered and we also allow the all-ones broadcast address.
         
         if (dst_addr == Ip4Addr::AllOnesAddr() || force_iface->ip4AddrIsLocal(dst_addr)) {
-            *route_addr = dst_addr;
+            route_info.addr = dst_addr;
         }
         else if (force_iface->m_have_gateway) {
-            *route_addr = force_iface->m_gateway;
+            route_info.addr = force_iface->m_gateway;
         }
         else {
             return false;
         }
-        *route_iface = force_iface;
+        route_info.iface = force_iface;
         return true;
     }
     
@@ -521,10 +546,10 @@ public:
         return m_path_mtu_cache.handleIcmpPacketTooBig(remote_addr, mtu_info);
     }
     
-    static bool checkUnicastSrcAddr (Ip4DgramMeta const &ip_meta)
+    static bool checkUnicastSrcAddr (Ip4RxInfo const &ip_info)
     {
-        return !ip_meta.src_addr.isBroadcastOrMulticast() &&
-               !ip_meta.iface->ip4AddrIsLocalBcast(ip_meta.src_addr);
+        return !ip_info.src_addr.isBroadcastOrMulticast() &&
+               !ip_info.iface->ip4AddrIsLocalBcast(ip_info.src_addr);
     }
     
     class IfaceListener {
@@ -550,7 +575,7 @@ public:
         }
         
     private:
-        virtual bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) = 0;
+        virtual bool recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram) = 0;
         
     private:
         APrinter::LinkedListNode<IfaceListenerLinkModel> m_list_node;
@@ -842,18 +867,17 @@ private:
         uint16_t ttl_proto = ip4_header.get(Ip4Header::TtlProto());
         chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto);
         
-        // Create the datagram meta-info struct.
-        Ip4DgramMeta const meta = {
+        // Create the Ip4RxInfo struct.
+        Ip4RxInfo const ip_info = {
             ip4_header.get(Ip4Header::SrcAddr()),
             ip4_header.get(Ip4Header::DstAddr()),
-            (uint8_t)(ttl_proto >> 8), // ttl
-            (uint8_t)ttl_proto, // protocol
+            ttl_proto,
             iface
         };
         
         // Add source and destination address to checksum.
-        chksum.addWords(&meta.src_addr.data);
-        chksum.addWords(&meta.dst_addr.data);
+        chksum.addWords(&ip_info.src_addr.data);
+        chksum.addWords(&ip_info.dst_addr.data);
         
         // Get flags+offset and add to checksum.
         uint16_t flags_offset = ip4_header.get(Ip4Header::FlagsOffset());
@@ -871,7 +895,7 @@ private:
             // our reassembly buffers with irrelevant packets. Note that
             // we don't check this for non-fragmented packets for
             // performance reasons, it generally up to protocol handlers.
-            if (!meta.iface->ip4AddrIsLocalAddr(meta.dst_addr)) {
+            if (!ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr)) {
                 return;
             }
             
@@ -881,8 +905,9 @@ private:
             
             // Perform reassembly.
             if (!m_reassembly.reassembleIp4(ip4_header.get(Ip4Header::Ident()),
-                meta.src_addr, meta.dst_addr, meta.proto, meta.ttl,
-                more_fragments, fragment_offset, ip4_header.data, header_len, dgram))
+                ip_info.src_addr, ip_info.dst_addr, ip_info.ttl_proto.proto(),
+                ip_info.ttl_proto.ttl(), more_fragments, fragment_offset, ip4_header.data,
+                header_len, dgram))
             {
                 return;
             }
@@ -892,13 +917,13 @@ private:
         
         // Do the real processing now that the datagram is complete and
         // sanity checked.
-        recvIp4Dgram(meta, dgram);
+        recvIp4Dgram(ip_info, dgram);
     }
     
-    void recvIp4Dgram (Ip4DgramMeta const &meta, IpBufRef dgram)
+    void recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram)
     {
-        Iface *iface = meta.iface;
-        uint8_t proto = meta.proto;
+        Iface *iface = ip_info.iface;
+        uint8_t proto = ip_info.ttl_proto.proto();
         
         // Pass to interface listeners. If any listener accepts the
         // packet, inhibit further processing.
@@ -906,7 +931,7 @@ private:
              lis != nullptr; lis = iface->m_listeners_list.next(*lis))
         {
             if (lis->m_proto == proto) {
-                if (AMBRO_UNLIKELY(lis->recvIp4Dgram(meta, dgram))) {
+                if (AMBRO_UNLIKELY(lis->recvIp4Dgram(ip_info, dgram))) {
                     return;
                 }
             }
@@ -915,7 +940,7 @@ private:
         // Handle using a protocol listener if existing.
         bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             if (proto == Helper::IpProtocolNumber::Value) {
-                Helper::get(this)->recvIp4Dgram(meta, dgram);
+                Helper::get(this)->recvIp4Dgram(ip_info, dgram);
                 return false;
             }
             return true;
@@ -927,23 +952,23 @@ private:
         
         // Handle ICMP packets.
         if (proto == Ip4ProtocolIcmp) {
-            return recvIcmp4Dgram(meta, dgram);
+            return recvIcmp4Dgram(ip_info, dgram);
         }
     }
     
-    void recvIcmp4Dgram (Ip4DgramMeta const &meta, IpBufRef const &dgram)
+    void recvIcmp4Dgram (Ip4RxInfo const &ip_info, IpBufRef const &dgram)
     {
         // Sanity check source address - reject broadcast addresses.
-        if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(meta))) {
+        if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(ip_info))) {
             return;
         }
         
         // Check destination address.
         // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
         if (AMBRO_UNLIKELY(
-            !meta.iface->ip4AddrIsLocalAddr(meta.dst_addr) &&
-            !meta.iface->ip4AddrIsLocalBcast(meta.dst_addr) &&
-            meta.dst_addr != Ip4Addr::AllOnesAddr()))
+            !ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr) &&
+            !ip_info.iface->ip4AddrIsLocalBcast(ip_info.dst_addr) &&
+            ip_info.dst_addr != Ip4Addr::AllOnesAddr()))
         {
             return;
         }
@@ -971,10 +996,10 @@ private:
         
         if (type == Icmp4TypeEchoRequest) {
             // Got echo request, send echo reply.
-            sendIcmp4EchoReply(rest, icmp_data, meta.src_addr, meta.iface);
+            sendIcmp4EchoReply(rest, icmp_data, ip_info.src_addr, ip_info.iface);
         }
         else if (type == Icmp4TypeDestUnreach) {
-            handleIcmp4DestUnreach(code, rest, icmp_data, meta.iface);
+            handleIcmp4DestUnreach(code, rest, icmp_data, ip_info.iface);
         }
     }
     
@@ -1005,8 +1030,8 @@ private:
         icmp4_header.set(Icmp4Header::Chksum(), calc_chksum);
         
         // Send the datagram.
-        Ip4DgramMeta meta = {iface->m_addr.addr, dst_addr, IcmpTTL, Ip4ProtocolIcmp, iface};
-        sendIp4Dgram(meta, dgram);
+        Ip4Addrs addrs{iface->m_addr.addr, dst_addr};
+        sendIp4Dgram(addrs, {IcmpTTL, Ip4ProtocolIcmp}, dgram, iface, nullptr, 0);
     }
     
     void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef const &icmp_data, Iface *iface)
@@ -1044,10 +1069,8 @@ private:
         // Create the Ip4DestUnreachMeta struct.
         Ip4DestUnreachMeta du_meta = {code, rest};
         
-        // Create the datagram meta-info struct.
-        uint8_t ttl = ttl_proto >> 8;
-        uint8_t proto = ttl_proto;
-        Ip4DgramMeta ip_meta = {src_addr, dst_addr, ttl, proto, iface};
+        // Create the Ip4RxInfo struct.
+        Ip4RxInfo ip_info = {src_addr, dst_addr, ttl_proto, iface};
         
         // Get the included IP data.
         size_t data_len = APrinter::MinValueU(icmp_data.tot_len, total_len) - header_len;
@@ -1055,8 +1078,8 @@ private:
         
         // Dispatch based on the protocol.
         APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
-            if (ip_meta.proto == Helper::IpProtocolNumber::Value) {
-                Helper::get(this)->handleIp4DestUnreach(du_meta, ip_meta, dgram_initial);
+            if (ip_info.ttl_proto.proto() == Helper::IpProtocolNumber::Value) {
+                Helper::get(this)->handleIp4DestUnreach(du_meta, ip_info, dgram_initial);
                 return false;
             }
             return true;

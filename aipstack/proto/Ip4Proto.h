@@ -62,7 +62,7 @@ static uint8_t const Ip4ProtocolUdp  = 17;
 // be able to receive either in one piece or in fragments (RFC 791 page 25).
 static uint16_t const Ip4RequiredRecvSize = 576;
 
-static uint16_t Ip4RoundFragMength (uint8_t header_length, uint16_t mtu)
+static uint16_t Ip4RoundFragLen (uint8_t header_length, uint16_t mtu)
 {
     return header_length + (((mtu - header_length) / 8) * 8);
 }

@@ -111,7 +111,7 @@ class IpDhcpClient :
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
-    APRINTER_USE_TYPES1(IpStack, (Ip4DgramMeta, Iface, IfaceListener, IfaceStateObserver))
+    APRINTER_USE_TYPES1(IpStack, (Ip4RxInfo, Iface, IfaceListener, IfaceStateObserver))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_TYPES2(IpDhcpClientCallback, (LeaseEventType))
     APRINTER_USE_ONEOF
@@ -580,7 +580,7 @@ private:
         handle_dhcp_down(true);
     }
     
-    bool recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram) override final
+    bool recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram) override final
     {
         {
             // Check that there is a UDP header.
@@ -599,7 +599,7 @@ private:
             }
             
             // Sanity check source address - reject broadcast addresses.
-            if (AMBRO_UNLIKELY(!IpStack::checkUnicastSrcAddr(ip_meta))) {
+            if (AMBRO_UNLIKELY(!IpStack::checkUnicastSrcAddr(ip_info))) {
                 goto accept;
             }
             
@@ -616,8 +616,8 @@ private:
             uint16_t checksum = udp_header.get(Udp4Header::Checksum());
             if (checksum != 0) {
                 IpChksumAccumulator chksum_accum;
-                chksum_accum.addWords(&ip_meta.src_addr.data);
-                chksum_accum.addWords(&ip_meta.dst_addr.data);
+                chksum_accum.addWords(&ip_info.src_addr.data);
+                chksum_accum.addWords(&ip_info.dst_addr.data);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
                 chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
                 if (chksum_accum.getChksum(udp_data) != 0) {
@@ -627,7 +627,7 @@ private:
             
             // Process the DHCP payload.
             IpBufRef dhcp_msg = udp_data.hideHeader(Udp4Header::Size);
-            processReceivedDhcpMessage(ip_meta.src_addr, dhcp_msg);
+            processReceivedDhcpMessage(ip_info.src_addr, dhcp_msg);
         }
         
     accept:
@@ -1145,20 +1145,11 @@ private:
         dgram_alloc.changeSize(udp_length);
         IpBufRef dgram = dgram_alloc.getBufRef();
         
-        // Define information for IP.
-        Ip4DgramMeta ip_meta = {
-            ciaddr,                 // src_addr
-            dst_addr,               // dst_addr
-            DhcpTTL,                // ttl
-            Ip4ProtocolUdp,         // proto
-            iface(),                // iface
-        };
-        
         // Calculate UDP checksum.
         IpChksumAccumulator chksum_accum;
-        chksum_accum.addWords(&ip_meta.src_addr.data);
-        chksum_accum.addWords(&ip_meta.dst_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), ip_meta.proto);
+        chksum_accum.addWords(&ciaddr.data);
+        chksum_accum.addWords(&dst_addr.data);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
         uint16_t checksum = chksum_accum.getChksum(dgram);
         if (checksum == 0) {
@@ -1167,7 +1158,8 @@ private:
         udp_header.set(Udp4Header::Checksum(), checksum);
         
         // Send the datagram.
-        m_ipstack->sendIp4Dgram(ip_meta, dgram, this);
+        Ip4Addrs addrs{ciaddr, dst_addr};
+        m_ipstack->sendIp4Dgram(addrs, {DhcpTTL, Ip4ProtocolUdp}, dgram, iface(), this, 0);
     }
     
     void new_xid ()

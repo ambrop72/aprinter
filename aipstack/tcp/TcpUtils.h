@@ -322,9 +322,16 @@ public:
     }
     
     // Lookup key for TCP PCBs
-    struct PcbKey {
-        Ip4Addr local_addr;
-        Ip4Addr remote_addr;
+    struct PcbKey : public Ip4Addrs {
+        PcbKey () = default;
+        
+        inline PcbKey (Ip4Addr local_addr_, Ip4Addr remote_addr_,
+                       PortType local_port_, PortType remote_port_)
+        : Ip4Addrs{local_addr_, remote_addr_},
+          local_port(local_port_), remote_port(remote_port_)
+        {
+        }
+        
         PortType local_port;
         PortType remote_port;
     };

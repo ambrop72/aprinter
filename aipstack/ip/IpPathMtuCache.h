@@ -64,7 +64,7 @@ class IpPathMtuCache :
     
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
-    APRINTER_USE_TYPES1(IpStack, (Iface))
+    APRINTER_USE_TYPES1(IpStack, (Iface, Ip4RouteInfo))
     APRINTER_USE_VALS(IpStack, (MinMTU))
     APRINTER_USE_ONEOF
     
@@ -324,10 +324,11 @@ public:
                 
                 // If no interface is provided, find the interface for the initial PMTU.
                 if (iface == nullptr) {
-                    Ip4Addr route_addr;
-                    if (!cache->m_ip_stack->routeIp4(remote_addr, &iface, &route_addr)) {
+                    Ip4RouteInfo route_info;
+                    if (!cache->m_ip_stack->routeIp4(remote_addr, route_info)) {
                         return false;
                     }
+                    iface = route_info.iface;
                 }
                 
                 // Get an MtuEntry from the free list.
@@ -480,13 +481,12 @@ private:
         mtu_entry.minutes_old = 1;
         
         // Find the route to the destination.
-        Iface *iface;
-        Ip4Addr route_addr;
-        if (!m_ip_stack->routeIp4(mtu_entry.remote_addr, &iface, &route_addr)) {
+        Ip4RouteInfo route_info;
+        if (!m_ip_stack->routeIp4(mtu_entry.remote_addr, route_info)) {
             // Couldn't find an interface, will try again next timeout.
         } else {
             // Reset the PMTU to that of the interface.
-            mtu_entry.mtu = iface->getMtu();
+            mtu_entry.mtu = route_info.iface->getMtu();
             
             // Notify all MtuRef referencing this entry.
             notify_pmtu_changed(mtu_entry);

@@ -55,17 +55,17 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
                                  state_is_synsent_synrcvd, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpListener, TcpConnection,
+    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4RxInfo, TcpListener, TcpConnection,
                                    TcpPcb, PcbFlags, Output, Constants, AbrtTimer, RtxTimer,
                                    OutputTimer, TheIpStack))
     APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
     APRINTER_USE_ONEOF
     
 public:
-    static void recvIp4Dgram (TcpProto *tcp, Ip4DgramMeta const &ip_meta, IpBufRef dgram)
+    static void recvIp4Dgram (TcpProto *tcp, Ip4RxInfo const &ip_info, IpBufRef dgram)
     {
         // The destination address must be the address of the incoming interface.
-        if (AMBRO_UNLIKELY(!ip_meta.iface->ip4AddrIsLocalAddr(ip_meta.dst_addr))) {
+        if (AMBRO_UNLIKELY(!ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
             return;
         }
         
@@ -87,8 +87,8 @@ public:
         
         // Check TCP checksum.
         IpChksumAccumulator chksum_accum;
-        chksum_accum.addWords(&ip_meta.src_addr.data);
-        chksum_accum.addWords(&ip_meta.dst_addr.data);
+        chksum_accum.addWords(&ip_info.src_addr.data);
+        chksum_accum.addWords(&ip_info.dst_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         if (AMBRO_UNLIKELY(chksum_accum.getChksum(dgram) != 0)) {
@@ -118,7 +118,7 @@ public:
         tcp_data.skipBytes(opts_len);
         
         // Try to handle using a PCB.
-        TcpPcb *pcb = tcp->find_pcb({ip_meta.dst_addr, ip_meta.src_addr,
+        TcpPcb *pcb = tcp->find_pcb({ip_info.dst_addr, ip_info.src_addr,
                                      tcp_meta.local_port, tcp_meta.remote_port});
         if (AMBRO_LIKELY(pcb != nullptr)) {
             pcb_input(tcp, pcb, tcp_meta, tcp_data);
@@ -131,24 +131,24 @@ public:
         // minor detail that the original check might have been against
         // a different subnet broadcast address but we prefer speed to
         // completeness of this check.
-        if (AMBRO_UNLIKELY(!TheIpStack::checkUnicastSrcAddr(ip_meta))) {
+        if (AMBRO_UNLIKELY(!TheIpStack::checkUnicastSrcAddr(ip_info))) {
             return;
         }
         
         // Try to handle using a listener.
-        TcpListener *lis = tcp->find_listener_for_rx(ip_meta.dst_addr, tcp_meta.local_port);
+        TcpListener *lis = tcp->find_listener_for_rx(ip_info.dst_addr, tcp_meta.local_port);
         if (lis != nullptr) {
-            return listen_input(lis, ip_meta, tcp_meta, tcp_data.tot_len);
+            return listen_input(lis, ip_info, tcp_meta, tcp_data.tot_len);
         }
         
         // Reply with RST, unless this is an RST.
         if ((tcp_meta.flags & Tcp4FlagRst) == 0) {
-            Output::send_rst_reply(tcp, ip_meta, tcp_meta, tcp_data.tot_len);
+            Output::send_rst_reply(tcp, ip_info, tcp_meta, tcp_data.tot_len);
         }
     }
     
     static void handleIp4DestUnreach (TcpProto *tcp, Ip4DestUnreachMeta const &du_meta,
-                                Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
+                                Ip4RxInfo const &ip_info, IpBufRef const &dgram_initial)
     {
         // We only care about ICMP code "fragmentation needed and DF set".
         if (du_meta.icmp_code != Icmp4CodeDestUnreachFragNeeded) {
@@ -170,7 +170,7 @@ public:
         SeqType seq_num      = tcp_header.get(Tcp4Header::SeqNum());
         
         // Look for a PCB associated with these addresses.
-        TcpPcb *pcb = tcp->find_pcb({ip_meta.src_addr, ip_meta.dst_addr,
+        TcpPcb *pcb = tcp->find_pcb({ip_info.src_addr, ip_info.dst_addr,
                                      local_port, remote_port});
         if (pcb == nullptr) {
             return;
@@ -343,8 +343,8 @@ public:
         // pcb_input_syn_sent_rcvd_processing because it must imply pcb->con != nullptr.
         pcb->setFlag(PcbFlags::RCV_WND_UPD);
         
-        // Update snd_mss and IpSendFlags::DontFragmentFlag now that we have an updated
-        // base_snd_mss (SYN_SENT) or the mss_ref has been setup (SYN_RCVD).
+        // Update snd_mss now that we have an updated base_snd_mss (SYN_SENT) or
+        // the mss_ref has been setup (SYN_RCVD).
         pcb->snd_mss = Output::pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // Read the snd_wnd which was temporarily stuffed to snd_una
@@ -362,7 +362,7 @@ public:
     }
     
 private:
-    static void listen_input (TcpListener *lis, Ip4DgramMeta const &ip_meta,
+    static void listen_input (TcpListener *lis, Ip4RxInfo const &ip_info,
                               TcpSegMeta const &tcp_meta, size_t tcp_data_len)
     {
         do {
@@ -383,7 +383,7 @@ private:
             }
             
             // Calculate the MSS based on the interface MTU.
-            uint16_t iface_mss = ip_meta.iface->getMtu() - Ip4TcpHeaderSize;
+            uint16_t iface_mss = ip_info.iface->getMtu() - Ip4TcpHeaderSize;
             
             TcpProto *tcp = lis->m_tcp;
             
@@ -419,8 +419,8 @@ private:
             pcb->state = TcpState::SYN_RCVD;
             pcb->flags = 0;
             pcb->lis = lis;
-            pcb->local_addr = ip_meta.dst_addr;
-            pcb->remote_addr = ip_meta.src_addr;
+            pcb->local_addr = ip_info.dst_addr;
+            pcb->remote_addr = ip_info.src_addr;
             pcb->local_port = tcp_meta.local_port;
             pcb->remote_port = tcp_meta.remote_port;
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
@@ -471,7 +471,7 @@ private:
         
     refuse:
         // Refuse connection by RST.
-        Output::send_rst_reply(lis->m_tcp, ip_meta, tcp_meta, tcp_data_len);
+        Output::send_rst_reply(lis->m_tcp, ip_info, tcp_meta, tcp_data_len);
     }
     
     static void pcb_input (TcpProto *tcp, TcpPcb *pcb, TcpSegMeta const &tcp_meta,
@@ -591,9 +591,7 @@ private:
             // We require that the ACK acknowledges the SYN. We must also
             // check that we have event sent the SYN (snd_nxt).
             if (pcb->snd_nxt == pcb->snd_una || tcp_meta.ack_num != pcb->snd_nxt) {
-                Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                                 pcb->local_port, pcb->remote_port,
-                                 tcp_meta.ack_num, false, 0);
+                Output::send_rst(pcb->tcp, *pcb, tcp_meta.ack_num, false, 0);
                 return false;
             }
             
@@ -738,9 +736,8 @@ private:
                 } else {
                     // SYN without ACK, we do not support this yet, send RST.
                     size_t seqlen = tcplen(tcp_meta.flags, tcp_data.tot_len);
-                    Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                            pcb->local_port, pcb->remote_port,
-                            0, true, seq_add(tcp_meta.seq_num, seqlen));
+                    Output::send_rst(pcb->tcp, *pcb, 0, true,
+                                     seq_add(tcp_meta.seq_num, seqlen));
                 }
             } else {
                 // Handle SYN as per RFC 5961.
@@ -794,9 +791,7 @@ private:
         // RFC 793 seems to allow ack_num==snd_una which doesn't make sense.
         // Note that in SYN_SENT, acked is always one here.
         else if (acked == 0) {
-            Output::send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                             pcb->local_port, pcb->remote_port,
-                             tcp_meta.ack_num, false, 0);
+            Output::send_rst(pcb->tcp, *pcb, tcp_meta.ack_num, false, 0);
             proceed = false;
         }
         // If in SYN_SENT a SYN is not received, drop the segment silently.

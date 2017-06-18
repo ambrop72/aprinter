@@ -51,9 +51,9 @@ class IpTcpProto_output
                                    OptionFlags, TcpOptions))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
                                  can_output_in_state, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4DgramMeta, TcpPcb, PcbFlags, Input, Clock,
+    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4RxInfo, TcpPcb, PcbFlags, Input, Clock,
                                    TimeType, RttType, RttNextType, Constants, OutputTimer,
-                                   RtxTimer, TheIpStack, MtuRef, TcpConnection))
+                                   RtxTimer, TheIpStack, MtuRef, TcpConnection, PcbKey))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -66,6 +66,7 @@ public:
     }
     
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
+    APRINTER_NO_INLINE
     static void pcb_send_syn (TcpPcb *pcb)
     {
         AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
@@ -92,10 +93,8 @@ public:
             ((pcb->state == TcpState::SYN_RCVD) ? Tcp4FlagAck : 0);
         
         // Send the segment.
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una,
-                               pcb->rcv_nxt, window_size, flags, &tcp_opts};
-        IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr,
-                                    pcb->remote_addr, tcp_meta, pcb);
+        IpErr err = send_tcp_nodata(pcb->tcp, *pcb, pcb->snd_una, pcb->rcv_nxt,
+                                    window_size, flags, &tcp_opts, pcb);
         
         if (err == IpErr::SUCCESS) {
             // Have we sent the SYN for the first time?
@@ -113,15 +112,15 @@ public:
     }
     
     // Send an empty ACK (which may be a window update).
+    APRINTER_NO_INLINE
     static void pcb_send_empty_ack (TcpPcb *pcb)
     {
         // Get the window size value.
         uint16_t window_size = Input::pcb_ann_wnd(pcb);
         
         // Send it.
-        TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_nxt,
-                               pcb->rcv_nxt, window_size, Tcp4FlagAck};
-        send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr, tcp_meta, pcb);
+        send_tcp_nodata(pcb->tcp, *pcb, pcb->snd_nxt, pcb->rcv_nxt, window_size,
+                        Tcp4FlagAck, nullptr, pcb);
     }
     
     // Send an RST for this PCB.
@@ -129,9 +128,7 @@ public:
     {
         bool ack = pcb->state != TcpState::SYN_SENT;
         
-        send_rst(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                 pcb->local_port, pcb->remote_port,
-                 pcb->snd_nxt, ack, pcb->rcv_nxt);
+        send_rst(pcb->tcp, *pcb, pcb->snd_nxt, ack, pcb->rcv_nxt);
     }
     
     static void pcb_need_ack (TcpPcb *pcb)
@@ -412,10 +409,8 @@ public:
             // Send a FIN segment.
             uint16_t window_size = Input::pcb_ann_wnd(pcb);
             FlagsType flags = Tcp4FlagAck|Tcp4FlagFin|Tcp4FlagPsh;
-            TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una,
-                                   pcb->rcv_nxt, window_size, flags, nullptr};
-            IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr,
-                                        tcp_meta, pcb);
+            IpErr err = send_tcp_nodata(pcb->tcp, *pcb, pcb->snd_una, pcb->rcv_nxt,
+                                        window_size, flags, nullptr, pcb);
             
             // On success take note of what was sent.
             if (AMBRO_LIKELY(err == IpErr::SUCCESS)) {
@@ -985,7 +980,7 @@ public:
     // Send an RST as a reply to a received segment.
     // This conforms to RFC 793 handling of segments not belonging to a known
     // connection.
-    static void send_rst_reply (TcpProto *tcp, Ip4DgramMeta const &ip_meta,
+    static void send_rst_reply (TcpProto *tcp, Ip4RxInfo const &ip_info,
                                 TcpSegMeta const &tcp_meta, size_t tcp_data_len)
     {
         SeqType rst_seq_num;
@@ -1001,18 +996,17 @@ public:
             rst_ack_num = tcp_meta.seq_num + tcplen(tcp_meta.flags, tcp_data_len);
         }
         
-        send_rst(tcp, ip_meta.dst_addr, ip_meta.src_addr,
-                 tcp_meta.local_port, tcp_meta.remote_port,
-                 rst_seq_num, rst_ack, rst_ack_num);
+        PcbKey key{ip_info.dst_addr, ip_info.src_addr,
+                   tcp_meta.local_port, tcp_meta.remote_port};
+        send_rst(tcp, key, rst_seq_num, rst_ack, rst_ack_num);
     }
     
-    static void send_rst (TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-                          PortType local_port, PortType remote_port,
+    APRINTER_NO_INLINE
+    static void send_rst (TcpProto *tcp, PcbKey const &key,
                           SeqType seq_num, bool ack, SeqType ack_num)
     {
         FlagsType flags = Tcp4FlagRst | (ack ? Tcp4FlagAck : 0);
-        TcpSegMeta tcp_meta = {local_port, remote_port, seq_num, ack_num, 0, flags};
-        send_tcp_nodata(tcp, local_addr, remote_addr, tcp_meta, nullptr);
+        send_tcp_nodata(tcp, key, seq_num, ack_num, 0, flags, nullptr, nullptr);
     }
     
 private:
@@ -1188,8 +1182,8 @@ private:
     class PcbOutputHelper {
     private:
         bool prepared;
-        typename IpChksumAccumulator::State partial_chksum_state;
-        typename TheIpStack::Ip4SendRouteInfo route_info;
+        IpChksumAccumulator::State partial_chksum_state;
+        typename TheIpStack::Ip4SendPrepared ip_prep;
         TxAllocHelper<Tcp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc;
         
     public:
@@ -1249,28 +1243,14 @@ private:
             IpBufRef dgram = dgram_alloc.getBufRef();
             
             // Send it.
-            return pcb->tcp->m_stack->sendIp4DgramFast(pcb->local_addr, pcb->remote_addr,
-                TcpProto::TcpTTL, Ip4ProtocolTcp, dgram, pcb, Constants::TcpIpSendFlags,
-                &route_info);
+            return pcb->tcp->m_stack->sendIp4DgramFast(ip_prep, dgram, pcb);
         }
         
     private:
         IpErr prepareCommon (TcpPcb *pcb)
         {
-            // Get the route information.
-            bool route_ok = pcb->tcp->m_stack->routeIp4(
-                pcb->remote_addr, &route_info.route_iface, &route_info.route_addr);
-            if (AMBRO_UNLIKELY(!route_ok)) {
-                return IpErr::NO_IP_ROUTE;
-            }
-            
             // We will calculate part of the checksum.
             IpChksumAccumulator chksum;
-            
-            // Add known pseudo-header fields to checksum.
-            chksum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
-            chksum.addWords(&pcb->local_addr.data);
-            chksum.addWords(&pcb->remote_addr.data);
             
             // Write known TCP header fields...
             auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
@@ -1295,21 +1275,37 @@ private:
             // Urgent pointer
             tcp_header.set(Tcp4Header::UrgentPtr(), 0);
             
+            // Add known pseudo-header fields to checksum.
+            chksum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+            chksum.addWords(&pcb->local_addr.data);
+            chksum.addWords(&pcb->remote_addr.data);
+            
             // Store the state of the partial checksum.
             partial_chksum_state = chksum.getState();
             
+            // Perform IP level preparation.
+            IpErr err = pcb->tcp->m_stack->prepareSendIp4Dgram(
+                *pcb, {TcpProto::TcpTTL, Ip4ProtocolTcp},
+                dgram_alloc.getPtr() - Ip4Header::Size, Constants::TcpIpSendFlags,
+                ip_prep);
+            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+                return err;
+            }
+            
             prepared = true;
+            
             return IpErr::SUCCESS;
         }
     };
     
+    APRINTER_NO_INLINE
     static IpErr send_tcp_nodata (
-        TcpProto *tcp, Ip4Addr local_addr, Ip4Addr remote_addr,
-        TcpSegMeta const &tcp_meta, IpSendRetry::Request *retryReq)
+        TcpProto *tcp, PcbKey const &key, SeqType seq_num, SeqType ack_num,
+        uint16_t window_size, FlagsType flags, TcpOptions *opts,
+        IpSendRetry::Request *retryReq)
     {
         // Compute length of TCP options.
-        uint8_t opts_len = (tcp_meta.opts != nullptr) ?
-            TcpUtils::calc_options_len(*tcp_meta.opts) : 0;
+        uint8_t opts_len = (opts != nullptr) ? TcpUtils::calc_options_len(*opts) : 0;
         
         // Allocate memory for headers.
         TxAllocHelper<Tcp4Header::Size+TcpUtils::MaxOptionsWriteLen, HeaderBeforeIp4Dgram>
@@ -1317,7 +1313,7 @@ private:
         
         // Caculate the offset+flags field.
         FlagsType offset_flags =
-            ((FlagsType)(5+opts_len/4) << TcpOffsetShift) | tcp_meta.flags;
+            ((FlagsType)(5+opts_len/4) << TcpOffsetShift) | flags;
         
         // The header parts of the checksum will be calculated inline.
         IpChksumAccumulator chksum_accum;
@@ -1329,38 +1325,37 @@ private:
         // Write the TCP header...
         auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
         
-        tcp_header.set(Tcp4Header::SrcPort(),     tcp_meta.local_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(),tcp_meta.local_port);
+        tcp_header.set(Tcp4Header::SrcPort(),     key.local_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), key.local_port);
         
-        tcp_header.set(Tcp4Header::DstPort(),     tcp_meta.remote_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), tcp_meta.remote_port);
+        tcp_header.set(Tcp4Header::DstPort(),     key.remote_port);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), key.remote_port);
         
-        tcp_header.set(Tcp4Header::SeqNum(),      tcp_meta.seq_num);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), tcp_meta.seq_num);
+        tcp_header.set(Tcp4Header::SeqNum(),      seq_num);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
         
-        tcp_header.set(Tcp4Header::AckNum(),      tcp_meta.ack_num);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), tcp_meta.ack_num);
+        tcp_header.set(Tcp4Header::AckNum(),      ack_num);
+        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), ack_num);
         
         tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
         
-        tcp_header.set(Tcp4Header::WindowSize(),  tcp_meta.window_size);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), tcp_meta.window_size);
+        tcp_header.set(Tcp4Header::WindowSize(),  window_size);
+        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), window_size);
         
         tcp_header.set(Tcp4Header::UrgentPtr(),   0);
         
         // Write any TCP options.
-        if (tcp_meta.opts != nullptr) {
-            TcpUtils::write_options(*tcp_meta.opts,
-                                    dgram_alloc.getPtr() + Tcp4Header::Size);
+        if (opts != nullptr) {
+            TcpUtils::write_options(*opts, dgram_alloc.getPtr() + Tcp4Header::Size);
         }
         
         // Construct the datagram reference including any data.
         IpBufRef dgram = dgram_alloc.getBufRef();
         
         // Add remaining pseudo-header to checksum (protocol was added above).
-        chksum_accum.addWords(&local_addr.data);
-        chksum_accum.addWords(&remote_addr.data);
+        chksum_accum.addWords(&key.local_addr.data);
+        chksum_accum.addWords(&key.remote_addr.data);
         chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
         
         // Complete and write checksum.
@@ -1368,8 +1363,8 @@ private:
         tcp_header.set(Tcp4Header::Checksum(), calc_chksum);
         
         // Send the datagram.
-        return tcp->m_stack->sendIp4DgramFast(local_addr, remote_addr, TcpProto::TcpTTL,
-            Ip4ProtocolTcp, dgram, retryReq, Constants::TcpIpSendFlags, nullptr);
+        return tcp->m_stack->sendIp4Dgram(key, {TcpProto::TcpTTL, Ip4ProtocolTcp}, dgram,
+                                          nullptr, retryReq, Constants::TcpIpSendFlags);
     }
 };
 

@@ -202,6 +202,11 @@ public:
     }
 };
 
+struct Ip4Addrs {
+    Ip4Addr local_addr;
+    Ip4Addr remote_addr;
+};
+
 #include <aipstack/EndNamespace.h>
 
 #endif

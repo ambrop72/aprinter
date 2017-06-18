@@ -78,7 +78,7 @@ class IpTcpProto
     APRINTER_USE_TYPE1(Clock, TimeType)
     APRINTER_USE_ONEOF
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4DgramMeta, Iface, MtuRef))
+    APRINTER_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef))
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
@@ -413,15 +413,15 @@ public:
         }
     }
     
-    inline void recvIp4Dgram (Ip4DgramMeta const &ip_meta, IpBufRef dgram)
+    inline void recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram)
     {
-        Input::recvIp4Dgram(this, ip_meta, dgram);
+        Input::recvIp4Dgram(this, ip_info, dgram);
     }
     
     inline void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                Ip4DgramMeta const &ip_meta, IpBufRef const &dgram_initial)
+                Ip4RxInfo const &ip_info, IpBufRef const &dgram_initial)
     {
-        Input::handleIp4DestUnreach(this, du_meta, ip_meta, dgram_initial);
+        Input::handleIp4DestUnreach(this, du_meta, ip_info, dgram_initial);
     }
     
 private:
@@ -735,14 +735,14 @@ private:
         AMBRO_ASSERT(out_pcb != nullptr)
         
         // Determine the local interface.
+        Ip4RouteInfo route_info;
         Iface *iface;
-        Ip4Addr route_addr;
-        if (!m_stack->routeIp4(remote_addr, &iface, &route_addr)) {
+        if (!m_stack->routeIp4(remote_addr, route_info)) {
             return IpErr::NO_IP_ROUTE;
         }
         
         // Determine the local IP address.
-        IpIfaceIp4AddrSetting addr_setting = iface->getIp4Addr();
+        IpIfaceIp4AddrSetting addr_setting = route_info.iface->getIp4Addr();
         if (!addr_setting.present) {
             return IpErr::NO_IP_ROUTE;
         }
@@ -755,7 +755,7 @@ private:
         }
         
         // Calculate the MSS based on the interface MTU.
-        uint16_t iface_mss = iface->getMtu() - Ip4TcpHeaderSize;
+        uint16_t iface_mss = route_info.iface->getMtu() - Ip4TcpHeaderSize;
         
         // Allocate the PCB.
         TcpPcb *pcb = allocate_pcb();
