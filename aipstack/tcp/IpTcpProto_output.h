@@ -411,8 +411,9 @@ public:
         if (fin) do {
             // Send a FIN segment.
             uint16_t window_size = Input::pcb_ann_wnd(pcb);
+            FlagsType flags = Tcp4FlagAck|Tcp4FlagFin|Tcp4FlagPsh;
             TcpSegMeta tcp_meta = {pcb->local_port, pcb->remote_port, pcb->snd_una,
-                                   pcb->rcv_nxt, Tcp4FlagAck|Tcp4FlagFin|Tcp4FlagPsh};
+                                   pcb->rcv_nxt, window_size, flags, nullptr};
             IpErr err = send_tcp_nodata(pcb->tcp, pcb->local_addr, pcb->remote_addr,
                                         tcp_meta, pcb);
             
