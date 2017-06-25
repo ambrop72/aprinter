@@ -669,7 +669,7 @@ public:
         
         inline void recvIp4PacketFromDriver (IpBufRef pkt)
         {
-            m_stack->processRecvedIp4Packet(this, pkt);
+            processRecvedIp4Packet(this, pkt);
         }
         
         inline IpIfaceIp4Addrs const * getIp4AddrsFromDriver ()
@@ -736,7 +736,7 @@ public:
     };
     
 private:
-    void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
+    static void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
@@ -797,20 +797,14 @@ private:
         chksum.addWord(APrinter::WrapType<uint16_t>(), ip4_header.get(Ip4Header::HeaderChksum()));
         
         // Read TTL+protocol and add to checksum.
-        uint16_t ttl_proto = ip4_header.get(Ip4Header::TtlProto());
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto);
+        Ip4TtlProto ttl_proto = ip4_header.get(Ip4Header::TtlProto());
+        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
         
-        // Create the Ip4RxInfo struct.
-        Ip4RxInfo const ip_info = {
-            ip4_header.get(Ip4Header::SrcAddr()),
-            ip4_header.get(Ip4Header::DstAddr()),
-            ttl_proto,
-            iface
-        };
-        
-        // Add source and destination address to checksum.
-        chksum.addWords(&ip_info.src_addr.data);
-        chksum.addWords(&ip_info.dst_addr.data);
+        // Read addresses and add to checksum
+        Ip4Addr src_addr = ip4_header.get(Ip4Header::SrcAddr());
+        chksum.addWords(&src_addr.data);
+        Ip4Addr dst_addr = ip4_header.get(Ip4Header::DstAddr());
+        chksum.addWords(&dst_addr.data);
         
         // Get flags+offset and add to checksum.
         uint16_t flags_offset = ip4_header.get(Ip4Header::FlagsOffset());
@@ -828,7 +822,7 @@ private:
             // our reassembly buffers with irrelevant packets. Note that
             // we don't check this for non-fragmented packets for
             // performance reasons, it generally up to protocol handlers.
-            if (!ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr)) {
+            if (!iface->ip4AddrIsLocalAddr(dst_addr)) {
                 return;
             }
             
@@ -837,10 +831,10 @@ private:
             uint16_t fragment_offset = (flags_offset & Ip4OffsetMask) * 8;
             
             // Perform reassembly.
-            if (!m_reassembly.reassembleIp4(ip4_header.get(Ip4Header::Ident()),
-                ip_info.src_addr, ip_info.dst_addr, ip_info.ttl_proto.proto(),
-                ip_info.ttl_proto.ttl(), more_fragments, fragment_offset, ip4_header.data,
-                header_len, dgram))
+            if (!iface->m_stack->m_reassembly.reassembleIp4(
+                ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr,
+                ttl_proto.proto(), ttl_proto.ttl(), more_fragments,
+                fragment_offset, ip4_header.data, header_len, dgram))
             {
                 return;
             }
@@ -850,18 +844,17 @@ private:
         
         // Do the real processing now that the datagram is complete and
         // sanity checked.
-        recvIp4Dgram(ip_info, dgram);
+        recvIp4Dgram({src_addr, dst_addr, ttl_proto, iface}, dgram);
     }
     
-    void recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram)
+    static void recvIp4Dgram (Ip4RxInfo ip_info, IpBufRef dgram)
     {
-        Iface *iface = ip_info.iface;
         uint8_t proto = ip_info.ttl_proto.proto();
         
         // Pass to interface listeners. If any listener accepts the
         // packet, inhibit further processing.
-        for (IfaceListener *lis = iface->m_listeners_list.first();
-             lis != nullptr; lis = iface->m_listeners_list.next(*lis))
+        for (IfaceListener *lis = ip_info.iface->m_listeners_list.first();
+             lis != nullptr; lis = ip_info.iface->m_listeners_list.next(*lis))
         {
             if (lis->m_proto == proto) {
                 if (AMBRO_UNLIKELY(lis->recvIp4Dgram(ip_info, dgram))) {
@@ -873,7 +866,7 @@ private:
         // Handle using a protocol listener if existing.
         bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             if (proto == Helper::IpProtocolNumber::Value) {
-                Helper::get(this)->recvIp4Dgram(ip_info, dgram);
+                Helper::get(ip_info.iface->m_stack)->recvIp4Dgram(ip_info, dgram);
                 return false;
             }
             return true;
@@ -889,7 +882,7 @@ private:
         }
     }
     
-    void recvIcmp4Dgram (Ip4RxInfo const &ip_info, IpBufRef const &dgram)
+    static void recvIcmp4Dgram (Ip4RxInfo const &ip_info, IpBufRef const &dgram)
     {
         // Sanity check source address - reject broadcast addresses.
         if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(ip_info))) {
@@ -927,16 +920,18 @@ private:
         // Get ICMP data by hiding the ICMP header.
         IpBufRef icmp_data = dgram.hideHeader(Icmp4Header::Size);
         
+        IpStack *stack = ip_info.iface->m_stack;
+        
         if (type == Icmp4TypeEchoRequest) {
             // Got echo request, send echo reply.
-            sendIcmp4EchoReply(rest, icmp_data, ip_info.src_addr, ip_info.iface);
+            stack->sendIcmp4EchoReply(rest, icmp_data, ip_info.src_addr, ip_info.iface);
         }
         else if (type == Icmp4TypeDestUnreach) {
-            handleIcmp4DestUnreach(code, rest, icmp_data, ip_info.iface);
+            stack->handleIcmp4DestUnreach(code, rest, icmp_data, ip_info.iface);
         }
     }
     
-    void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef const &data, Ip4Addr dst_addr, Iface *iface)
+    void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
     {
         // Can only reply when we have an address assigned.
         if (!iface->m_have_addr) {
@@ -967,7 +962,7 @@ private:
         sendIp4Dgram(addrs, {IcmpTTL, Ip4ProtocolIcmp}, dgram, iface, nullptr, 0);
     }
     
-    void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef const &icmp_data, Iface *iface)
+    void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef icmp_data, Iface *iface)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!icmp_data.hasHeader(Ip4Header::Size))) {
