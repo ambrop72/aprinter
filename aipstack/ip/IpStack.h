@@ -58,48 +58,10 @@
 #include <aipstack/proto/Icmp4Proto.h>
 #include <aipstack/ip/IpReassembly.h>
 #include <aipstack/ip/IpPathMtuCache.h>
+#include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
 
 #include <aipstack/BeginNamespace.h>
-
-struct IpIfaceIp4AddrSetting {
-    bool present;
-    uint8_t prefix;
-    Ip4Addr addr;
-};
-
-struct IpIfaceIp4GatewaySetting {
-    bool present;
-    Ip4Addr addr;
-};
-
-struct IpIfaceIp4Addrs {
-    Ip4Addr addr;
-    Ip4Addr netmask;
-    Ip4Addr netaddr;
-    Ip4Addr bcastaddr;
-    uint8_t prefix;
-};
-
-struct IpIfaceDriverState {
-    bool link_up;
-};
-
-struct IpSendFlags {
-    enum : uint16_t {
-        // These are real IP flags, the bits are correct but
-        // relative to the high byte of FlagsOffset.
-        DontFragmentFlag = Ip4FlagDF,
-        
-        // Mask of all allowed flags passed to send functions.
-        AllFlags = DontFragmentFlag,
-    };
-};
-
-struct Ip4DestUnreachMeta {
-    uint8_t icmp_code;
-    Icmp4RestType icmp_rest;
-};
 
 template <typename Arg>
 class IpStack
@@ -209,35 +171,6 @@ public:
     }
     
 public:
-    // Constains TTL and protocol (directly maps to IPv4 header bits).
-    class TtlProto {
-    public:
-        uint16_t value;
-        
-    public:
-        TtlProto () = default;
-        
-        constexpr inline TtlProto (uint16_t ttl_proto)
-        : value(ttl_proto)
-        {
-        }
-        
-        constexpr inline TtlProto (uint8_t ttl, uint8_t proto)
-        : value(((uint16_t)ttl << 8) | proto)
-        {
-        }
-        
-        constexpr inline uint8_t ttl () const
-        {
-            return uint8_t(value >> 8);
-        }
-        
-        constexpr inline uint8_t proto () const
-        {
-            return uint8_t(value);
-        }
-    };
-    
     // Encapsulates route information returned by routeIp4.
     // This must not be cached because the interface could go away.
     struct Ip4RouteInfo {
@@ -249,12 +182,12 @@ public:
     struct Ip4RxInfo {
         Ip4Addr src_addr;
         Ip4Addr dst_addr;
-        TtlProto ttl_proto;
+        Ip4TtlProto ttl_proto;
         Iface *iface;
     };
     
     APRINTER_NO_INLINE
-    IpErr sendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto, IpBufRef dgram,
+    IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
                         Iface *iface, IpSendRetry::Request *retryReq, uint16_t send_flags)
     {
         AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
@@ -418,7 +351,7 @@ public:
     };
     
     AMBRO_ALWAYS_INLINE
-    IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto,
+    IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto,
                         char *header_end_ptr, uint16_t send_flags, Ip4SendPrepared &prep)
     {
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
