@@ -300,8 +300,7 @@ private:
             // the MoreFragments flag. Otherwise pkt_send_len is still correct
             // and MoreFragments still set.
             size_t rem_pkt_length = Ip4Header::Size + dgram.tot_len;
-            bool more_fragments = rem_pkt_length > route_info.iface->getMtu();
-            if (!more_fragments) {
+            if (rem_pkt_length <= route_info.iface->getMtu()) {
                 pkt_send_len = rem_pkt_length;
                 send_flags &= ~Ip4FlagMF;
             }
@@ -329,7 +328,7 @@ private:
                 frag_pkt, route_info.addr, retryReq);
             
             // If this was the last fragment or there was an error, return.
-            if (!more_fragments || err != IpErr::SUCCESS) {
+            if ((send_flags & Ip4FlagMF) == 0 || err != IpErr::SUCCESS) {
                 return err;
             }
             
