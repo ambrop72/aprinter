@@ -29,8 +29,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <type_traits>
-
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ListForEach.h>
@@ -43,7 +41,6 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/ObserverNotification.h>
@@ -105,53 +102,78 @@ class IpStack
     using ProtocolForHelper = typename Helper::Protocol;
     using ProtocolsList = APrinter::MapTypeList<ProtocolHelpersList, APrinter::TemplateFunc<ProtocolForHelper>>;
     
+    // Helper to extract IpProtocolNumber from a ProtocolHelper.
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
 public:
+    // How much space that must be available in outgoing packets for headers.
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
     
     class Iface;
     class IfaceListener;
     
 private:
+    using IfaceLinkModel = APrinter::PointerLinkModel<Iface>;
     using IfaceListenerLinkModel = APrinter::PointerLinkModel<IfaceListener>;
     
 public:
-    // Minimum permitted MTU and PMTU.
-    // RFC 791 requires that routers can pass through 68 byte packets, so enforcing
-    // this larger value theoreticlaly violates the standard. We need this to
-    // simplify the implementation of TCP, notably so that the TCP headers do not
-    // need to be fragmented and the DF flag never needs to be turned off. Note that
-    // Linux enforces a minimum of 552, this must be perfectly okay in practice.
+    /**
+     * Minimum permitted MTU and PMTU.
+     * 
+     * RFC 791 requires that routers can pass through 68 byte packets, so enforcing
+     * this larger value theoreticlaly violates the standard. We need this to
+     * simplify the implementation of TCP, notably so that the TCP headers do not
+     * need to be fragmented and the DF flag never needs to be turned off. Note that
+     * Linux enforces a minimum of 552, this must be perfectly okay in practice.
+     */
     static uint16_t const MinMTU = 256;
     
+    /**
+     * Initialize the IP stack.
+     */
     void init ()
     {
+        // Initialize helper objects.
         m_reassembly.init();
         m_path_mtu_cache.init(this);
         
+        // Initialize the list of interfaces.
         m_iface_list.init();
+        
+        // Initialize the packet identification counter.
         m_next_id = 0;
         
+        // Initialize protocol handlers.
         APrinter::ListFor<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             Helper::get(this)->init(this);
         }));
     }
     
+    /**
+     * Deinitialize the IP stack.
+     * 
+     * There must be no remaining interfaces associated with this stack
+     * when this is called.
+     */
     void deinit ()
     {
         AMBRO_ASSERT(m_iface_list.isEmpty())
         
+        // Deinitialize the protocol handlers.
         APrinter::ListForReverse<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             Helper::get(this)->deinit();
         }));
         
+        // Deinitialize helper objects.
         m_path_mtu_cache.deinit();
         m_reassembly.deinit();
     }
     
     /**
-     * Get the type of the protocol instance for a protocol number.
+     * Get the protocol instance type for a protocol number.
+     * 
+     * @tparam ProtocolNumber The IP procol number to get the type for. It must be the
+     *                        number of one of the configured procotols.
      */
     template <uint8_t ProtocolNumber>
     using GetProtocolType = typename APrinter::TypeListGetMapped<
@@ -161,8 +183,11 @@ public:
     >::Protocol;
     
     /**
-     * Get the pointer to a protocol instance given the instance
-     * type (as returned by GetProtocolType).
+     * Get the pointer to a protocol instance given the protocol instance type.
+     * 
+     * @tparam Protocol The protocol instance type. It must be the instance type of one
+     *                  of the configured protocols.
+     * @return Pointer to protocol instance.
      */
     template <typename Protocol>
     inline Protocol * getProtocol ()
@@ -171,21 +196,85 @@ public:
     }
     
 public:
-    // Encapsulates route information returned by routeIp4.
-    // This must not be cached because the interface could go away.
+    /**
+     * Encapsulates route information returned route functions.
+     * 
+     * Functions such as @ref routeIp4 and @ref routeIp4ForceIface will fill in
+     * this structure. The result is only valid temporarily because it contains
+     * a pointer to an interface, which could be removed.
+     */
     struct Ip4RouteInfo {
+        /**
+         * The interface to send through.
+         */
         Iface *iface;
+        
+        /**
+         * The address of the next hop.
+         */
         Ip4Addr addr;
     };
     
-    // Encapsulates information about a received IPv4 datagram.
+    /**
+     * Encapsulates information about a received IPv4 datagram.
+     * 
+     * This is filled in by the stack and passed to the recvIp4Dgram function of
+     * protocol handlers and also to @ref IfaceListener::recvIp4Dgram.
+     */
     struct Ip4RxInfo {
+        /**
+         * The source address.
+         */
         Ip4Addr src_addr;
+        
+        /**
+         * The destination address.
+         */
         Ip4Addr dst_addr;
+        
+        /**
+         * The TTL and protocol fields combined.
+         */
         Ip4TtlProto ttl_proto;
+        
+        /**
+         * The interface through which the packet was received.
+         */
         Iface *iface;
     };
     
+    /**
+     * Send an IPv4 datagram.
+     * 
+     * This is the primary send function intended to be used by protocol handlers.
+     * 
+     * This function internally uses @ref routeIp4 or @ref routeIp4ForceIface (depending
+     * on whether iface is given) to determine the required routing information. If this
+     * fails, the error @ref IpErr::NO_IP_ROUTE will be returned.
+     * 
+     * This function will perform IP fragmentation unless send_flags includes
+     * @ref IpSendFlags::DontFragmentFlag. If fragmentation would be needed but this
+     * flag is set, the error @ref IpErr::FRAG_NEEDED will be returned. If sending one
+     * fragment fails, further fragments are not sent.
+     * 
+     * Each attempt to send a datagram will result in assignment of an identification
+     * number, except when the function fails with @ref IpErr::NO_IP_ROUTE or
+     * @ref IpErr::FRAG_NEEDED as noted above. Identification numbers are generated
+     * sequentially and there is no attempt to track which numbers are in use.
+     * 
+     * @param addrs Source and destination address.
+     * @param ttl_proto The TTL and protocol fields combined.
+     * @param dgram The data to be sent. There must be space available before the
+     *              data for the IPv4 header and lower-layer headers (reserving
+     *              @ref HeaderBeforeIp4Dgram will suffice). The tot_len of the data
+     *              must not exceed 2^16-1.
+     * @param iface If not null, force sending through this interface.
+     * @param retryReq If not null, this may provide notification when to retry sending
+     *                 after an unsuccessful attempt (notification is not guaranteed).
+     * @param send_flags IP flags to send. The only allowed flag is
+     *                   @ref IpSendFlags::DontFragmentFlag, other bits must not be set.
+     * @return Success or error code.
+     */
     APRINTER_NO_INLINE
     IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
                         Iface *iface, IpSendRetry::Request *retryReq, uint16_t send_flags)
@@ -273,13 +362,13 @@ private:
                            uint16_t send_flags, IpSendRetry::Request *retryReq)
     {
         // Recalculate pkt_send_len (not passed for optimization).
-        uint16_t pkt_send_len = Ip4RoundFragLen(
-            Ip4Header::Size, route_info.iface->getMtu());
+        uint16_t pkt_send_len =
+            Ip4RoundFragLen(Ip4Header::Size, route_info.iface->getMtu());
         
         // Send the first fragment.
         IpErr err = route_info.iface->driverSendIp4Packet(
             pkt.subTo(pkt_send_len), route_info.addr, retryReq);
-        if (err != IpErr::SUCCESS) {
+        if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
             return err;
         }
         
@@ -328,7 +417,7 @@ private:
                 frag_pkt, route_info.addr, retryReq);
             
             // If this was the last fragment or there was an error, return.
-            if ((send_flags & Ip4FlagMF) == 0 || err != IpErr::SUCCESS) {
+            if ((send_flags & Ip4FlagMF) == 0 || AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
                 return err;
             }
             
@@ -340,15 +429,40 @@ private:
     }
     
 public:
-    // This struct holds reusable data for sending multiple packets efficiently.
-    // It is filled in by prepareSendIp4Dgram and then used in sendIp4DgramFast.
-    // Note that it includes a pointer to an interface which could go away so it
-    // must not be cached.
+    /**
+     * Stores reusable data for sending multiple packets efficiently.
+     * 
+     * This structure is filled in by @ref prepareSendIp4Dgram and can then be
+     * used with @ref sendIp4DgramFast multiple times to send datagrams.
+     * 
+     * Values filled in this structure are only valid temporarily because the
+     * route_info contains a pointer to an interface, which could be removed.
+     */
     struct Ip4SendPrepared {
         Ip4RouteInfo route_info;
         IpChksumAccumulator::State partial_chksum_state;
     };
     
+    /**
+     * Prepare for sending multiple datagrams with similar header fields.
+     * 
+     * This determines routing information, fills in common header fields and
+     * stores internal information into the given @ref Ip4SendPrepared structure.
+     * After this is successful, @ref sendIp4DgramFast can be used to send multiple
+     * datagrams in succession, with IP header fields as specified here.
+     * 
+     * This mechanism is intended for bulk transmission where performance is desired.
+     * Fragmentation or forcing an interface are not supported.
+     * 
+     * @param addrs Source and destination address.
+     * @param ttl_proto The TTL and protocol fields combined.
+     * @param header_end_ptr Pointer to the end of the IPv4 header (and start of data).
+     *                       This must be the same location as for subsequent datagrams.
+     * @param send_flags IP flags to send. The only allowed flag is
+     *                   @ref IpSendFlags::DontFragmentFlag, other bits must not be set.
+     * @param prep Internal information is stored into this structure.
+     * @return Success or error code.
+     */
     AMBRO_ALWAYS_INLINE
     IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto,
                         char *header_end_ptr, uint16_t send_flags, Ip4SendPrepared &prep)
@@ -386,6 +500,28 @@ public:
         return IpErr::SUCCESS;
     }
     
+    /**
+     * Send a datagram after preparation with @ref prepareSendIp4Dgram.
+     * 
+     * This sends a single datagram with header fields as specified in a previous
+     * @ref prepareSendIp4Dgram call.
+     * 
+     * This function does not support fragmentation. If the packet would be too
+     * large, the error @ref IpErr::FRAG_NEEDED is returned.
+     * 
+     * @param prep Structure with internal information that was filled in
+     *             using @ref prepareSendIp4Dgram. Note that such information is
+     *             only valid temporarily (see the note in @ref Ip4SendPrepared).
+     * @param dgram The data to be sent. There must be space available before the
+     *              data for the IPv4 header and lower-layer headers (reserving
+     *              @ref HeaderBeforeIp4Dgram will suffice), and this must be the
+     *              same buffer that was used in @ref prepareSendIp4Dgram via the
+     *              header_end_ptr argument. The tot_len of the data must not
+     *              exceed 2^16-1.
+     * @param retryReq If not null, this may provide notification when to retry sending
+     *                 after an unsuccessful attempt (notification is not guaranteed).
+     * @return Success or error code.
+     */
     AMBRO_ALWAYS_INLINE
     IpErr sendIp4DgramFast (Ip4SendPrepared const &prep, IpBufRef dgram,
                             IpSendRetry::Request *retryReq)
@@ -430,7 +566,7 @@ public:
         int best_prefix = -1;
         Iface *best_iface = nullptr;
         
-        for (Iface *iface = m_iface_list.first(); iface != nullptr; iface = m_iface_list.next(iface)) {
+        for (Iface *iface = m_iface_list.first(); iface != nullptr; iface = m_iface_list.next(*iface)) {
             if (iface->ip4AddrIsLocal(dst_addr)) {
                 int iface_prefix = iface->m_addr.prefix;
                 if (iface_prefix > best_prefix) {
@@ -562,7 +698,7 @@ public:
             AMBRO_ASSERT(m_ip_mtu >= MinMTU)
             
             // Register interface.
-            m_stack->m_iface_list.prepend(this);
+            m_stack->m_iface_list.prepend(*this);
         }
         
         void deinit ()
@@ -571,7 +707,7 @@ public:
             AMBRO_ASSERT(!m_state_observable.hasObservers())
             
             // Unregister interface.
-            m_stack->m_iface_list.remove(this);
+            m_stack->m_iface_list.remove(*this);
         }
         
         void setIp4Addr (IpIfaceIp4AddrSetting value)
@@ -685,7 +821,7 @@ public:
         }
         
     private:
-        APrinter::DoubleEndedListNode<Iface> m_iface_list_node;
+        APrinter::LinkedListNode<IfaceLinkModel> m_iface_list_node;
         IfaceListenerList m_listeners_list;
         Observable m_state_observable;
         IpStack *m_stack;
@@ -699,6 +835,9 @@ public:
     };
     
 private:
+    using IfaceList = APrinter::LinkedList<
+        APRINTER_MEMBER_ACCESSOR_TN(&Iface::m_iface_list_node), IfaceLinkModel, false>;
+    
     using BaseMtuRef = typename PathMtuCache::MtuRef;
     
 public:
@@ -1014,8 +1153,6 @@ private:
     }
     
 private:
-    using IfaceList = APrinter::DoubleEndedList<Iface, &Iface::m_iface_list_node, false>;
-    
     Reassembly m_reassembly;
     PathMtuCache m_path_mtu_cache;
     IfaceList m_iface_list;
