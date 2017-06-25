@@ -92,8 +92,8 @@ class IpReassembly :
         uint16_t data_length;
         // Time after which the entry is considered invalid.
         TimeType expiration_time;
-        // IPv4 header.
-        char header[Ip4MaxHeaderSize];
+        // IPv4 header (options not stored).
+        char header[Ip4Header::Size];
         // Data and holes, each hole starts with a HoleDescriptor.
         // The last HoleDescriptor::Size bytes are to ensure these is space
         // for the last hole descriptor, they cannot contain data.
@@ -123,9 +123,8 @@ public:
     
     bool reassembleIp4 (uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto,
                         uint8_t ttl, bool more_fragments, uint16_t fragment_offset,
-                        char const *header, uint8_t header_len, IpBufRef &dgram)
+                        char const *header, IpBufRef &dgram)
     {
-        AMBRO_ASSERT(header_len <= Ip4MaxHeaderSize)
         AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
         
         // Sanity check data length.
@@ -142,7 +141,7 @@ public:
             reass = alloc_reass_entry(now, ttl);
             
             // Copy the IP header.
-            ::memcpy(reass->header, header, header_len);
+            ::memcpy(reass->header, header, Ip4Header::Size);
             
             // Set first hole and unknown data length.
             reass->first_hole_offset = 0;
@@ -155,11 +154,6 @@ public:
             auto hole = HoleDescriptor::MakeRef(reass->data);
             hole.set(typename HoleDescriptor::HoleSize(),       ReassBufferSize);
             hole.set(typename HoleDescriptor::NextHoleOffset(), ReassNullLink);
-        } else {
-            // If this is the first fragment, update the IP header.
-            if (fragment_offset == 0) {
-                ::memcpy(reass->header, header, header_len);
-            }
         }
         
         do {

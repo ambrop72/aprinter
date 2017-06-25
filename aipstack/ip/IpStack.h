@@ -834,7 +834,7 @@ private:
             if (!iface->m_stack->m_reassembly.reassembleIp4(
                 ip4_header.get(Ip4Header::Ident()), src_addr, dst_addr,
                 ttl_proto.proto(), ttl_proto.ttl(), more_fragments,
-                fragment_offset, ip4_header.data, header_len, dgram))
+                fragment_offset, ip4_header.data, dgram))
             {
                 return;
             }
