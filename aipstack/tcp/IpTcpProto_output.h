@@ -1285,9 +1285,8 @@ private:
             
             // Perform IP level preparation.
             IpErr err = pcb->tcp->m_stack->prepareSendIp4Dgram(
-                *pcb, {TcpProto::TcpTTL, Ip4ProtocolTcp},
-                dgram_alloc.getPtr() - Ip4Header::Size, Constants::TcpIpSendFlags,
-                ip_prep);
+                *pcb, {TcpProto::TcpTTL, Ip4ProtocolTcp}, dgram_alloc.getPtr(),
+                Constants::TcpIpSendFlags, ip_prep);
             if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
                 return err;
             }

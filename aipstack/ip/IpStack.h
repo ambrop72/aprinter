@@ -418,8 +418,8 @@ public:
     };
     
     AMBRO_ALWAYS_INLINE
-    IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto, char *header_ptr,
-                               uint16_t send_flags, Ip4SendPrepared &prep)
+    IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, TtlProto ttl_proto,
+                        char *header_end_ptr, uint16_t send_flags, Ip4SendPrepared &prep)
     {
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == 0)
         
@@ -429,7 +429,7 @@ public:
         }
         
         // Write IP header fields and calculate partial header checksum inline...
-        auto ip4_header = Ip4Header::MakeRef(header_ptr);
+        auto ip4_header = Ip4Header::MakeRef(header_end_ptr - Ip4Header::Size);
         IpChksumAccumulator chksum;
         
         uint16_t version_ihl_dscp_ecn = (uint16_t)((4 << Ip4VersionShift) | 5) << 8;
