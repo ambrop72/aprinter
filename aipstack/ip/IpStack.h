@@ -106,7 +106,15 @@ class IpStack
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
 public:
-    // How much space that must be available in outgoing packets for headers.
+    /**
+     * Number of bytes which must be available in outgoing datagrams for headers.
+     * 
+     * Buffers passed to send functions such as @ref sendIp4Dgram and
+     * @ref sendIp4DgramFast must have at least this much space available in the
+     * first buffer node before the data. This space is used by the IP stack to write
+     * the IP header and by lower-level protocols such as Ethernet for their own
+     * headers.
+     */
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
     
     class Iface;
@@ -172,8 +180,8 @@ public:
     /**
      * Get the protocol instance type for a protocol number.
      * 
-     * @tparam ProtocolNumber The IP procol number to get the type for. It must be the
-     *                        number of one of the configured procotols.
+     * @tparam ProtocolNumber The IP procol number to get the type for.
+     *         It must be the number of one of the configured procotols.
      */
     template <uint8_t ProtocolNumber>
     using GetProtocolType = typename APrinter::TypeListGetMapped<
@@ -185,8 +193,8 @@ public:
     /**
      * Get the pointer to a protocol instance given the protocol instance type.
      * 
-     * @tparam Protocol The protocol instance type. It must be the instance type of one
-     *                  of the configured protocols.
+     * @tparam Protocol The protocol instance type. It must be the
+     *         instance type of one of the configured protocols.
      * @return Pointer to protocol instance.
      */
     template <typename Protocol>
@@ -439,7 +447,14 @@ public:
      * route_info contains a pointer to an interface, which could be removed.
      */
     struct Ip4SendPrepared {
+        /**
+         * Routing information (may be read externally if found useful).
+         */
         Ip4RouteInfo route_info;
+        
+        /**
+         * Partially calculated IP header checksum (should not be used externally).
+         */
         IpChksumAccumulator::State partial_chksum_state;
     };
     
@@ -556,17 +571,34 @@ public:
             pkt, prep.route_info.addr, retryReq);
     }
     
+    /**
+     * Determine routing for the given destination address.
+     * 
+     * Determines the interface and next hop address for sending a packet to
+     * the given address. The logic is:
+     * - If there is any interface with an address configured for which the
+     *   destination address belongs to the subnet of the interface, the
+     *   resulting interface is the most recently added interface out of
+     *   such interfaces with the longest prefix length, and the resulting
+     *   hop address is the destination address.
+     * - Otherwise, if any interface has a gateway configured, the resulting
+     *   interface is the most recently added such interface, and the
+     *   resulting hop address is the gateway address of that interface.
+     * - Otherwise, the function fails (returns false).
+     * 
+     * @param dst_addr Destination address to determine routing for.
+     * @param route_info Routing information will be written here.
+     * @return True on success (route_info was filled in),
+     *         false on error (route_info was not changed).
+     */
     bool routeIp4 (Ip4Addr dst_addr, Ip4RouteInfo &route_info)
     {
-        // Look for an interface where dst_addr is inside the local subnet
-        // (and in case of multiple matches find a most specific one).
-        // Also look for an interface with a gateway to use in case there
-        // is no local subnet match.
-        
         int best_prefix = -1;
         Iface *best_iface = nullptr;
         
-        for (Iface *iface = m_iface_list.first(); iface != nullptr; iface = m_iface_list.next(*iface)) {
+        for (Iface *iface = m_iface_list.first(); iface != nullptr;
+             iface = m_iface_list.next(*iface))
+        {
             if (iface->ip4AddrIsLocal(dst_addr)) {
                 int iface_prefix = iface->m_addr.prefix;
                 if (iface_prefix > best_prefix) {
@@ -589,41 +621,104 @@ public:
         return true;
     }
     
-    bool routeIp4ForceIface (Ip4Addr dst_addr, Iface *force_iface, Ip4RouteInfo &route_info)
+    /**
+     * Determine routing for the given destination address through
+     * the given interface.
+     * 
+     * This is like @ref routeIp4 restricted to one interface with the exception
+     * that it also accepts the all-ones broadcast address. The logic is:
+     * - If the destination address is all-ones, or the interface has an address
+     *   configured and the destination address belongs to the subnet of the interface,
+     *   the resulting hop address is the destination address (and the resulting
+     *   interface is as given).
+     * - Otherwise, if the interface has a gateway configured, the resulting
+     *   hop address is the gateway address of the interface (and the resulting
+     *   interface is as given).
+     * - Otherwise, the function fails (returns false).
+     * 
+     * @param dst_addr Destination address to determine routing for.
+     * @param iface Interface which is to be used.
+     * @param route_info Routing information will be written here.
+     * @return True on success (route_info was filled in),
+     *         false on error (route_info was not changed).
+     */
+    bool routeIp4ForceIface (Ip4Addr dst_addr, Iface *iface, Ip4RouteInfo &route_info)
     {
-        AMBRO_ASSERT(force_iface != nullptr)
+        AMBRO_ASSERT(iface != nullptr)
         
-        // When an interface is forced the logic is almost the same except that only this
-        // interface is considered and we also allow the all-ones broadcast address.
-        
-        if (dst_addr == Ip4Addr::AllOnesAddr() || force_iface->ip4AddrIsLocal(dst_addr)) {
+        if (dst_addr == Ip4Addr::AllOnesAddr() || iface->ip4AddrIsLocal(dst_addr)) {
             route_info.addr = dst_addr;
         }
-        else if (force_iface->m_have_gateway) {
-            route_info.addr = force_iface->m_gateway;
+        else if (iface->m_have_gateway) {
+            route_info.addr = iface->m_gateway;
         }
         else {
             return false;
         }
-        route_info.iface = force_iface;
+        route_info.iface = iface;
         return true;
     }
     
+    /**
+     * Handle an ICMP Packet Too Big message.
+     * 
+     * This looks up the given address in the Path MTU cache and if it is
+     * found and max(MinMTU, mtu_info) is less than the cached Path MTU,
+     * the cached Path MTU is lowered to that value. If the cached Path MTU
+     * was lowered, then all existing @ref MtuRef for this address are notified
+     * (@ref MtuRef::pmtuChanged are called), directly from this function.
+     * 
+     * @param remote_addr Address to which the ICMP message applies.
+     * @param mtu_info The next-hop-MTU from the ICMP message.
+     * @return True if the cached Path MTU was lowered, false if not.
+     */
     inline bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
     {
         return m_path_mtu_cache.handleIcmpPacketTooBig(remote_addr, mtu_info);
     }
     
+    /**
+     * Check if the source address of a received datagram appears to be
+     * a unicast address.
+     * 
+     * Specifically, it checks that the source address is not all-ones or a
+     * multicast address (@ref Ip4Addr::isBroadcastOrMulticast) and that it
+     * is not the local broadcast address of the interface from which the
+     * datagram was received.
+     * 
+     * @param ip_info Information about the received datagram.
+     * @return True if the source address appears to be a unicast address,
+     *         false if not.
+     */
     static bool checkUnicastSrcAddr (Ip4RxInfo const &ip_info)
     {
         return !ip_info.src_addr.isBroadcastOrMulticast() &&
                !ip_info.iface->ip4AddrIsLocalBcast(ip_info.src_addr);
     }
     
+    /**
+     * Allows receiving and intercepting IP datagrams received through a specific
+     * interface with a specific IP protocol.
+     * 
+     * This is a low-level interface designed to be used by the DHCP client
+     * implementation. It may be removed at some point if a proper UDP protocol
+     * handle is implemented that is usable for DHCP.
+     */
     class IfaceListener {
         friend IpStack;
         
     public:
+        /**
+         * Initialize the listener object and start listening.
+         * 
+         * Received datagrams with matching protocol number will be passed to
+         * the @ref recvIp4Dgram callback.
+         * 
+         * @param iface The interface to listen for packets on. It is the
+         *        responsibility of the user to ensure that the interface is
+         *        not removed while this object is still initialized.
+         * @param proto IP protocol number that the user is interested on.
+         */
         void init (Iface *iface, uint8_t proto)
         {
             m_iface = iface;
@@ -632,17 +727,43 @@ public:
             m_iface->m_listeners_list.prepend(*this);
         }
         
+        /**
+         * Deinitialize the listener.
+         * 
+         * After this, @ref recvIp4Dgram will not be called.
+         */
         void deinit ()
         {
             m_iface->m_listeners_list.remove(*this);
         }
         
+        /**
+         * Return the interface on which this object is listening.
+         * 
+         * @return Interface on which this object is listening.
+         */
         inline Iface * getIface ()
         {
             return m_iface;
         }
         
     private:
+        /**
+         * Called when a matching datagram is received.
+         * 
+         * This is called before passing the datagram to any protocol handler
+         * It is possible to inhibit further processing of the datagram (by any
+         * other IfaceListener's and and by protocol handlers) via the return
+         * value.
+         * 
+         * WARNING: It is not allowed to deinitialize this listener object from
+         * this callback or to remove the interface through which the packet has
+         * been received.
+         * 
+         * @param ip_info Information about the received datagram.
+         * @param dgram Data of the received datagram.
+         * @return True to inhibit further processing, false to continue.
+         */
         virtual bool recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram) = 0;
         
     private:
@@ -651,21 +772,66 @@ public:
         uint8_t m_proto;
     };
     
+    /**
+     * Allows observing changes in the driver-reported state of an interface.
+     * 
+     * The driver-reported state can be queried using by @ref Iface::getDriverState.
+     * This class can be used to receive a callback whenever the driver-reported
+     * state may have changed.
+     */
     class IfaceStateObserver : private Observer {
         friend IpStack;
         
     public:
+        /**
+         * Initialize the observer.
+         * @see ObserverNotification::Observer::init
+         */
         using Observer::init;
+        
+        /**
+         * Deinitialize the observer.
+         * @see ObserverNotification::Observer::deinit
+         */
         using Observer::deinit;
+        
+        /**
+         * Reset the observer, making it inactive.
+         * @see ObserverNotification::Observer::reset
+         */
         using Observer::reset;
+        
+        /**
+         * Check if the observer is active.
+         * @see ObserverNotification::Observer::isActive
+         */
         using Observer::isActive;
         
+        /**
+         * Start observing an interface, making the observer active.
+         * 
+         * The observer must be inactive when this is called.
+         * 
+         * @param iface Interface to observe.
+         */
         inline void observe (Iface &iface)
         {
             Observer::observe(iface.m_state_observable);
         }
         
-    private:
+    protected:
+        /**
+         * Called when the driver-reported state of the interface may have changed.
+         * 
+         * It is not guaranteed that the state has actually changed, nor is it
+         * guaranteed that the callback will be called immediately for every state
+         * change (there may be just one callback for successive state changes).
+         * 
+         * WARNING: The callback must not do any potentially harmful actions such
+         * as removing the interface. Removing this or other listeners and adding
+         * other listeners is safe. Sending packets should be safe assuming this
+         * is safe in the driver.
+         */
         virtual void ifaceStateChanged () = 0;
     };
     
@@ -674,12 +840,38 @@ private:
         APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node), IfaceListenerLinkModel, false>;
     
 public:
+    /**
+     * A network interface.
+     * 
+     * This class is generally designed to be inherited and owned by the IP driver.
+     * Virtual functions are used by the IP stack to request actions or information
+     * from the driver (such as @ref driverSendIp4Packet to send a packet), while
+     * protected non-virtual functions are to be used by the driver to request
+     * service from the IP stack (such as @ref recvIp4PacketFromDriver to process
+     * received packets).
+     * 
+     * The IP stack does not provide or impose any model for management of interfaces
+     * and interface drivers. Such a system could be build on top if it is needed.
+     */
     class Iface {
         friend IpStack;
         
     public:
+        /**
+         * The @ref IpStack type that this class is associated with.
+         */
         using IfaceIpStack = IpStack;
         
+        /**
+         * Initialize the interface.
+         * 
+         * This should be used by the driver when the interface should start existing
+         * from the perspective of the IP stack. After this, the various virtual
+         * functions may be called. Some virtual functions (@ref driverGetHwType
+         * and @ref driverGetHwIface) may be called directly from this function.
+         * 
+         * @param stack Pointer to the IP stack (must not be null).
+         */
         void init (IpStack *stack)
         {
             AMBRO_ASSERT(stack != nullptr)
@@ -701,6 +893,22 @@ public:
             m_stack->m_iface_list.prepend(*this);
         }
         
+        /**
+         * Deinitialize the interface.
+         * 
+         * This should be used by the driver when the interface should stop existing
+         * from the perspective of the IP stack. After this, virtual functions will
+         * not be called any more, nor will any virtual function be called from this
+         * function.
+         * 
+         * When this is called, there must be no remaining @ref IfaceListener
+         * objects listening on this interface or @ref IfaceStateObserver objects
+         * observing this interface. Additionally, this must not be called in
+         * potentially hazardous context with respect to IP processing, such as
+         * from withing receive processing of this interface
+         * (@ref recvIp4PacketFromDriver). For maximum safety this should be called
+         * from a top-level event handler.
+         */
         void deinit ()
         {
             AMBRO_ASSERT(m_listeners_list.isEmpty())
@@ -710,6 +918,15 @@ public:
             m_stack->m_iface_list.remove(*this);
         }
         
+        /**
+         * Set or remove the IP address and subnet prefix length.
+         * 
+         * @param value New IP address settings. If the "present" field is false
+         *        then any existing assignment is removed. If the "present" field
+         *        is true then the IP address in the "addr" field is assigned along
+         *        with the subnet prefix length in the "prefix" field, overriding
+         *        any existing assignment.
+         */
         void setIp4Addr (IpIfaceIp4AddrSetting value)
         {
             AMBRO_ASSERT(!value.present || value.prefix <= Ip4Addr::Bits)
@@ -724,6 +941,15 @@ public:
             }
         }
         
+        /**
+         * Get the current IP address settings.
+         * 
+         * @return Current IP address settings. If the "present" field is false
+         *         then no IP address is assigned, and the "addr" and "prefix" fields
+         *         will be zero. If the "present" field is true then the "addr" and
+         *         "prefix" fields contain the assigned address and subnet prefix
+         *         length.
+         */
         IpIfaceIp4AddrSetting getIp4Addr ()
         {
             IpIfaceIp4AddrSetting value = {m_have_addr};
@@ -734,6 +960,14 @@ public:
             return value;
         }
         
+        /**
+         * Set or remove the gateway address.
+         * 
+         * @param value New gateway address settings. If the "present" field is false
+         *        then any existing gateway address is removed. If the "present" field
+         *        is true then gateway address in the "addr" field is assigned,
+         *        overriding any existing assignment.
+         */
         void setIp4Gateway (IpIfaceIp4GatewaySetting value)
         {
             m_have_gateway = value.present;
@@ -742,6 +976,14 @@ public:
             }
         }
         
+        /**
+         * Get the current gateway address settings.
+         * 
+         * @return Current gateway address settings. If the "present" field is false
+         *         then no gateway address is assigned, and the "addr" field will be
+         *         zero. If the "present" field is true then the "addr" field contains
+         *         the assigned gateway address.
+         */
         IpIfaceIp4GatewaySetting getIp4Gateway ()
         {
             IpIfaceIp4GatewaySetting value = {m_have_gateway};
@@ -751,11 +993,34 @@ public:
             return value;
         }
         
+        /**
+         * Get the hardware type of the interface.
+         * 
+         * This will be whatever was returned by the driver when @ref driverGetHwType
+         * was called in @ref init.
+         * 
+         * @return Interface hardware type.
+         */
         inline IpHwType getHwType ()
         {
             return m_hw_type;
         }
         
+        /**
+         * Get the hardware-type-specific interface.
+         * 
+         * This will be whatever was returned by the driver when @ref driverGetHwIface
+         * was called in @ref init, converted to HwIface * type using static_cast.
+         * It is the responsibility of the user to use only the correct HwIface
+         * type corresponding to @ref getHwType or generally whatever the driver
+         * supports (if anything).
+         * 
+         * This mechanism was created to support the DHCP client which requires the
+         * driver to support the @ref IpEthHw interface here as the HwIface type,
+         * corresponding to @ref IpHwType::Ethernet.
+         * 
+         * @return Pointer to hardware-type-specific interface.
+         */
         template <typename HwIface>
         inline HwIface * getHwIface ()
         {
