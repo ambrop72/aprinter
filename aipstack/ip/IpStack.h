@@ -994,12 +994,20 @@ public:
         }
         
         /**
-         * Get the hardware type of the interface.
+         * Get the type of the hardware-type-specific interface.
          * 
-         * This will be whatever was returned by the driver when @ref driverGetHwType
-         * was called in @ref init.
+         * The can be used to check which kind of hardware-type-specific interface
+         * is available via @ref getHwIface (if any). For example, if the result is
+         * @ref IpHwType::Ethernet, then an interface of type @ref IpEthHw::HwIface
+         * is available.
          * 
-         * @return Interface hardware type.
+         * This function will return whatever the driver returned when
+         * @ref driverGetHwType was called in @ref init.
+         * 
+         * This mechanism was created to support the DHCP client which requires
+         * access to certain Ethernet/ARP-level functionality.
+         * 
+         * @return Type of hardware-type-specific interface.
          */
         inline IpHwType getHwType ()
         {
@@ -1009,16 +1017,14 @@ public:
         /**
          * Get the hardware-type-specific interface.
          * 
-         * This will be whatever was returned by the driver when @ref driverGetHwIface
-         * was called in @ref init, converted to HwIface * type using static_cast.
-         * It is the responsibility of the user to use only the correct HwIface
-         * type corresponding to @ref getHwType or generally whatever the driver
-         * supports (if anything).
+         * The HwIface type must correspond to the value returned by @ref getHwType.
+         * If that value is @ref IpHwType::Undefined, then this function should not
+         * be called at all.
          * 
-         * This mechanism was created to support the DHCP client which requires the
-         * driver to support the @ref IpEthHw interface here as the HwIface type,
-         * corresponding to @ref IpHwType::Ethernet.
+         * This function will return whatever the driver returned when
+         * @ref driverGetHwIface was called in @ref init.
          * 
+         * @tparam HwIface Type of hardware-type-specific interface.
          * @return Pointer to hardware-type-specific interface.
          */
         template <typename HwIface>
@@ -1028,55 +1034,188 @@ public:
         }
         
     public:
+        /**
+         * Check if an address belongs to the subnet of the interface.
+         * 
+         * @param addr Address to check.
+         * @return True if the interface has an IP address assigned and the
+         *         given address belongs to the associated subnet, false otherwise.
+         */
         inline bool ip4AddrIsLocal (Ip4Addr addr)
         {
             return m_have_addr && (addr & m_addr.netmask) == m_addr.netaddr;
         }
         
+        /**
+         * Check if an address is the local broadcast address of the interface.
+         * 
+         * @param addr Address to check.
+         * @return True if the interface has an IP address assigned and the
+         *         given address is the associated local broadcast address,
+         *         false otherwise.
+         */
         inline bool ip4AddrIsLocalBcast (Ip4Addr addr)
         {
             return m_have_addr && addr == m_addr.bcastaddr;
         }
         
+        /**
+         * Check if an address is the address of the interface.
+         * 
+         * @param addr Address to check.
+         * @return True if the interface has an IP address assigned and the
+         *         assigned address is the given address, false otherwise.
+         */
         inline bool ip4AddrIsLocalAddr (Ip4Addr addr)
         {
             return m_have_addr && addr == m_addr.addr;
         }
         
+        /**
+         * Return the IP level Maximum Transmission Unit of the interface.
+         * 
+         * @return MTU in bytes including the IP header. It will be at least
+         *         @ref MinMTU.
+         */
         inline uint16_t getMtu ()
         {
             return m_ip_mtu;
         }
         
+        /**
+         * Return the driver-provided interface state.
+         * 
+         * This directly queries the driver for the current state by calling the
+         * virtual function @ref driverGetState. Use @ref IfaceStateObserver if
+         * you need to be notified of changes of this state.
+         * 
+         * Currently, the driver-provided state indicates whether the link is up.
+         * 
+         * @return Driver-provided state.
+         */
         inline IpIfaceDriverState getDriverState ()
         {
             return driverGetState();
         }
         
     protected:
-        // These functions are implemented or called by the IP driver.
-        
+        /**
+         * Driver function used to get the Maximum Transmission Unit (MTU).
+         * 
+         * Currently, this is called once from the @ref init function, and the
+         * MTU is then cached for efficiency. The returned MTU must be as least
+         * @ref MinMTU (this is an assert).
+         * 
+         * @return MTU in bytes including IP header.
+         */
         virtual size_t driverGetIpMtu () = 0;
         
+        /**
+         * Driver function used to send IPv4 packets through the interface.
+         * 
+         * This is called whenever an IPv4 packet needs to be sent. The driver should
+         * copy the packet as needed because it must not access the referenced buffers
+         * outside this function.
+         * 
+         * @param pkt Packet to send, this includes the IP header. It is guaranteed
+         *        that its size does not exceed the MTU reported by the driver. The
+         *        packet is expected to have HeaderBeforeIp bytes available before
+         *        the IP header for link-layer protocol headers, but needed header
+         *        space should still be checked since higher-layer prococols are
+         *        responsible for allocating the buffers of packets they send.
+         * @param ip_addr Next hop address.
+         * @param sendRetryReq If sending fails and this is not null, the driver
+         *        may use this to notify the requestor when sending should be retried.
+         *        For example if the issue was that there is no ARP cache entry
+         *        or similar entry for the given address, the notification should
+         *        be done when the associated ARP query is successful.
+         * @return Success or error code.
+         */
         virtual IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
                                            IpSendRetry::Request *sendRetryReq) = 0;
         
+        /**
+         * Driver function to get the type of the hardware-type-specific interface.
+         * 
+         * See @ref getHwType for an explanation of the hardware-type-specific
+         * interface mechanism.
+         * 
+         * @return Type of the hardware-type-specific interface. If no
+         *         hardware-type-specific interface is available, then
+         *         @ref IpHwType::Undefined should be returned.
+         */
         virtual IpHwType driverGetHwType () = 0;
         
+        /**
+         * Driver function to get the hardware-type-specific interface.
+         * 
+         * See @ref getHwIface for details. Note that this will always be called,
+         * and it should return null if no hardware-type-specific interface is
+         * available.
+         * 
+         * @return Pointer to the hardware-type-specific interface, or null if
+         *         not available. The pointer (if not null) must point to an
+         *         instance of the hardware-type-specific interface class
+         *         corresponding to the value returned by @ref driverGetHwType.
+         */
         virtual void * driverGetHwIface () = 0;
         
+        /**
+         * Driver function to get the driver-provided interface state.
+         * 
+         * The driver should call @ref stateChangedFromDriver whenever the state
+         * that would be returned here has changed.
+         * 
+         * @return Driver-provided-state (currently just the link-up flag).
+         */
         virtual IpIfaceDriverState driverGetState () = 0;
         
+        /**
+         * Process a received IPv4 packet.
+         * 
+         * This function should be called by the driver when an IPv4 packet is
+         * received (or what appears to be one at least).
+         * 
+         * The driver must support various driver functions being called from
+         * within this, especially @ref driverSendIp4Packet.
+         * 
+         * @param pkt Received packet, presumably starting with the IP header.
+         *            The referenced buffers will only be read from within this
+         *            function call.
+         */
         inline void recvIp4PacketFromDriver (IpBufRef pkt)
         {
             processRecvedIp4Packet(this, pkt);
         }
         
+        /**
+         * Return information about current IPv4 address assignment.
+         * 
+         * This can be used by the driver if it needs information about the
+         * IPv4 address assigned to the interface.
+         * 
+         * @return If no IPv4 address is assigned, then null. If an address is
+         *         assigned, then a pointer to a structure providing information
+         *         about the assignment (assigned address, network mask, network
+         *         address, broadcast address, subnet prefix length). The pointer
+         *         is only valid temporarily (it should not be cached).
+         */
         inline IpIfaceIp4Addrs const * getIp4AddrsFromDriver ()
         {
             return m_have_addr ? &m_addr : nullptr;
         }
         
+        /**
+         * Notify that the driver-provided state may have changed.
+         * 
+         * This should be called by the driver after the values that would be
+         * returned by  driverGetState have changed. It does not strictly have
+         * to be called immediately after every change but it should be called
+         * soon after a change.
+         * 
+         * The driver must support various driver functions being called from
+         * within this, especially @ref driverSendIp4Packet.
+         */
         void stateChangedFromDriver ()
         {
             m_state_observable.template notifyObservers<false>([&](Observer &observer_base) {
