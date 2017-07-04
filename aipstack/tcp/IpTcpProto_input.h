@@ -148,7 +148,7 @@ public:
     }
     
     static void handleIp4DestUnreach (TcpProto *tcp, Ip4DestUnreachMeta const &du_meta,
-                                Ip4RxInfo const &ip_info, IpBufRef const &dgram_initial)
+                                Ip4RxInfo const &ip_info, IpBufRef dgram_initial)
     {
         // We only care about ICMP code "fragmentation needed and DF set".
         if (du_meta.icmp_code != Icmp4CodeDestUnreachFragNeeded) {

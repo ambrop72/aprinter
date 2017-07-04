@@ -419,7 +419,7 @@ public:
     }
     
     inline void handleIp4DestUnreach (Ip4DestUnreachMeta const &du_meta,
-                Ip4RxInfo const &ip_info, IpBufRef const &dgram_initial)
+                Ip4RxInfo const &ip_info, IpBufRef dgram_initial)
     {
         Input::handleIp4DestUnreach(this, du_meta, ip_info, dgram_initial);
     }

@@ -160,7 +160,7 @@ public:
         
         // Initialize protocol handlers.
         APrinter::ListFor<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
-            Helper::get(this)->init(this);
+            Helper::get(this)->init(static_cast<IpStack *>(this));
         }));
     }
     
@@ -1492,7 +1492,9 @@ private:
         // Handle using a protocol listener if existing.
         bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             if (proto == Helper::IpProtocolNumber::Value) {
-                Helper::get(ip_info.iface->m_stack)->recvIp4Dgram(ip_info, dgram);
+                Helper::get(ip_info.iface->m_stack)->recvIp4Dgram(
+                    static_cast<Ip4RxInfo const &>(ip_info),
+                    static_cast<IpBufRef>(dgram));
                 return false;
             }
             return true;
@@ -1642,7 +1644,10 @@ private:
         // Dispatch based on the protocol.
         APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
             if (ip_info.ttl_proto.proto() == Helper::IpProtocolNumber::Value) {
-                Helper::get(this)->handleIp4DestUnreach(du_meta, ip_info, dgram_initial);
+                Helper::get(this)->handleIp4DestUnreach(
+                    static_cast<Ip4DestUnreachMeta const &>(du_meta),
+                    static_cast<Ip4RxInfo const &>(ip_info),
+                    static_cast<IpBufRef>(dgram_initial));
                 return false;
             }
             return true;
