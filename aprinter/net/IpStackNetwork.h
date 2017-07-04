@@ -74,6 +74,7 @@ public:
     
 private:
     static uint8_t const IpTTL = 64;
+    static bool const AllowBroadcastPing = false;
     
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
         IpTTL,
@@ -90,6 +91,7 @@ private:
     using TheIpStackService = AIpStack::IpStackService<
         EthHeader::Size, // HeaderBeforeIp
         IpTTL,           // IcmpTTL
+        AllowBroadcastPing,
         Arg::Params::MaxReassPackets,
         Arg::Params::MaxReassSize,
         typename Arg::Params::PathMtuParams

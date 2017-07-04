@@ -27,7 +27,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
@@ -60,13 +59,21 @@
 
 #include <aipstack/BeginNamespace.h>
 
+/**
+ * IPv4 network layer implementation.
+ * 
+ * This class provides basic IPv4 services. It communicates with interface
+ * drivers on one and and with protocol handlers on the other.
+ * 
+ * @tparam Arg Instantiation parameters (use via @ref IpStackService).
+ */
 template <typename Arg>
 class IpStack
 {
     APRINTER_USE_TYPES1(Arg, (Params, Context, ProtocolServicesList))
-    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL))
+    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
     
-    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
+    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
@@ -752,9 +759,9 @@ public:
          * Called when a matching datagram is received.
          * 
          * This is called before passing the datagram to any protocol handler
-         * It is possible to inhibit further processing of the datagram (by any
-         * other IfaceListener's and and by protocol handlers) via the return
-         * value.
+         * The return value allows inhibiting further processing of the datagram
+         * (by other IfaceListener's, protocol handlers and built-in protocols
+         * such as ICMP).
          * 
          * WARNING: It is not allowed to deinitialize this listener object from
          * this callback or to remove the interface through which the packet has
@@ -1245,30 +1252,107 @@ private:
     using BaseMtuRef = typename PathMtuCache::MtuRef;
     
 public:
+    /**
+     * Allows keeping track of the Path MTU estimate for a remote address.
+     */
     class MtuRef : private BaseMtuRef
     {
     public:
-        using BaseMtuRef::init;
+        /**
+         * Initialize the MTU reference.
+         * 
+         * The object is initialized in not-setup state, that is without an
+         * associated remote address. To set the remote address, call @ref setup.
+         * This function must be called before any other function in this
+         * class is called.
+         */
+        inline void init ()
+        {
+            return BaseMtuRef::init();
+        }
         
+        /**
+         * Reset the MTU reference.
+         * 
+         * This resets the object to the not-setup state.
+         *
+         * NOTE: It is required to reset the object to not-setup state
+         * before destructing it, if not already in not-setup state.
+         * 
+         * @param stack The IP stack.
+         */
         inline void reset (IpStack *stack)
         {
             return BaseMtuRef::reset(mtu_cache(stack));
         }
         
-        using BaseMtuRef::isSetup;
+        /**
+         * Check if the MTU reference is in setup state.
+         * 
+         * @return True if in setup state, false if in not-setup state.
+         */
+        inline bool isSetup ()
+        {
+            return BaseMtuRef::isSetup();
+        }
         
+        /**
+         * Setup the MTU reference for a specific remote address.
+         * 
+         * The object must be in not-setup state when this is called.
+         * On success, the current PMTU estimate is provided and future PMTU
+         * estimate changes will be reported via the @ref pmtuChanged callback.
+         * 
+         * WARNING: Do not destruct the object while it is in setup state.
+         * First use @ref reset (or @ref moveFrom) to change the object to
+         * not-setup state before destruction.
+         * 
+         * @param stack The IP stack.
+         * @param remote_addr The remote address to observe the PMTU for.
+         * @param iface NULL or the interface though which remote_addr would be
+         *        routed, as an optimization.
+         * @param out_pmtu On success, will be set to the current PMTU estimate
+         *        (guaranteed to be at least MinMTU). On failure it will not be
+         *        changed.
+         * @return True on success (object enters setup state), false on failure
+         *         (object remains in not-setup state).
+         */
         inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface, uint16_t &out_pmtu)
         {
             return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface, out_pmtu);
         }
-        
+
+        /**
+         * Move an MTU reference from another object to this one.
+         * 
+         * This object must be in not-setup state. Upon return, the 'src' object
+         * will be in not-setup state and this object will be in whatever state
+         * the 'src' object was. If the 'src' object was in setup state, this object
+         * will be setup with the same remote address.
+         * 
+         * @param src The object to move from.
+         */
         inline void moveFrom (MtuRef &src)
         {
             return BaseMtuRef::moveFrom(src);
         }
         
     protected:
-        using BaseMtuRef::pmtuChanged;
+        /**
+         * Callback which reports changes of the PMTU estimate.
+         * 
+         * This is called whenever the PMTU estimate changes,
+         * and only in setup state.
+         * 
+         * WARNING: Do not change this object in any way from this callback,
+         * specifically do not call @ref reset or @ref moveFrom. Note that the
+         * implementation calls all these callbacks for the same remote address
+         * in a loop, and that the callbacks may be called from within
+         * @ref handleIcmpPacketTooBig.
+         * 
+         * @param pmtu The new PMTU estimate (guaranteed to be at least MinMTU).
+         */
+        virtual void pmtuChanged (uint16_t pmtu) = 0;
         
     private:
         inline static PathMtuCache * mtu_cache (IpStack *stack)
@@ -1414,6 +1498,7 @@ private:
             return true;
         }));
         
+        // If the packet was handled by a protocol handler, we are done.
         if (!not_handled) {
             return;
         }
@@ -1432,13 +1517,18 @@ private:
         }
         
         // Check destination address.
-        // Accept only: all-ones broadcast, subnet broadcast, unicast to interface address.
-        if (AMBRO_UNLIKELY(
-            !ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr) &&
-            !ip_info.iface->ip4AddrIsLocalBcast(ip_info.dst_addr) &&
-            ip_info.dst_addr != Ip4Addr::AllOnesAddr()))
-        {
-            return;
+        // Accept only: all-ones broadcast, subnet broadcast, interface address.
+        bool is_broadcast_dst;
+        if (AMBRO_LIKELY(ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
+            is_broadcast_dst = false;
+        } else {
+            if (AMBRO_UNLIKELY(
+                !ip_info.iface->ip4AddrIsLocalBcast(ip_info.dst_addr) &&
+                ip_info.dst_addr != Ip4Addr::AllOnesAddr()))
+            {
+                return;
+            }
+            is_broadcast_dst = true;
         }
         
         // Check ICMP header length.
@@ -1450,7 +1540,6 @@ private:
         auto icmp4_header = Icmp4Header::MakeRef(dgram.getChunkPtr());
         uint8_t type       = icmp4_header.get(Icmp4Header::Type());
         uint8_t code       = icmp4_header.get(Icmp4Header::Code());
-        uint16_t chksum    = icmp4_header.get(Icmp4Header::Chksum());
         Icmp4RestType rest = icmp4_header.get(Icmp4Header::Rest());
         
         // Verify ICMP checksum.
@@ -1466,6 +1555,10 @@ private:
         
         if (type == Icmp4TypeEchoRequest) {
             // Got echo request, send echo reply.
+            // But if this is a broadcast request, respond only if allowed.
+            if (is_broadcast_dst && !AllowBroadcastPing) {
+                return;
+            }
             stack->sendIcmp4EchoReply(rest, icmp_data, ip_info.src_addr, ip_info.iface);
         }
         else if (type == Icmp4TypeDestUnreach) {
@@ -1476,7 +1569,7 @@ private:
     void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
     {
         // Can only reply when we have an address assigned.
-        if (!iface->m_have_addr) {
+        if (AMBRO_UNLIKELY(!iface->m_have_addr)) {
             return;
         }
         
@@ -1500,7 +1593,7 @@ private:
         icmp4_header.set(Icmp4Header::Chksum(), calc_chksum);
         
         // Send the datagram.
-        Ip4Addrs addrs{iface->m_addr.addr, dst_addr};
+        Ip4Addrs addrs = {iface->m_addr.addr, dst_addr};
         sendIp4Dgram(addrs, {IcmpTTL, Ip4ProtocolIcmp}, dgram, iface, nullptr, 0);
     }
     
@@ -1564,13 +1657,45 @@ private:
     APrinter::Tuple<ProtocolsList> m_protocols;
 };
 
+/**
+ * Service configuration class for @ref IpStack.
+ * 
+ * The template parameters of this class are "configuration". After these are
+ * defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
+ * @ref IpStack class type.
+ * 
+ * @tparam Param_HeaderBeforeIp Required space for headers before the IP header
+ *         in outgoing packets. This should be the maximum of the required space
+ *         of any IP interface driver that may be used.
+ * @tparam Param_IcmpTTL TTL of outgoing ICMP packets.
+ * @tparam Param_AllowBroadcastPing Whether to respond to broadcast pings
+ *         (to local-broadcast or all-ones address).
+ * @tparam Param_MaxReassEntrys Maximum number of packets being reassembled.
+ *         This affects memory use.
+ * @tparam Param_MaxReassSize Maximum size of reassembled packets. This affects
+ *         memory use.
+ * @tparam Param_PathMtuParams Path MTU Discovery parameters,
+ *         see @ref IpPathMtuParams.
+ */
 APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
     APRINTER_AS_VALUE(size_t, HeaderBeforeIp),
     APRINTER_AS_VALUE(uint8_t, IcmpTTL),
+    APRINTER_AS_VALUE(bool, AllowBroadcastPing),
     APRINTER_AS_VALUE(int, MaxReassEntrys),
     APRINTER_AS_VALUE(uint16_t, MaxReassSize),
     APRINTER_AS_TYPE(PathMtuParams)
 ), (
+    /**
+     * Template for use with @ref APRINTER_MAKE_INSTANCE to get the @ref IpStack type.
+     * 
+     * The template parameters of this class are "dependencies".
+     * 
+     * @tparam Param_Context Context class providing the event loop, clock etc..
+     * @tparam Param_ProtocolServicesList List of IP protocol handler services.
+     *         For example, to support only TCP, use
+     *         APrinter::MakeTypeList\<IpTcpProtoService\<...\>\> with appropriate
+     *         parameters passed to IpTcpProtoService.
+     */
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(ProtocolServicesList)

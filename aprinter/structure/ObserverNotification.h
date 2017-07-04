@@ -206,6 +206,9 @@ public:
     };
 };
 
+using Observable = ObserverNotification::Observable;
+using Observer = ObserverNotification::Observer;
+
 #include <aprinter/EndNamespace.h>
 
 #endif

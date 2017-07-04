@@ -44,7 +44,7 @@
  */
 class IpEthHw
 {
-    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
+    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     
 public:
     class ArpObserver;

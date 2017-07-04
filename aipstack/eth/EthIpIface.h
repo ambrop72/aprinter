@@ -69,7 +69,7 @@ class EthIpIface : public Arg::Iface,
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg, (Context, Iface))
     
-    APRINTER_USE_TYPES1(APrinter::ObserverNotification, (Observer, Observable))
+    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     
@@ -339,7 +339,7 @@ private:
             // NOTE: The handlers called may end up changing this ARP entry, including
             // reusing it for a different IP address. In that case retry_list.reset()
             // would be called from reset_arp_entry, but that is safe since SentRetry::List
-            // supports it (actually ObserverNotification::Observable).
+            // supports it.
             entry->retry_list.dispatchRequests();
         }
         
