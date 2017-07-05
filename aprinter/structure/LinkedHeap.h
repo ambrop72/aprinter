@@ -164,7 +164,10 @@ public:
         
         m_last = node.link(st);
         
-        Link other_child = ac(node).link[!child_dir];
+        Link other_child;
+        if (child_dir >= 0) {
+            other_child = ac(node).link[!child_dir];
+        }
         
         ac(node).link[0] = Link::null();
         ac(node).link[1] = Link::null();
