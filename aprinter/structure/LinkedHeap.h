@@ -242,30 +242,7 @@ public:
             }
             
             if (!(node == srcnode)) {
-                Ref parent = ac(node).parent.ref(st);
-                bool side = !parent.isNull() && node.link() == ac(parent).link[1];
-                Link child0 = ac(node).link[0];
-                Link child1 = ac(node).link[1];
-                
-                if (!parent.isNull() && Compare::compareEntries(st, srcnode, parent) < 0) {
-                    Link sibling = ac(parent).link[!side];
-                    
-                    if (!(ac(parent).link[0] = child0).isNull()) {
-                        ac(child0.ref(st)).parent = parent.link();
-                    }
-                    
-                    if (!(ac(parent).link[1] = child1).isNull()) {
-                        ac(child1.ref(st)).parent = parent.link();
-                    }
-                    
-                    if (m_last == srcnode.link()) {
-                        m_last = parent.link();
-                    }
-                    
-                    bubble_up_node(st, srcnode, parent, sibling, side);
-                } else {
-                    connect_and_bubble_down_node(st, srcnode, parent, side, child0, child1);
-                }
+                fixup_node(st, node, srcnode);
             }
         }
         
@@ -276,35 +253,8 @@ public:
     {
         AMBRO_ASSERT(!m_root.isNull() && m_count > 0)
         
-        if (m_count == 1) {
-            assertValidHeap(st);
-            return;
-        }
-        
-        Link child0 = ac(node).link[0];
-        Link child1 = ac(node).link[1];
-        
-        Ref parent = ac(node).parent.ref(st);
-        if (!parent.isNull() && Compare::compareEntries(st, node, parent) < 0) {
-            
-            bool side = node.link() == ac(parent).link[1];
-            Link sibling = ac(parent).link[!side];
-            
-            if (!(ac(parent).link[0] = child0).isNull()) {
-                ac(child0.ref(st)).parent = parent.link();
-            }
-            
-            if (!(ac(parent).link[1] = child1).isNull()) {
-                ac(child1.ref(st)).parent = parent.link();
-            }
-            
-            if (m_last == node.link()) {
-                m_last = parent.link();
-            }
-            
-            bubble_up_node(st, node, parent, sibling, side);
-        } else {
-            connect_and_bubble_down_node(st, node, parent, -1, child0, child1);
+        if (m_count != 1) {
+            fixup_node(st, node, node);
         }
         
         assertValidHeap(st);
@@ -530,6 +480,39 @@ private:
         
         if (!(ac(node).link[1] = child1).isNull()) {
             ac(child1.ref(st)).parent = node.link();
+        }
+    }
+    
+    void fixup_node (State st, Ref node, Ref srcnode)
+    {
+        Link child0 = ac(node).link[0];
+        Link child1 = ac(node).link[1];
+        
+        Ref parent = ac(node).parent.ref(st);
+        int8_t side = !parent.isNull() && node.link() == ac(parent).link[1];
+        
+        if (!parent.isNull() && Compare::compareEntries(st, srcnode, parent) < 0) {
+            Link sibling = ac(parent).link[!side];
+            
+            if (!(ac(parent).link[0] = child0).isNull()) {
+                ac(child0.ref(st)).parent = parent.link();
+            }
+            
+            if (!(ac(parent).link[1] = child1).isNull()) {
+                ac(child1.ref(st)).parent = parent.link();
+            }
+            
+            if (m_last == srcnode.link()) {
+                m_last = parent.link();
+            }
+            
+            bubble_up_node(st, srcnode, parent, sibling, side);
+        } else {
+            if (node == srcnode) {
+                side = -1;
+            }
+            
+            connect_and_bubble_down_node(st, srcnode, parent, side, child0, child1);
         }
     }
     
