@@ -74,7 +74,7 @@ public:
         AMBRO_ASSERT(!node.isNull())
         
         if (m_root.isNull()) {
-            m_root = node.link();
+            m_root = node.link(st);
             
             ac(node).parent = Link::null();
             ac(node).child[0] = Link::null();
@@ -111,9 +111,9 @@ public:
             c = ac(c).child[side].ref(st);
         }
         
-        ac(c).child[side] = node.link();
+        ac(c).child[side] = node.link(st);
         
-        ac(node).parent = c.link();
+        ac(node).parent = c.link(st);
         ac(node).child[0] = Link::null();
         ac(node).child[1] = Link::null();
         ac(node).balance = 0;
@@ -144,7 +144,7 @@ public:
         Ref child = !ac(node).child[0].isNull() ? ac(node).child[0].ref(st) : ac(node).child[1].ref(st);
         
         if (!paren.isNull()) {
-            bool side = node.link() == ac(paren).child[1];
+            bool side = node.link(st) == ac(paren).child[1];
             replace_subtree(st, node, child, paren);
             rebalance(st, paren, side, -1);
         } else {
@@ -273,27 +273,27 @@ private:
         
         if (!ac(node).parent.isNull()) {
             Ref node_parent = ac(node).parent.ref(st);
-            rebalance(st, node_parent, node.link() == ac(node_parent).child[1], delta);
+            rebalance(st, node_parent, node.link(st) == ac(node_parent).child[1], delta);
         }
     }
     
     void rotate (State st, Ref r, bool dir, Ref r_parent)
     {
-        AMBRO_ASSERT(check_parent(r_parent, r))
+        AMBRO_ASSERT(check_parent(st, r_parent, r))
         Ref nr = ac(r).child[!dir].ref(st);
         
         ac(r).child[!dir] = ac(nr).child[dir];
         if (!ac(r).child[!dir].isNull()) {
-            ac(ac(r).child[!dir].ref(st)).parent = r.link();
+            ac(ac(r).child[!dir].ref(st)).parent = r.link(st);
         }
-        ac(nr).child[dir] = r.link();
-        ac(nr).parent = r_parent.link();
+        ac(nr).child[dir] = r.link(st);
+        ac(nr).parent = r_parent.link(st);
         if (!r_parent.isNull()) {
-            ac(r_parent).child[r.link() == ac(r_parent).child[1]] = nr.link();
+            ac(r_parent).child[r.link(st) == ac(r_parent).child[1]] = nr.link(st);
         } else {
-            m_root = nr.link();
+            m_root = nr.link(st);
         }
-        ac(r).parent = nr.link();
+        ac(r).parent = nr.link(st);
     }
     
     static Ref subtree_max (State st, Ref n)
@@ -308,33 +308,33 @@ private:
     
     void swap_for_remove (State st, Ref node, Ref enode, Ref node_parent, Ref enode_parent)
     {
-        AMBRO_ASSERT(check_parent(node_parent, node))
-        AMBRO_ASSERT(check_parent(enode_parent, enode))
+        AMBRO_ASSERT(check_parent(st, node_parent, node))
+        AMBRO_ASSERT(check_parent(st, enode_parent, enode))
         
-        if (enode_parent.link() == node.link()) {
+        if (enode_parent.link(st) == node.link(st)) {
             // when the nodes are directly connected we need special handling
             
-            bool side = enode.link() == ac(node).child[1];
+            bool side = enode.link(st) == ac(node).child[1];
             Ref c = ac(node).child[!side].ref(st);
             
             if (!(ac(node).child[0] = ac(enode).child[0]).isNull()) {
-                ac(ac(node).child[0].ref(st)).parent = node.link();
+                ac(ac(node).child[0].ref(st)).parent = node.link(st);
             }
             if (!(ac(node).child[1] = ac(enode).child[1]).isNull()) {
-                ac(ac(node).child[1].ref(st)).parent = node.link();
+                ac(ac(node).child[1].ref(st)).parent = node.link(st);
             }
             
             ac(enode).parent = ac(node).parent;
             if (!node_parent.isNull()) {
-                ac(node_parent).child[node.link() == ac(node_parent).child[1]] = enode.link();
+                ac(node_parent).child[node.link(st) == ac(node_parent).child[1]] = enode.link(st);
             } else {
-                m_root = enode.link();
+                m_root = enode.link(st);
             }
             
-            ac(enode).child[side] = node.link();
-            ac(node).parent = enode.link();
-            if (!(ac(enode).child[!side] = c.link()).isNull()) {
-                ac(c).parent = enode.link();
+            ac(enode).child[side] = node.link(st);
+            ac(node).parent = enode.link(st);
+            if (!(ac(enode).child[!side] = c.link(st)).isNull()) {
+                ac(c).parent = enode.link(st);
             }
         } else {
             Ref temp;
@@ -343,33 +343,33 @@ private:
             temp = node_parent;
             ac(node).parent = ac(enode).parent;
             if (!enode_parent.isNull()) {
-                ac(enode_parent).child[enode.link() == ac(enode_parent).child[1]] = node.link();
+                ac(enode_parent).child[enode.link(st) == ac(enode_parent).child[1]] = node.link(st);
             } else {
-                m_root = node.link();
+                m_root = node.link(st);
             }
-            ac(enode).parent = temp.link();
+            ac(enode).parent = temp.link(st);
             if (!temp.isNull()) {
-                ac(temp).child[node.link() == ac(temp).child[1]] = enode.link();
+                ac(temp).child[node.link(st) == ac(temp).child[1]] = enode.link(st);
             } else {
-                m_root = enode.link();
+                m_root = enode.link(st);
             }
             
             // swap left children
             temp = ac(node).child[0].ref(st);
             if (!(ac(node).child[0] = ac(enode).child[0]).isNull()) {
-                ac(ac(node).child[0].ref(st)).parent = node.link();
+                ac(ac(node).child[0].ref(st)).parent = node.link(st);
             }
-            if (!(ac(enode).child[0] = temp.link()).isNull()) {
-                ac(ac(enode).child[0].ref(st)).parent = enode.link();
+            if (!(ac(enode).child[0] = temp.link(st)).isNull()) {
+                ac(ac(enode).child[0].ref(st)).parent = enode.link(st);
             }
             
             // swap right children
             temp = ac(node).child[1].ref(st);
             if (!(ac(node).child[1] = ac(enode).child[1]).isNull()) {
-                ac(ac(node).child[1].ref(st)).parent = node.link();
+                ac(ac(node).child[1].ref(st)).parent = node.link(st);
             }
-            if (!(ac(enode).child[1] = temp.link()).isNull()) {
-                ac(ac(enode).child[1].ref(st)).parent = enode.link();
+            if (!(ac(enode).child[1] = temp.link(st)).isNull()) {
+                ac(ac(enode).child[1].ref(st)).parent = enode.link(st);
             }
         }
         
@@ -382,12 +382,12 @@ private:
     void replace_subtree (State st, Ref dest, Ref n, Ref dest_parent)
     {
         AMBRO_ASSERT(!dest.isNull())
-        AMBRO_ASSERT(check_parent(dest_parent, dest))
+        AMBRO_ASSERT(check_parent(st, dest_parent, dest))
         
         if (!dest_parent.isNull()) {
-            ac(dest_parent).child[dest.link() == ac(dest_parent).child[1]] = n.link();
+            ac(dest_parent).child[dest.link(st) == ac(dest_parent).child[1]] = n.link(st);
         } else {
-            m_root = n.link();
+            m_root = n.link(st);
         }
         
         if (!n.isNull()) {
@@ -395,10 +395,10 @@ private:
         }
     }
     
-    static bool check_parent (Ref p, Ref c)
+    static bool check_parent (State st, Ref p, Ref c)
     {
-        return (p.link() == ac(c).parent) &&
-               (p.isNull() || c.link() == ac(p).child[0] || c.link() == ac(p).child[1]);
+        return (p.link(st) == ac(c).parent) &&
+               (p.isNull() || c.link(st) == ac(p).child[0] || c.link(st) == ac(p).child[1]);
     }
     
     void assert_tree (State st)
@@ -429,7 +429,7 @@ private:
         // check left subtree
         if (!ac(n).child[0].isNull()) {
             // check parent link
-            AMBRO_ASSERT_FORCE(ac(ac(n).child[0].ref(st)).parent == n.link())
+            AMBRO_ASSERT_FORCE(ac(ac(n).child[0].ref(st)).parent == n.link(st))
             // check binary search tree
             AMBRO_ASSERT_FORCE(Compare::compareEntries(st, ac(n).child[0].ref(st), n) == -1)
             // recursively calculate height
@@ -439,7 +439,7 @@ private:
         // check right subtree
         if (!ac(n).child[1].isNull()) {
             // check parent link
-            AMBRO_ASSERT_FORCE(ac(ac(n).child[1].ref(st)).parent == n.link())
+            AMBRO_ASSERT_FORCE(ac(ac(n).child[1].ref(st)).parent == n.link(st))
             // check binary search tree
             AMBRO_ASSERT_FORCE(Compare::compareEntries(st, ac(n).child[1].ref(st), n) == 1)
             // recursively calculate height

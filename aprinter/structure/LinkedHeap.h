@@ -95,7 +95,7 @@ public:
         Ref child;
         
         if (m_root.isNull()) {
-            m_root = node.link();
+            m_root = node.link(st);
             m_count = 1;
             m_level_bit = 1;
             
@@ -128,7 +128,7 @@ public:
                 Ref parent = ac(cur).parent.ref(st);
                 AMBRO_ASSERT(!parent.isNull())
                 
-                while (cur.link() == ac(parent).link[1]) {
+                while (cur.link(st) == ac(parent).link[1]) {
                     AMBRO_ASSERT(!ac(cur).parent.isNull())
                     cur = parent;
                     parent = ac(cur).parent.ref(st);
@@ -152,8 +152,8 @@ public:
             AMBRO_ASSERT(ac(parent).link[1].isNull())
             
             if (Compare::compareEntries(st, parent, node) <= 0) {
-                ac(parent).link[dir] = node.link();
-                ac(node).parent = parent.link();
+                ac(parent).link[dir] = node.link(st);
+                ac(node).parent = parent.link(st);
                 child_dir = -1;
             } else {
                 child = node;
@@ -162,7 +162,7 @@ public:
             }
         }
         
-        m_last = node.link();
+        m_last = node.link(st);
         
         Link other_child = ac(node).link[!child_dir];
         
@@ -209,7 +209,7 @@ public:
                 Ref parent = ac(cur).parent.ref(st);
                 AMBRO_ASSERT(!parent.isNull())
                 
-                bool dir = cur.link() == ac(parent).link[1];
+                bool dir = cur.link(st) == ac(parent).link[1];
                 ac(parent).link[dir] = Link::null();
                 
                 if (dir) {
@@ -223,7 +223,7 @@ public:
                         cur = parent;
                         AMBRO_ASSERT(!ac(cur).parent.isNull())
                         parent = ac(cur).parent.ref(st);
-                    } while (cur.link() == ac(parent).link[0]);
+                    } while (cur.link(st) == ac(parent).link[0]);
                     
                     AMBRO_ASSERT(!ac(parent).link[0].isNull())
                     cur = ac(parent).link[0].ref(st);
@@ -238,7 +238,7 @@ public:
             Ref srcnode = m_last.ref(st);
             
             if (!(node == cur)) {
-                m_last = cur.link();
+                m_last = cur.link(st);
             }
             
             if (!(node == srcnode)) {
@@ -289,8 +289,8 @@ public:
         while (!parent.isNull()) {
             AMBRO_ASSERT(Compare::compareKeyEntry(st, key, parent) >= 0)
             
-            if (!(node.link() == ac(parent).link[1])) {
-                AMBRO_ASSERT(node.link() == ac(parent).link[0])
+            if (!(node.link(st) == ac(parent).link[1])) {
+                AMBRO_ASSERT(node.link(st) == ac(parent).link[0])
                 
                 Ref sibling = ac(parent).link[1].ref(st);
                 if (!sibling.isNull() && Compare::compareKeyEntry(st, key, sibling) >= 0) {
@@ -385,14 +385,14 @@ private:
                 break;
             }
             
-            bool next_side = parent.link() == ac(gparent).link[1];
+            bool next_side = parent.link(st) == ac(gparent).link[1];
             Link next_sibling = ac(gparent).link[!next_side];
             
-            ac(gparent).link[side] = parent.link();
-            ac(parent).parent = gparent.link();
+            ac(gparent).link[side] = parent.link(st);
+            ac(parent).parent = gparent.link(st);
             
             if (!(ac(gparent).link[!side] = sibling).isNull()) {
-                ac(sibling.ref(st)).parent = gparent.link();
+                ac(sibling.ref(st)).parent = gparent.link(st);
             }
             
             side = next_side;
@@ -400,17 +400,17 @@ private:
             parent = gparent;
         }
         
-        ac(node).link[side] = parent.link();
-        ac(parent).parent = node.link();
+        ac(node).link[side] = parent.link(st);
+        ac(parent).parent = node.link(st);
         
         if (!(ac(node).link[!side] = sibling).isNull()) {
-            ac(sibling.ref(st)).parent = node.link();
+            ac(sibling.ref(st)).parent = node.link(st);
         }
         
-        if (!(ac(node).parent = gparent.link()).isNull()) {
-            ac(gparent).link[parent.link() == ac(gparent).link[1]] = node.link();
+        if (!(ac(node).parent = gparent.link(st)).isNull()) {
+            ac(gparent).link[parent.link(st) == ac(gparent).link[1]] = node.link(st);
         } else {
-            m_root = node.link();
+            m_root = node.link(st);
         }
     }
     
@@ -438,7 +438,7 @@ private:
                 }
                 
                 parent = ac(node).parent.ref(st);
-                side = !parent.isNull() && node.link() == ac(parent).link[1];
+                side = !parent.isNull() && node.link(st) == ac(parent).link[1];
             } else {
                 if (child.isNull()) {
                     break;
@@ -450,36 +450,36 @@ private:
             child0 = ac(child).link[0];
             child1 = ac(child).link[1];
             
-            if (!(ac(child).parent = parent.link()).isNull()) {
-                ac(parent).link[side] = child.link();
+            if (!(ac(child).parent = parent.link(st)).isNull()) {
+                ac(parent).link[side] = child.link(st);
             } else {
-                m_root = child.link();
+                m_root = child.link(st);
             }
             
             if (!(ac(child).link[!next_side] = other_child).isNull()) {
-                ac(other_child.ref(st)).parent = child.link();
+                ac(other_child.ref(st)).parent = child.link(st);
             }
             
-            if (m_last == child.link()) {
-                m_last = node.link();
+            if (m_last == child.link(st)) {
+                m_last = node.link(st);
             }
             
             parent = child;
             side = next_side;
         }
         
-        if (!(ac(node).parent = parent.link()).isNull()) {
-            ac(parent).link[side] = node.link();
+        if (!(ac(node).parent = parent.link(st)).isNull()) {
+            ac(parent).link[side] = node.link(st);
         } else {
-            m_root = node.link();
+            m_root = node.link(st);
         }
         
         if (!(ac(node).link[0] = child0).isNull()) {
-            ac(child0.ref(st)).parent = node.link();
+            ac(child0.ref(st)).parent = node.link(st);
         }
         
         if (!(ac(node).link[1] = child1).isNull()) {
-            ac(child1.ref(st)).parent = node.link();
+            ac(child1.ref(st)).parent = node.link(st);
         }
     }
     
@@ -489,21 +489,21 @@ private:
         Link child1 = ac(node).link[1];
         
         Ref parent = ac(node).parent.ref(st);
-        int8_t side = !parent.isNull() && node.link() == ac(parent).link[1];
+        int8_t side = !parent.isNull() && node.link(st) == ac(parent).link[1];
         
         if (!parent.isNull() && Compare::compareEntries(st, srcnode, parent) < 0) {
             Link sibling = ac(parent).link[!side];
             
             if (!(ac(parent).link[0] = child0).isNull()) {
-                ac(child0.ref(st)).parent = parent.link();
+                ac(child0.ref(st)).parent = parent.link(st);
             }
             
             if (!(ac(parent).link[1] = child1).isNull()) {
-                ac(child1.ref(st)).parent = parent.link();
+                ac(child1.ref(st)).parent = parent.link(st);
             }
             
-            if (m_last == srcnode.link()) {
-                m_last = parent.link();
+            if (m_last == srcnode.link(st)) {
+                m_last = parent.link(st);
             }
             
             bubble_up_node(st, srcnode, parent, sibling, side);
@@ -537,12 +537,12 @@ private:
         } else {
             if (!ac(n).link[0].isNull()) {
                 AMBRO_ASSERT_FORCE(Compare::compareEntries(st, n, ac(n).link[0].ref(st)) <= 0)
-                AMBRO_ASSERT_FORCE(ac(ac(n).link[0].ref(st)).parent == n.link())
+                AMBRO_ASSERT_FORCE(ac(ac(n).link[0].ref(st)).parent == n.link(st))
                 assert_recurser(st, ac(n).link[0].ref(st), ad, level + 1);
             }
             if (!ac(n).link[1].isNull()) {
                 AMBRO_ASSERT_FORCE(Compare::compareEntries(st, n, ac(n).link[1].ref(st)) <= 0)
-                AMBRO_ASSERT_FORCE(ac(ac(n).link[1].ref(st)).parent == n.link())
+                AMBRO_ASSERT_FORCE(ac(ac(n).link[1].ref(st)).parent == n.link(st))
                 assert_recurser(st, ac(n).link[1].ref(st), ad, level + 1);
             }
         }
@@ -576,7 +576,7 @@ private:
         else if (level == ad.level) {
             AMBRO_ASSERT_FORCE(ad.state == AssertState::Lowest)
             AMBRO_ASSERT_FORCE(ac(n).link[0].isNull() && ac(n).link[1].isNull())
-            ad.prev_leaf = n.link();
+            ad.prev_leaf = n.link(st);
         }
         else {
             AMBRO_ASSERT_FORCE(false)

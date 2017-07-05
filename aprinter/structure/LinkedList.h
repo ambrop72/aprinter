@@ -104,11 +104,11 @@ public:
     {
         ac(e).next = m_first;
         if (!m_first.isNull()) {
-            ac(m_first.ref(st)).prev = e.link();
+            ac(m_first.ref(st)).prev = e.link(st);
         } else {
-            set_last(e.link());
+            set_last(e.link(st));
         }
-        m_first = e.link();
+        m_first = e.link(st);
     }
     
     APRINTER_FUNCTION_IF(WithLast, void, append (Ref e, State st = State()))
@@ -116,16 +116,16 @@ public:
         ac(e).next = Link::null();
         if (!m_first.isNull()) {
             ac(e).prev = this->m_last;
-            ac(this->m_last.ref(st)).next = e.link();
+            ac(this->m_last.ref(st)).next = e.link(st);
         } else {
-            m_first = e.link();
+            m_first = e.link(st);
         }
-        this->m_last = e.link();
+        this->m_last = e.link(st);
     }
     
     void remove (Ref e, State st = State())
     {
-        if (!(e.link() == m_first)) {
+        if (!(e.link(st) == m_first)) {
             ac(ac(e).prev.ref(st)).next = ac(e).next;
             if (!ac(e).next.isNull()) {
                 ac(ac(e).next.ref(st)).prev = ac(e).prev;
@@ -144,14 +144,14 @@ public:
         m_first = ac(m_first.ref(st)).next;
     }
     
-    inline static void markRemoved (Ref e)
+    inline static void markRemoved (Ref e, State st = State())
     {
-        ac(e).next = e.link();
+        ac(e).next = e.link(st);
     }
     
-    inline static bool isRemoved (Ref e)
+    inline static bool isRemoved (Ref e, State st = State())
     {
-        return ac(e).next == e.link();
+        return ac(e).next == e.link(st);
     }
     
 private:
@@ -193,11 +193,11 @@ public:
         AMBRO_ASSERT(!e.isNull())
         AMBRO_ASSERT(!other.isNull())
         
-        ac(e).prev = other.link();
+        ac(e).prev = other.link(st);
         ac(e).next = ac(other).next;
-        ac(other).next = e.link();
+        ac(other).next = e.link(st);
         if (!ac(e).next.isNull()) {
-            ac(ac(e).next.ref(st)).prev = e.link();
+            ac(ac(e).next.ref(st)).prev = e.link(st);
         }
     }
     
@@ -206,11 +206,11 @@ public:
         AMBRO_ASSERT(!e.isNull())
         AMBRO_ASSERT(!other.isNull())
         
-        ac(e).next = other.link();
+        ac(e).next = other.link(st);
         ac(e).prev = ac(other).prev;
-        ac(other).prev = e.link();
+        ac(other).prev = e.link(st);
         if (!ac(e).prev.isNull()) {
-            ac(ac(e).prev.ref(st)).next = e.link();
+            ac(ac(e).prev.ref(st)).next = e.link(st);
         }
     }
     
@@ -235,7 +235,7 @@ public:
         ac(e).prev = Link::null();
         ac(e).next = ac(old_first).next;
         if (!ac(e).next.isNull()) {
-            ac(ac(e).next.ref(st)).prev = e.link();
+            ac(ac(e).next.ref(st)).prev = e.link(st);
         }
     }
     
@@ -253,18 +253,18 @@ public:
         return ac(e).next.ref(st);
     }
     
-    inline static void markRemoved (Ref e)
+    inline static void markRemoved (Ref e, State st = State())
     {
         AMBRO_ASSERT(!e.isNull())
         
-        ac(e).next = e.link();
+        ac(e).next = e.link(st);
     }
     
-    inline static bool isRemoved (Ref e)
+    inline static bool isRemoved (Ref e, State st = State())
     {
         AMBRO_ASSERT(!e.isNull())
         
-        return ac(e).next == e.link();
+        return ac(e).next == e.link(st);
     }
     
 private:

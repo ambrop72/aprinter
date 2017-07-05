@@ -133,7 +133,7 @@ public:
             return m_link.isNull();
         }
         
-        inline Link link () const
+        inline Link link (State) const
         {
             return m_link;
         }
@@ -244,11 +244,7 @@ public:
         
         inline Ref ref (State state) const
         {
-            if (isNull()) {
-                return Ref(*this, nullptr);
-            } else {
-                return Ref(*this, &state.getEntryAt(m_index));
-            }
+            return Ref(isNull() ? nullptr : &state.getEntryAt(m_index));
         }
         
         inline bool operator== (Link const &other) const
@@ -263,25 +259,25 @@ public:
     class Ref {
         friend ArrayLinkModel;
         
-        inline Ref (Link link, Entry *ptr)
-        : m_link(link), m_ptr(ptr) {}
+        inline Ref (Entry *ptr)
+        : m_ptr(ptr) {}
         
     public:
         inline static Ref null ()
         {
-            return Ref(Link::null(), nullptr);
+            return Ref(nullptr);
         }
         
         Ref() = default;
         
         inline bool isNull () const
         {
-            return m_link.isNull();
+            return m_ptr == nullptr;
         }
         
-        inline Link link () const
+        inline Link link (State state) const
         {
-            return m_link;
+            return Link(getIndex(state));
         }
         
         inline Entry & operator* () const
@@ -296,26 +292,25 @@ public:
         
         inline bool operator== (Ref const &other) const
         {
-            return m_link == other.m_link;
+            return m_ptr == other.m_ptr;
         }
         
         // The remaining functions are only for users of data structures.
         
-        inline Ref (Entry &entry, IndexType index)
-        : m_link(Link(index)), m_ptr(&entry)
+        inline Ref (Entry &entry)
+        : m_ptr(&entry)
         {}
         
-        inline Ref (Entry &entry, State st)
-        : Ref(entry, st.getEntryIndex(entry))
+        inline Ref (Entry &entry, State)
+        : Ref(entry)
         {}
         
-        inline IndexType getIndex () const
+        inline IndexType getIndex (State state) const
         {
-            return m_link.m_index;
+            return isNull() ? NullIndex : state.getEntryIndex(*m_ptr);
         }
         
     private:
-        Link m_link;
         Entry *m_ptr;
     };
 };
