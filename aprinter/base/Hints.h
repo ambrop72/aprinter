@@ -36,8 +36,10 @@
 
 #ifndef __clang__
 #define APRINTER_UNROLL_LOOPS __attribute__((optimize("unroll-loops")))
+#define APRINTER_OPTIMIZE_SIZE __attribute__((optimize("Os")))
 #else
 #define APRINTER_UNROLL_LOOPS
+#define APRINTER_OPTIMIZE_SIZE
 #endif
 
 #else
@@ -49,6 +51,7 @@
 #define APRINTER_NO_RETURN
 #define APRINTER_RESTRICT
 #define APRINTER_UNROLL_LOOPS
+#define APRINTER_OPTIMIZE_SIZE
 
 #endif
 

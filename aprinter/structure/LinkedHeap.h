@@ -85,6 +85,7 @@ public:
         return m_root.ref(st);
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void insert (Ref node, State st = State())
     {
         AMBRO_ASSERT(m_root.isNull() || m_count > 0)
@@ -178,6 +179,7 @@ public:
         assertValidHeap(st);
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void remove (Ref node, State st = State())
     {
         AMBRO_ASSERT(!m_root.isNull())
@@ -251,6 +253,7 @@ public:
         assertValidHeap(st);
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void fixup (Ref node, State st = State())
     {
         AMBRO_ASSERT(!m_root.isNull())
@@ -275,6 +278,7 @@ public:
     }
     
     template <typename KeyType>
+    APRINTER_OPTIMIZE_SIZE
     Ref findNextLesserOrEqual (KeyType key, Ref node, State st = State())
     {
         AMBRO_ASSERT(!node.isNull())
@@ -315,6 +319,7 @@ public:
 #endif
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void verifyHeap (State st = State())
     {
         if (m_root.isNull()) {
@@ -349,6 +354,7 @@ private:
         return Accessor::access(*ref);
     }
     
+    APRINTER_OPTIMIZE_SIZE
     inline SizeType increment_count ()
     {
         SizeType prev_count = m_count;
@@ -360,6 +366,7 @@ private:
         return prev_count;
     }
     
+    APRINTER_OPTIMIZE_SIZE
     inline SizeType decrement_count ()
     {
         SizeType prev_count = m_count;
@@ -370,6 +377,7 @@ private:
         return prev_count;
     }
     
+    APRINTER_OPTIMIZE_SIZE
     inline bool should_walk_from_root (SizeType prev_count, SizeType new_count)
     {
         SizeType rollover_bit = (prev_count ^ new_count) + 1;
@@ -377,6 +385,7 @@ private:
         return rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void bubble_up_node (State st, Ref node, Ref parent, Link sibling, bool side)
     {
         Ref gparent;
@@ -416,6 +425,7 @@ private:
         }
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void connect_and_bubble_down_node (State st, Ref node, Ref parent, int8_t side, Link child0, Link child1)
     {
         while (true) {
@@ -485,6 +495,7 @@ private:
         }
     }
     
+    APRINTER_OPTIMIZE_SIZE
     void fixup_node (State st, Ref node, Ref srcnode)
     {
         Link child0 = ac(node).link[0];
@@ -527,6 +538,7 @@ private:
         SizeType count;
     };
     
+    APRINTER_OPTIMIZE_SIZE
     void assert_recurser (State st, Ref n, AssertData &ad, int level)
     {
         ad.count++;
