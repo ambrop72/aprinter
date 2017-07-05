@@ -303,7 +303,10 @@ public:
             
             bubble_up_node(st, node, parent, sibling, side);
         } else {
-            bubble_down_node_if_needed(st, node);
+            Link child0 = ac(node).link[0];
+            Link child1 = ac(node).link[1];
+            
+            connect_and_bubble_down_node(st, node, Ref::null(), -1, child0, child1);
         }
         
         assertValidHeap(st);
@@ -463,6 +466,63 @@ private:
         }
     }
     
+    void connect_and_bubble_down_node (State st, Ref node, Ref parent, int8_t side, Link child0, Link child1)
+    {
+        while (true) {
+            bool next_side;
+            Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
+            
+            if (AMBRO_UNLIKELY(side < 0)) {
+                if (child.isNull()) {
+                    return;
+                }
+                
+                parent = ac(node).parent.ref(st);
+                side = !parent.isNull() && node.link() == ac(parent).link[1];
+            } else {
+                if (child.isNull()) {
+                    break;
+                }
+            }
+            
+            Link other_child = next_side ? child0 : child1;
+            
+            child0 = ac(child).link[0];
+            child1 = ac(child).link[1];
+            
+            if (!(ac(child).parent = parent.link()).isNull()) {
+                ac(parent).link[side] = child.link();
+            } else {
+                m_root = child.link();
+            }
+            
+            if (!(ac(child).link[!next_side] = other_child).isNull()) {
+                ac(other_child.ref(st)).parent = child.link();
+            }
+            
+            if (m_last == child.link()) {
+                m_last = node.link();
+            }
+            
+            parent = child;
+            side = next_side;
+        }
+        
+        if (!(ac(node).parent = parent.link()).isNull()) {
+            ac(parent).link[side] = node.link();
+        } else {
+            m_root = node.link();
+        }
+        
+        if (!(ac(node).link[0] = child0).isNull()) {
+            ac(child0.ref(st)).parent = node.link();
+        }
+        
+        if (!(ac(node).link[1] = child1).isNull()) {
+            ac(child1.ref(st)).parent = node.link();
+        }
+    }
+    
     inline Ref check_for_bubble_down (State st, Ref node, Link child0, Link child1, bool *out_next_side)
     {
         Ref child = child0.ref(st);
@@ -480,78 +540,6 @@ private:
         
         *out_next_side = next_side;
         return child;
-    }
-    
-    inline void bubble_down_node_if_needed (State st, Ref node)
-    {
-        Link child0 = ac(node).link[0];
-        Link child1 = ac(node).link[1];
-        
-        bool next_side;
-        Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
-        if (child.isNull()) {
-            return;
-        }
-        
-        Ref parent = ac(node).parent.ref(st);
-        bool side = !parent.isNull() && node.link() == ac(parent).link[1];
-        
-        do_one_step_bubble_down(st, node, child, next_side, parent, side, child0, child1);
-        
-        connect_and_bubble_down_node(st, node, parent, side, child0, child1);
-    }
-    
-    inline void do_one_step_bubble_down (State st, Ref node, Ref child, bool next_side,
-                                         Ref &parent, bool &side, Link &child0, Link &child1)
-    {
-        Link other_child = next_side ? child0 : child1;
-        
-        child0 = ac(child).link[0];
-        child1 = ac(child).link[1];
-        
-        if (!(ac(child).parent = parent.link()).isNull()) {
-            ac(parent).link[side] = child.link();
-        } else {
-            m_root = child.link();
-        }
-        
-        if (!(ac(child).link[!next_side] = other_child).isNull()) {
-            ac(other_child.ref(st)).parent = child.link();
-        }
-        
-        if (m_last == child.link()) {
-            m_last = node.link();
-        }
-        
-        parent = child;
-        side = next_side;
-    }
-    
-    void connect_and_bubble_down_node (State st, Ref node, Ref parent, bool side, Link child0, Link child1)
-    {
-        while (true) {
-            bool next_side;
-            Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
-            if (child.isNull()) {
-                break;
-            }
-            
-            do_one_step_bubble_down(st, node, child, next_side, parent, side, child0, child1);
-        }
-        
-        if (!(ac(node).parent = parent.link()).isNull()) {
-            ac(parent).link[side] = node.link();
-        } else {
-            m_root = node.link();
-        }
-        
-        if (!(ac(node).link[0] = child0).isNull()) {
-            ac(child0.ref(st)).parent = node.link();
-        }
-        
-        if (!(ac(node).link[1] = child1).isNull()) {
-            ac(child1.ref(st)).parent = node.link();
-        }
     }
     
     enum class AssertState {NoDepth, Lowest, LowestEnd};
