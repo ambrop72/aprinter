@@ -66,7 +66,7 @@ class LinkedHeap
     using Link = typename LinkModel::Link;
     
 private:
-    Link m_root;
+    Link m_root; // remaining fields are undefined when root is null
     Link m_last;
     SizeType m_count;
     SizeType m_level_bit;
@@ -78,7 +78,6 @@ public:
     inline void init ()
     {
         m_root = Link::null();
-        m_count = 0;
     }
     
     inline Ref first (State st = State()) const
@@ -88,8 +87,8 @@ public:
     
     void insert (Ref node, State st = State())
     {
-        AMBRO_ASSERT(m_count < std::numeric_limits<SizeType>::max())
-        AMBRO_ASSERT(m_root.isNull() == (m_count == 0))
+        AMBRO_ASSERT(m_root.isNull() || m_count > 0)
+        AMBRO_ASSERT(m_root.isNull() || m_count < std::numeric_limits<SizeType>::max())
         
         int8_t child_dir;
         Ref child;
@@ -181,11 +180,11 @@ public:
     
     void remove (Ref node, State st = State())
     {
-        AMBRO_ASSERT(!m_root.isNull() && m_count > 0)
+        AMBRO_ASSERT(!m_root.isNull())
+        AMBRO_ASSERT(m_count > 0)
         
         if (m_count == 1) {
             m_root = Link::null();
-            m_count = 0;
         } else {
             SizeType prev_count = decrement_count();
             SizeType new_count = m_count;
@@ -254,7 +253,8 @@ public:
     
     void fixup (Ref node, State st = State())
     {
-        AMBRO_ASSERT(!m_root.isNull() && m_count > 0)
+        AMBRO_ASSERT(!m_root.isNull())
+        AMBRO_ASSERT(m_count > 0)
         
         if (m_count != 1) {
             fixup_node(st, node, node);
@@ -318,7 +318,6 @@ public:
     void verifyHeap (State st = State())
     {
         if (m_root.isNull()) {
-            AMBRO_ASSERT_FORCE(m_count == 0)
             return;
         }
         
