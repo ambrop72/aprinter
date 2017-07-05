@@ -304,7 +304,7 @@ public:
             
             bubble_up_node(st, node, parent, sibling, side);
         } else {
-            connect_and_bubble_down_node(st, node, Ref::null(), -1, child0, child1);
+            connect_and_bubble_down_node(st, node, parent, -1, child0, child1);
         }
         
         assertValidHeap(st);
