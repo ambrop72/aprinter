@@ -26,11 +26,13 @@
 #define APRINTER_LINKED_HEAP_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <type_traits>
 #include <limits>
 
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Hints.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -89,86 +91,86 @@ public:
         AMBRO_ASSERT(m_count < std::numeric_limits<SizeType>::max())
         AMBRO_ASSERT(m_root.isNull() == (m_count == 0))
         
+        int8_t child_dir;
+        Ref child;
+        
         if (m_root.isNull()) {
             m_root = node.link();
-            m_last = node.link();
             m_count = 1;
             m_level_bit = 1;
             
             ac(node).parent = Link::null();
-            ac(node).link[0] = Link::null();
-            ac(node).link[1] = Link::null();
-            
-            assertValidHeap(st);
-            return;
-        }
-        
-        SizeType prev_count = increment_count();
-        SizeType new_count = m_count;
-        bool from_root = should_walk_from_root(prev_count, new_count);
-        
-        Ref cur;
-        bool dir;
-        
-        if (from_root) {
-            SizeType bit = m_level_bit;
-            cur = m_root.ref(st);
-            
-            while (bit > 2) {
-                bit >>= 1;
-                bool next_dir = (new_count & bit) != 0;
-                
-                AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
-                cur = ac(cur).link[next_dir].ref(st);
-            }
-            
-            bit >>= 1;
-            dir = (new_count & bit) != 0;
+            child_dir = -1;
         } else {
-            cur = m_last.ref(st);
-            Ref parent = ac(cur).parent.ref(st);
-            AMBRO_ASSERT(!parent.isNull())
+            SizeType prev_count = increment_count();
+            SizeType new_count = m_count;
+            bool from_root = should_walk_from_root(prev_count, new_count);
             
-            while (cur.link() == ac(parent).link[1]) {
-                AMBRO_ASSERT(!ac(cur).parent.isNull())
-                cur = parent;
-                parent = ac(cur).parent.ref(st);
-            }
+            Ref cur;
+            bool dir;
             
-            if (!ac(parent).link[1].isNull()) {
-                cur = ac(parent).link[1].ref(st);
-                dir = false;
+            if (from_root) {
+                SizeType bit = m_level_bit;
+                cur = m_root.ref(st);
                 
-                while (!ac(cur).link[0].isNull()) {
-                    cur = ac(cur).link[0].ref(st);
+                while (bit > 2) {
+                    bit >>= 1;
+                    bool next_dir = (new_count & bit) != 0;
+                    
+                    AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
+                    cur = ac(cur).link[next_dir].ref(st);
                 }
+                
+                bit >>= 1;
+                dir = (new_count & bit) != 0;
             } else {
-                cur = parent;
-                dir = true;
+                cur = m_last.ref(st);
+                Ref parent = ac(cur).parent.ref(st);
+                AMBRO_ASSERT(!parent.isNull())
+                
+                while (cur.link() == ac(parent).link[1]) {
+                    AMBRO_ASSERT(!ac(cur).parent.isNull())
+                    cur = parent;
+                    parent = ac(cur).parent.ref(st);
+                }
+                
+                if (!ac(parent).link[1].isNull()) {
+                    cur = ac(parent).link[1].ref(st);
+                    dir = false;
+                    
+                    while (!ac(cur).link[0].isNull()) {
+                        cur = ac(cur).link[0].ref(st);
+                    }
+                } else {
+                    cur = parent;
+                    dir = true;
+                }
+            }
+            
+            Ref parent = cur;
+            AMBRO_ASSERT(ac(parent).link[dir].isNull())
+            AMBRO_ASSERT(ac(parent).link[1].isNull())
+            
+            if (Compare::compareEntries(st, parent, node) <= 0) {
+                ac(parent).link[dir] = node.link();
+                ac(node).parent = parent.link();
+                child_dir = -1;
+            } else {
+                child = node;
+                node = parent;
+                child_dir = dir;
             }
         }
         
-        Ref parent = cur;
-        AMBRO_ASSERT(ac(parent).link[dir].isNull())
-        AMBRO_ASSERT(ac(parent).link[1].isNull())
+        m_last = node.link();
         
-        if (Compare::compareEntries(st, parent, node) <= 0) {
-            m_last = node.link();
-            
-            ac(parent).link[dir] = node.link();
-            
-            ac(node).parent = parent.link();
-            ac(node).link[0] = Link::null();
-            ac(node).link[1] = Link::null();
-        } else {
-            m_last = parent.link();
-            
-            Link sibling = ac(parent).link[!dir];
-            
-            ac(parent).link[0] = Link::null();
-            ac(parent).link[1] = Link::null();
-            
-            bubble_up_node(st, node, parent, sibling, dir);
+        Link other_child = ac(node).link[!child_dir];
+        
+        ac(node).link[0] = Link::null();
+        ac(node).link[1] = Link::null();
+        
+        if (child_dir >= 0) {
+            bubble_up_node(st, child, node, other_child, child_dir);
         }
         
         assertValidHeap(st);
@@ -181,92 +183,89 @@ public:
         if (m_count == 1) {
             m_root = Link::null();
             m_count = 0;
-            
-            assertValidHeap(st);
-            return;
-        }
-        
-        SizeType prev_count = decrement_count();
-        SizeType new_count = m_count;
-        bool from_root = should_walk_from_root(prev_count, new_count);
-        
-        Ref cur;
-        
-        if (from_root) {
-            Ref last_parent = ac(m_last.ref(st)).parent.ref(st);
-            ac(last_parent).link[m_last == ac(last_parent).link[1]] = Link::null();
-            
-            SizeType bit = m_level_bit;
-            cur = m_root.ref(st);
-            
-            while (bit > 1) {
-                bit >>= 1;
-                bool next_dir = (new_count & bit) != 0;
-                
-                AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
-                cur = ac(cur).link[next_dir].ref(st);
-            }
         } else {
-            cur = m_last.ref(st);
-            Ref parent = ac(cur).parent.ref(st);
-            AMBRO_ASSERT(!parent.isNull())
+            SizeType prev_count = decrement_count();
+            SizeType new_count = m_count;
+            bool from_root = should_walk_from_root(prev_count, new_count);
             
-            bool dir = cur.link() == ac(parent).link[1];
-            ac(parent).link[dir] = Link::null();
+            Ref cur;
             
-            if (dir) {
-                AMBRO_ASSERT(!ac(parent).link[0].isNull())
-                cur = ac(parent).link[0].ref(st);
+            if (from_root) {
+                Ref last_parent = ac(m_last.ref(st)).parent.ref(st);
+                ac(last_parent).link[m_last == ac(last_parent).link[1]] = Link::null();
                 
-                AMBRO_ASSERT(ac(cur).link[0].isNull())
-                AMBRO_ASSERT(ac(cur).link[1].isNull())
+                SizeType bit = m_level_bit;
+                cur = m_root.ref(st);
+                
+                while (bit > 1) {
+                    bit >>= 1;
+                    bool next_dir = (new_count & bit) != 0;
+                    
+                    AMBRO_ASSERT(!ac(cur).link[next_dir].isNull())
+                    cur = ac(cur).link[next_dir].ref(st);
+                }
             } else {
-                do {
-                    cur = parent;
-                    AMBRO_ASSERT(!ac(cur).parent.isNull())
-                    parent = ac(cur).parent.ref(st);
-                } while (cur.link() == ac(parent).link[0]);
+                cur = m_last.ref(st);
+                Ref parent = ac(cur).parent.ref(st);
+                AMBRO_ASSERT(!parent.isNull())
                 
-                AMBRO_ASSERT(!ac(parent).link[0].isNull())
-                cur = ac(parent).link[0].ref(st);
+                bool dir = cur.link() == ac(parent).link[1];
+                ac(parent).link[dir] = Link::null();
                 
-                AMBRO_ASSERT(!ac(cur).link[1].isNull())
-                do {
-                    cur = ac(cur).link[1].ref(st);
-                } while (!ac(cur).link[1].isNull());
+                if (dir) {
+                    AMBRO_ASSERT(!ac(parent).link[0].isNull())
+                    cur = ac(parent).link[0].ref(st);
+                    
+                    AMBRO_ASSERT(ac(cur).link[0].isNull())
+                    AMBRO_ASSERT(ac(cur).link[1].isNull())
+                } else {
+                    do {
+                        cur = parent;
+                        AMBRO_ASSERT(!ac(cur).parent.isNull())
+                        parent = ac(cur).parent.ref(st);
+                    } while (cur.link() == ac(parent).link[0]);
+                    
+                    AMBRO_ASSERT(!ac(parent).link[0].isNull())
+                    cur = ac(parent).link[0].ref(st);
+                    
+                    AMBRO_ASSERT(!ac(cur).link[1].isNull())
+                    do {
+                        cur = ac(cur).link[1].ref(st);
+                    } while (!ac(cur).link[1].isNull());
+                }
             }
-        }
-        
-        Ref srcnode = m_last.ref(st);
-        
-        if (!(node == cur)) {
-            m_last = cur.link();
-        }
-        
-        if (!(node == srcnode)) {
-            Ref parent = ac(node).parent.ref(st);
-            bool side = !parent.isNull() && node.link() == ac(parent).link[1];
-            Link child0 = ac(node).link[0];
-            Link child1 = ac(node).link[1];
             
-            if (!parent.isNull() && Compare::compareEntries(st, srcnode, parent) < 0) {
-                Link sibling = ac(parent).link[!side];
+            Ref srcnode = m_last.ref(st);
+            
+            if (!(node == cur)) {
+                m_last = cur.link();
+            }
+            
+            if (!(node == srcnode)) {
+                Ref parent = ac(node).parent.ref(st);
+                bool side = !parent.isNull() && node.link() == ac(parent).link[1];
+                Link child0 = ac(node).link[0];
+                Link child1 = ac(node).link[1];
                 
-                if (!(ac(parent).link[0] = child0).isNull()) {
-                    ac(child0.ref(st)).parent = parent.link();
+                if (!parent.isNull() && Compare::compareEntries(st, srcnode, parent) < 0) {
+                    Link sibling = ac(parent).link[!side];
+                    
+                    if (!(ac(parent).link[0] = child0).isNull()) {
+                        ac(child0.ref(st)).parent = parent.link();
+                    }
+                    
+                    if (!(ac(parent).link[1] = child1).isNull()) {
+                        ac(child1.ref(st)).parent = parent.link();
+                    }
+                    
+                    if (m_last == srcnode.link()) {
+                        m_last = parent.link();
+                    }
+                    
+                    bubble_up_node(st, srcnode, parent, sibling, side);
+                } else {
+                    connect_and_bubble_down_node(st, srcnode, parent, side, child0, child1);
                 }
-                
-                if (!(ac(parent).link[1] = child1).isNull()) {
-                    ac(child1.ref(st)).parent = parent.link();
-                }
-                
-                if (m_last == srcnode.link()) {
-                    m_last = parent.link();
-                }
-                
-                bubble_up_node(st, srcnode, parent, sibling, side);
-            } else {
-                connect_and_bubble_down_node(st, srcnode, parent, side, child0, child1);
             }
         }
         
@@ -425,7 +424,7 @@ private:
         return rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
     }
     
-    inline void bubble_up_node (State st, Ref node, Ref parent, Link sibling, bool side)
+    void bubble_up_node (State st, Ref node, Ref parent, Link sibling, bool side)
     {
         Ref gparent;
         
@@ -528,7 +527,7 @@ private:
         side = next_side;
     }
     
-    inline void connect_and_bubble_down_node (State st, Ref node, Ref parent, bool side, Link child0, Link child1)
+    void connect_and_bubble_down_node (State st, Ref node, Ref parent, bool side, Link child0, Link child1)
     {
         while (true) {
             bool next_side;
