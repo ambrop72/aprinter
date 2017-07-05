@@ -33,6 +33,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
+//#define APRINTER_AVL_TREE_VERIFY 1
+
 template<typename, typename, typename>
 class AvlTree;
 
