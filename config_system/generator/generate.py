@@ -1305,8 +1305,8 @@ def get_ip_index(gen, config, key):
     index_name = config.get_string(key)
     if index_name not in ('MruListIndex', 'AvlTreeIndex'):
         config.key_path(key).error('Invalid value.')
-    gen.add_include('aipstack/misc/index/{}.h'.format(index_name))
-    return 'AIpStack::{}Service'.format(index_name)
+    gen.add_aprinter_include('structure/index/{}.h'.format(index_name))
+    return 'APrinter::{}Service'.format(index_name)
 
 class NetworkConfigState(object):
     def __init__(self, min_send_buf, min_recv_buf):

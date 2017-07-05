@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,85 +22,85 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_MRU_LIST_INDEX_H
-#define APRINTER_IPSTACK_MRU_LIST_INDEX_H
+#ifndef APRINTER_AVL_TREE_INDEX_H
+#define APRINTER_AVL_TREE_INDEX_H
 
 #include <aprinter/meta/ServiceUtils.h>
-#include <aprinter/base/Accessor.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/Accessor.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/AvlTree.h>
+#include <aprinter/structure/TreeCompare.h>
 
-#include <aipstack/BeginNamespace.h>
+#include <aprinter/BeginNamespace.h>
 
 template <typename Arg>
-class MruListIndex {
+class AvlTreeIndex {
     APRINTER_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
     
     APRINTER_USE_TYPES1(LinkModel, (State, Ref))
     
-    using ListNode = APrinter::LinkedListNode<LinkModel>;
+    using TreeNode = AvlTreeNode<LinkModel>;
     
 public:
     class Node {
-        friend MruListIndex;
+        friend AvlTreeIndex;
         
-        ListNode list_node;
+        TreeNode tree_node;
     };
     
     class Index {
-        using ListNodeAccessor = APrinter::ComposedAccessor<
+        using TreeNodeAccessor = ComposedAccessor<
             HookAccessor,
-            APRINTER_MEMBER_ACCESSOR_TN(&Node::list_node)
+            APRINTER_MEMBER_ACCESSOR_TN(&Node::tree_node)
         >;
-        using EntryList = APrinter::LinkedList<ListNodeAccessor, LinkModel, false>;
+        
+        struct TheTreeCompare : public TreeCompare<LinkModel, KeyFuncs> {};
+        
+        using EntryTree = AvlTree<TreeNodeAccessor, TheTreeCompare, LinkModel>;
         
     public:
         inline void init ()
         {
-            m_list.init();
+            m_tree.init();
         }
         
         inline void addEntry (State st, Ref e)
         {
-            m_list.prepend(e, st);
+            bool inserted = m_tree.insert(e, nullptr, st);
+            AMBRO_ASSERT(inserted)
         }
         
         inline void removeEntry (State st, Ref e)
         {
-            m_list.remove(e, st);
+            m_tree.remove(e, st);
         }
         
-        Ref findEntry (State st, LookupKeyArg key)
+        inline Ref findEntry (State st, LookupKeyArg key)
         {
-            for (Ref e = m_list.first(st); !e.isNull(); e = m_list.next(e, st)) {
-                if (KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*e), key)) {
-                    if (!(e == m_list.first(st))) {
-                        m_list.remove(e, st);
-                        m_list.prepend(e, st);
-                    }
-                    return e;
-                }
-            }
-            return Ref::null();
+            Ref entry = m_tree.template lookup<LookupKeyArg>(key, st);
+            AMBRO_ASSERT(entry.isNull() ||
+                         KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*entry), key))
+            return entry;
         }
         
     private:
-        EntryList m_list;
+        EntryTree m_tree;
     };
 };
 
-struct MruListIndexService {
+struct AvlTreeIndexService {
     APRINTER_ALIAS_STRUCT_EXT(Index, (
         APRINTER_AS_TYPE(HookAccessor),
         APRINTER_AS_TYPE(LookupKeyArg),
         APRINTER_AS_TYPE(KeyFuncs),
         APRINTER_AS_TYPE(LinkModel)
     ), (
-        APRINTER_DEF_INSTANCE(Index, MruListIndex)
+        APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)
     ))
 };
 
-#include <aipstack/EndNamespace.h>
+#include <aprinter/EndNamespace.h>
 
 #endif
