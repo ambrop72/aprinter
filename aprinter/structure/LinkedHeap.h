@@ -281,10 +281,11 @@ public:
             return;
         }
         
+        Link child0 = ac(node).link[0];
+        Link child1 = ac(node).link[1];
+        
         Ref parent = ac(node).parent.ref(st);
         if (!parent.isNull() && Compare::compareEntries(st, node, parent) < 0) {
-            Link child0 = ac(node).link[0];
-            Link child1 = ac(node).link[1];
             
             bool side = node.link() == ac(parent).link[1];
             Link sibling = ac(parent).link[!side];
@@ -303,9 +304,6 @@ public:
             
             bubble_up_node(st, node, parent, sibling, side);
         } else {
-            Link child0 = ac(node).link[0];
-            Link child1 = ac(node).link[1];
-            
             connect_and_bubble_down_node(st, node, Ref::null(), -1, child0, child1);
         }
         
@@ -469,8 +467,20 @@ private:
     void connect_and_bubble_down_node (State st, Ref node, Ref parent, int8_t side, Link child0, Link child1)
     {
         while (true) {
-            bool next_side;
-            Ref child = check_for_bubble_down(st, node, child0, child1, &next_side);
+            // Find minimum child (if any)
+            Ref child = child0.ref(st);
+            bool next_side = false;
+            Ref child1_ref = child1.ref(st);
+            if (!child1_ref.isNull() && Compare::compareEntries(st, child1_ref, child) < 0) {
+                child = child1_ref;
+                next_side = true;
+            }
+            
+            // If there is a minimum child but it is >= node, clear child
+            // so we don't bubble down any further.
+            if (!child.isNull() && Compare::compareEntries(st, child, node) >= 0) {
+                child = Ref::null();
+            }
             
             if (AMBRO_UNLIKELY(side < 0)) {
                 if (child.isNull()) {
@@ -521,25 +531,6 @@ private:
         if (!(ac(node).link[1] = child1).isNull()) {
             ac(child1.ref(st)).parent = node.link();
         }
-    }
-    
-    inline Ref check_for_bubble_down (State st, Ref node, Link child0, Link child1, bool *out_next_side)
-    {
-        Ref child = child0.ref(st);
-        bool next_side = false;
-        
-        Ref child1_ref = child1.ref(st);
-        if (!child1_ref.isNull() && Compare::compareEntries(st, child1_ref, child) < 0) {
-            child = child1_ref;
-            next_side = true;
-        }
-        
-        if (child.isNull() || Compare::compareEntries(st, child, node) >= 0) {
-            return Ref::null();
-        }
-        
-        *out_next_side = next_side;
-        return child;
     }
     
     enum class AssertState {NoDepth, Lowest, LowestEnd};
