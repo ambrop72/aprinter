@@ -197,8 +197,9 @@ public:
         tim(MtuTimer()).deinit(Context());
     }
     
-    bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
+    bool handlePacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
     {
+        // Find the entry of this address. If it there is none, do nothing.
         MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(*this, remote_addr);
         if (mtu_ref.isNull()) {
             return false;
@@ -212,6 +213,12 @@ public:
         // up the reported next link MTU to be no less than our MinMTU.
         // This is what Linux does, it must be good enough for us too.
         uint16_t bump_mtu = APrinter::MaxValue(MinMTU, mtu_info);
+        
+        // Make sure the PMTU will not exceed the interface MTU.
+        Ip4RouteInfo route_info;
+        if (m_ip_stack->routeIp4(remote_addr, route_info)) {
+            bump_mtu = APrinter::MinValue(bump_mtu, route_info.iface->getMtu());
+        }
         
         // If the PMTU would not have changed, don't do anything but let
         // the caller know.

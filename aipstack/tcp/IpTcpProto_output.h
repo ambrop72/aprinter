@@ -318,6 +318,14 @@ public:
             IpErr err = pcb_output_segment(
                 pcb, output_helper, *snd_buf_cur, fin, rem_wnd, &seg_seqlen);
             
+            // If we got the FRAG_NEEDED error, make sure the Path MTU estimate
+            // does not exceed the interface MTU, to handle lowering of the
+            // interface MTU. We don't retry sending immediately, this is a very
+            // rare event anyway.
+            if (AMBRO_UNLIKELY(err == IpErr::FRAG_NEEDED)) {
+                pcb->tcp->m_stack->handleLocalPacketTooBig(pcb->remote_addr);
+            }
+            
             // If this was for retransmission or window probe, don't do anything
             // else than sending.
             if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
@@ -928,6 +936,10 @@ public:
         // This is not a real case of blocked transmission because we only promise
         // tranamission when at least base_snd_mss data is queued. In other words
         // the user is anyway expected to queue more data or push.
+        
+        // NOTE: We must not call pcb_output_active from this function, that
+        // could lead to problematic recursion via pcb_output_active ->
+        // handleLocalPacketTooBig -> pcb_pmtu_changed.
     }
     
     // Update the snd_wnd to the given value.

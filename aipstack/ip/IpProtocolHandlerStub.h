@@ -65,11 +65,19 @@
  * 
  * This class only defines the functions called by the stack on the
  * protocol handler. Functions which the protocol handler can call on
- * the stack are defined in @ref IpStack class. A few notable such functions
- * are @ref IpStack::sendIp4Dgram, @ref IpStack::routeIp4,
- * @ref IpStack::handleIcmpPacketTooBig. The protocol handler can also
- * use the @ref IpStack::MtuRef class to support Path MTU Discovery and will
- * have access to the @ref IpStack::Iface when processing received packets.
+ * the stack are defined in @ref IpStack class; perhaps the most important
+ * one is @ref IpStack::sendIp4Dgram which is used for sending datagrams.
+ * 
+ * The stack offers the facilities needed to support Path MTU Discovery.
+ * This can be achieved using the @ref IpStack::MtuRef class and the functions
+ * @ref IpStack::handleIcmpPacketTooBig and
+ * @ref IpStack::handleLocalPacketTooBig.
+ * 
+ * The protocol handler will have access to the interface (@ref IpStack::Iface)
+ * from which a datagram has been received (in @ref recvIp4Dgram and also
+ * @ref handleIp4DestUnreach). But the protocol handler must not remember
+ * the interface since it could generally disappear at any time. Currently
+ * there is no mechanism to safely remember an interface.
  * 
  * @tparam Arg Instantiation parameters (use via @ref IpProtocolHandlerStubService).
  */
@@ -159,6 +167,11 @@ public:
      * if the checks pass. The latter may result in
      * @ref IpStack::MtuRef::pmtuChanged callbacks being called from this
      * function.
+     * 
+     * Note that to fully support Path MTU Discovery, the protocol handler
+     * should also call @ref IpStack::handleLocalPacketTooBig when sending
+     * fails with the @ref IpErr::FRAG_NEEDED error, in order to handle
+     * reduction of the interface MTU.
      * 
      * The following has already been checked/determined by the stack:
      * - The source address of the ICMP packet looks like a unicast address

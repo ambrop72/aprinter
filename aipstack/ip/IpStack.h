@@ -25,6 +25,8 @@
 #ifndef APRINTER_IPSTACK_IPSTACK_H
 #define APRINTER_IPSTACK_IPSTACK_H
 
+#include <limits>
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -669,19 +671,46 @@ public:
     /**
      * Handle an ICMP Packet Too Big message.
      * 
-     * This looks up the given address in the Path MTU cache and if it is
-     * found and max(MinMTU, mtu_info) is less than the cached Path MTU,
-     * the cached Path MTU is lowered to that value. If the cached Path MTU
-     * was lowered, then all existing @ref MtuRef for this address are notified
-     * (@ref MtuRef::pmtuChanged are called), directly from this function.
+     * This function checks the Path MTU estimate for an address and lowers it
+     * to min(interface_mtu, max(MinMTU, mtu_info)) if it is greater than that.
+     * However, nothing is done if there is no existing Path MTU estimate for
+     * the address. Also if there is no route for the address then the min is
+     * not done.
+     * 
+     * If the Path MTU estimate was lowered, then all existing @ref MtuRef setup
+     * for this address are notified (@ref MtuRef::pmtuChanged are called),
+     * directly from this function.
      * 
      * @param remote_addr Address to which the ICMP message applies.
      * @param mtu_info The next-hop-MTU from the ICMP message.
-     * @return True if the cached Path MTU was lowered, false if not.
+     * @return True if the Path MTU estimate was lowered, false if not.
      */
     inline bool handleIcmpPacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
     {
-        return m_path_mtu_cache.handleIcmpPacketTooBig(remote_addr, mtu_info);
+        return m_path_mtu_cache.handlePacketTooBig(remote_addr, mtu_info);
+    }
+    
+    /**
+     * Ensure that a Path MTU estimate does not exceed the interface MTU.
+     * 
+     * This is like @ref handleIcmpPacketTooBig except that it only considers the
+     * interface MTU. This should be called by a protocol handler when it is using
+     * Path MTU Discovery and sending fails with the @ref IpErr::FRAG_NEEDED error.
+     * The intent is to handle the case when the MTU of the interface through which
+     * the address is routed has changed, because this is a local issue and would
+     * not be detected via an ICMP message.
+     * 
+     * If the Path MTU estimate was lowered, then all existing @ref MtuRef setup
+     * for this address are notified (@ref MtuRef::pmtuChanged are called),
+     * directly from this function.
+     * 
+     * @param remote_addr Address for which to check the Path MTU estimate.
+     * @return True if the Path MTU estimate was lowered, false if not.
+     */
+    inline bool handleLocalPacketTooBig (Ip4Addr remote_addr)
+    {
+        return m_path_mtu_cache.handlePacketTooBig(
+            remote_addr, std::numeric_limits<uint16_t>::max());
     }
     
     /**
@@ -1348,7 +1377,7 @@ public:
          * specifically do not call @ref reset or @ref moveFrom. Note that the
          * implementation calls all these callbacks for the same remote address
          * in a loop, and that the callbacks may be called from within
-         * @ref handleIcmpPacketTooBig.
+         * @ref handleIcmpPacketTooBig and @ref handleLocalPacketTooBig.
          * 
          * @param pmtu The new PMTU estimate (guaranteed to be at least MinMTU).
          */
