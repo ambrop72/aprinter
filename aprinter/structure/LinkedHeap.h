@@ -38,7 +38,7 @@
 
 //#define APRINTER_LINKED_HEAP_VERIFY 1
 
-template<typename, typename, typename, typename>
+template <typename, typename, typename, typename>
 class LinkedHeap;
 
 template <typename LinkModel>
@@ -94,7 +94,7 @@ public:
         int8_t child_dir;
         Ref child;
         
-        if (m_root.isNull()) {
+        if (AMBRO_UNLIKELY(m_root.isNull())) {
             m_root = node.link(st);
             m_count = 1;
             m_level_bit = 1;
@@ -104,7 +104,7 @@ public:
         } else {
             SizeType prev_count = increment_count();
             SizeType new_count = m_count;
-            bool from_root = should_walk_from_root(prev_count, new_count);
+            bool from_root = should_walk_from_root(prev_count, new_count, m_level_bit);
             
             Ref cur;
             bool dir;
@@ -121,8 +121,7 @@ public:
                     cur = ac(cur).link[next_dir].ref(st);
                 }
                 
-                bit >>= 1;
-                dir = (new_count & bit) != 0;
+                dir = (new_count & 1);
             } else {
                 cur = m_last.ref(st);
                 Ref parent = ac(cur).parent.ref(st);
@@ -185,12 +184,12 @@ public:
         AMBRO_ASSERT(!m_root.isNull())
         AMBRO_ASSERT(m_count > 0)
         
-        if (m_count == 1) {
+        if (AMBRO_UNLIKELY(m_count == 1)) {
             m_root = Link::null();
         } else {
             SizeType prev_count = decrement_count();
             SizeType new_count = m_count;
-            bool from_root = should_walk_from_root(prev_count, new_count);
+            bool from_root = should_walk_from_root(prev_count, new_count, m_level_bit);
             
             Ref cur;
             
@@ -259,7 +258,7 @@ public:
         AMBRO_ASSERT(!m_root.isNull())
         AMBRO_ASSERT(m_count > 0)
         
-        if (m_count != 1) {
+        if (AMBRO_LIKELY(m_count != 1)) {
             fixup_node(st, node, node);
         }
         
@@ -377,12 +376,44 @@ private:
         return prev_count;
     }
     
+    // Used in insert and remove, determines whether the new last node should
+    // be found from the old last node or from the root. The result is the
+    // approach which requires least hops preferring not waking from root if it
+    // would be the same except that when changing levels it always prefers
+    // walking from root.
     APRINTER_OPTIMIZE_SIZE
-    inline bool should_walk_from_root (SizeType prev_count, SizeType new_count)
+    inline static bool should_walk_from_root (
+        SizeType prev_count, SizeType new_count, SizeType new_level_bit)
     {
+        // Compute how many bits change in the node count, expressed as the
+        // bit index (for rollover_bit=2^n, the number of changed bits is n).
+        // Overflow in +1 is possible but handled later.
         SizeType rollover_bit = (prev_count ^ new_count) + 1;
-        SizeType rollover_cost_bit = rollover_bit * rollover_bit;
-        return rollover_cost_bit == 0 || rollover_cost_bit > m_level_bit;
+        
+        // Compute the cost of walking from the old last node, which is twice
+        // the number of changed bits. Expressed as the bit index, this is obtained
+        // by squaring rollover_bit. Overflow in multiplication is possible but
+        // handled later.
+        // Note that when changing levels, this calculation is literally wrong
+        // giving too high cost, but the result will ensure that we pick walking
+        // from root, which cannot be less efficient in such cases.
+        SizeType fromlast_cost_bit = rollover_bit * rollover_bit;
+        
+        // Compare the cost of walking from the old last node to the cost of
+        // walking from root. The cost of the latter is new_level_bit expressed as
+        // the bit position just like fromlast_cost_bit. Therefore we want to
+        // check whether fromlast_cost_bit > new_level_bit, if overflows could not
+        // occur. We handle overflows by instead checking as seen below:
+        // - If there was an overflow in +1 above, then rollover_bit is zero,
+        //   fromlast_cost_bit is zero, fromlast_cost_bit-1 is the max value and
+        //   the result is true (walk from root). This happens when changing
+        //   to/from the last representable level, and it is correct to walk from
+        //   root as the cost of walking from the last node is the height but
+        //   walking from last node is twice that much.
+        // - If there was an overflow in the multiplication, then fromlast_cost_bit
+        //   is zero, fromlast_cost_bit-1 is the max value and the result is still
+        //   correctly true (walk from root).
+        return (SizeType)(fromlast_cost_bit - 1) >= new_level_bit;
     }
     
     APRINTER_OPTIMIZE_SIZE
