@@ -29,15 +29,15 @@
 #include <vector>
 
 #define APRINTER_LINKED_HEAP_VERIFY 1
+#define APRINTER_SORTED_LIST_VERIFY 1
 
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/TreeCompare.h>
 #include <aprinter/structure/LinkedHeap.h>
+#include <aprinter/structure/SortedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
-//#include <aprinter/structure/LinkedHeap_v1.h>
-//#include <aprinter/structure/LinkedHeap_v2.h>
 
 using namespace APrinter;
 
@@ -45,8 +45,11 @@ struct Entry;
 
 using LinkModel = PointerLinkModel<Entry>;
 
+using Service = LinkedHeapService;
+//using Service = SortedListService;
+
 struct Entry {
-    LinkedHeapNode<LinkModel> node;
+    typename Service::template Node<LinkModel> node;
     int value;
 };
 
@@ -59,7 +62,7 @@ struct KeyFuncs : public OperatorKeyCompare {
 
 using Compare = TreeCompare<LinkModel, KeyFuncs>;
 
-using Heap = LinkedHeap<APRINTER_MEMBER_ACCESSOR(&Entry::node), Compare, LinkModel>;
+using Heap = typename Service::template Structure<APRINTER_MEMBER_ACCESSOR(&Entry::node), Compare, LinkModel>;
 
 static size_t const NumEntries = 10000;
 

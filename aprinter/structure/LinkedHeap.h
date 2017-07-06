@@ -629,6 +629,14 @@ private:
     }
 };
 
+struct LinkedHeapService {
+    template <typename LinkModel>
+    using Node = LinkedHeapNode<LinkModel>;
+    
+    template <typename Accessor, typename Compare, typename LinkModel>
+    using Structure = LinkedHeap<Accessor, Compare, LinkModel>;
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif

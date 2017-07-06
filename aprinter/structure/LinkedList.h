@@ -100,6 +100,14 @@ public:
         return ac(e).next.ref(st);
     }
     
+    inline Ref prevNotFirst (Ref e, State st = State()) const
+    {
+        AMBRO_ASSERT(!m_first.isNull())
+        AMBRO_ASSERT(!(e.link(st) == m_first))
+        
+        return ac(e).prev.ref(st);
+    }
+    
     void prepend (Ref e, State st = State())
     {
         ac(e).next = m_first;
@@ -121,6 +129,18 @@ public:
             m_first = e.link(st);
         }
         this->m_last = e.link(st);
+    }
+    
+    void insertAfter (Ref e, Ref after_e, State st = State())
+    {
+        ac(e).prev = after_e.link(st);
+        ac(e).next = ac(after_e).next;
+        ac(after_e).next = e.link(st);
+        if (!ac(e).next.isNull()) {
+            ac(ac(e).next.ref(st)).prev = e.link(st);
+        } else {
+            set_last(e.link(st));
+        }
     }
     
     void remove (Ref e, State st = State())
