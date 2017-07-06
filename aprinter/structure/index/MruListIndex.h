@@ -61,17 +61,17 @@ public:
             m_list.init();
         }
         
-        inline void addEntry (State st, Ref e)
+        inline void addEntry (Ref e, State st = State())
         {
             m_list.prepend(e, st);
         }
         
-        inline void removeEntry (State st, Ref e)
+        inline void removeEntry (Ref e, State st = State())
         {
             m_list.remove(e, st);
         }
         
-        Ref findEntry (State st, LookupKeyArg key)
+        Ref findEntry (LookupKeyArg key, State st = State())
         {
             for (Ref e = m_list.first(st); !e.isNull(); e = m_list.next(e, st)) {
                 if (KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*e), key)) {

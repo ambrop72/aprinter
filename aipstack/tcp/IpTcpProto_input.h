@@ -451,7 +451,7 @@ private:
             lis->m_num_pcbs++;
             
             // Add the PCB to the active index.
-            tcp->m_pcb_index_active.addEntry(*tcp, {*pcb, *tcp});
+            tcp->m_pcb_index_active.addEntry({*pcb, *tcp}, *tcp);
             
             // Move the PCB to the front of the unreferenced list.
             tcp->move_unrefed_pcb_to_front(pcb);

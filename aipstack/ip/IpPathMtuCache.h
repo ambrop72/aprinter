@@ -200,7 +200,7 @@ public:
     bool handlePacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
     {
         // Find the entry of this address. If it there is none, do nothing.
-        MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(*this, remote_addr);
+        MtuLinkModelRef mtu_ref = m_mtu_index.findEntry(remote_addr, *this);
         if (mtu_ref.isNull()) {
             return false;
         }
@@ -302,7 +302,7 @@ public:
             AMBRO_ASSERT(!isSetup())
             
             // Lookup this address in the index.
-            MtuLinkModelRef mtu_ref = cache->m_mtu_index.findEntry(*cache, remote_addr);
+            MtuLinkModelRef mtu_ref = cache->m_mtu_index.findEntry(remote_addr, *cache);
             
             if (!mtu_ref.isNull()) {
                 // Got an existing MtuEntry for this address.
@@ -354,7 +354,7 @@ public:
                 // be removed before being re-added with a different address.
                 if (mtu_entry.state == EntryState::Unused) {
                     AMBRO_ASSERT(mtu_entry.remote_addr != remote_addr)
-                    cache->m_mtu_index.removeEntry(*cache, mtu_ref);
+                    cache->m_mtu_index.removeEntry(mtu_ref, *cache);
                 }
                 
                 // Setup some fields.
@@ -364,7 +364,7 @@ public:
                 mtu_entry.minutes_old = 0;
                 
                 // Add the MtuRef to the index with the new address.
-                cache->m_mtu_index.addEntry(*cache, mtu_ref);
+                cache->m_mtu_index.addEntry(mtu_ref, *cache);
                 
                 // Clear the next link since we are the first node.
                 NextLink::link = nullptr;
@@ -472,7 +472,7 @@ private:
         
         // If the entry is unused, invalidate it.
         if (mtu_entry.state == EntryState::Unused) {
-            m_mtu_index.removeEntry(*this, {mtu_entry, *this});
+            m_mtu_index.removeEntry({mtu_entry, *this}, *this);
             mtu_entry.state = EntryState::Invalid;
             // Move to the front of the free list.
             m_mtu_free_list.remove({mtu_entry, *this}, *this);

@@ -66,18 +66,18 @@ public:
             m_tree.init();
         }
         
-        inline void addEntry (State st, Ref e)
+        inline void addEntry (Ref e, State st = State())
         {
             bool inserted = m_tree.insert(e, nullptr, st);
             AMBRO_ASSERT(inserted)
         }
         
-        inline void removeEntry (State st, Ref e)
+        inline void removeEntry (Ref e, State st = State())
         {
             m_tree.remove(e, st);
         }
         
-        inline Ref findEntry (State st, LookupKeyArg key)
+        inline Ref findEntry (LookupKeyArg key, State st = State())
         {
             Ref entry = m_tree.template lookup<LookupKeyArg>(key, st);
             AMBRO_ASSERT(entry.isNull() ||

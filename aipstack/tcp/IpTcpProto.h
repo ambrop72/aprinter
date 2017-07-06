@@ -495,9 +495,9 @@ private:
         
         // Remove the PCB from the index in which it is.
         if (pcb->state == TcpState::TIME_WAIT) {
-            tcp->m_pcb_index_timewait.removeEntry(*tcp, {*pcb, *tcp});
+            tcp->m_pcb_index_timewait.removeEntry({*pcb, *tcp}, *tcp);
         } else {
-            tcp->m_pcb_index_active.removeEntry(*tcp, {*pcb, *tcp});
+            tcp->m_pcb_index_active.removeEntry({*pcb, *tcp}, *tcp);
         }
         
         // Make sure the PCB is at the end of the unreferenced list.
@@ -536,8 +536,8 @@ private:
         
         // Move the PCB from the active index to the time-wait index.
         IpTcpProto *tcp = pcb->tcp;
-        tcp->m_pcb_index_active.removeEntry(*tcp, {*pcb, *tcp});
-        tcp->m_pcb_index_timewait.addEntry(*tcp, {*pcb, *tcp});
+        tcp->m_pcb_index_active.removeEntry({*pcb, *tcp}, *tcp);
+        tcp->m_pcb_index_timewait.addEntry({*pcb, *tcp}, *tcp);
         
         // Stop timers due to asserts in their handlers.
         pcb->tim(OutputTimer()).unset(Context());
@@ -798,7 +798,7 @@ private:
         pcb->rcv_wnd_shift = Constants::RcvWndShift;
         
         // Add the PCB to the active index.
-        m_pcb_index_active.addEntry(*this, {*pcb, *this});
+        m_pcb_index_active.addEntry({*pcb, *this}, *this);
         
         // Start the connection timeout.
         pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynSentTimeoutTicks);
@@ -852,13 +852,13 @@ private:
     TcpPcb * find_pcb (PcbKey const &key)
     {
         // Look in the active index first.
-        TcpPcb *pcb = m_pcb_index_active.findEntry(*this, key);
+        TcpPcb *pcb = m_pcb_index_active.findEntry(key, *this);
         AMBRO_ASSERT(pcb == nullptr ||
                      pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
         if (AMBRO_UNLIKELY(pcb == nullptr)) {
-            pcb = m_pcb_index_timewait.findEntry(*this, key);
+            pcb = m_pcb_index_timewait.findEntry(key, *this);
             AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
         }
         
