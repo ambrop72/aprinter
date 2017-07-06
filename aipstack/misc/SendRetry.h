@@ -94,7 +94,7 @@ public:
         
         void dispatchRequests ()
         {
-            Observable::template notifyObservers<true>([&](Observer &observer) {
+            Observable::notifyRemoveObservers([&](Observer &observer) {
                 Request &request = static_cast<Request &>(observer);
                 request.retrySending();
             });

@@ -1254,7 +1254,7 @@ public:
          */
         void stateChangedFromDriver ()
         {
-            m_state_observable.template notifyObservers<false>([&](Observer &observer_base) {
+            m_state_observable.notifyKeepObservers([&](Observer &observer_base) {
                 IfaceStateObserver &observer = static_cast<IfaceStateObserver &>(observer_base);
                 observer.ifaceStateChanged();
             });

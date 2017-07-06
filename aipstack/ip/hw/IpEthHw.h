@@ -81,8 +81,8 @@ public:
          * Return a reference to an ObserverNotification::Observable
          * which provides notification of received ARP updates.
          * To notify observers, the implementation should use
-         * Observable::notifyObservers with RemoveNotified=false
-         * and use notifyArpObserver in the notifyObservers callback.
+         * Observable::notifyKeepObservers and use notifyArpObserver
+         * in its callback.
          */
         virtual Observable & getArpObservable () = 0;
         

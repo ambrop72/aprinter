@@ -125,8 +125,29 @@ public:
             }
         };
         
+        template <typename EnumerateFunc>
+        void enumerateObservers (EnumerateFunc enumerate)
+        {
+            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
+                enumerate(static_cast<Observer &>(*node));
+            }
+        }
+        
+        template <typename NotifyFunc>
+        inline void notifyKeepObservers (NotifyFunc notify)
+        {
+            notify_observers<false>(notify);
+        }
+        
+        template <typename NotifyFunc>
+        inline void notifyRemoveObservers (NotifyFunc notify)
+        {
+            notify_observers<true>(notify);
+        }
+        
+    private:
         template <bool RemoveNotified, typename NotifyFunc>
-        void notifyObservers (NotifyFunc notify)
+        void notify_observers (NotifyFunc notify)
         {
             NotificationIterator iter(*this);
             
@@ -136,15 +157,6 @@ public:
             }
         }
         
-        template <typename EnumerateFunc>
-        void enumerateObservers (EnumerateFunc enumerate)
-        {
-            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
-                enumerate(static_cast<Observer &>(*node));
-            }
-        }
-        
-    private:
         inline void prepend_node (ListNode &node)
         {
             node.m_prev = &m_first;

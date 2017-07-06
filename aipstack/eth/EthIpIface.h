@@ -349,7 +349,7 @@ private:
         // interface has no IP address configured, which is exactly
         // when DHCP needs to be notified.
         if (ip_addr != Ip4Addr::AllOnesAddr() && ip_addr != Ip4Addr::ZeroAddr()) {
-            m_arp_observable.template notifyObservers<false>([&](Observer &observer) {
+            m_arp_observable.notifyKeepObservers([&](Observer &observer) {
                 IpEthHw::HwIface::notifyArpObserver(observer, ip_addr, mac_addr);
             });
         }
