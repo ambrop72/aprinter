@@ -47,7 +47,6 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
-#include <aprinter/structure/LinkedHeap.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/Object.h>
@@ -68,8 +67,7 @@ template <typename> class LinuxEventLoopFdEvent;
 
 template <typename Arg>
 class LinuxEventLoop {
-    APRINTER_USE_TYPE1(Arg, ParentObject)
-    APRINTER_USE_TYPE1(Arg, ExtraDelay)
+    APRINTER_USE_TYPES1(Arg, (ParentObject, ExtraDelay, TimersStructureService))
     
     template <typename> friend class LinuxEventLoopQueuedEvent;
     template <typename> friend class LinuxEventLoopTimedEvent;
@@ -371,7 +369,8 @@ private:
     
     using TimerHeapNodeAccessor = typename APRINTER_MEMBER_ACCESSOR(&TimedEventNew::m_heap_node);
     class TimerCompare;
-    using TimedEventHeap = LinkedHeap<TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
+    using TimedEventHeap = typename TimersStructureService::template Structure<
+        TimerHeapNodeAccessor, TimerCompare, TimerLinkModel>;
     
     template <typename This=LinuxEventLoop>
     using Extra = typename This::ExtraDelay::Type;
@@ -679,7 +678,8 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(LinuxEventLoopArg, (
     APRINTER_AS_TYPE(Context),
     APRINTER_AS_TYPE(ParentObject),
-    APRINTER_AS_TYPE(ExtraDelay)
+    APRINTER_AS_TYPE(ExtraDelay),
+    APRINTER_AS_TYPE(TimersStructureService)
 ), (
     APRINTER_DEF_INSTANCE(LinuxEventLoopArg, LinuxEventLoop)
 ))
@@ -815,7 +815,7 @@ class LinuxEventLoopTimedEvent
 {
     friend Loop;
     
-    APRINTER_USE_TYPES1(Loop, (TimState))
+    APRINTER_USE_TYPES1(Loop, (TimState, TimersStructureService, TimerLinkModel))
     
 public:
     APRINTER_USE_TYPE1(Loop, Context)
@@ -933,7 +933,7 @@ private:
         lo->timed_event_heap.remove(*this);
     }
     
-    LinkedHeapNode<typename Loop::TimerLinkModel> m_heap_node;
+    typename TimersStructureService::template Node<TimerLinkModel> m_heap_node;
     TimeType m_time;
     TimState m_state;
 };

@@ -3968,6 +3968,7 @@
     {
       "platform_config": {
         "platform": {
+          "TimersStructure": "LinkedHeap",
           "_compoundName": "Linux",
           "adc": {
             "_compoundName": "NoAdc"
@@ -4078,7 +4079,8 @@
         "BuildWithClang": false,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
-          "_compoundName": "Disabled"
+          "BufferSize": 50000,
+          "_compoundName": "Enabled"
         },
         "VerboseBuild": true,
         "WatchdogDebugMode": false,
@@ -4102,20 +4104,20 @@
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "MaxReassPackets": 2,
           "MaxReassSize": 10000,
-          "DhcpEnabled": false,
+          "DhcpEnabled": true,
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 32,
           "NumOosSegs": 4,
-          "NumTcpPcbs": 512,
-          "PcbIndexService": "MruListIndex",
+          "NumTcpPcbs": 256,
+          "PcbIndexService": "AvlTreeIndex",
           "TcpWndUpdThrDiv": 4,
           "_compoundName": "Network",
           "tcpconsole": {
             "MaxClients": 8,
             "MaxCommandSize": 256,
             "MaxParts": 16,
-            "MaxPcbs": 32,
+            "MaxPcbs": 16,
             "Port": 23,
             "RecvBufferSize": 50000,
             "SendBufTimeout": 5,
@@ -4124,19 +4126,19 @@
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "MaxPcbs": 256,
+            "MaxPcbs": 64,
             "AllowPersistent": false,
             "GcodeSendBufTimeout": 10,
             "InactivityTimeout": 10,
             "JsonBufferSize": 512,
-            "MaxClients": 64,
-            "MaxGcodeCommandSize": 128,
+            "MaxClients": 32,
+            "MaxGcodeCommandSize": 256,
             "MaxGcodeParts": 16,
             "EnableDebug": false,
             "NumGcodeSlots": 8,
             "Port": 80,
             "QueueRecvBufferSize": 410,
-            "QueueSize": 64,
+            "QueueSize": 32,
             "QueueTimeout": 10,
             "RecvBufferSize": 50000,
             "SendBufferSize": 50000,

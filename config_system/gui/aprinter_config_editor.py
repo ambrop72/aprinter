@@ -315,6 +315,7 @@ def platform_Linux():
         ce.Compound('StubPins', key='pins', title='Pins', attrs=[
             ce.Constant(key='input_mode_type', value='StubPinInputMode'),
         ]),
+        ce.String(key='TimersStructure', title='Data structure for timers', enum=['LinkedHeap', 'SortedList'], default='LinkedHeap'),
     ])
 
 def hard_pwm_choice(**kwargs):

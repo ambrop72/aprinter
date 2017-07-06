@@ -387,14 +387,18 @@ def format_cpp_float(value):
     return '{:.17E}'.format(value).replace('INF', 'INFINITY')
 
 def setup_event_loop(gen):
-    impl = gen.get_singleton_object('event_loop_impl', allow_none=True)
-    if impl is None:
+    impl_obj = gen.get_singleton_object('event_loop_impl', allow_none=True)
+    if impl_obj is None:
         impl = 'BusyEventLoop'
+        impl_extra_args = []
+    else:
+        impl = impl_obj['name']
+        impl_extra_args = impl_obj['extra_args']
     
     gen.add_aprinter_include('system/{}.h'.format(impl))
     
     code_before_expr = 'struct MyLoopExtraDelay;\n'
-    expr = TemplateExpr('{}Arg'.format(impl), ['Context', 'Program', 'MyLoopExtraDelay'])
+    expr = TemplateExpr('{}Arg'.format(impl), ['Context', 'Program', 'MyLoopExtraDelay'] + impl_extra_args)
     
     fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
@@ -441,9 +445,17 @@ def setup_platform(gen, config, key):
     
     @platform_sel.option('Linux')
     def option(platform):
+        timers_structure = platform.get_string('TimersStructure')
+        if timers_structure not in ('LinkedHeap', 'SortedList'):
+            platform.key_path('TimersStructure').error('Invalid value.')
+        
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
+        gen.add_aprinter_include('structure/{}.h'.format(timers_structure))
         gen.add_init_call(-1, 'platform_init(argc, argv);')
-        gen.register_singleton_object('event_loop_impl', 'LinuxEventLoop')
+        gen.register_singleton_object('event_loop_impl', {
+            'name': 'LinuxEventLoop',
+            'extra_args': ['{}Service'.format(timers_structure)],
+        })
     
     config.do_selection(key, platform_sel)
 
