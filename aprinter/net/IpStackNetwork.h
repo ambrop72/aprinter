@@ -38,7 +38,9 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedHeap.h>
 #include <aprinter/hal/common/EthernetCommon.h>
+
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
@@ -109,7 +111,8 @@ private:
     using TheEthIpIfaceService = AIpStack::EthIpIfaceService<
         NumArpEntries,
         ArpProtectCount,
-        0 // HeaderBeforeEth
+        0, // HeaderBeforeEth
+        LinkedHeapService
     >;
     APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, Iface>))
     
