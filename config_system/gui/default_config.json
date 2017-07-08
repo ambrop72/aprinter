@@ -3741,6 +3741,7 @@
         "network": {
           "MtuIndexService": "MruListIndex",
           "ArpProtectCount": 8,
+          "DhcpEnabled": true,
           "EthernetDriver": {
             "MiiDriver": {
               "NumRxBufers": 60,
@@ -3761,7 +3762,7 @@
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "MaxReassPackets": 1,
           "MaxReassSize": 1480,
-          "DhcpEnabled": true,
+          "ArpTableTimersStructureService": "LinkedHeap",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 16,
@@ -4094,6 +4095,7 @@
         "network": {
           "MtuIndexService": "MruListIndex",
           "ArpProtectCount": 16,
+          "DhcpEnabled": true,
           "EthernetDriver": {
             "_compoundName": "LinuxTapEthernet"
           },
@@ -4104,7 +4106,7 @@
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "MaxReassPackets": 2,
           "MaxReassSize": 10000,
-          "DhcpEnabled": true,
+          "ArpTableTimersStructureService": "LinkedHeap",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 32,

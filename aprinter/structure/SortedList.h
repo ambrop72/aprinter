@@ -73,6 +73,11 @@ public:
         m_list.init();
     }
     
+    inline bool isEmpty () const
+    {
+        return m_list.isEmpty();
+    }
+    
     inline Ref first (State st = State()) const
     {
         return m_list.first(st);
@@ -166,7 +171,6 @@ public:
     Ref findNextLesserOrEqual (KeyType key, Ref node, State st = State())
     {
         AMBRO_ASSERT(!node.isNull())
-        AMBRO_ASSERT(Compare::compareKeyEntry(st, key, node) >= 0)
         
         return next_lesser_or_equal(st, key, m_list.next(node, st));
     }

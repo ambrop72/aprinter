@@ -445,16 +445,13 @@ def setup_platform(gen, config, key):
     
     @platform_sel.option('Linux')
     def option(platform):
-        timers_structure = platform.get_string('TimersStructure')
-        if timers_structure not in ('LinkedHeap', 'SortedList'):
-            platform.key_path('TimersStructure').error('Invalid value.')
+        timers_structure = get_heap_structure(gen, platform, 'TimersStructure')
         
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
-        gen.add_aprinter_include('structure/{}.h'.format(timers_structure))
         gen.add_init_call(-1, 'platform_init(argc, argv);')
         gen.register_singleton_object('event_loop_impl', {
             'name': 'LinuxEventLoop',
-            'extra_args': ['{}Service'.format(timers_structure)],
+            'extra_args': [timers_structure],
         })
     
     config.do_selection(key, platform_sel)
@@ -1320,6 +1317,13 @@ def get_ip_index(gen, config, key):
     gen.add_aprinter_include('structure/index/{}.h'.format(index_name))
     return 'APrinter::{}Service'.format(index_name)
 
+def get_heap_structure(gen, config, key):
+    structure_name = config.get_string(key)
+    if structure_name not in ('LinkedHeap', 'SortedList'):
+        config.key_path(key).error('Invalid value.')
+    gen.add_aprinter_include('structure/{}.h'.format(structure_name))
+    return 'APrinter::{}Service'.format(structure_name)
+
 class NetworkConfigState(object):
     def __init__(self, min_send_buf, min_recv_buf):
         self.min_send_buf = min_send_buf
@@ -1393,6 +1397,7 @@ def setup_network(gen, config, key):
             tcp_wnd_upd_thr_div,
             get_ip_index(gen, network_config, 'PcbIndexService'),
             link_with_array_indices,
+            get_heap_structure(gen, network_config, 'ArpTableTimersStructureService'),
         ])
         service_code = 'using NetworkService = {};'.format(service_expr.build(indent=0))
         network_expr = TemplateExpr('NetworkService::Compose', ['Context', 'Program'])

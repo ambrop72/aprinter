@@ -84,6 +84,11 @@ public:
             Observable::removeObservers();
         }
         
+        inline bool hasRequests ()
+        {
+            return Observable::hasObservers();
+        }
+        
         void addRequest (Request *req)
         {
             if (req != nullptr) {

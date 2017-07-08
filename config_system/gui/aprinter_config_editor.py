@@ -112,6 +112,9 @@ def phy_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def heap_structure_choice(**kwargs):
+    return ce.String(enum=['LinkedHeap', 'SortedList'], default='LinkedHeap', **kwargs)
+
 def watchdog_at91sam():
     return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
         ce.Integer(key='Wdv', title='Wdv')
@@ -315,7 +318,7 @@ def platform_Linux():
         ce.Compound('StubPins', key='pins', title='Pins', attrs=[
             ce.Constant(key='input_mode_type', value='StubPinInputMode'),
         ]),
-        ce.String(key='TimersStructure', title='Data structure for timers', enum=['LinkedHeap', 'SortedList'], default='LinkedHeap'),
+        heap_structure_choice(key='TimersStructure', title='Data structure for timers'),
     ])
 
 def hard_pwm_choice(**kwargs):
@@ -852,6 +855,7 @@ def editor():
                         ce.Integer(key='TcpWndUpdThrDiv', title='TCP window update threshold divisor (threshold = RX buffer / N)', default=4),
                         ce.String(key='PcbIndexService', title='Data structure for looking up PCBs', enum=['MruListIndex', 'AvlTreeIndex'], default='MruListIndex'),
                         ce.Boolean(key='LinkWithArrayIndices', title='Use array indices in data structure', default=True),
+                        heap_structure_choice(key='ArpTableTimersStructureService', title='Data structure for ARP table entry timers'),
                         ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                         ce.Boolean(key='DhcpEnabled', title='DHCP enabled', default=True),

@@ -39,6 +39,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
+
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
@@ -56,7 +57,8 @@ class IpStackNetwork {
     APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, IpBufRef, IpBufNode,
                                    MacAddr, IpErr, Ip4Addr, EthIfaceState))
     
-    APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService))
+    APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService,
+                                 ArpTableTimersStructureService))
     APRINTER_USE_VALS(Params, (NumArpEntries, ArpProtectCount, NumTcpPcbs, NumOosSegs,
                                LinkWithArrayIndices))
     
@@ -109,7 +111,8 @@ private:
     using TheEthIpIfaceService = AIpStack::EthIpIfaceService<
         NumArpEntries,
         ArpProtectCount,
-        0 // HeaderBeforeEth
+        0, // HeaderBeforeEth
+        ArpTableTimersStructureService
     >;
     APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, Iface>))
     
@@ -484,7 +487,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     APRINTER_AS_VALUE(int, NumOosSegs),
     APRINTER_AS_VALUE(int, TcpWndUpdThrDiv),
     APRINTER_AS_TYPE(PcbIndexService),
-    APRINTER_AS_VALUE(bool, LinkWithArrayIndices)
+    APRINTER_AS_VALUE(bool, LinkWithArrayIndices),
+    APRINTER_AS_TYPE(ArpTableTimersStructureService)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context),
