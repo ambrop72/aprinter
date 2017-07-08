@@ -40,6 +40,7 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/ObserverNotification.h>
 #include <aprinter/structure/LinkModel.h>
+#include <aprinter/structure/LinkedList.h>
 #include <aprinter/system/TimedEventWrapper.h>
 #include <aprinter/misc/ClockUtils.h>
 
@@ -113,15 +114,17 @@ class EthIpIface : public Arg::Iface,
     
     struct ArpEntry;
     struct ArpEntriesAccessor;
-    class TimersCompare;
+    class ArpEntryTimerCompare;
     
-    // Link model for ARP entry timers data structure.
-    //struct TimersLinkModel = APrinter::PointerLinkModel<ArpEntry> {};
-    struct TimersLinkModel : public APrinter::ArrayLinkModelWithAccessor<
+    // Link model for ARP entry data structures.
+    //struct ArpEntriesLinkModel = APrinter::PointerLinkModel<ArpEntry> {};
+    struct ArpEntriesLinkModel : public APrinter::ArrayLinkModelWithAccessor<
         ArpEntry, ArpEntryIndexType, ArpEntryNull, EthIpIface, ArpEntriesAccessor> {};
+    using ArpEntryRef = typename ArpEntriesLinkModel::Ref;
     
-    // Node in timers data structure.
-    using TimersNode = typename TimersStructureService::template Node<TimersLinkModel>;
+    // Nodes in ARP entry data structures.
+    using ArpEntryListNode = APrinter::LinkedListNode<ArpEntriesLinkModel>;
+    using ArpEntryTimersNode = typename TimersStructureService::template Node<ArpEntriesLinkModel>;
     
     // ARP entry states.
     struct ArpEntryState { enum : uint8_t {FREE, QUERY, VALID, REFRESHING}; };
@@ -134,9 +137,6 @@ class EthIpIface : public Arg::Iface,
     
     // ARP table entry (in array m_arp_entries)
     struct ArpEntry {
-        // Next entry in list of all entries ordered from most to least recently used.
-        ArpEntryIndexType next;
-        
         // Entry state (ArpEntryState::*).
         uint8_t state : 2;
         
@@ -155,8 +155,11 @@ class EthIpIface : public Arg::Iface,
         // MAC address of the entry (valid in VALID and REFRESHING states).
         MacAddr mac_addr;
         
-        // Node in the data structure for timers (m_timers_structure).
-        TimersNode timers_node;
+        // Node in linked lists (m_used_entries_list or m_free_entries_list).
+        ArpEntryListNode list_node;
+        
+        // Node in the timers data structure (m_timers_structure).
+        ArpEntryTimersNode timers_node;
         
         // Time when the entry timeout expires (valid if timer_active).
         TimeType timer_time;
@@ -168,12 +171,17 @@ class EthIpIface : public Arg::Iface,
         IpSendRetry::List retry_list;
     };
     
-    // Accessor for m_arp_entries for TimersLinkModel.
-    struct TimersNodeAccessor : public APRINTER_MEMBER_ACCESSOR(&ArpEntry::timers_node) {};
+    // Accessors for data structure nodes.
+    struct ArpEntryListNodeAccessor : public APRINTER_MEMBER_ACCESSOR(&ArpEntry::list_node) {};
+    struct ArpEntryTimersNodeAccessor : public APRINTER_MEMBER_ACCESSOR(&ArpEntry::timers_node) {};
     
-    // Data structure instance for ARP entry timers.
+    // Linked list type.
+    using ArpEntryList = APrinter::LinkedList<
+        ArpEntryListNodeAccessor, ArpEntriesLinkModel, true>;
+    
+    // Data structure type for ARP entry timers.
     using TimersStructure = typename TimersStructureService::template Structure<
-        TimersNodeAccessor, TimersCompare, TimersLinkModel>;
+        ArpEntryTimersNodeAccessor, ArpEntryTimerCompare, ArpEntriesLinkModel>;
     
 public:
     void init (IpStack *stack)
@@ -187,23 +195,21 @@ public:
         // Remember the (pointer to the) device MAC address.
         m_mac_addr = driverGetMacAddr();
         
-        // Set first ARP entry (remaining links are setup below).
-        m_first_arp_entry = 0;
-        
-        // Initialize the timers data structure.
+        // Initialize data structures.
+        m_used_entries_list.init();
+        m_free_entries_list.init();
         m_timers_structure.init();
         
         // Initialize ARP entries...
-        for (int i : APrinter::LoopRangeAuto(NumArpEntries)) {
-            auto &e = m_arp_entries[i];
-            
-            // Link to next entry.
-            e.next = (i < NumArpEntries - 1) ? (i + 1) : ArpEntryNull;
-            
-            // State FREE, weak entry, timer not active.
+        for (auto &e : m_arp_entries) {
+            // State FREE, timer not active.
             e.state = ArpEntryState::FREE;
-            e.weak = true;
+            e.weak = false; // irrelevant, for efficiency
             e.timer_active = false;
+            e.attempts_left = 0; // irrelevant, for efficiency
+            
+            // Insert to free list.
+            m_free_entries_list.append({e, *this}, *this);
             
             // Initialize the send-retry list for this entry.
             e.retry_list.init();
@@ -372,15 +378,18 @@ private:
     AMBRO_ALWAYS_INLINE
     IpErr resolve_hw_addr (Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetry::Request *retryReq)
     {
-        // First look if the first entry is a match, as an optimization.
-        ArpEntry *entry = &m_arp_entries[m_first_arp_entry];
-        if (AMBRO_LIKELY(entry->state != ArpEntryState::FREE && entry->ip_addr == ip_addr)) {
-            // Fast path, the first entry is a match.
+        // First look if the first used entry is a match, as an optimization.
+        ArpEntryRef entry_ref = m_used_entries_list.first(*this);
+        
+        if (AMBRO_LIKELY(!entry_ref.isNull() && (*entry_ref).ip_addr == ip_addr)) {
+            // Fast path, the first used entry is a match.
+            AMBRO_ASSERT((*entry_ref).state != ArpEntryState::FREE)
+            
             // Make sure the entry is hard as get_arp_entry would do below.
-            entry->weak = false;
+            (*entry_ref).weak = false;
         } else {
             // Slow path: use get_arp_entry, make a hard entry.
-            GetArpEntryRes get_res = get_arp_entry(ip_addr, false, &entry);
+            GetArpEntryRes get_res = get_arp_entry(ip_addr, false, entry_ref);
             
             // Did we not get an (old or new) entry for this address?
             if (AMBRO_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
@@ -395,44 +404,47 @@ private:
             }
         }
         
+        ArpEntry &entry = *entry_ref;
+        
         // Got a VALID or REFRESHING entry?
-        if (AMBRO_LIKELY(entry->state >= ArpEntryState::VALID)) {
+        if (AMBRO_LIKELY(entry.state >= ArpEntryState::VALID)) {
             // If it is a timed out VALID entry, transition to REFRESHING.
-            if (AMBRO_UNLIKELY(entry->attempts_left == 0)) {
+            if (AMBRO_UNLIKELY(entry.attempts_left == 0)) {
                 // REFRESHING entry never has attempts_left==0 so no need to check for
                 // VALID state in the if. We have a VALID entry and the timer is also
                 // not active (needed by set_entry_timer) since attempts_left==0 implies
                 // that it has expired already
-                AMBRO_ASSERT(entry->state == ArpEntryState::VALID)
-                AMBRO_ASSERT(!entry->timer_active)
+                AMBRO_ASSERT(entry.state == ArpEntryState::VALID)
+                AMBRO_ASSERT(!entry.timer_active)
                 
                 // Go to REFRESHING state, start timeout, send first unicast request.
-                entry->state = ArpEntryState::REFRESHING;
-                entry->attempts_left = ArpRefreshAttempts;
-                set_entry_timer(*entry);
+                entry.state = ArpEntryState::REFRESHING;
+                entry.attempts_left = ArpRefreshAttempts;
+                set_entry_timer(entry);
                 update_timer();
-                send_arp_packet(ArpOpTypeRequest, entry->mac_addr, entry->ip_addr);
+                send_arp_packet(ArpOpTypeRequest, entry.mac_addr, entry.ip_addr);
             }
             
             // Success, return MAC address.
-            *mac_addr = entry->mac_addr;
+            *mac_addr = entry.mac_addr;
             return IpErr::SUCCESS;
         } else {
-            // If this is a FREE entry, transition to QUERY.
-            if (entry->state == ArpEntryState::FREE) {
+            // If this is a FREE entry, initialize it.
+            if (entry.state == ArpEntryState::FREE) {
                 // Timer is not active for FREE entries (needed by set_entry_timer).
-                AMBRO_ASSERT(!entry->timer_active)
+                AMBRO_ASSERT(!entry.timer_active)
                 
                 // Go to QUERY state, start timeout, send first broadcast request.
-                entry->state = ArpEntryState::QUERY;
-                entry->attempts_left = ArpQueryAttempts;
-                set_entry_timer(*entry);
+                // NOTE: Entry is already inserted to m_used_entries_list.
+                entry.state = ArpEntryState::QUERY;
+                entry.attempts_left = ArpQueryAttempts;
+                set_entry_timer(entry);
                 update_timer();
                 send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
             }
             
             // Add a request to the retry list if a request is supplied.
-            entry->retry_list.addRequest(retryReq);
+            entry.retry_list.addRequest(retryReq);
             
             // Return ARP_QUERY error.
             return IpErr::ARP_QUERY;
@@ -441,17 +453,25 @@ private:
     
     void save_hw_addr (Ip4Addr ip_addr, MacAddr mac_addr)
     {
-        // Get an entry, if a new entry is allocated it will be weak.
-        ArpEntry *entry;
-        GetArpEntryRes get_res = get_arp_entry(ip_addr, true, &entry);
+        // Sanity check MAC address: not broadcast.
+        if (AMBRO_UNLIKELY(mac_addr == MacAddr::BroadcastAddr())) {
+            return;
+        }
         
+        // Get an entry, if a new entry is allocated it will be weak.
+        ArpEntryRef entry_ref;
+        GetArpEntryRes get_res = get_arp_entry(ip_addr, true, entry_ref);
+        
+        // Did we get an (old or new) entry for this address?
         if (get_res == GetArpEntryRes::GotArpEntry) {
+            ArpEntry &entry = *entry_ref;
+            
             // Set entry to VALID state, remember MAC address, start timeout.
-            entry->state = ArpEntryState::VALID;
-            entry->mac_addr = mac_addr;
-            entry->attempts_left = 1;
-            clear_entry_timer(*entry); // set_entry_timer requires !timer_active
-            set_entry_timer(*entry);
+            entry.state = ArpEntryState::VALID;
+            entry.mac_addr = mac_addr;
+            entry.attempts_left = 1;
+            clear_entry_timer(entry); // set_entry_timer requires !timer_active
+            set_entry_timer(entry);
             update_timer();
             
             // Dispatch send-retry requests.
@@ -459,7 +479,7 @@ private:
             // reusing it for a different IP address. In that case retry_list.reset()
             // would be called from reset_arp_entry, but that is safe since
             // SentRetry::List supports it.
-            entry->retry_list.dispatchRequests();
+            entry.retry_list.dispatchRequests();
         }
         
         // Notify the ARP observers so long as the address is not
@@ -476,111 +496,131 @@ private:
     
     enum class GetArpEntryRes {GotArpEntry, BroadcastAddr, InvalidAddr};
     
-    // NOTE: update_timer is needed after this if a FREE entry was obtained
-    GetArpEntryRes get_arp_entry (Ip4Addr ip_addr, bool weak, ArpEntry **out_entry)
+    // NOTE: If a FREE entry is obtained, then 'weak' and 'ip_addr' have been
+    // set, the entry is already in m_used_entries_list, but the caller must
+    // complete initializing it to a non-FREE state. Also, update_timer is needed
+    // afterward then.
+    GetArpEntryRes get_arp_entry (Ip4Addr ip_addr, bool weak, ArpEntryRef &out_entry)
     {
-        ArpEntry *e;
-        
-        ArpEntryIndexType index = m_first_arp_entry;
-        ArpEntryIndexType prev_index = ArpEntryNull;
+        // Look for a used entry with this IP address while also collecting
+        // some information to be used in case we don't find an entry...
         
         int num_hard = 0;
-        ArpEntryIndexType last_weak_index = ArpEntryNull;
-        ArpEntryIndexType last_weak_prev_index;
-        ArpEntryIndexType last_hard_index = ArpEntryNull;
-        ArpEntryIndexType last_hard_prev_index;
+        ArpEntryRef last_weak_entry_ref = ArpEntryRef::null();
+        ArpEntryRef last_hard_entry_ref = ArpEntryRef::null();
         
-        while (index != ArpEntryNull) {
-            AMBRO_ASSERT(index < NumArpEntries)
-            e = &m_arp_entries[index];
+        ArpEntryRef entry_ref = m_used_entries_list.first(*this);
+        
+        while (!entry_ref.isNull()) {
+            ArpEntry &entry = *entry_ref;
+            AMBRO_ASSERT(entry.state != ArpEntryState::FREE)
             
-            if (e->state != ArpEntryState::FREE && e->ip_addr == ip_addr) {
+            if (entry.ip_addr == ip_addr) {
                 break;
             }
             
-            if (e->weak) {
-                last_weak_index = index;
-                last_weak_prev_index = prev_index;
+            if (entry.weak) {
+                last_weak_entry_ref = entry_ref;
             } else {
                 num_hard++;
-                last_hard_index = index;
-                last_hard_prev_index = prev_index;
+                last_hard_entry_ref = entry_ref;
             }
             
-            prev_index = index;
-            index = e->next;
+            entry_ref = m_used_entries_list.next(entry_ref, *this);
         }
         
-        if (AMBRO_LIKELY(index != ArpEntryNull)) {
+        if (AMBRO_LIKELY(!entry_ref.isNull())) {
+            // We found an entry with this IP address.
+            // If this is a hard request, make sure the entry is hard.
             if (!weak) {
-                e->weak = false;
+                (*entry_ref).weak = false;
             }
         } else {
+            // We did not find an entry with this IP address.
+            // First do some checks of the IP address...
+            
+            // If this is the all-ones address, return the broadcast MAC address.
             if (ip_addr == Ip4Addr::AllOnesAddr()) {
                 return GetArpEntryRes::BroadcastAddr;
             }
             
+            // Check for zero IP address.
             if (ip_addr == Ip4Addr::ZeroAddr()) {
                 return GetArpEntryRes::InvalidAddr;
             }
             
+            // Check if the interface has an IP address assigned.
             IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
             if (ifaddr == nullptr) {
                 return GetArpEntryRes::InvalidAddr;
             }
             
+            // Check if the given IP address is in the subnet.
             if ((ip_addr & ifaddr->netmask) != ifaddr->netaddr) {
                 return GetArpEntryRes::InvalidAddr;
             }
             
+            // If this is the local broadcast address, return the broadcast MAC address.
             if (ip_addr == ifaddr->bcastaddr) {
                 return GetArpEntryRes::BroadcastAddr;
             }
             
-            // TODO: Weak entries may not be at the end !??!
+            // Check if there is a FREE entry available.
+            entry_ref = m_free_entries_list.first(*this);
             
-            bool use_weak;
-            if (last_weak_index != ArpEntryNull && m_arp_entries[last_weak_index].state == ArpEntryState::FREE) {
-                use_weak = true;
+            if (!entry_ref.isNull()) {
+                // Got a FREE entry.
+                AMBRO_ASSERT((*entry_ref).state == ArpEntryState::FREE)
+                AMBRO_ASSERT(!(*entry_ref).timer_active)
+                AMBRO_ASSERT(!(*entry_ref).retry_list.hasRequests())
+                
+                // Move the entry from the free list to the used list.
+                m_free_entries_list.removeFirst(*this);
+                m_used_entries_list.prepend(entry_ref, *this);
             } else {
+                // There is no FREE entry available, we will recycle a used entry.
+                // Determine whether to recycle a weak or hard entry.
+                bool use_weak;
                 if (weak) {
-                    use_weak = !(num_hard > ArpProtectCount || last_weak_index == ArpEntryNull);
+                    use_weak = !(num_hard > ArpProtectCount || last_weak_entry_ref.isNull());
                 } else {
                     int num_weak = NumArpEntries - num_hard;
-                    use_weak = (num_weak > ArpNonProtectCount || last_hard_index == ArpEntryNull);
+                    use_weak = (num_weak > ArpNonProtectCount || last_hard_entry_ref.isNull());
                 }
+                
+                // Get the entry to be recycled.
+                entry_ref = use_weak ? last_weak_entry_ref : last_hard_entry_ref;
+                AMBRO_ASSERT(!entry_ref.isNull())
+                
+                // Reset the entry, but keep it in the used list.
+                reset_arp_entry(*entry_ref, true);
             }
             
-            if (use_weak) {
-                index = last_weak_index;
-                prev_index = last_weak_prev_index;
-            } else {
-                index = last_hard_index;
-                prev_index = last_hard_prev_index;
-            }
+            // NOTE: The entry is in FREE state now but in the used list.
+            // The caller is responsible to set a non-FREE state ensuring
+            // that the state corresponds with the list membership again.
             
-            AMBRO_ASSERT(index != ArpEntryNull)
-            e = &m_arp_entries[index];
-            
-            reset_arp_entry(*e);
-            
-            e->ip_addr = ip_addr;
-            e->weak = weak;
+            // Set IP address and weak flag.
+            (*entry_ref).ip_addr = ip_addr;
+            (*entry_ref).weak = weak;
         }
         
-        if (prev_index != ArpEntryNull) {
-            m_arp_entries[prev_index].next = e->next;
-            e->next = m_first_arp_entry;
-            m_first_arp_entry = index;
+        // Bump to entry to the front of the used entries list.
+        if (!(entry_ref == m_used_entries_list.first(*this))) {
+            m_used_entries_list.remove(entry_ref, *this);
+            m_used_entries_list.prepend(entry_ref, *this);
         }
         
-        *out_entry = e;
+        // Return the entry.
+        out_entry = entry_ref;
         return GetArpEntryRes::GotArpEntry;
     }
     
-    // NOTE: update_timer is needed after this
-    void reset_arp_entry (ArpEntry &entry)
+    // NOTE: update_timer is needed after this.
+    void reset_arp_entry (ArpEntry &entry, bool leave_in_used_list)
     {
+        AMBRO_ASSERT(entry.state != ArpEntryState::FREE)
+        
         // Make sure the entry timeout is not active.
         clear_entry_timer(entry);
         
@@ -590,8 +630,11 @@ private:
         // Reset the send-retry list for the entry.
         entry.retry_list.reset();
         
-        // BUG: If entry is not reinitialized, it should be moved to the
-        // end of the list! This is a problem when called from handle_entry_timeout.
+        // Move from used list to free list, unless requested not to.
+        if (!leave_in_used_list) {
+            m_used_entries_list.remove({entry, *this}, *this);
+            m_free_entries_list.prepend({entry, *this}, *this);
+        }
     }
     
     IpErr send_arp_packet (uint16_t op_type, MacAddr dst_mac, Ip4Addr dst_ipaddr)
@@ -620,16 +663,21 @@ private:
         return driverSendFrame(frame_alloc.getBufRef());
     }
     
+    // Set tne ARP entry timeout based on the entry state and attempts_left.
     void set_entry_timer (ArpEntry &entry)
     {
         AMBRO_ASSERT(!entry.timer_active)
         AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
         AMBRO_ASSERT(entry.state != ArpEntryState::VALID || entry.attempts_left == 1)
         
+        // Determine the relative timeout...
         TimeType timeout;
         if (entry.state == ArpEntryState::VALID) {
+            // VALID entry (not expired yet, i.e. with attempts_left==1).
             timeout = ArpValidTimeoutTicks;
         } else {
+            // QUERY or REFRESHING entry, compute timeout with exponential backoff.
+            
             uint8_t attempts = (entry.state == ArpEntryState::QUERY) ?
                 ArpQueryAttempts : ArpRefreshAttempts;
             
@@ -637,16 +685,16 @@ private:
             timeout = ArpBaseResponseTimeoutTicks << (attempts - entry.attempts_left);
         }
         
+        // Set timer_active flag, store timeout time.
+        entry.timer_active = true;
         entry.timer_time = Clock::getTime(Context()) + timeout;
         
-        if (entry.timer_active) {
-            m_timers_structure.fixup({entry, *this}, *this);
-        } else {
-            entry.timer_active = true;
-            m_timers_structure.insert({entry, *this}, *this);
-        }
+        // Insert entry to m_timers_structure.
+        m_timers_structure.insert({entry, *this}, *this);
     }
     
+    // Make sure the entry timeout is not active.
+    // NOTE: update_timer is needed after this.
     void clear_entry_timer (ArpEntry &entry)
     {
         if (entry.timer_active) {
@@ -655,13 +703,17 @@ private:
         }
     }
     
+    // Make sure the ArpTimer is set to expire at the first entry timeout,
+    // or unset it if there is no active entry timeout. This must be called
+    // after every insertion/removal of an entry to m_timers_structure.
     void update_timer ()
     {
-        auto first = m_timers_structure.first(*this);
-        if (first.isNull()) {
+        ArpEntryRef first_ref = m_timers_structure.first(*this);
+        
+        if (first_ref.isNull()) {
             tim(ArpTimer()).unset(Context());
         } else {
-            ArpEntry &entry = *first;
+            ArpEntry &entry = *first_ref;
             AMBRO_ASSERT(entry.timer_active)
             AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
             
@@ -671,18 +723,22 @@ private:
     
     void timerExpired (ArpTimer, Context)
     {
-        auto first = m_timers_structure.first(*this);
-        AMBRO_ASSERT(!first.isNull())
+        // Get the first timer, which is expired.
+        ArpEntryRef first_ref = m_timers_structure.first(*this);
+        AMBRO_ASSERT(!first_ref.isNull())
         
-        ArpEntry &entry = *first;
+        ArpEntry &entry = *first_ref;
         AMBRO_ASSERT(entry.timer_active)
         AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
         
-        m_timers_structure.remove(first, *this);
+        // Consider the entry timeout no longer active.
+        m_timers_structure.remove(first_ref, *this);
         entry.timer_active = false;
         
+        // Perform timeout processing for the entry.
         handle_entry_timeout(entry);
         
+        // Make sure the ArpTimer is updated.
         update_timer();
     }
     
@@ -691,23 +747,26 @@ private:
         AMBRO_ASSERT(entry.state != ArpEntryState::FREE)
         AMBRO_ASSERT(!entry.timer_active)
         
-        IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();
-        
+        // Check if the IP address is still consistent with the interface
+        // address settings. If not, reset the ARP entry.
+        IpIfaceIp4Addrs const *ifaddr = Iface::getIp4AddrsFromDriver();        
         if (ifaddr == nullptr ||
             (entry.ip_addr & ifaddr->netmask) != ifaddr->netaddr ||
             entry.ip_addr == ifaddr->bcastaddr)
         {
-            reset_arp_entry(entry);
+            reset_arp_entry(entry, false);
             return;
         }
         
         switch (entry.state) {
             case ArpEntryState::QUERY: {
+                // QUERY state: Decrement attempts_left then either reset the entry
+                // in case of last attempt, else retransmit the broadcast query.
                 AMBRO_ASSERT(entry.attempts_left > 0)
                 
                 entry.attempts_left--;
                 if (entry.attempts_left == 0) {
-                    reset_arp_entry(entry);
+                    reset_arp_entry(entry, false);
                 } else {
                     set_entry_timer(entry);
                     send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), entry.ip_addr);
@@ -715,12 +774,17 @@ private:
             } break;
             
             case ArpEntryState::VALID: {
+                // VALID state: Set attempts_left to 0 to consider the entry expired.
+                // Upon next use the entry it will go to REFRESHING state.
                 AMBRO_ASSERT(entry.attempts_left == 1)
                 
                 entry.attempts_left = 0;
             } break;
             
             case ArpEntryState::REFRESHING: {
+                // REFRESHING state: Decrement attempts_left then either move
+                // the entry to QUERY state (and send the first broadcast query),
+                // else retransmit the unicast query.
                 AMBRO_ASSERT(entry.attempts_left > 0)
                 
                 entry.attempts_left--;
@@ -739,9 +803,11 @@ private:
         }
     }
     
-    class TimersCompare
+    // TODO BUG: heap consistency due to time wraparound
+    
+    class ArpEntryTimerCompare
     {
-        APRINTER_USE_TYPES1(TimersLinkModel, (State, Ref))
+        APRINTER_USE_TYPES1(ArpEntriesLinkModel, (State, Ref))
         
     public:
         static int compareEntries (State, Ref ref1, Ref ref2)
@@ -763,7 +829,8 @@ private:
 private:
     Observable m_arp_observable;
     MacAddr const *m_mac_addr;
-    ArpEntryIndexType m_first_arp_entry;
+    ArpEntryList m_used_entries_list;
+    ArpEntryList m_free_entries_list;
     TimersStructure m_timers_structure;
     EthHeader::Ref m_rx_eth_header;
     ArpEntry m_arp_entries[NumArpEntries];
