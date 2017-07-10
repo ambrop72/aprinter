@@ -80,6 +80,11 @@ public:
         m_root = Link::null();
     }
     
+    inline bool isEmpty () const
+    {
+        return m_root.isNull();
+    }
+    
     inline Ref first (State st = State()) const
     {
         return m_root.ref(st);
@@ -266,6 +271,7 @@ public:
     }
     
     template <typename KeyType>
+    APRINTER_OPTIMIZE_SIZE
     Ref findFirstLesserOrEqual (KeyType key, State st = State())
     {
         Ref root = m_root.ref(st);

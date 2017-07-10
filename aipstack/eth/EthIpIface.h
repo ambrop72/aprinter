@@ -41,6 +41,7 @@
 #include <aprinter/structure/ObserverNotification.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
+#include <aprinter/structure/TreeCompare.h>
 #include <aprinter/system/TimedEventWrapper.h>
 #include <aprinter/misc/ClockUtils.h>
 
@@ -114,7 +115,7 @@ class EthIpIface : public Arg::Iface,
     
     struct ArpEntry;
     struct ArpEntriesAccessor;
-    class ArpEntryTimerCompare;
+    struct ArpEntryTimerCompare;
     
     // Link model for ARP entry data structures.
     //struct ArpEntriesLinkModel = APrinter::PointerLinkModel<ArpEntry> {};
@@ -178,6 +179,11 @@ class EthIpIface : public Arg::Iface,
     // Linked list type.
     using ArpEntryList = APrinter::LinkedList<
         ArpEntryListNodeAccessor, ArpEntriesLinkModel, true>;
+    
+    // Comparison for ARP entry timers using TreeCompare.
+    class ArpEntryTimerKeyFuncs;
+    struct ArpEntryTimerCompare : public APrinter::TreeCompare<
+        ArpEntriesLinkModel, ArpEntryTimerKeyFuncs> {};
     
     // Data structure type for ARP entry timers.
     using TimersStructure = typename TimersStructureService::template Structure<
@@ -677,17 +683,46 @@ private:
             timeout = ArpValidTimeoutTicks;
         } else {
             // QUERY or REFRESHING entry, compute timeout with exponential backoff.
-            
             uint8_t attempts = (entry.state == ArpEntryState::QUERY) ?
                 ArpQueryAttempts : ArpRefreshAttempts;
-            
             AMBRO_ASSERT(entry.attempts_left <= attempts)
             timeout = ArpBaseResponseTimeoutTicks << (attempts - entry.attempts_left);
         }
         
-        // Set timer_active flag, store timeout time.
+        // Get the current time.
+        TimeType now = Clock::getTime(Context());
+        
+        // Update the reference time to maximize the useful future range:
+        // - If the timers structure is empty, set the reference time to now.
+        // - Otherwise, if the current time is in the future range after the
+        //   reference time (need this sanity check), set the reference time
+        //   to the smaller of the current time and the first timeout.
+        if (m_timers_structure.isEmpty()) {
+            m_timers_ref_time = now;
+        }
+        else if (TheClockUtils::timeGreaterOrEqual(now, m_timers_ref_time)) {
+            ArpEntry &first_timer = *m_timers_structure.first(*this);
+            if (TheClockUtils::timeGreaterOrEqual(now, first_timer.timer_time)) {
+                m_timers_ref_time = first_timer.timer_time;
+            } else {
+                m_timers_ref_time = now;
+            }
+        }
+        
+        // Calculate the absolute timeout time.
+        TimeType abs_time = now + timeout;
+        
+        // If this absolute time is in the past relative to the reference time,
+        // bump it up to the reference time. This is needed because time comparisons
+        // (ArpEntryTimerKeyFuncs::CompareKeys) work correctly only when the
+        // active timers span less than half of the TimeType range.
+        if (!TheClockUtils::timeGreaterOrEqual(abs_time, m_timers_ref_time)) {
+            abs_time = m_timers_ref_time;
+        }
+        
+        // Set timer_active flag, store absolute time.
         entry.timer_active = true;
-        entry.timer_time = Clock::getTime(Context()) + timeout;
+        entry.timer_time = abs_time;
         
         // Insert entry to m_timers_structure.
         m_timers_structure.insert({entry, *this}, *this);
@@ -723,22 +758,66 @@ private:
     
     void timerExpired (ArpTimer, Context)
     {
-        // Get the first timer, which is expired.
-        ArpEntryRef first_ref = m_timers_structure.first(*this);
-        AMBRO_ASSERT(!first_ref.isNull())
+        AMBRO_ASSERT(!m_timers_structure.isEmpty())
         
-        ArpEntry &entry = *first_ref;
-        AMBRO_ASSERT(entry.timer_active)
-        AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
+        // Get the current time.
+        TimeType now = Clock::getTime(Context());
         
-        // Consider the entry timeout no longer active.
-        m_timers_structure.remove(first_ref, *this);
-        entry.timer_active = false;
+        // Determine the time based on which we consider timers expired.
+        // The else case will dispatches all timers, after the clock jumped into
+        // the left half of the reference time, because in this case comparing
+        // timers to "now" the usual way may yield incorrect results.
+        TimeType dispatch_time;
+        if (TheClockUtils::timeGreaterOrEqual(now, m_timers_ref_time)) {
+            dispatch_time = now;
+        } else {
+            dispatch_time = m_timers_ref_time + std::numeric_limits<TimeType>::max() / 2;
+        }
         
-        // Perform timeout processing for the entry.
-        handle_entry_timeout(entry);
+        // Set the timer_time of expired timers to now. This allows us to
+        // safely update m_timers_ref_time before dispatching any timer, and
+        // effectively allows new timers to be started in the full future
+        // range relative to now.
+        ArpEntryRef timer_ref = m_timers_structure.findFirstLesserOrEqual(dispatch_time, *this);
+        if (!timer_ref.isNull()) {
+            do {
+                ArpEntry &entry = *timer_ref;
+                AMBRO_ASSERT(entry.timer_active)
+                AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
+                
+                entry.timer_time = now;
+                
+                timer_ref = m_timers_structure.findNextLesserOrEqual(dispatch_time, timer_ref, *this);
+            } while (!timer_ref.isNull());
+            
+            m_timers_structure.assertValidHeap(*this);
+        }
+                
+        // Update the reference time to 'now'. This is safe because the above updates
+        // ensured that all active timers (including ones about to be dispatched)
+        // belong to the future range relative to 'now'.
+        m_timers_ref_time = now;
         
-        // Make sure the ArpTimer is updated.
+        // Dispatch expired timers...
+        while (!(timer_ref = m_timers_structure.first(*this)).isNull()) {
+            ArpEntry &entry = *timer_ref;
+            AMBRO_ASSERT(entry.timer_active)
+            AMBRO_ASSERT(entry.state == one_of_timer_entry_states())
+            
+            // If the timer is not yet expired, stop.
+            if (entry.timer_time != m_timers_ref_time) {
+                break;
+            }
+            
+            // Make the entry timeout no longer active.
+            m_timers_structure.remove({entry, *this}, *this);
+            entry.timer_active = false;
+            
+            // Perform timeout processing for the entry.
+            handle_entry_timeout(entry);
+        }
+        
+        // Set the ArpTimer for the next expiration or unset.
         update_timer();
     }
     
@@ -803,25 +882,19 @@ private:
         }
     }
     
-    // TODO BUG: heap consistency due to time wraparound
-    
-    class ArpEntryTimerCompare
+    // KeyFuncs class for TreeCompare used for m_timers_structure.
+    class ArpEntryTimerKeyFuncs
     {
-        APRINTER_USE_TYPES1(ArpEntriesLinkModel, (State, Ref))
-        
     public:
-        static int compareEntries (State, Ref ref1, Ref ref2)
+        // Get the key (timer time) of an entry.
+        static TimeType GetKeyOfEntry (ArpEntry const &entry)
         {
-            TimeType time1 = (*ref1).timer_time;
-            TimeType time2 = (*ref2).timer_time;
-            
-            return !TheClockUtils::timeGreaterOrEqual(time1, time2) ? -1 : (time1 == time2) ? 0 : 1;
+            return entry.timer_time;
         }
         
-        static int compareKeyEntry (State, TimeType time1, Ref ref2)
+        // Compare two keys (times).
+        static int CompareKeys (TimeType time1, TimeType time2)
         {
-            TimeType time2 = (*ref2).timer_time;
-            
             return !TheClockUtils::timeGreaterOrEqual(time1, time2) ? -1 : (time1 == time2) ? 0 : 1;
         }
     };
@@ -832,6 +905,7 @@ private:
     ArpEntryList m_used_entries_list;
     ArpEntryList m_free_entries_list;
     TimersStructure m_timers_structure;
+    TimeType m_timers_ref_time;
     EthHeader::Ref m_rx_eth_header;
     ArpEntry m_arp_entries[NumArpEntries];
     

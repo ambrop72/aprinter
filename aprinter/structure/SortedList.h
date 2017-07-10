@@ -73,6 +73,11 @@ public:
         m_list.init();
     }
     
+    inline bool isEmpty () const
+    {
+        return m_list.isEmpty();
+    }
+    
     inline Ref first (State st = State()) const
     {
         return m_list.first(st);
