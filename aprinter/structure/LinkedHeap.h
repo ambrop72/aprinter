@@ -36,7 +36,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-//#define APRINTER_LINKED_HEAP_VERIFY 1
+#define APRINTER_LINKED_HEAP_VERIFY 1
 
 template <typename, typename, typename, typename>
 class LinkedHeap;
@@ -287,7 +287,6 @@ public:
     Ref findNextLesserOrEqual (KeyType key, Ref node, State st = State())
     {
         AMBRO_ASSERT(!node.isNull())
-        AMBRO_ASSERT(Compare::compareKeyEntry(st, key, node) >= 0)
         
         for (bool side : {false, true}) {
             Ref child = ac(node).link[side].ref(st);
@@ -299,8 +298,6 @@ public:
         Ref parent = ac(node).parent.ref(st);
         
         while (!parent.isNull()) {
-            AMBRO_ASSERT(Compare::compareKeyEntry(st, key, parent) >= 0)
-            
             if (!(node.link(st) == ac(parent).link[1])) {
                 AMBRO_ASSERT(node.link(st) == ac(parent).link[0])
                 
