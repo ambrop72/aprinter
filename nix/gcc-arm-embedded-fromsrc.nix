@@ -1,12 +1,12 @@
 # This was written partly based on https://github.com/EliasOenal/TNT,
 # and the patches were also taken from there.
 
-{ stdenv, fetchurl, gmp, mpfr, libmpc, isl_0_11, cloog_0_18_0
+{ stdenv, fetchurl, gmp, mpfr, libmpc, isl
 , zlib, libelf, texinfo, bison, flex
 , optimizeForSize ? false
 }:
 let
-    gcc_version = "6.3.0";
+    gcc_version = "6.4.0";
     binutils_version = "2.28";
     newlib_version = "2.5.0.20170421";
     
@@ -106,8 +106,8 @@ stdenv.mkDerivation {
             sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
         })
         (fetchurl {
-            url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.bz2";
-            sha256 = "f06ae7f3f790fbf0f018f6d40e844451e6bc3b7bc96e128e63b09825c1f8b29f";
+            url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.xz";
+            sha256 = "850bf21eafdfe5cd5f6827148184c08c4a0852a37ccf36ce69855334d2c914d4";
         })
         (fetchurl {
             url = "ftp://sourceware.org/pub/newlib/newlib-${newlib_version}.tar.gz";
@@ -118,7 +118,7 @@ stdenv.mkDerivation {
     sourceRoot = ".";
     
     nativeBuildInputs = [ texinfo bison flex ];
-    buildInputs = [ gmp mpfr libmpc isl_0_11 cloog_0_18_0 zlib libelf ];
+    buildInputs = [ gmp mpfr libmpc isl zlib libelf ];
     
     hardeningDisable = [ "format" ];
     
