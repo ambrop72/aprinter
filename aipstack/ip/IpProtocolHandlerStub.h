@@ -160,13 +160,13 @@ public:
      * Process a received IPv4 ICMP Destination Unreachable message for
      * this protocol.
      * 
-     * This can be used to support the Path MTU Discovery process.
-     * In this case, the protocol handler is expected to perform
-     * protocol-specific sanity checks (e.g. TCP could check that this is an
-     * active connection) and call @ref IpStack::handleIcmpPacketTooBig
-     * if the checks pass. The latter may result in
-     * @ref IpStack::MtuRef::pmtuChanged callbacks being called from this
-     * function.
+     * This function can be used to support the Path MTU Discovery process.
+     * In this case, if the ICMP code (du_meta.icmp_code) is
+     * @ref Icmp4CodeDestUnreachFragNeeded, the protocol handler should perform
+     * protocol-specific sanity checks (e.g. TCP could check that the message is
+     * for an active connection) then call @ref IpStack::handleIcmpPacketTooBig
+     * if the checks pass. The latter may result in @ref IpStack::MtuRef::pmtuChanged
+     * callbacks being called.
      * 
      * Note that to fully support Path MTU Discovery, the protocol handler
      * should also call @ref IpStack::handleLocalPacketTooBig when sending

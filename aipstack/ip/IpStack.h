@@ -1228,7 +1228,8 @@ public:
          * Return information about current IPv4 address assignment.
          * 
          * This can be used by the driver if it needs information about the
-         * IPv4 address assigned to the interface.
+         * IPv4 address assigned to the interface, or other places where the
+         * information is useful.
          * 
          * @return If no IPv4 address is assigned, then null. If an address is
          *         assigned, then a pointer to a structure providing information
