@@ -37,17 +37,18 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename, typename, typename, typename>
+template <typename, typename, typename, typename, typename>
 class TimerQueue;
 
 template <
     typename TimersStructureService,
     typename LinkModel,
-    typename TimeType
+    typename TimeType,
+    typename NodeUserData
 >
-class TimerQueueNode
+class TimerQueueNode : public NodeUserData
 {
-    template <typename, typename, typename, typename>
+    template <typename, typename, typename, typename, typename>
     friend class TimerQueue;
     
     // Get the Node type for the data structure.
@@ -65,7 +66,8 @@ template <
     typename TimersStructureService,
     typename LinkModel,
     typename Accessor,
-    typename TimeType
+    typename TimeType,
+    typename NodeUserData
 >
 class TimerQueue
 {
@@ -77,7 +79,7 @@ class TimerQueue
     APRINTER_USE_TYPES1(LinkModel, (State, Ref))
     
     // Get the TimerQueueNode type.
-    using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType>;
+    using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType, NodeUserData>;
     
     // Create the accessor type for TimerQueueNode::timers_structure_node.
     struct TimersStructureNodeAccessor : public APrinter::ComposedAccessor<
@@ -198,7 +200,8 @@ public:
             if (!entry.isNull()) {
                 do {
                     ac(entry).time = now;
-                    entry = m_timers_structure.findNextLesserOrEqual(dispatch_time, entry, st);
+                    entry = m_timers_structure.findNextLesserOrEqual(
+                        dispatch_time, entry, st);
                 } while (!entry.isNull());
                 
                 // Call assertValidHeap so the data structure can now verify
@@ -293,11 +296,13 @@ private:
 APRINTER_ALIAS_STRUCT_EXT(TimerQueueService, (
     APRINTER_AS_TYPE(TimersStructureService)
 ), (
-    template <typename LinkModel, typename TimeType>
-    using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType>;
+    template <typename LinkModel, typename TimeType, typename NodeUserData>
+    using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType, NodeUserData>;
     
-    template <typename LinkModel, typename Accessor, typename TimeType>
-    using Queue = TimerQueue<TimersStructureService, LinkModel, Accessor, TimeType>;
+    template <typename LinkModel, typename Accessor,
+              typename TimeType, typename NodeUserData>
+    using Queue = TimerQueue<TimersStructureService, LinkModel, Accessor,
+                             TimeType, NodeUserData>;
 ))
 
 #include <aprinter/EndNamespace.h>
