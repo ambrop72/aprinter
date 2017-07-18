@@ -94,10 +94,10 @@ rec {
     buildDepsArmCommon = [
         gcc-arm-embedded-fromsrc
         asf
-        stm32cubef4
-        teensyCores
     ];
     buildDepsArmUncommon = [
+        stm32cubef4
+        teensyCores
         gcc-arm-embedded-fromsrc-optsize
         clang-arm-embedded
         clang-arm-embedded-optize
