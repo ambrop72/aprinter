@@ -67,6 +67,7 @@ configure_arm() {
         -I"${ROOT}"
         -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal -Wno-deprecated-register
+        -Wno-psabi
         -ffunction-sections -fdata-sections
         "${EXTRA_COMPILE_FLAGS[@]}"
     )
