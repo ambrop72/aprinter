@@ -22,10 +22,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <type_traits>
-
 #ifndef APRINTER_ENUM_UTILS_H
 #define APRINTER_ENUM_UTILS_H
+
+#include <type_traits>
 
 #include <aprinter/meta/BasicMetaUtils.h>
 

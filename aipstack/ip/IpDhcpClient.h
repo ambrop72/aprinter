@@ -1159,7 +1159,8 @@ private:
         
         // Send the datagram.
         Ip4Addrs addrs{ciaddr, dst_addr};
-        m_ipstack->sendIp4Dgram(addrs, {DhcpTTL, Ip4ProtocolUdp}, dgram, iface(), this, 0);
+        m_ipstack->sendIp4Dgram(addrs, {DhcpTTL, Ip4ProtocolUdp}, dgram, iface(), this,
+                                IpSendFlags());
     }
     
     void new_xid ()

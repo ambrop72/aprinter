@@ -54,7 +54,7 @@ public:
     
     // Common flags passed to IpStack::sendIp4Dgram.
     // We disable fragmentation of TCP segments sent by us, due to PMTUD.
-    static uint16_t const TcpIpSendFlags = IpSendFlags::DontFragmentFlag;
+    static IpSendFlags const TcpIpSendFlags = IpSendFlags::DontFragmentFlag;
     
 public:
     // Maximum theoreticaly possible send and receive window.
