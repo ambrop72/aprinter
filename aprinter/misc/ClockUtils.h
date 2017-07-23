@@ -51,8 +51,8 @@ public:
     static constexpr double time_unit = Clock::time_unit;
     static constexpr double time_freq = Clock::time_freq;
     
-    static constexpr double WorkingTimeSpan = 0.9 * (UINT32_C(0x7fffffff) * time_unit);
-    static TimeType const WorkingTimeSpanTicks = WorkingTimeSpan * time_freq;
+    static TimeType const WorkingTimeSpanTicks = UINT32_C(0x70000000);
+    static constexpr double WorkingTimeSpan = WorkingTimeSpanTicks * time_unit;
     
     inline static TimeType timeDifference (TimeType t1, TimeType t2)
     {
