@@ -196,18 +196,13 @@ public:
             // return wrong results (in case we decided to dispatch all timers above).
             // But the data structure must be designed so that it does not compare
             // timers between each other in this process.
-            Ref entry = m_timers_structure.findFirstLesserOrEqual(dispatch_time, st);
-            if (!entry.isNull()) {
-                do {
-                    ac(entry).time = now;
-                    entry = m_timers_structure.findNextLesserOrEqual(
-                        dispatch_time, entry, st);
-                } while (!entry.isNull());
-                
-                // Call assertValidHeap so the data structure can now verify
-                // self-consistency if configured to do so.
-                m_timers_structure.assertValidHeap(st);
-            }
+            m_timers_structure.findAllLesserOrEqual(dispatch_time, [&](Ref entry) {
+                ac(entry).time = now;
+            }, st);
+            
+            // Call assertValidHeap so the data structure can now verify
+            // self-consistency if configured to do so.
+            m_timers_structure.assertValidHeap(st);
         }
         
         // Update the reference time to 'now'. This is safe because the above

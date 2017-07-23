@@ -425,25 +425,19 @@ private:
         
         // Set all timers that have expired to DISPATCH state.
         // Because DISPATCH state timers are considered to be lesser than
-        // timers in any other state, this does not break the heap property.
-        // Because the traversal is pre-order, the heap property is preserved
-        // even during this iteration, allowing the asserts in this heap code
-        // to pass.
-        TimedEventNew *tev = o->timed_event_heap.findFirstLesserOrEqual(dispatch_time);
-        if (tev != nullptr) {
-            do {
-                tev->debugAccess(c);
-                AMBRO_ASSERT(tev->m_state == OneOf(TimState::PAST, TimState::FUTURE))
-                
-                tev->m_state = TimState::DISPATCH;
-                
-                tev = o->timed_event_heap.findNextLesserOrEqual(dispatch_time, *tev);
-            } while (tev != nullptr);
+        // timers in any other state, this does not break the heap property
+        // when it is done. It may break it during the traversal but that
+        // must be supported by the data structure.
+        o->timed_event_heap.findAllLesserOrEqual(dispatch_time, [&](TimedEventNew *tev) {
+            tev->debugAccess(c);
+            AMBRO_ASSERT(tev->m_state == OneOf(TimState::PAST, TimState::FUTURE))
             
-            // If the heap verification is enabled, verify here after
-            // we changed the states.
-            o->timed_event_heap.assertValidHeap();
-        }
+            tev->m_state = TimState::DISPATCH;
+        });
+        
+        // If the heap verification is enabled, verify here after
+        // we changed the states.
+        o->timed_event_heap.assertValidHeap();
         
         // Update timers_now to the new now.
         // This preserves the invariant that all FUTURE state timers in the

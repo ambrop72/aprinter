@@ -270,6 +270,12 @@ public:
         assertValidHeap(st);
     }
     
+    template <typename KeyType, typename Func>
+    inline void findAllLesserOrEqual (KeyType key, Func func, State st = State())
+    {
+        find_all_lesser_or_equal(st, key, func, m_root);
+    }
+    
     template <typename KeyType>
     APRINTER_OPTIMIZE_SIZE
     Ref findFirstLesserOrEqual (KeyType key, State st = State())
@@ -561,6 +567,22 @@ private:
             
             connect_and_bubble_down_node(st, srcnode, parent, side, child0, child1);
         }
+    }
+    
+    template <typename KeyType, typename Func>
+    void find_all_lesser_or_equal (State st, KeyType key, Func func, Link node_link)
+    {
+        Ref node;
+        if (node_link.isNull() ||
+            Compare::compareKeyEntry(st, key, (node = node_link.ref(st))) < 0)
+        {
+            return;
+        }
+        
+        func(static_cast<Ref>(node));
+        
+        find_all_lesser_or_equal(st, key, func, ac(node).link[0]);
+        find_all_lesser_or_equal(st, key, func, ac(node).link[1]);
     }
     
     enum class AssertState {NoDepth, Lowest, LowestEnd};

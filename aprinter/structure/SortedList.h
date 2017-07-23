@@ -161,6 +161,16 @@ public:
         assertValidHeap(st);
     }
     
+    template <typename KeyType, typename Func>
+    inline void findAllLesserOrEqual (KeyType key, Func func, State st = State())
+    {
+        Ref node = m_list.first(st);
+        while (!node.isNull() && Compare::compareKeyEntry(st, key, node) >= 0) {
+            func(static_cast<Ref>(node));
+            node = m_list.next(node, st);
+        }
+    }
+    
     template <typename KeyType>
     Ref findFirstLesserOrEqual (KeyType key, State st = State())
     {
