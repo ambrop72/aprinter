@@ -1343,6 +1343,7 @@ def setup_network(gen, config, key):
     @network_sel.option('Network')
     def option(network_config):
         gen.add_aprinter_include('net/IpStackNetwork.h')
+        gen.add_include('aipstack/ip/IpReassembly.h')
         
         num_arp_entries = network_config.get_int('NumArpEntries')
         if not 4 <= num_arp_entries <= 128:
@@ -1359,6 +1360,14 @@ def setup_network(gen, config, key):
         max_reass_size = network_config.get_int('MaxReassSize')
         if not 1480 <= max_reass_size <= 30000:
             network_config.key_path('MaxReassSize').error('Value out of range.')
+        
+        max_reass_holes = network_config.get_int('MaxReassHoles')
+        if not 1 <= max_reass_holes <= 250:
+            network_config.key_path('MaxReassHoles').error('Value out of range.')
+        
+        max_reass_time_sec = network_config.get_int('MaxReassTimeSeconds')
+        if not 5 <= max_reass_time_sec <= 255:
+            network_config.key_path('MaxReassTimeSeconds').error('Value out of range.')
         
         mtu_timeout_minutes = network_config.get_int('MtuTimeoutMinutes')
         if not 1 <= mtu_timeout_minutes <= 255:
@@ -1385,12 +1394,16 @@ def setup_network(gen, config, key):
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
             num_arp_entries,
             arp_protect_count,
-            max_reass_packets,
-            max_reass_size,
             TemplateExpr('AIpStack::IpPathMtuParams', [
                 'IpStackNumMtuEntries',
                 mtu_timeout_minutes,
                 get_ip_index(gen, network_config, 'MtuIndexService'),
+            ]),
+            TemplateExpr('AIpStack::IpReassemblyService', [
+                max_reass_packets,
+                max_reass_size,
+                max_reass_holes,
+                max_reass_time_sec,
             ]),
             num_tcp_pcbs,
             num_oos_segs,

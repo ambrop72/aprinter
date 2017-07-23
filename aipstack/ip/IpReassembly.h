@@ -28,7 +28,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <limits>
+
 #include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/ClockUtils.h>
@@ -45,13 +48,24 @@ template <typename Arg>
 class IpReassembly;
 
 template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::Context, IpReassembly<Arg>, (PurgeTimer))
+APRINTER_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::Context, IpReassembly<Arg>,
+                           (PurgeTimer))
 
+/**
+ * Implements IPv4 datagram reassembly.
+ * 
+ * The implementation uses the strategy suggested in RFC 815, whereby hole
+ * descriptors are placed at the beginnings of holes.
+ * 
+ * @tparam Arg Instantiation information (use @ref APRINTER_MAKE_INSTANCE with
+ *             @ref IpReassemblyService::Compose).
+ */
 template <typename Arg>
 class IpReassembly :
     private IpReassemblyTimers<Arg>::Timers
 {
-    APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize))
+    APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
+                                    MaxReassTimeSeconds))
     APRINTER_USE_TYPES1(Arg, (Context))
     
     APRINTER_USE_TYPES1(Context, (Clock))
@@ -62,28 +76,36 @@ class IpReassembly :
     
     static_assert(MaxReassEntrys > 0, "");
     static_assert(MaxReassSize >= Ip4RequiredRecvSize, "");
+    static_assert(MaxReassHoles >= 1, "");
+    static_assert(MaxReassHoles <= 250, ""); // important to prevent num_holes overflow
+    static_assert(MaxReassTimeSeconds >= 5, "");
     
-    static uint16_t const ReassNullLink = UINT16_MAX;
+    // Null link value in HoleDescriptor lists.
+    static uint16_t const ReassNullLink = std::numeric_limits<uint16_t>::max();
     
+    // Hole descriptor structure, placed at the beginning of a hole.
     APRINTER_TSTRUCT(HoleDescriptor,
         (HoleSize,       StructRawField<uint16_t>)
         (NextHoleOffset, StructRawField<uint16_t>)
     )
     
     // We need to be able to put a hole descriptor after the reassembled data.
-    static_assert(MaxReassSize <= UINT16_MAX - HoleDescriptor::Size, "");
+    static_assert(MaxReassSize <=
+        std::numeric_limits<uint16_t>::max() - HoleDescriptor::Size, "");
     
-    // The size of the reassembly buffers, with additional space for a hole descriptor at the end.
+    // The size of the reassembly buffers, with additional space for a hole descriptor
+    // at the end.
     static uint16_t const ReassBufferSize = MaxReassSize + HoleDescriptor::Size;
     
     // Maximum time that a reassembly entry can be valid.
-    static TimeType const ReassMaxExpirationTicks = 255.0 * (TimeType)Clock::time_freq;
-    
-    // Maximum number of holes during reassembly.
-    static uint8_t const MaxReassHoles = 10;
+    static TimeType const ReassMaxExpirationTicks =
+        MaxReassTimeSeconds * (TimeType)Clock::time_freq;
     
     static_assert(ReassMaxExpirationTicks <= TheClockUtils::WorkingTimeSpanTicks, "");
-    static_assert(MaxReassHoles <= 250, "");
+    
+    // Interval of the purge timer. Use as large as possible, we only need it to
+    // expire before any expiration time becomes ambiguous due to clock wraparound.
+    static TimeType const PurgeTimerInterval = TheClockUtils::WorkingTimeSpanTicks;
     
     struct ReassEntry {
         // Offset in data to the first hole, or ReassNullLink for free entry.
@@ -105,27 +127,63 @@ private:
     ReassEntry m_reass_packets[MaxReassEntrys];
     
 public:
+    /**
+     * Initialize reassembly.
+     */
     void init ()
     {
+        // Initialize the timer.
         tim(PurgeTimer()).init(Context());
         
-        tim(PurgeTimer()).appendAfter(Context(), ReassMaxExpirationTicks);
+        // Start the timer for the first interval.
+        tim(PurgeTimer()).appendAfter(Context(), PurgeTimerInterval);
         
+        // Mark all reassembly entries as unused.
         for (auto &reass : m_reass_packets) {
             reass.first_hole_offset = ReassNullLink;
         }
     }
     
+    /**
+     * Deinitialize reassembly.
+     */
     void deinit ()
     {
+        // Deinitialize the timer.
         tim(PurgeTimer()).deinit(Context());
     }
     
+    /**
+     * Process a received packet and possibly return a reassembled datagram.
+     * 
+     * This must only be called for packets which are not complete datagrams,
+     * that is packets which have the more-fragments flag set or a nonzero
+     * fragment offset.
+     * 
+     * @param ident IP identification field.
+     * @param src_addr Source address.
+     * @param dst_addr Destination address.
+     * @param proto IP protocol number.
+     * @param ttl Time-to-live.
+     * @param more_fragments More-fragments flag.
+     * @param fragment_offset Fragment offset in bytes.
+     * @param header Pointer to the IPv4 header (only the base header is used).
+     *        The data in the header must match the various arguments of this
+     *        function (ident...fragment_offset).
+     * @param dgram The IP payload of the incoming datagram must be passed,
+     *        and if a datagram is reassembled (return value is true) then this
+     *        will be changed to reference the reassembled payload, otherwise it
+     *        will not be changed. If a reassembled datagram is returned, then the
+     *        referenced memory region may be used until the next call of this
+     *        function.
+     * @return True if a datagram was reassembled, false if not.
+     */
     bool reassembleIp4 (uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto,
                         uint8_t ttl, bool more_fragments, uint16_t fragment_offset,
                         char const *header, IpBufRef &dgram)
     {
         AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(more_fragments || fragment_offset > 0)
         
         // Sanity check data length.
         if (dgram.tot_len == 0) {
@@ -158,7 +216,9 @@ public:
         
         do {
             // Verify that the fragment fits into the buffer.
-            if (fragment_offset > MaxReassSize || dgram.tot_len > MaxReassSize - fragment_offset) {
+            if (fragment_offset > MaxReassSize ||
+                dgram.tot_len > MaxReassSize - fragment_offset)
+            {
                 goto invalidate_reass;
             }
             uint16_t fragment_end = fragment_offset + dgram.tot_len;
@@ -200,8 +260,9 @@ public:
                 
                 // Get the hole info.
                 auto hole = HoleDescriptor::MakeRef(reass->data + hole_offset);
-                uint16_t hole_size        = hole.get(typename HoleDescriptor::HoleSize());
-                uint16_t next_hole_offset = hole.get(typename HoleDescriptor::NextHoleOffset());
+                uint16_t hole_size = hole.get(typename HoleDescriptor::HoleSize());
+                uint16_t next_hole_offset =
+                    hole.get(typename HoleDescriptor::NextHoleOffset());
                 
                 // Calculate the hole end.
                 AMBRO_ASSERT(hole_size <= ReassBufferSize - hole_offset)
@@ -235,7 +296,8 @@ public:
                     
                     // Write the hole size.
                     // Note that the hole is in the same place as the old hole.
-                    hole.set(typename HoleDescriptor::HoleSize(), new_hole_size);
+                    auto new_hole = HoleDescriptor::MakeRef(reass->data + hole_offset);
+                    new_hole.set(typename HoleDescriptor::HoleSize(), new_hole_size);
                     
                     // The link to this hole is already set up.
                     //reass_link_prev(reass, prev_hole_offset, hole_offset);
@@ -292,6 +354,20 @@ public:
                 return false;
             }
             
+            // If the above check passed, this must be the last hole starting at exactly
+            // data_length and spanning to the end of the buffer (ReassBufferSize).
+            // Consider that when we first got a !more_fragments fragment, we would have
+            // aborted if there was any existing data buffered beyond data_length or if
+            // we later received a fragment with data beyond that.
+            AMBRO_ASSERT(reass->first_hole_offset == reass->data_length)
+#ifdef AMBROLIB_ASSERTIONS
+            auto hole = HoleDescriptor::MakeRef(reass->data + reass->first_hole_offset);
+            uint16_t hole_size        = hole.get(typename HoleDescriptor::HoleSize());
+            uint16_t next_hole_offset = hole.get(typename HoleDescriptor::NextHoleOffset());
+            AMBRO_ASSERT(hole_size == ReassBufferSize - reass->first_hole_offset)
+            AMBRO_ASSERT(next_hole_offset == ReassNullLink)
+#endif
+            
             // Invalidate the reassembly entry.
             reass->first_hole_offset = ReassNullLink;
             
@@ -309,7 +385,8 @@ public:
     }
     
 private:
-    ReassEntry * find_reass_entry (TimeType now, uint16_t ident, Ip4Addr src_addr, Ip4Addr dst_addr, uint8_t proto)
+    ReassEntry * find_reass_entry (TimeType now, uint16_t ident, Ip4Addr src_addr,
+                                   Ip4Addr dst_addr, uint8_t proto)
     {
         ReassEntry *found_entry = nullptr;
         
@@ -325,7 +402,8 @@ private:
                 continue;
             }
             
-            // If the entry matches, return it after goingh through all.
+            // If the entry matches, return it after goingh through all
+            // so that we purge all expired entries.
             auto reass_hdr = Ip4Header::MakeRef(reass.header);
             if (reass_hdr.get(Ip4Header::Ident())    == ident &&
                 reass_hdr.get(Ip4Header::SrcAddr())  == src_addr &&
@@ -354,14 +432,16 @@ private:
             
             // Look for the entry with the least expiration time.
             if (result_reass == nullptr ||
-                (TimeType)(future - reass.expiration_time) > (TimeType)(future - result_reass->expiration_time))
+                (TimeType)(future - reass.expiration_time) >
+                    (TimeType)(future - result_reass->expiration_time))
             {
                 result_reass = &reass;
             }
         }
         
-        // Set the expiration time to TTL seconds in the future.
-        result_reass->expiration_time = now + ttl * (TimeType)Clock::time_freq;
+        // Set the expiration time.
+        uint8_t seconds = APrinter::MinValue(ttl, MaxReassTimeSeconds);
+        result_reass->expiration_time = now + seconds * (TimeType)Clock::time_freq;
         
         return result_reass;
     }
@@ -378,7 +458,7 @@ private:
         }
     }
     
-    static bool hole_offset_valid (uint16_t hole_offset)
+    inline static bool hole_offset_valid (uint16_t hole_offset)
     {
         return hole_offset <= MaxReassSize;
     }
@@ -386,17 +466,30 @@ private:
     void timerExpired (PurgeTimer, Context)
     {
         // Restart the timer.
-        tim(PurgeTimer()).appendAfter(Context(), ReassMaxExpirationTicks);
+        tim(PurgeTimer()).appendAfter(Context(), PurgeTimerInterval);
         
-        // Purge any expired reassembly entries.
+        // Purge any expired reassembly entries by calling find_reass_entry with
+        // dummy IP information.
         TimeType now = Clock::getTime(Context());
         find_reass_entry(now, 0, Ip4Addr::ZeroAddr(), Ip4Addr::ZeroAddr(), 0);
     }
 };
 
+/**
+ * @tparam Param_MaxReassEntrys Maximum number of datagrams being reassembled.
+ *         This affects memory use.
+ * @tparam Param_MaxReassSize Maximum size of reassembled datagrams. This affects
+ *         memory use.
+ * @tparam Param_MaxReassHoles Maximum number of holes in an incompletely reassembled
+ *         datagram.
+ * @tparam Param_MaxReassTimeSeconds Maximum allowed timeout of an incompletely
+ *         reassembled datagram (imposed on top of TTL seconds).
+ */
 APRINTER_ALIAS_STRUCT_EXT(IpReassemblyService, (
     APRINTER_AS_VALUE(int, MaxReassEntrys),
-    APRINTER_AS_VALUE(uint16_t, MaxReassSize)
+    APRINTER_AS_VALUE(uint16_t, MaxReassSize),
+    APRINTER_AS_VALUE(uint8_t, MaxReassHoles),
+    APRINTER_AS_VALUE(uint8_t, MaxReassTimeSeconds)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(Context)

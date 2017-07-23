@@ -3739,7 +3739,7 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MtuIndexService": "MruListIndex",
+          "MaxReassTimeSeconds": 60,
           "ArpProtectCount": 8,
           "DhcpEnabled": true,
           "EthernetDriver": {
@@ -3760,9 +3760,11 @@
           "IpNetmask": "255.255.255.0",
           "LinkWithArrayIndices": true,
           "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "MaxReassHoles": 10,
           "MaxReassPackets": 1,
           "MaxReassSize": 1480,
           "ArpTableTimersStructureService": "LinkedHeap",
+          "MtuIndexService": "MruListIndex",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 16,
@@ -4093,7 +4095,7 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MtuIndexService": "MruListIndex",
+          "MaxReassTimeSeconds": 60,
           "ArpProtectCount": 16,
           "DhcpEnabled": true,
           "EthernetDriver": {
@@ -4104,9 +4106,11 @@
           "IpNetmask": "255.255.255.0",
           "LinkWithArrayIndices": true,
           "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "MaxReassHoles": 10,
           "MaxReassPackets": 2,
           "MaxReassSize": 10000,
           "ArpTableTimersStructureService": "LinkedHeap",
+          "MtuIndexService": "MruListIndex",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
           "NumArpEntries": 32,

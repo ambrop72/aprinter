@@ -94,9 +94,8 @@ private:
         EthHeader::Size, // HeaderBeforeIp
         IpTTL,           // IcmpTTL
         AllowBroadcastPing,
-        Arg::Params::MaxReassPackets,
-        Arg::Params::MaxReassSize,
-        typename Arg::Params::PathMtuParams
+        typename Arg::Params::PathMtuParams,
+        typename Arg::Params::ReassemblyService
     >;
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, ProtocolServicesList>))
     
@@ -480,9 +479,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     APRINTER_AS_TYPE(EthernetService),
     APRINTER_AS_VALUE(int, NumArpEntries),
     APRINTER_AS_VALUE(int, ArpProtectCount),
-    APRINTER_AS_VALUE(int, MaxReassPackets),
-    APRINTER_AS_VALUE(uint16_t, MaxReassSize),
     APRINTER_AS_TYPE(PathMtuParams),
+    APRINTER_AS_TYPE(ReassemblyService),
     APRINTER_AS_VALUE(int, NumTcpPcbs),
     APRINTER_AS_VALUE(int, NumOosSegs),
     APRINTER_AS_VALUE(int, TcpWndUpdThrDiv),

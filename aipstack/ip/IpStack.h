@@ -55,7 +55,6 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
-#include <aipstack/ip/IpReassembly.h>
 #include <aipstack/ip/IpPathMtuCache.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
@@ -75,6 +74,7 @@ class IpStack
 {
     APRINTER_USE_TYPES1(Arg, (Params, Context, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
+    APRINTER_USE_TYPES1(Params, (PathMtuParams, ReassemblyService))
     
     APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     APRINTER_USE_VALS(APrinter, (EnumZero))
@@ -82,10 +82,9 @@ class IpStack
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     
-    using ReassemblyService = IpReassemblyService<Params::MaxReassEntrys, Params::MaxReassSize>;
     APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<Context>))
     
-    using PathMtuCacheService = IpPathMtuCacheService<typename Params::PathMtuParams>;
+    using PathMtuCacheService = IpPathMtuCacheService<PathMtuParams>;
     APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<Context, IpStack>))
     
     // Instantiate the protocols.
@@ -1711,20 +1710,18 @@ private:
  * @tparam Param_IcmpTTL TTL of outgoing ICMP packets.
  * @tparam Param_AllowBroadcastPing Whether to respond to broadcast pings
  *         (to local-broadcast or all-ones address).
- * @tparam Param_MaxReassEntrys Maximum number of packets being reassembled.
- *         This affects memory use.
- * @tparam Param_MaxReassSize Maximum size of reassembled packets. This affects
- *         memory use.
  * @tparam Param_PathMtuParams Path MTU Discovery parameters,
  *         see @ref IpPathMtuParams.
+ * @tparam Param_ReassemblyService Implementation/configuration of IP reassembly.
+ *         This should be @ref IpReassemblyService instantiated with the desired
+ *         template parameters (reassembly configuration).
  */
 APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
     APRINTER_AS_VALUE(size_t, HeaderBeforeIp),
     APRINTER_AS_VALUE(uint8_t, IcmpTTL),
     APRINTER_AS_VALUE(bool, AllowBroadcastPing),
-    APRINTER_AS_VALUE(int, MaxReassEntrys),
-    APRINTER_AS_VALUE(uint16_t, MaxReassSize),
-    APRINTER_AS_TYPE(PathMtuParams)
+    APRINTER_AS_TYPE(PathMtuParams),
+    APRINTER_AS_TYPE(ReassemblyService)
 ), (
     /**
      * Template for use with @ref APRINTER_MAKE_INSTANCE to get the @ref IpStack type.

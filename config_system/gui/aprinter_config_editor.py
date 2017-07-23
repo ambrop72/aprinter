@@ -848,6 +848,8 @@ def editor():
                         ce.Integer(key='ArpProtectCount', title='Number of protected ARP entries', default=8),
                         ce.Integer(key='MaxReassPackets', title='Max packets in reassembly', default=1),
                         ce.Integer(key='MaxReassSize', title='Max reassembled data size', default=1480),
+                        ce.Integer(key='MaxReassHoles', title='Max holes in packet being reassembled', default=10),
+                        ce.Integer(key='MaxReassTimeSeconds', title='Max packet reassembly timeout', default=60),
                         ce.Integer(key='MtuTimeoutMinutes', title='MTU information timeout [min]', default=10),
                         ce.String(key='MtuIndexService', title='Data structure for MTU information', enum=['MruListIndex', 'AvlTreeIndex'], default='MruListIndex'),
                         ce.Integer(key='NumTcpPcbs', title='Number of TCP PCBs', default=16),
