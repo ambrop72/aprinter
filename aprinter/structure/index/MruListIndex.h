@@ -85,6 +85,16 @@ public:
             return Ref::null();
         }
         
+        inline Ref first (State st = State())
+        {
+            return m_list.first(st);
+        }
+        
+        inline Ref next (Ref node, State st = State())
+        {
+            return m_list.next(node, st);
+        }
+        
     private:
         EntryList m_list;
     };

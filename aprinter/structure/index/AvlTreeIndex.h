@@ -85,6 +85,16 @@ public:
             return entry;
         }
         
+        inline Ref first (State st = State())
+        {
+            return m_tree.first(st);
+        }
+        
+        inline Ref next (Ref node, State st = State())
+        {
+            return m_tree.next(node, st);
+        }
+        
     private:
         EntryTree m_tree;
     };

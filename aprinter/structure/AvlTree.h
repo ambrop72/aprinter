@@ -185,6 +185,62 @@ public:
         }
     }
     
+    Ref first (State st = State())
+    {
+        if (m_root.isNull()) {
+            return Ref::null();
+        }
+        
+        return subtree_min(st, m_root.ref(st));
+    }
+    
+    Ref last (State st = State())
+    {
+        if (m_root.isNull()) {
+            return Ref::null();
+        }
+        
+        return subtree_max(st, m_root.ref(st));
+    }
+    
+    Ref next (Ref node, State st = State())
+    {
+        AMBRO_ASSERT(!node.isNull())
+        AMBRO_ASSERT(!m_root.isNull())
+        
+        if (!ac(node).child[1].isNull()) {
+            node = subtree_min(st, ac(node).child[1].ref(st));
+        } else {
+            Ref parent = ac(node).parent.ref(st);
+            while (!parent.isNull() && node == ac(parent).child[1].ref(st)) {
+                node = parent;
+                parent = ac(node).parent.ref(st);
+            }
+            node = parent;
+        }
+        
+        return node;
+    }
+    
+    Ref prev (Ref node, State st = State())
+    {
+        AMBRO_ASSERT(!node.isNull())
+        AMBRO_ASSERT(!m_root.isNull())
+        
+        if (!ac(node).child[0].isNull()) {
+            node = subtree_max(st, ac(node).child[0].ref(st));
+        } else {
+            Ref parent = ac(node).parent.ref(st);
+            while (!parent.isNull() && node == ac(parent).child[0].ref(st)) {
+                node = parent;
+                parent = ac(node).parent.ref(st);
+            }
+            node = parent;
+        }
+        
+        return node;
+    }
+    
 private:
     inline static AvlTreeNode<LinkModel> & ac (Ref ref)
     {
@@ -296,6 +352,16 @@ private:
             m_root = nr.link(st);
         }
         ac(r).parent = nr.link(st);
+    }
+    
+    static Ref subtree_min (State st, Ref n)
+    {
+        AMBRO_ASSERT(!n.isNull())
+        
+        while (!ac(n).child[0].isNull()) {
+            n = ac(n).child[0].ref(st);
+        }
+        return n;
     }
     
     static Ref subtree_max (State st, Ref n)

@@ -182,9 +182,6 @@ public:
         m_mtu_index.init();
         m_mtu_free_list.init();
         
-        // Start the timer.
-        tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
-        
         // Initialize the MTU entries.
         for (MtuEntry &mtu_entry : m_mtu_entries) {
             mtu_entry.state = EntryState::Invalid;
@@ -368,6 +365,13 @@ public:
                 
                 // Clear the next link since we are the first node.
                 NextLink::link = nullptr;
+                
+                // Make sure the MtuTimer is running, since it would not have been
+                // running if we didn't have any non-Invalid timers before.
+                if (!cache->tim(MtuTimer()).isSet(Context())) {
+                    mtu_entry.minutes_old = 1; // don't waste a minute
+                    cache->tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
+                }
             }
             
             MtuEntry &mtu_entry = *mtu_ref;
@@ -448,14 +452,18 @@ private:
     
     void timerExpired (MtuTimer, Context)
     {
-        // Restart the timer.
-        tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
+        // Update non-Invalid MTU entries.
+        MtuLinkModelRef mtu_ref = m_mtu_index.first(*this);
+        while (!mtu_ref.isNull()) {
+            MtuEntry &mtu_entry = *mtu_ref;
+            mtu_ref = m_mtu_index.next(mtu_ref, *this);
+            AMBRO_ASSERT(mtu_entry.state != EntryState::Invalid)
+            update_mtu_entry_expiry(mtu_entry);
+        }
         
-        // Update MTU entries.
-        for (MtuEntry &mtu_entry : m_mtu_entries) {
-            if (mtu_entry.state != EntryState::Invalid) {
-                update_mtu_entry_expiry(mtu_entry);
-            }
+        // Restart the timer if there is any non-Invalid entry left.
+        if (!m_mtu_index.first(*this).isNull()) {
+            tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
         }
     }
     
