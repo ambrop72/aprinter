@@ -476,6 +476,8 @@ private:
 };
 
 /**
+ * Service definition for @ref IpReassembly.
+ * 
  * @tparam Param_MaxReassEntrys Maximum number of datagrams being reassembled.
  *         This affects memory use.
  * @tparam Param_MaxReassSize Maximum size of reassembled datagrams. This affects
