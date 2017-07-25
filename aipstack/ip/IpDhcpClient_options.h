@@ -241,24 +241,8 @@ public:
         // The opt_writeptr will be incremented as options are written.
         // NOTE: If adding new options, adjust the MaxDhcpSendMsgSize definition.
         
-        // Helper function for writing options.
-        auto write_option = [&](DhcpOptionType opt_type, auto payload_func) {
-            // Get header reference and write option type.
-            auto oh = DhcpOptionHeader::Ref(opt_writeptr);
-            oh.set(DhcpOptionHeader::OptType(), opt_type);
-            
-            // Write option payload using payload_func and receive its size.
-            size_t opt_len = payload_func(opt_writeptr + DhcpOptionHeader::Size);
-            
-            // Set the payload size in the header.
-            oh.set(DhcpOptionHeader::OptLen(), opt_len);
-            
-            // Increment the write pointer.
-            opt_writeptr += DhcpOptionHeader::Size + opt_len;
-        };
-        
         // DHCP message type
-        write_option(DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
+        write_option(opt_writeptr, DhcpOptionType::DhcpMessageType, [&](char *opt_data) {
             auto opt = DhcpOptMsgType::Ref(opt_data);
             opt.set(DhcpOptMsgType::MsgType(), msg_type);
             return opt.Size();
@@ -266,7 +250,9 @@ public:
         
         // Requested IP address
         if (opts.have.requested_ip_address) {
-            write_option(DhcpOptionType::RequestedIpAddress, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::RequestedIpAddress,
+                         [&](char *opt_data)
+            {
                 auto opt = DhcpOptAddr::Ref(opt_data);
                 opt.set(DhcpOptAddr::Addr(), opts.requested_ip_address);
                 return opt.Size();
@@ -275,7 +261,9 @@ public:
         
         // DHCP server identifier
         if (opts.have.dhcp_server_identifier) {
-            write_option(DhcpOptionType::DhcpServerIdentifier, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::DhcpServerIdentifier,
+                         [&](char *opt_data)
+            {
                 auto opt = DhcpOptServerId::Ref(opt_data);
                 opt.set(DhcpOptServerId::ServerId(), opts.dhcp_server_identifier);
                 return opt.Size();
@@ -284,7 +272,9 @@ public:
         
         // Maximum message size
         if (opts.have.max_dhcp_message_size) {
-            write_option(DhcpOptionType::MaximumMessageSize, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::MaximumMessageSize,
+                         [&](char *opt_data)
+            {
                 auto opt = DhcpOptMaxMsgSize::Ref(opt_data);
                 opt.set(DhcpOptMaxMsgSize::MaxMsgSize(), max_msg_size);
                 return opt.Size();
@@ -293,7 +283,9 @@ public:
         
         // Parameter request list
         if (opts.have.parameter_request_list) {
-            write_option(DhcpOptionType::ParameterRequestList, [&](char *opt_data) {
+            write_option(opt_writeptr, DhcpOptionType::ParameterRequestList,
+                         [&](char *opt_data)
+            {
                 // NOTE: If changing options here then adjust ParameterRequestListSize.
                 DhcpOptionType opt[] = {
                     DhcpOptionType::SubnetMask,
@@ -309,30 +301,21 @@ public:
             });
         }
         
-        // Helper function for writing options whose values are given by MemRef.
-        auto write_memref_option = [&](DhcpOptionType type, uint8_t max_len, MemRef val) {
-            uint8_t eff_len = APrinter::MinValueU(max_len, val.len);
-            write_option(type, [&](char *opt_data) {
-                ::memcpy(opt_data, val.ptr, eff_len);
-                return eff_len;
-            });
-        };
-        
         // Client identifier
         if (opts.have.client_identifier) {
-            write_memref_option(DhcpOptionType::ClientIdentifier,
+            write_memref_option(opt_writeptr, DhcpOptionType::ClientIdentifier,
                                 MaxClientIdSize, opts.client_identifier);
         }
         
         // Vendor class identifier
         if (opts.have.vendor_class_identifier) {
-            write_memref_option(DhcpOptionType::VendorClassIdentifier,
+            write_memref_option(opt_writeptr, DhcpOptionType::VendorClassIdentifier,
                                 MaxVendorClassIdSize, opts.vendor_class_identifier);
         }
         
         // Message
         if (opts.have.message) {
-            write_memref_option(DhcpOptionType::Message,
+            write_memref_option(opt_writeptr, DhcpOptionType::Message,
                                 MaxMessageSize, opts.message);
         }
         
@@ -469,6 +452,35 @@ private:
             } break;
         }
     }
+    
+    template <typename PayloadFunc>
+    static void write_option (char *&opt_writeptr, DhcpOptionType opt_type,
+                              PayloadFunc payload_func)
+    {
+        // Get header reference and write option type.
+        auto oh = DhcpOptionHeader::Ref(opt_writeptr);
+        oh.set(DhcpOptionHeader::OptType(), opt_type);
+        
+        // Write option payload using payload_func and receive its size.
+        size_t opt_len = payload_func(opt_writeptr + DhcpOptionHeader::Size);
+        
+        // Set the payload size in the header.
+        oh.set(DhcpOptionHeader::OptLen(), opt_len);
+        
+        // Increment the write pointer.
+        opt_writeptr += DhcpOptionHeader::Size + opt_len;
+    }
+    
+    static void write_memref_option (char *&opt_writeptr, DhcpOptionType opt_type,
+                                     uint8_t max_len, MemRef val)
+    {
+        uint8_t eff_len = APrinter::MinValueU(max_len, val.len);
+        
+        write_option(opt_writeptr, opt_type, [&](char *opt_data) {
+            ::memcpy(opt_data, val.ptr, eff_len);
+            return eff_len;
+        });
+    };
 };
 
 #include <aipstack/EndNamespace.h>
