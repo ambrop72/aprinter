@@ -34,6 +34,7 @@
 #include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Preprocessor.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Struct.h>
@@ -42,6 +43,9 @@
 
 #include <aipstack/BeginNamespace.h>
 
+/**
+ * Implementation of DHCP option reading and writing for @ref IpDhcpClient.
+ */
 template <
     uint8_t MaxDnsServers,
     uint8_t MaxClientIdSize,
@@ -66,7 +70,6 @@ class IpDhcpClient_options
         return OptSize(OptDataType::Size);
     }
     
-    
     // Possible regions where options can be located from.
     enum class OptionRegion {Options, File, Sname};
     
@@ -74,7 +77,9 @@ class IpDhcpClient_options
     static size_t const ParameterRequestListSize = 6;
     
 public:
-    // Maximum packet size that we could possibly transmit.
+    using MemRef = APrinter::MemRef;
+    
+    // Maximum size of options that we could possibly transmit.
     static size_t const MaxOptionsSendSize =
         // DHCP message type
         OptSize<DhcpOptMsgType>() +
@@ -106,7 +111,7 @@ public:
             bool rebinding_time : 1;
             bool subnet_mask : 1;
             bool router : 1;
-            uint8_t dns_servers;
+            uint8_t dns_servers; // count
         } have;
         
         // The option values (only options set in Have are initialized).
@@ -141,9 +146,9 @@ public:
         // The option values (only options set in Have are relevant).
         Ip4Addr requested_ip_address;
         uint32_t dhcp_server_identifier;
-        APrinter::MemRef client_identifier;
-        APrinter::MemRef vendor_class_identifier;
-        APrinter::MemRef message;
+        MemRef client_identifier;
+        MemRef vendor_class_identifier;
+        MemRef message;
     };
     
     // Parse DHCP options from a buffer into DhcpRecvOptions.
@@ -155,11 +160,14 @@ public:
         opts.have = typename DhcpRecvOptions::Have{};
         
         // The region of options we are currently parsing.
-        // We start by parsing the "options" region which the data
-        // argument initially refers to.
+        // We start by parsing the "options" region which the 'data' argument initially
+        // refers to. If we decide to parse a different region, 'data' will be set to
+        // reference that region within 'dhcp_header2'.
         OptionRegion region = OptionRegion::Options;
         
         // The option overload mode (defined by the OptionOverload option).
+        // This can be updated only while parsing the "options" region and
+        // when that is done determines which other regions will be parsed.
         DhcpOptionOverload option_overload = DhcpOptionOverload::None;
         
         // This loop is for parsing different regions of options.
@@ -264,7 +272,9 @@ public:
                     
                     case DhcpOptionType::Router: {
                         // We only care about the first router.
-                        if (opt_len % DhcpOptAddr::Size != 0 || opt_len == 0 || opts.have.router) {
+                        if (opt_len % DhcpOptAddr::Size != 0 ||
+                            opt_len == 0 || opts.have.router)
+                        {
                             goto skip_data;
                         }
                         DhcpOptAddr::Val val;
@@ -280,25 +290,32 @@ public:
                         }
                         uint8_t num_servers = opt_len / DhcpOptAddr::Size;
                         for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
-                            // Must consume all servers from data even if we can't save them.
+                            // Must consume all servers from data even if we can't save
+                            // them.
                             DhcpOptAddr::Val val;
                             data.takeBytes(DhcpOptAddr::Size, val.data);
                             if (opts.have.dns_servers < MaxDnsServers) {
-                                opts.dns_servers[opts.have.dns_servers++] = val.get(DhcpOptAddr::Addr());
+                                opts.dns_servers[opts.have.dns_servers++] =
+                                    val.get(DhcpOptAddr::Addr());
                             }
                         }
                     } break;
                     
                     case DhcpOptionType::OptionOverload: {
                         // Ignore if it appears in the file or sname region.
-                        if (opt_len != DhcpOptOptionOverload::Size || region != OptionRegion::Options) {
+                        if (opt_len != DhcpOptOptionOverload::Size ||
+                            region != OptionRegion::Options)
+                        {
                             goto skip_data;
                         }
                         DhcpOptOptionOverload::Val val;
                         data.takeBytes(opt_len, val.data);
-                        DhcpOptionOverload overload_val = val.get(DhcpOptOptionOverload::Overload());
-                        if (overload_val == OneOf(DhcpOptionOverload::FileOptions,
-                            DhcpOptionOverload::SnameOptions, DhcpOptionOverload::FileSnameOptions))
+                        DhcpOptionOverload overload_val =
+                            val.get(DhcpOptOptionOverload::Overload());
+                        if (overload_val == OneOf(
+                            DhcpOptionOverload::FileOptions,
+                            DhcpOptionOverload::SnameOptions,
+                            DhcpOptionOverload::FileSnameOptions))
                         {
                             option_overload = overload_val;
                         }
@@ -318,16 +335,18 @@ public:
             }
             
             // Check if we need to continue parsing options from another region.
-            if (region == OptionRegion::Options &&
-                option_overload == OneOf(DhcpOptionOverload::FileOptions, DhcpOptionOverload::FileSnameOptions))
+            if (region == OptionRegion::Options && option_overload == OneOf(
+                DhcpOptionOverload::FileOptions, DhcpOptionOverload::FileSnameOptions))
             {
                 // Parse options in file.
                 region = OptionRegion::File;
                 data = dhcp_header2.subFromTo(64, 128);
             }
             else if (
-                (region == OptionRegion::Options && option_overload == DhcpOptionOverload::SnameOptions) ||
-                (region == OptionRegion::File && option_overload == DhcpOptionOverload::FileSnameOptions)
+                (region == OptionRegion::Options &&
+                    option_overload == DhcpOptionOverload::SnameOptions) ||
+                (region == OptionRegion::File &&
+                    option_overload == DhcpOptionOverload::FileSnameOptions)
             ) {
                 // Parse options in sname.
                 region = OptionRegion::Sname;
@@ -339,6 +358,7 @@ public:
             }
         }
         
+        // Option parsing was successful.
         return true;
     }
     
@@ -352,10 +372,17 @@ public:
         
         // Helper function for writing options.
         auto write_option = [&](DhcpOptionType opt_type, auto payload_func) {
+            // Get header reference and write option type.
             auto oh = DhcpOptionHeader::Ref(opt_writeptr);
             oh.set(DhcpOptionHeader::OptType(), opt_type);
+            
+            // Write option payload using payload_func and receive its size.
             size_t opt_len = payload_func(opt_writeptr + DhcpOptionHeader::Size);
+            
+            // Set the payload size in the header.
             oh.set(DhcpOptionHeader::OptLen(), opt_len);
+            
+            // Increment the write pointer.
             opt_writeptr += DhcpOptionHeader::Size + opt_len;
         };
         
@@ -411,31 +438,31 @@ public:
             });
         }
         
-        // Client identifier
-        if (opts.have.client_identifier) {
-            uint8_t eff_len = APrinter::MinValueU(MaxClientIdSize, opts.client_identifier.len);
-            write_option(DhcpOptionType::ClientIdentifier, [&](char *opt_data) {
-                ::memcpy(opt_data, opts.client_identifier.ptr, eff_len);
+        // Helper function for writing options whose values are given by MemRef.
+        auto write_memref_option = [&](DhcpOptionType type, uint8_t max_len, MemRef val) {
+            uint8_t eff_len = APrinter::MinValueU(max_len, val.len);
+            write_option(type, [&](char *opt_data) {
+                ::memcpy(opt_data, val.ptr, eff_len);
                 return eff_len;
             });
+        };
+        
+        // Client identifier
+        if (opts.have.client_identifier) {
+            write_memref_option(DhcpOptionType::ClientIdentifier,
+                                MaxClientIdSize, opts.client_identifier);
         }
         
         // Vendor class identifier
         if (opts.have.vendor_class_identifier) {
-            uint8_t eff_len = APrinter::MinValueU(MaxVendorClassIdSize, opts.vendor_class_identifier.len);
-            write_option(DhcpOptionType::VendorClassIdentifier, [&](char *opt_data) {
-                ::memcpy(opt_data, opts.vendor_class_identifier.ptr, eff_len);
-                return eff_len;
-            });
+            write_memref_option(DhcpOptionType::VendorClassIdentifier,
+                                MaxVendorClassIdSize, opts.vendor_class_identifier);
         }
         
         // Message
         if (opts.have.message) {
-            uint8_t eff_len = APrinter::MinValueU(MaxMessageSize, opts.message.len);
-            write_option(DhcpOptionType::Message, [&](char *opt_data) {
-                ::memcpy(opt_data, opts.message.ptr, eff_len);
-                return eff_len;
-            });
+            write_memref_option(DhcpOptionType::Message,
+                                MaxMessageSize, opts.message);
         }
         
         // end option
