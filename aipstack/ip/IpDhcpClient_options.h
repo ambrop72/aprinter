@@ -172,28 +172,19 @@ public:
         
         // This loop is for parsing different regions of options.
         while (true) {
-            // Whether we have seen the end option (in this region).
-            bool have_end = false;
-            
             while (data.tot_len > 0) {
                 // Read option type.
                 DhcpOptionType opt_type = DhcpOptionType(data.takeByte());
                 
-                // Pad option?
-                if (opt_type == DhcpOptionType::Pad) {
-                    continue;
-                }
-                
-                // It is an error for options other than pad to follow
-                // the end option.
-                if (have_end) {
-                    return false;
-                }
-                
                 // End option?
                 if (opt_type == DhcpOptionType::End) {
-                    // Skip over any following pad options.
-                    have_end = true;
+                    // Ignore any remaining data in this region. There is no need
+                    // to consume the rest of 'data' since it will not be used.
+                    break;
+                }
+                
+                // Pad option?
+                if (opt_type == DhcpOptionType::Pad) {
                     continue;
                 }
                 
@@ -203,135 +194,15 @@ public:
                 }
                 uint8_t opt_len = data.takeByte();
                 
-                // Check option length.
+                // Check that the remainder of the option is available.
                 if (opt_len > data.tot_len) {
                     return false;
                 }
                 
-                // Handle different options.
-                switch (opt_type) {
-                    case DhcpOptionType::DhcpMessageType: {
-                        if (opt_len != DhcpOptMsgType::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptMsgType::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.dhcp_message_type = true;
-                        opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
-                    } break;
-                    
-                    case DhcpOptionType::DhcpServerIdentifier: {
-                        if (opt_len != DhcpOptServerId::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptServerId::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.dhcp_server_identifier = true;
-                        opts.dhcp_server_identifier = val.get(DhcpOptServerId::ServerId());
-                    } break;
-                    
-                    case DhcpOptionType::IpAddressLeaseTime: {
-                        if (opt_len != DhcpOptTime::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptTime::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.ip_address_lease_time = true;
-                        opts.ip_address_lease_time = val.get(DhcpOptTime::Time());
-                    } break;
-                    
-                    case DhcpOptionType::RenewalTimeValue: {
-                        if (opt_len != DhcpOptTime::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptTime::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.renewal_time = true;
-                        opts.renewal_time = val.get(DhcpOptTime::Time());
-                    } break;
-                    
-                    case DhcpOptionType::RebindingTimeValue: {
-                        if (opt_len != DhcpOptTime::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptTime::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.rebinding_time = true;
-                        opts.rebinding_time = val.get(DhcpOptTime::Time());
-                    } break;
-                    
-                    case DhcpOptionType::SubnetMask: {
-                        if (opt_len != DhcpOptAddr::Size) {
-                            goto skip_data;
-                        }
-                        DhcpOptAddr::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        opts.have.subnet_mask = true;
-                        opts.subnet_mask = val.get(DhcpOptAddr::Addr());
-                    } break;
-                    
-                    case DhcpOptionType::Router: {
-                        // We only care about the first router.
-                        if (opt_len % DhcpOptAddr::Size != 0 ||
-                            opt_len == 0 || opts.have.router)
-                        {
-                            goto skip_data;
-                        }
-                        DhcpOptAddr::Val val;
-                        data.takeBytes(DhcpOptAddr::Size, val.data);
-                        opts.have.router = true;
-                        opts.router = val.get(DhcpOptAddr::Addr());
-                        data.skipBytes(opt_len - DhcpOptAddr::Size);
-                    } break;
-                    
-                    case DhcpOptionType::DomainNameServer: {
-                        if (opt_len % DhcpOptAddr::Size != 0) {
-                            goto skip_data;
-                        }
-                        uint8_t num_servers = opt_len / DhcpOptAddr::Size;
-                        for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
-                            // Must consume all servers from data even if we can't save
-                            // them.
-                            DhcpOptAddr::Val val;
-                            data.takeBytes(DhcpOptAddr::Size, val.data);
-                            if (opts.have.dns_servers < MaxDnsServers) {
-                                opts.dns_servers[opts.have.dns_servers++] =
-                                    val.get(DhcpOptAddr::Addr());
-                            }
-                        }
-                    } break;
-                    
-                    case DhcpOptionType::OptionOverload: {
-                        // Ignore if it appears in the file or sname region.
-                        if (opt_len != DhcpOptOptionOverload::Size ||
-                            region != OptionRegion::Options)
-                        {
-                            goto skip_data;
-                        }
-                        DhcpOptOptionOverload::Val val;
-                        data.takeBytes(opt_len, val.data);
-                        DhcpOptionOverload overload_val =
-                            val.get(DhcpOptOptionOverload::Overload());
-                        if (overload_val == OneOf(
-                            DhcpOptionOverload::FileOptions,
-                            DhcpOptionOverload::SnameOptions,
-                            DhcpOptionOverload::FileSnameOptions))
-                        {
-                            option_overload = overload_val;
-                        }
-                    } break;
-                    
-                    // Unknown or bad option, consume the option data.
-                    skip_data:
-                    default: {
-                        data.skipBytes(opt_len);
-                    } break;
-                }
-            }
-            
-            // Check that the end option was found.
-            if (!have_end) {
-                return false;
+                // Parse specific option types. This consumes the opt_len bytes
+                // of option payload in 'data'. It may also update the option_overload
+                // value if the OptionOverload option is found in the Options region.
+                parse_option(opt_type, opt_len, data, opts, region, option_overload);
             }
             
             // Check if we need to continue parsing options from another region.
@@ -469,6 +340,134 @@ public:
         WriteSingleField<DhcpOptionType>(opt_writeptr++, DhcpOptionType::End);
         
         return opt_writeptr;
+    }
+    
+private:
+    static void parse_option (DhcpOptionType opt_type, uint8_t opt_len, IpBufRef &data,
+                              DhcpRecvOptions &opts, OptionRegion region,
+                              DhcpOptionOverload &option_overload)
+    {
+        AMBRO_ASSERT(data.tot_len >= opt_len)
+        
+        // Handle different options.
+        switch (opt_type) {
+            case DhcpOptionType::DhcpMessageType: {
+                if (opt_len != DhcpOptMsgType::Size) {
+                    goto skip_data;
+                }
+                DhcpOptMsgType::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.dhcp_message_type = true;
+                opts.dhcp_message_type = val.get(DhcpOptMsgType::MsgType());
+            } break;
+            
+            case DhcpOptionType::DhcpServerIdentifier: {
+                if (opt_len != DhcpOptServerId::Size) {
+                    goto skip_data;
+                }
+                DhcpOptServerId::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.dhcp_server_identifier = true;
+                opts.dhcp_server_identifier = val.get(DhcpOptServerId::ServerId());
+            } break;
+            
+            case DhcpOptionType::IpAddressLeaseTime: {
+                if (opt_len != DhcpOptTime::Size) {
+                    goto skip_data;
+                }
+                DhcpOptTime::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.ip_address_lease_time = true;
+                opts.ip_address_lease_time = val.get(DhcpOptTime::Time());
+            } break;
+            
+            case DhcpOptionType::RenewalTimeValue: {
+                if (opt_len != DhcpOptTime::Size) {
+                    goto skip_data;
+                }
+                DhcpOptTime::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.renewal_time = true;
+                opts.renewal_time = val.get(DhcpOptTime::Time());
+            } break;
+            
+            case DhcpOptionType::RebindingTimeValue: {
+                if (opt_len != DhcpOptTime::Size) {
+                    goto skip_data;
+                }
+                DhcpOptTime::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.rebinding_time = true;
+                opts.rebinding_time = val.get(DhcpOptTime::Time());
+            } break;
+            
+            case DhcpOptionType::SubnetMask: {
+                if (opt_len != DhcpOptAddr::Size) {
+                    goto skip_data;
+                }
+                DhcpOptAddr::Val val;
+                data.takeBytes(opt_len, val.data);
+                opts.have.subnet_mask = true;
+                opts.subnet_mask = val.get(DhcpOptAddr::Addr());
+            } break;
+            
+            case DhcpOptionType::Router: {
+                // We only care about the first router.
+                if (opt_len % DhcpOptAddr::Size != 0 ||
+                    opt_len == 0 || opts.have.router)
+                {
+                    goto skip_data;
+                }
+                DhcpOptAddr::Val val;
+                data.takeBytes(DhcpOptAddr::Size, val.data);
+                opts.have.router = true;
+                opts.router = val.get(DhcpOptAddr::Addr());
+                data.skipBytes(opt_len - DhcpOptAddr::Size);
+            } break;
+            
+            case DhcpOptionType::DomainNameServer: {
+                if (opt_len % DhcpOptAddr::Size != 0) {
+                    goto skip_data;
+                }
+                uint8_t num_servers = opt_len / DhcpOptAddr::Size;
+                for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
+                    // Must consume all servers from data even if we can't save
+                    // them.
+                    DhcpOptAddr::Val val;
+                    data.takeBytes(DhcpOptAddr::Size, val.data);
+                    if (opts.have.dns_servers < MaxDnsServers) {
+                        opts.dns_servers[opts.have.dns_servers++] =
+                            val.get(DhcpOptAddr::Addr());
+                    }
+                }
+            } break;
+            
+            case DhcpOptionType::OptionOverload: {
+                // Ignore if it appears in the file or sname region.
+                if (opt_len != DhcpOptOptionOverload::Size ||
+                    region != OptionRegion::Options)
+                {
+                    goto skip_data;
+                }
+                DhcpOptOptionOverload::Val val;
+                data.takeBytes(opt_len, val.data);
+                DhcpOptionOverload overload_val =
+                    val.get(DhcpOptOptionOverload::Overload());
+                if (overload_val == OneOf(
+                    DhcpOptionOverload::FileOptions,
+                    DhcpOptionOverload::SnameOptions,
+                    DhcpOptionOverload::FileSnameOptions))
+                {
+                    option_overload = overload_val;
+                }
+            } break;
+            
+            // Unknown or bad option, consume the option data.
+            skip_data:
+            default: {
+                data.skipBytes(opt_len);
+            } break;
+        }
     }
 };
 
