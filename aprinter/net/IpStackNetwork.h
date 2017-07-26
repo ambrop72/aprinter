@@ -116,10 +116,7 @@ private:
     APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, Iface>))
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
-        64, // DhcpTTL
-        2,  // MaxDnsServers
-        0,  // MaxClientIdSize
-        0   // MaxVendorClassIdSize
+        AIpStack::IpDhcpClientDefaultConfig
     >;
     APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack>))
     
