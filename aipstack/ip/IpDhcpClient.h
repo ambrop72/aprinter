@@ -704,8 +704,11 @@ private:
                 }
             }
             
-            // Go to Resetting state, set timer, remove lease.
-            go_resetting();
+            // Restart discovery. If in Requesting we go via Resetting state so that
+            // a discover will be sent only after a delay. This prevents a tight loop
+            // of discover-offer-request-NAK.
+            bool discover_immediately = (m_state != DhcpState::Requesting);
+            go_resetting(discover_immediately);
             
             // Nothing else to do (further processing is for offer and ack).
             return;
@@ -918,16 +921,21 @@ private:
         return true;
     }
     
-    void go_resetting ()
+    void go_resetting (bool discover_immediately)
     {
         bool had_lease = hasLease();
         
-        // Going to Resetting state.
-        m_state = DhcpState::Resetting;
-        
-        // Set timeout to start discovery.
-        tim(DhcpTimer()).appendAfter(
-            Context(), SecondsToTicks(Config::ResetTimeoutSeconds));
+        if (discover_immediately) {
+            // Go directly to Selecting state without delay.
+            start_discovery();
+        } else {
+            // Going to Resetting state.
+            m_state = DhcpState::Resetting;
+            
+            // Set timeout to start discovery.
+            tim(DhcpTimer()).appendAfter(
+                Context(), SecondsToTicks(Config::ResetTimeoutSeconds));
+        }
         
         // If we had a lease, remove it.
         if (had_lease) {
@@ -1059,7 +1067,7 @@ private:
             ArpObserver::reset();
             
             // Restart via Resetting state after a timeout.
-            go_resetting();
+            go_resetting(false);
         }
     }
     
@@ -1180,7 +1188,9 @@ char const IpDhcpClient<Arg>::DeclineMessageArpResponse[] = "ArpResponse";
  *         any backoff.
  * @tparam Param_MaxRtxTimeoutSeconds Maximum retransmission timeout (except in
  *         RENEWING or REBINDING states).
- * @tparam Param_ResetTimeoutSeconds Time after a NAK to transmit a discover.
+ * @tparam Param_ResetTimeoutSeconds Delay before sending a discover after having
+ *         received a NAK in response to a request after an offer, or after receiving
+ *         an ARP response while checking the offered address.
  * @tparam Param_MinRenewRtxTimeoutSeconds Minimum request retransmission time when
  *         renewing a lease (in RENEWING or REBINDING states).
  * @tparam Param_ArpResponseTimeoutSeconds How long to wait for a response to each
