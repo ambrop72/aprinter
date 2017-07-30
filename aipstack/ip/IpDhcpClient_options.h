@@ -74,7 +74,7 @@ class IpDhcpClient_options
     enum class OptionRegion {Options, File, Sname};
     
     // Number of parameters requested in the "parameter request list" option.
-    static size_t const ParameterRequestListSize = 6;
+    static size_t const ParameterRequestListSize = 3;
     
 public:
     using MemRef = APrinter::MemRef;
@@ -291,9 +291,6 @@ public:
                     DhcpOptionType::SubnetMask,
                     DhcpOptionType::Router,
                     DhcpOptionType::DomainNameServer,
-                    DhcpOptionType::IpAddressLeaseTime,
-                    DhcpOptionType::RenewalTimeValue,
-                    DhcpOptionType::RebindingTimeValue,
                 };
                 static_assert(sizeof(opt) == ParameterRequestListSize, "");
                 ::memcpy(opt_data, opt, sizeof(opt));

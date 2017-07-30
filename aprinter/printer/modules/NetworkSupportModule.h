@@ -40,6 +40,8 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
+#include <aipstack/ip/IpDhcpClient.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename ModuleArg>
@@ -216,8 +218,29 @@ private:
             } break;
             
             case TheNetwork::NetworkEventType::DHCP: {
-                out->reply_append_pstr(c, event.dhcp.up ? AMBRO_PSTR("//DhcpLeaseObtained\n") : AMBRO_PSTR("//DhcpLeaseLost\n"));
-                out->reply_poke(c);
+                bool known = true;
+                AMBRO_PGM_P msg;
+                
+                switch (event.dhcp.event) {
+                    case AIpStack::IpDhcpClientEvent::LeaseObtained:
+                        msg = AMBRO_PSTR("//DhcpLeaseObtained\n");
+                        break;
+                    case AIpStack::IpDhcpClientEvent::LeaseRenewed:
+                        msg = AMBRO_PSTR("//DhcpLeaseRenewed\n");
+                        break;
+                    case AIpStack::IpDhcpClientEvent::LeaseLost:
+                        msg = AMBRO_PSTR("//DhcpLeaseLost\n");
+                        break;
+                    // ignore LinkDown since EthLinkDown is shown already
+                    default:
+                        known = false;
+                        break;
+                }
+                
+                if (known) {
+                    out->reply_append_pstr(c, msg);
+                    out->reply_poke(c);
+                }
             } break;
         }
     }

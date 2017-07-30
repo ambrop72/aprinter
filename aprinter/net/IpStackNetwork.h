@@ -55,7 +55,8 @@ class IpStackNetwork {
     APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
     
     APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, IpBufRef, IpBufNode,
-                                   MacAddr, IpErr, Ip4Addr, EthIfaceState))
+                                   MacAddr, IpErr, Ip4Addr, EthIfaceState,
+                                   IpDhcpClientEvent))
     
     APRINTER_USE_TYPES1(Params, (EthernetService, PcbIndexService,
                                  ArpTableTimersStructureService))
@@ -239,7 +240,7 @@ public:
                 bool up;
             } link;
             struct {
-                bool up;
+                IpDhcpClientEvent event;
             } dhcp;
         };
     };
@@ -438,20 +439,16 @@ private:
     
     class DhcpClientCallback : public AIpStack::IpDhcpClientCallback
     {
-        using IpDhcpClientCallback::LeaseEventType;
-        
-        void dhcpLeaseEvent (LeaseEventType event_type) override final
+        void dhcpClientEvent (IpDhcpClientEvent event_type) override final
         {
             Context c;
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->activation_state == ACTIVATED)
             AMBRO_ASSERT(o->dhcp_enabled)
             
-            if (event_type != LeaseEventType::LeaseRenewed) {
-                NetworkEvent event{NetworkEventType::DHCP};
-                event.dhcp.up = o->dhcp_client.hasLease();
-                raise_network_event(c, event);
-            }
+            NetworkEvent event{NetworkEventType::DHCP};
+            event.dhcp.event = event_type;
+            raise_network_event(c, event);
         }
     };
     
