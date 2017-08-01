@@ -525,128 +525,152 @@ private:
     void timerExpired (DhcpTimer, Context)
     {
         switch (m_state) {
-            // Timer is set for restarting discovery.
-            case DhcpState::Resetting: {
-                start_discovery();
-            } break;
+            case DhcpState::Resetting:
+                return handleTimerResetting();
             
-            // Timer is set for retransmitting discover.
-            case DhcpState::Selecting: {
-                // Update request count, generate new XID if needed.
-                if (m_request_count >= Config::XidReuseMax) {
-                    m_request_count = 1;
-                    new_xid();
-                } else {
-                    m_request_count++;
-                }
-                
-                // Send discover.
-                send_discover();
-                
-                // Set the timer for another retransmission.
-                double_rtx_timeout();
-                set_timer_for_rtx();
-            } break;
+            case DhcpState::Selecting:
+                return handleTimerSelecting();
             
-            // Timer is set for retransmitting request.
             case DhcpState::Rebooting:
-            case DhcpState::Requesting: {
-                // If we sent enough requests, start discovery.
-                auto limit = (m_state == DhcpState::Rebooting) ?
-                    Config::MaxRebootRequests : Config::MaxRequests;
-                if (m_request_count >= limit) {
-                    start_discovery();
-                    return;
-                }
-                
-                // NOTE: We do not update m_request_send_time, it remains set
-                // to when the first request was sent. This is so that that times
-                // for renewing, rebinding and lease timeout will be relative to
-                // when the first request was sent.
-                
-                // Send request.
-                send_request();
-                
-                // Increment request count.
-                m_request_count++;
-                
-                // Restart timer with doubled retransmission timeout.
-                double_rtx_timeout();
-                set_timer_for_rtx();
-            } break;
+            case DhcpState::Requesting:
+                return handleTimerRebootingRequesting();
             
-            // Timer is set to continue after no response to ARP query.
-            case DhcpState::Checking: {
-                if (m_request_count < Config::NumArpQueries) {
-                    // Increment the ARP query counter.
-                    m_request_count++;
-                    
-                    // Start the timeout.
-                    tim(DhcpTimer()).appendAfter(
-                        Context(), SecondsToTicks(Config::ArpResponseTimeoutSeconds));
-                    
-                    // Send an ARP query.
-                    ethHw()->sendArpQuery(m_info.ip_address);
-                } else {
-                    // Unsubscribe from ARP updates.
-                    ArpObserver::reset();
-                    
-                    // Bind the lease.
-                    return go_bound();
-                }
-            } break;
+            case DhcpState::Checking:
+                return handleTimerChecking();
             
-            // Timer is set for:
-            // - transition to Renewing
             case DhcpState::Bound:
-            // - retransmitting a request or transition to Rebinding
             case DhcpState::Renewing:
-            // - retransmitting a request or lease timeout
             case DhcpState::Rebinding:
-            {
-                // If we have more time until timeout, restart timer.
-                if (m_time_left > 0) {
-                    return set_timer_for_time_left(&m_lease_time_left, getTimSetTime());
-                }
-                
-                if (m_state == DhcpState::Bound) {
-                    // Go to state Renewing.
-                    m_state = DhcpState::Renewing;
-                    
-                    // Generate an XID.
-                    new_xid();
-                }
-                else if (m_state == DhcpState::Renewing) {
-                    // Has the rebinding time expired?
-                    if (m_lease_time_left <=
-                        m_info.lease_time_s - m_info.rebinding_time_s)
-                    {
-                        // Go to state Rebinding.
-                        m_state = DhcpState::Rebinding;
-                        
-                        // Generate an XID.
-                        new_xid();
-                    }
-                }
-                else { // m_state == DhcpState::Rebinding
-                    // Has the lease expired?
-                    if (m_lease_time_left == 0) {
-                        // Start discovery.
-                        start_discovery();
-                        
-                        // Remove IP configuration.
-                        return handle_dhcp_down(
-                            /*call_callback=*/true, /*link_down=*/false);
-                    }
-                }
-                
-                // Send request, update timeouts.
-                request_in_renewing_or_rebinding();
-            } break;
+                return handleTimerBoundRenewingRebinding();
             
             default:
                 AMBRO_ASSERT(false);
         }
+    }
+    
+    void handleTimerResetting ()
+    {
+        // Timer was set for restarting discovery.
+        
+        start_discovery();
+    }
+    
+    void handleTimerSelecting ()
+    {
+        // Timer was set for retransmitting discover.
+        
+        // Update request count, generate new XID if needed.
+        if (m_request_count >= Config::XidReuseMax) {
+            m_request_count = 1;
+            new_xid();
+        } else {
+            m_request_count++;
+        }
+        
+        // Send discover.
+        send_discover();
+        
+        // Set the timer for another retransmission.
+        double_rtx_timeout();
+        set_timer_for_rtx();
+    }
+    
+    void handleTimerRebootingRequesting ()
+    {
+        // Timer was set for retransmitting request.
+        
+        // If we sent enough requests, start discovery.
+        auto limit = (m_state == DhcpState::Rebooting) ?
+            Config::MaxRebootRequests : Config::MaxRequests;
+        if (m_request_count >= limit) {
+            start_discovery();
+            return;
+        }
+        
+        // NOTE: We do not update m_request_send_time, it remains set
+        // to when the first request was sent. This is so that that times
+        // for renewing, rebinding and lease timeout will be relative to
+        // when the first request was sent.
+        
+        // Send request.
+        send_request();
+        
+        // Increment request count.
+        m_request_count++;
+        
+        // Restart timer with doubled retransmission timeout.
+        double_rtx_timeout();
+        set_timer_for_rtx();
+    }
+    
+    void handleTimerChecking ()
+    {
+        // Timer was set to continue after no response to ARP query.
+        
+        if (m_request_count < Config::NumArpQueries) {
+            // Increment the ARP query counter.
+            m_request_count++;
+            
+            // Start the timeout.
+            tim(DhcpTimer()).appendAfter(
+                Context(), SecondsToTicks(Config::ArpResponseTimeoutSeconds));
+            
+            // Send an ARP query.
+            ethHw()->sendArpQuery(m_info.ip_address);
+        } else {
+            // Unsubscribe from ARP updates.
+            ArpObserver::reset();
+            
+            // Bind the lease.
+            return go_bound();
+        }
+    }
+    
+    void handleTimerBoundRenewingRebinding ()
+    {
+        // Timer was set for:
+        // - Bound: transition to Renewing
+        // - Renewing: retransmitting a request or transition to Rebinding
+        // - Rebinding: retransmitting a request or lease timeout
+        
+        // If we have more time until timeout, restart timer.
+        if (m_time_left > 0) {
+            return set_timer_for_time_left(&m_lease_time_left, getTimSetTime());
+        }
+        
+        if (m_state == DhcpState::Bound) {
+            // Go to state Renewing.
+            m_state = DhcpState::Renewing;
+            
+            // Generate an XID.
+            new_xid();
+        }
+        else if (m_state == DhcpState::Renewing) {
+            // Has the rebinding time expired?
+            if (m_lease_time_left <=
+                m_info.lease_time_s - m_info.rebinding_time_s)
+            {
+                // Go to state Rebinding.
+                m_state = DhcpState::Rebinding;
+                
+                // Generate an XID.
+                new_xid();
+            }
+        }
+        else { // m_state == DhcpState::Rebinding
+            // Has the lease expired?
+            if (m_lease_time_left == 0) {
+                // Start discovery.
+                start_discovery();
+                
+                // Remove IP configuration.
+                return handle_dhcp_down(
+                    /*call_callback=*/true, /*link_down=*/false);
+            }
+        }
+        
+        // Send request, update timeouts.
+        request_in_renewing_or_rebinding();
     }
     
     void retrySending () override final
