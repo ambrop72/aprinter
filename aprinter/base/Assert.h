@@ -60,10 +60,7 @@
 extern "C"
 #endif
 APRINTER_NO_INLINE APRINTER_NO_RETURN
-void APrinter_AssertAbort (char const *msg)
-#ifdef APRINTER_ASSERT_NO_DEFINITIONS
-;
-#else
+inline void APrinter_AssertAbort (char const *msg)
 {
 #ifdef AMBROLIB_EMERGENCY_ACTION
     AMBROLIB_EMERGENCY_ACTION
@@ -83,6 +80,5 @@ void APrinter_AssertAbort (char const *msg)
     abort();
 #endif
 }
-#endif
 
 #endif
