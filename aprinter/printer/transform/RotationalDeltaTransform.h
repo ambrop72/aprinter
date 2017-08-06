@@ -33,7 +33,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // Calculations from http://forums.trossenrobotics.com/tutorials/introduction-129/delta-robot-kinematics-3276/
 template <typename Arg>
@@ -206,6 +206,6 @@ APRINTER_ALIAS_STRUCT_EXT(RotationalDeltaTransformService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

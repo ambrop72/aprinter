@@ -68,7 +68,7 @@ APRINTER_END_LIST(ConfigList)
     decltype(TheConfig::getHelper(TheExpr()))::eval(c) \
 )
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TIdentity, typename TType, typename TDefaultValue, char AMBRO_PROGMEM const *TOptionName, typename TProperties>
 struct ConfigOption {
@@ -240,6 +240,6 @@ struct ConfigFramework {
     static decltype(TheConfigCacheLazy::getHelper(TheExpr())) getHelper (TheExpr);
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

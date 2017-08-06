@@ -34,7 +34,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class MotorCurrentModule {
@@ -137,6 +137,6 @@ APRINTER_ALIAS_STRUCT_EXT(MotorCurrentModuleService, (
     APRINTER_MODULE_TEMPLATE(MotorCurrentModuleService, MotorCurrentModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

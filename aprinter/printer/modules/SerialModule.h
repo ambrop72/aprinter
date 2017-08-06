@@ -39,7 +39,7 @@
 #include <aprinter/printer/utils/GcodeCommand.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class SerialModule {
@@ -234,6 +234,6 @@ APRINTER_ALIAS_STRUCT_EXT(SerialModuleService, (
     APRINTER_MODULE_TEMPLATE(SerialModuleService, SerialModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

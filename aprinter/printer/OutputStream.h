@@ -36,7 +36,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/math/PrintInt.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename FpType>
 class OutputStream {
@@ -114,6 +114,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

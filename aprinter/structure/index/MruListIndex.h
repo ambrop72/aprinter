@@ -31,7 +31,7 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class MruListIndex {
@@ -111,6 +111,6 @@ struct MruListIndexService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -35,7 +35,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <uint32_t TAddr>
 struct At91SamPio {
@@ -225,6 +225,6 @@ struct At91SamPinsService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

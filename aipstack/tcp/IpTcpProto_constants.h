@@ -35,7 +35,7 @@
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename TcpProto>
 class IpTcpProto_constants
@@ -115,6 +115,6 @@ public:
         APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

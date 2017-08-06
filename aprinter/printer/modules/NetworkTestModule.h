@@ -40,7 +40,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class NetworkTestModule {
@@ -214,6 +214,6 @@ APRINTER_ALIAS_STRUCT_EXT(NetworkTestModuleService, (
     APRINTER_MODULE_TEMPLATE(NetworkTestModuleService, NetworkTestModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

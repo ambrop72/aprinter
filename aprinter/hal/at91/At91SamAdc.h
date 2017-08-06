@@ -42,7 +42,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct At91SamAdcTempInput {};
 struct At91SamAdcUnsupportedInput {};
@@ -476,6 +476,6 @@ void ADC12B_Handler (void) \
 
 #endif
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

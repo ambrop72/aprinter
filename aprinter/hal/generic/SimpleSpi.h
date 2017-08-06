@@ -39,7 +39,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SimpleSpi {
@@ -333,6 +333,6 @@ struct SimpleSpiService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

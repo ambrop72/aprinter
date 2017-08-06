@@ -34,7 +34,7 @@
 #include <aprinter/hal/generic/SimpleSpi.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_AT91SAM_USART_SPI_DEFINE_DEVICE(Index, TheSckPin, TheSckPeriph, TheMosiPin, TheMosiPeriph, TheMisoPin, TheMisoPeriph) \
 struct At91SamUsartSpiDevice##Index { \
@@ -153,6 +153,6 @@ void USART##UsartIndex##_Handler (void) \
     thespi::GetDriver::usart_irq(MakeInterruptContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

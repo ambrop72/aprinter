@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, int ItmStimulusPort>
 class ArmItmDebug {
@@ -67,6 +67,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

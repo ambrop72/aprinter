@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/Options.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define DIVIDE_11_16_L15_S13_ITER_17_19(i) \
 "    lsl %A[n]\n" \
@@ -143,6 +143,6 @@ static uint16_t div_11_16_l15_s13 (uint16_t n, uint16_t d, Option opt = 0)
     return div_11_16_l15_s13(n, d, OptionForceInline());
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

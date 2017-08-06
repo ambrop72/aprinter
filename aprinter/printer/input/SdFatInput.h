@@ -48,7 +48,7 @@
 #include <aprinter/fs/BlockRange.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SdFatInput {
@@ -1062,6 +1062,6 @@ APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

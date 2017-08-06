@@ -75,7 +75,7 @@
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(PrinterMainParams, (
     APRINTER_AS_TYPE(LedPin),
@@ -3132,6 +3132,6 @@ APRINTER_ALIAS_STRUCT_EXT(PrinterMainArg, (
     APRINTER_DEF_INSTANCE(PrinterMainArg, PrinterMain)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

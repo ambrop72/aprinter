@@ -30,7 +30,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Object.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class ConstantConfigManager {
@@ -84,6 +84,6 @@ struct ConstantConfigManagerService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

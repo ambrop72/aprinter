@@ -34,7 +34,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_LINKED_HEAP_VERIFY 1
 
@@ -662,6 +662,6 @@ struct LinkedHeapService {
     using Structure = LinkedHeap<Accessor, Compare, LinkModel>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

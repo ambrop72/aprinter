@@ -38,7 +38,7 @@
 #include <aprinter/avr-asm-ops/sqrt_26_large.h>
 #endif
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits, bool Round>
 class IntSqrt {
@@ -174,6 +174,6 @@ private:
     
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

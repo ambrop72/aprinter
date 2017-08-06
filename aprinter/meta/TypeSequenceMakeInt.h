@@ -28,7 +28,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/TypeSequence.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename, typename>
 struct TypeSequenceMakeIntConcatHelper;
@@ -59,6 +59,6 @@ struct TypeSequenceMakeIntHelper<1> {
 template <int N>
 using TypeSequenceMakeInt = typename TypeSequenceMakeIntHelper<N>::Result;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

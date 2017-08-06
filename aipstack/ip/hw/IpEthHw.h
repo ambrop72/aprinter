@@ -33,7 +33,7 @@
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * A collection of abstract interfaces specific to Ethernet-based
@@ -148,6 +148,6 @@ public:
     };
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

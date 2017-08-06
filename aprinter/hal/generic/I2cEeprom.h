@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject, typename Handler, typename Params>
 class I2cEeprom {
@@ -209,6 +209,6 @@ APRINTER_ALIAS_STRUCT_EXT(I2cEepromService, (
     using Eeprom = I2cEeprom<Context, ParentObject, Handler, I2cEepromService>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

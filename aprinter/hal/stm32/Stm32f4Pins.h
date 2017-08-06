@@ -33,7 +33,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <uint32_t TGpioAddr>
 struct Stm32f4Port {
@@ -303,6 +303,6 @@ struct Stm32f4PinsService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

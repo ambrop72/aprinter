@@ -33,7 +33,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Stub IP protocol handler documenting the required interface.
@@ -257,6 +257,6 @@ struct IpProtocolHandlerStubService {
     ))
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

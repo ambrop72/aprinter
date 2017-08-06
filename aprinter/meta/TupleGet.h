@@ -31,7 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/Tuple.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int Index, typename TupleType>
 auto TupleGetElem (TupleType *tuple) ->
@@ -62,6 +62,6 @@ auto TupleFindElem (TupleType *tuple) -> decltype(TupleGetElem<TypeListIndex<typ
     return TupleGetElem<TypeListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -32,7 +32,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject>
 class MillisecondClock {
@@ -110,6 +110,6 @@ public:
     };
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

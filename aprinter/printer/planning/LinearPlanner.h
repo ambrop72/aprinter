@@ -28,7 +28,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename FpType>
 struct LinearPlanner {
@@ -112,6 +112,6 @@ struct LinearPlanner {
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

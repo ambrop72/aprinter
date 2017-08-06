@@ -25,7 +25,7 @@
 #ifndef APRINTER_ETHERNET_COMMON_H
 #define APRINTER_ETHERNET_COMMON_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <
     typename TActivateHandler,
@@ -40,6 +40,6 @@ struct EthernetClientParams {
     using SendBufferType = TSendBufferType;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -48,7 +48,7 @@
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class BedProbeModule {
@@ -760,6 +760,6 @@ APRINTER_ALIAS_STRUCT_EXT(BedProbeModuleService, (
     using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceDefinition<ServiceList::CorrectionService>>, EmptyTypeList>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -40,7 +40,7 @@
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define STM32F4ADC_DEFINE_SUBADC(AdcDefName, AdcNumber, DmaNumber, DmaStreamNumber, DmaChannelNumber) \
 struct AdcDefName { \
@@ -392,6 +392,6 @@ void ADC_IRQHandler (void) \
     adc::handle_irq(MakeInterruptContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

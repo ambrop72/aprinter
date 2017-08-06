@@ -25,7 +25,7 @@
 #ifndef APRINTER_LOOP_UTILS_H
 #define APRINTER_LOOP_UTILS_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename IntType>
 class LoopRangeIter;
@@ -95,6 +95,6 @@ LoopRange<IntType> LoopRangeAuto (IntType end)
     return LoopRange<IntType>(end);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

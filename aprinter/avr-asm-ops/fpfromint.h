@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static float fpfromint_u32 (uint32_t op)
 {
@@ -127,6 +127,6 @@ static float fpfromint_u32 (uint32_t op)
     return res;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

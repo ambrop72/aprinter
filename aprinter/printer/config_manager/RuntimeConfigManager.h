@@ -54,7 +54,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static bool RuntimeConfigManager__compare_option (char const *name, ProgPtr<char> optname)
 {
@@ -722,6 +722,6 @@ APRINTER_ALIAS_STRUCT_EXT(RuntimeConfigManagerService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -48,7 +48,7 @@
 #include <aprinter/system/TimedEventCompat.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename> class BusyEventLoopQueuedEvent;
 template <typename> class BusyEventLoopTimedEvent;
@@ -497,6 +497,6 @@ protected:
     virtual void handleTimerExpired (Context c) = 0;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

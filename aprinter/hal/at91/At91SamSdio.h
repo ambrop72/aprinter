@@ -39,7 +39,7 @@
 #include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class At91SamSdio {
@@ -511,6 +511,6 @@ struct At91SamSdioService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

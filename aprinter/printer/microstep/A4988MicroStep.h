@@ -30,7 +30,7 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class A4988MicroStep {
@@ -102,6 +102,6 @@ APRINTER_ALIAS_STRUCT_EXT(A4988MicroStepService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

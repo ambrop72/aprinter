@@ -54,7 +54,7 @@
 #include <aprinter/printer/utils/JsonBuilder.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class AuxControlModule {
@@ -1072,6 +1072,6 @@ APRINTER_ALIAS_STRUCT_EXT(AuxControlModuleService, (
     APRINTER_MODULE_TEMPLATE(AuxControlModuleService, AuxControlModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

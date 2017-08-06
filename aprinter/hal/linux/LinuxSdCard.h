@@ -49,7 +49,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/platform/linux/linux_support.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // NOTE: The existing SD-card API does not support asynchonous execution
 // of deactivate (it assumed that any cleanup can be done immediately),
@@ -410,6 +410,6 @@ APRINTER_ALIAS_STRUCT_EXT(LinuxSdCardService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

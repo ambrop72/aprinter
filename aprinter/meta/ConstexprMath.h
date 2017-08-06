@@ -27,7 +27,7 @@
 
 #include <math.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static constexpr double ConstexprFmax (double a, double b)
 {
@@ -60,6 +60,6 @@ static constexpr double ConstexprRound (double a)
     return (__builtin_isnan(a) || a == -INFINITY || a == INFINITY) ? a : __builtin_round(a);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

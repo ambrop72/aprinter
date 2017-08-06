@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TheHash>
 class ConstexprHash {
@@ -69,6 +69,6 @@ private:
     Type m_accum;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

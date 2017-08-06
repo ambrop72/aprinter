@@ -37,7 +37,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/utils/GcodeCommand.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename TBufferSizeType, typename FpType, typename Params>
 class BinaryGcodeParser
@@ -358,6 +358,6 @@ APRINTER_ALIAS_STRUCT_EXT(BinaryGcodeParserService, (
     using Parser = BinaryGcodeParser<Context, TBufferSizeType, FpType, BinaryGcodeParserService>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

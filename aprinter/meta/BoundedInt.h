@@ -38,7 +38,7 @@
 #include <aprinter/math/IntDivide.h>
 #include <aprinter/math/IntShift.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits, bool Signed = true>
 class BoundedInt {
@@ -329,6 +329,6 @@ BoundedInt<NumBits, Signed> BoundedUnsafeDec (BoundedInt<NumBits, Signed> op)
     return BoundedInt<NumBits, Signed>::import((typename BoundedInt<NumBits, Signed>::IntType)(op.value() - 1));
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

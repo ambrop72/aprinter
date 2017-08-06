@@ -30,7 +30,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Preprocessor.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TheList>
 struct ListForEach;
@@ -172,6 +172,6 @@ AMBRO_ALWAYS_INLINE bool ListForOneBool (IndexType index, Func func, Args... arg
 
 #define APRINTER_TLA(TypeAlias, args, code) (auto aprinter__type_lambda_arg, APRINTER_REMOVE_PARENS args) { using TypeAlias = typename decltype(aprinter__type_lambda_arg)::Type; code; }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

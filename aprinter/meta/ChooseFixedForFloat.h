@@ -28,7 +28,7 @@
 #include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/FixedPoint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int Bits, bool Signed, typename FloatValue>
 struct ChooseFixedForFloat__Helper {
@@ -42,6 +42,6 @@ struct ChooseFixedForFloat__Helper {
 template <int Bits, bool Signed, typename FloatValue>
 using ChooseFixedForFloat = typename ChooseFixedForFloat__Helper<Bits, Signed, FloatValue>::Result;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

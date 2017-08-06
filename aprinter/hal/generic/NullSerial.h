@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class NullSerial {
@@ -191,6 +191,6 @@ struct NullSerialService {
     using Serial = NullSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, NullSerialService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

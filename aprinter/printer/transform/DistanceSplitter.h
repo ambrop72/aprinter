@@ -33,7 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class DistanceSplitter {
@@ -108,6 +108,6 @@ APRINTER_ALIAS_STRUCT_EXT(DistanceSplitterService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

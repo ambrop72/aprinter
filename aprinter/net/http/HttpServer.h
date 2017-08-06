@@ -53,7 +53,7 @@
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #if APRINTER_DEBUG_HTTP_SERVER
 #define HTTP_SERVER_DEBUG(msg) TheMain::print_pgm_string(c, AMBRO_PSTR("//" msg "\n"))
@@ -1516,6 +1516,6 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
 
 #undef HTTP_SERVER_DEBUG
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

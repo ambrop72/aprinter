@@ -27,7 +27,7 @@
 
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename...>
 struct OneOfStruct;
@@ -104,6 +104,6 @@ AMBRO_ALWAYS_INLINE \
 static auto OneOf(APrinter_OneOf_OptType... APrinter_OneOf_opt) \
 { return APrinter::OneOf(APrinter_OneOf_opt...); }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -31,7 +31,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 APRINTER_TSTRUCT(Ip4Header,
     (VersionIhlDscpEcn, uint16_t)
@@ -67,6 +67,6 @@ static uint16_t Ip4RoundFragLen (uint8_t header_length, uint16_t mtu)
     return header_length + (((mtu - header_length) / 8) * 8);
 }
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

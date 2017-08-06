@@ -33,7 +33,7 @@
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Represents the IPv4 address configuration of a network interface.
@@ -232,6 +232,6 @@ public:
     }
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

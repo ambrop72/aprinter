@@ -33,7 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class MicroStepConfigModule {
@@ -81,6 +81,6 @@ APRINTER_ALIAS_STRUCT_EXT(MicroStepConfigModuleService, (
     APRINTER_MODULE_TEMPLATE(MicroStepConfigModuleService, MicroStepConfigModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

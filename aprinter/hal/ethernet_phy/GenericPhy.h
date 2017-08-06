@@ -32,7 +32,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject, typename ClientParams, typename Params>
 class GenericPhy {
@@ -473,6 +473,6 @@ struct GenericPhyService {
     using Phy = GenericPhy<Context, ParentObject, ClientParams, GenericPhyService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

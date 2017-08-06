@@ -43,7 +43,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_DEBUG_BLOCKCACHE 0
 
@@ -1533,6 +1533,6 @@ APRINTER_ALIAS_STRUCT_EXT(BlockCacheArg, (
     APRINTER_DEF_INSTANCE(BlockCacheArg, BlockCache)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

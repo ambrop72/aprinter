@@ -25,7 +25,7 @@
 #ifndef APRINTER_BLOCK_RANGE_H
 #define APRINTER_BLOCK_RANGE_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename BlockIndexType>
 struct BlockRange {
@@ -48,6 +48,6 @@ struct BlockRange {
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

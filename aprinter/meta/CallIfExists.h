@@ -27,7 +27,7 @@
 
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename X, typename Y>
 using CallIfExists__TypeHelper = X;
@@ -98,6 +98,6 @@ private: \
     static auto CallIfExists__ret_helper_func (...) -> CallIfExists__RetHelperNoCall; \
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

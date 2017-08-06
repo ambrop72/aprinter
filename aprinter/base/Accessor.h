@@ -25,7 +25,7 @@
 #ifndef APRINTER_ACCESSOR_H
 #define APRINTER_ACCESSOR_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Object, typename Member, Member Object::*MemberPtr>
 struct MemberAccessor {
@@ -85,6 +85,6 @@ struct BaseClassAccessor {
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -31,7 +31,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/fs/BlockRange.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TheFs, typename BlockIndexType>
 static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, BlockRange<BlockIndexType> *out_block_range)
@@ -60,6 +60,6 @@ static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, B
     return false;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -40,7 +40,7 @@
 #include <aprinter/fs/BufferedFile.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class GcodeUploadModule {
@@ -340,6 +340,6 @@ APRINTER_ALIAS_STRUCT_EXT(GcodeUploadModuleService, (
     APRINTER_MODULE_TEMPLATE(GcodeUploadModuleService, GcodeUploadModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

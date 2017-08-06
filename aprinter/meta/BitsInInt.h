@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int Base, uintmax_t N>
 struct DigitsInInt {
@@ -45,6 +45,6 @@ using BitsInInt = DigitsInInt<2, N>;
 template <uintmax_t N>
 using HexDigitsInInt = DigitsInInt<16, N>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

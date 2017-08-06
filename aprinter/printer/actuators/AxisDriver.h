@@ -43,7 +43,7 @@
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/printer/actuators/AxisDriverConsumer.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-amul_shift)>())
 #define AXIS_STEPPER_V0_EXPR(x, t, a) (((x) + (a).absVal()).template shiftBits<(-discriminant_prec)>())
@@ -657,6 +657,6 @@ APRINTER_ALIAS_STRUCT_EXT(AxisDriverService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -68,7 +68,7 @@ inline uint16_t IpChksumInverted (char const *data, size_t len)
 
 #endif
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 inline uint16_t IpChksum (char const *data, size_t len)
 {
@@ -199,6 +199,6 @@ inline uint16_t IpChksum (IpBufRef buf)
     return accum.getChksum(buf);
 }
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

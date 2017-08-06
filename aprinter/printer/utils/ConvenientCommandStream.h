@@ -30,7 +30,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ThePrinterMain>
 class ConvenientCommandStream
@@ -179,6 +179,6 @@ private:
     size_t m_send_buf_request;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

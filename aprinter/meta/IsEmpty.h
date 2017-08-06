@@ -28,7 +28,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 using IsEmpty = WrapBool<__is_empty(T)>;
@@ -39,6 +39,6 @@ using IsNotEmpty = WrapBool<!IsEmpty<T>::Value>;
 using IsEmptyFunc = TemplateFunc<IsEmpty>;
 using IsNotEmptyFunc = TemplateFunc<IsNotEmpty>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

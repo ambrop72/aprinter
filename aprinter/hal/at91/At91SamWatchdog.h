@@ -33,7 +33,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class At91SamWatchdog {
@@ -127,6 +127,6 @@ APRINTER_ALIAS_STRUCT_EXT(At91SamWatchdogService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

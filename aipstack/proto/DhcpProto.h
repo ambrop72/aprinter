@@ -30,7 +30,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 enum class DhcpOp : uint8_t {
     BootRequest = 1,
@@ -139,6 +139,6 @@ APRINTER_TSTRUCT(DhcpOptOptionOverload,
     (Overload,    DhcpOptionOverload)
 )
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

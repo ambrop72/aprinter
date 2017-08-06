@@ -50,7 +50,7 @@ struct Mk20Clock__IrqCompHelper {
     static void call () {}
 };
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using Mk20ClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
@@ -653,6 +653,6 @@ struct Mk20ClockPwmService {
     using Pwm = Mk20ClockPwm<Context, ParentObject, Ftm, ChannelIndex, Pin>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

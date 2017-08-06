@@ -34,7 +34,7 @@
 #include <aprinter/avr-asm-ops/div_11_16_l15_s13.h>
 #endif
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift, int ResSatBits, bool SupportZero>
 class IntDivide {
@@ -80,6 +80,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

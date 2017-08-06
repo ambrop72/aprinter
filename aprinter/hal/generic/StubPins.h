@@ -29,7 +29,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct StubPin {};
 struct StubPinInputMode {};
@@ -100,6 +100,6 @@ struct StubPinsService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

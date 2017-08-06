@@ -37,7 +37,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/Preprocessor.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename Type, typename Dummy=void>
 struct StructTypeHandler;
@@ -722,6 +722,6 @@ struct StructTypeHandler<StructRawField<Type>, void> {
     using Handler = StructRawTypeHandler<Type>;
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

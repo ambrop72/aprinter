@@ -42,7 +42,7 @@
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename TcpProto>
 class IpTcpProto_output
@@ -1379,6 +1379,6 @@ private:
     }
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

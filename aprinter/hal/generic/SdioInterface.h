@@ -30,7 +30,7 @@
 
 #include <aprinter/base/TransferVector.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace SdioIface {
     struct InterfaceParams {
@@ -91,6 +91,6 @@ namespace SdioIface {
     };
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

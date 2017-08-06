@@ -29,7 +29,7 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class StepperGroup {
@@ -85,6 +85,6 @@ APRINTER_ALIAS_STRUCT_EXT(StepperGroupArg, (
     APRINTER_DEF_INSTANCE(StepperGroupArg, StepperGroup)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

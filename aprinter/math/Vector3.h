@@ -27,7 +27,7 @@
 
 #include <aprinter/math/FloatTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename FpType>
 class Vector3 {
@@ -84,6 +84,6 @@ public:
     FpType m_v[3];
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

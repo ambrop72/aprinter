@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_POWER_OF_TWO_H
 #define AMBROLIB_POWER_OF_TWO_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T, int E>
 struct PowerOfTwo {
@@ -63,7 +63,7 @@ constexpr T PowerOfTwoFunc (int e)
     return (e == 0) ? 1 : 2 * PowerOfTwoFunc<T>(e - 1);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif
 

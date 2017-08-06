@@ -27,7 +27,7 @@
 
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using DuePin0 = At91SamPin<At91SamPioA, 8>;
 using DuePin1 = At91SamPin<At91SamPioA, 9>;
@@ -126,6 +126,6 @@ using DuePinA13 = DuePin67;
 using DuePinA14 = DuePin68;
 using DuePinA15 = DuePin69;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

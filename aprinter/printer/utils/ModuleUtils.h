@@ -29,7 +29,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(ModuleTemplateArg, (
     APRINTER_AS_TYPE(Context),
@@ -55,6 +55,6 @@ using Module = class_name<ModuleArg>;
 template <int NameChar, typename ReservedList>
 using NameCharIsValid = WrapBool<(NameChar >= 'A' && NameChar <= 'Z') && !TypeListFind<ReservedList, WrapInt<NameChar>>::Found>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

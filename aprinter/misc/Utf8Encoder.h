@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 /**
 * Encodes a Unicode character into a sequence of bytes according to UTF-8.
@@ -77,6 +77,6 @@ static int Utf8EncodeChar (uint32_t ch, char *out)
     return 0;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

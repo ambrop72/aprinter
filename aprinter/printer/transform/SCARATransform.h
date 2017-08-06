@@ -35,7 +35,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/Console.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // Calculations from https://roboted.wordpress.com/fundamentals/ 
 template <typename Arg>
@@ -166,6 +166,6 @@ APRINTER_ALIAS_STRUCT_EXT(SCARATransformService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

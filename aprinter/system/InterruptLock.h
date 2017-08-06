@@ -29,7 +29,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/system/InterruptLockCommon.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #if APRINTER_INTERRUPT_LOCK_MODE == APRINTER_INTERRUPT_LOCK_MODE_SIMPLE
 #define APRINTER_HAVE_INTR_CONTEXT 0
@@ -153,6 +153,6 @@ InterruptLockImpl InterruptTempLock ()
     return InterruptLockImpl();
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

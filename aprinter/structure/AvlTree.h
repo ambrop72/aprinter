@@ -31,7 +31,7 @@
 
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 //#define APRINTER_AVL_TREE_VERIFY 1
 
@@ -522,6 +522,6 @@ private:
 #endif
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

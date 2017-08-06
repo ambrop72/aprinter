@@ -37,7 +37,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(Ad5206CurrentChannelParams, (
     APRINTER_AS_VALUE(uint8_t, DevChannelIndex),
@@ -191,6 +191,6 @@ APRINTER_ALIAS_STRUCT_EXT(Ad5206CurrentService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

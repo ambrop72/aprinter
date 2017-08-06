@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Func, typename Arg>
 using FuncCall = typename Func::template Call<Arg>::Type;
@@ -87,6 +87,6 @@ struct ComposeFunctions {
     };
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

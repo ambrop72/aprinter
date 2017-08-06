@@ -30,7 +30,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/BitsInInt.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits, bool Signed>
 class ChooseIntHelper {
@@ -57,6 +57,6 @@ using ChooseInt = typename ChooseIntHelper<NumBits, Signed>::Result;
 template <uintmax_t N, bool Signed = false>
 using ChooseIntForMax = ChooseInt<BitsInInt<N>::Value, Signed>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

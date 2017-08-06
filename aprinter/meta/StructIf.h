@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_STRUCT_IF_H
 #define AMBROLIB_STRUCT_IF_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define AMBRO_STRUCT_IF(name, condition) \
 template <bool name##__IfEnable, typename name##__IfDummy = void> \
@@ -44,6 +44,6 @@ struct name {}; \
 template <typename name##__IfDummy> \
 struct name <true, name##__IfDummy>
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -27,7 +27,7 @@
 
 #include <stddef.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 /**
  * @file
@@ -328,6 +328,6 @@ template <
 using ArrayLinkModelWithAccessor = ArrayLinkModel<Entry, IndexType, NullIndex,
     ArrayLinkModelAccessorState<Entry, ArrayContainer, ArrayAccessor>>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -41,7 +41,7 @@
 #include <aprinter/avr-asm-ops/fpfromint.h>
 #endif
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct FixedIdentity {};
 
@@ -609,6 +609,6 @@ auto FixedMin (FixedPoint<NumBits, Signed, Exp> op1, FixedIdentity op2) -> declt
     return op1;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

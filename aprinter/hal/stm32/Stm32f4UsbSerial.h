@@ -40,7 +40,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class Stm32f4UsbSerial {
@@ -375,6 +375,6 @@ struct Stm32f4UsbSerialService {
     using Serial = Stm32f4UsbSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, Stm32f4UsbSerialService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

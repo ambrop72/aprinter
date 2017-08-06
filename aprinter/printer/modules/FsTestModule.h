@@ -38,7 +38,7 @@
 #include <aprinter/fs/BufferedFile.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class FsTestModule {
@@ -226,6 +226,6 @@ struct FsTestModuleService {
     APRINTER_MODULE_TEMPLATE(FsTestModuleService, FsTestModule)
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

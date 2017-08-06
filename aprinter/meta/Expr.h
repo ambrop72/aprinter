@@ -31,7 +31,7 @@
 #include <aprinter/meta/TestConstexpr.h>
 #include <aprinter/meta/FuncUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename FullExpr>
 struct Expr {
@@ -281,6 +281,6 @@ APRINTER_DEFINE_BINARY_EXPR_FUNC(Fmax, ConstexprFmax(arg1, arg2))
 
 APRINTER_DEFINE_TERNARY_EXPR_FUNC(If, arg1 ? arg2 : arg3)
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

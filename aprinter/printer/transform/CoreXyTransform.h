@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class CoreXyTransform {
@@ -65,6 +65,6 @@ struct CoreXyTransformService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

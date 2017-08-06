@@ -47,7 +47,7 @@ struct At91Sam3uClock__IrqCompHelper {
     static void call (IrqTime irq_time) {}
 };
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using At91Sam3uClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
@@ -430,6 +430,6 @@ struct At91Sam3uClock__IrqCompHelper<tcspec, comp> { \
     } \
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -28,11 +28,11 @@
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TypeListUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename List, template<int> class ElemTemplate>
 using IndexElemTuple = Tuple<IndexElemList<List, ElemTemplate>>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -25,7 +25,7 @@
 #ifndef APRINTER_TREE_COMPARE_H
 #define APRINTER_TREE_COMPARE_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <
     typename LinkModel,
@@ -53,6 +53,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

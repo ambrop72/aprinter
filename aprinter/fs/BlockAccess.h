@@ -37,7 +37,7 @@
 #include <aprinter/base/TransferVector.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class BlockAccess {
@@ -298,6 +298,6 @@ APRINTER_ALIAS_STRUCT_EXT(BlockAccessService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

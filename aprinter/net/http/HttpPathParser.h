@@ -32,7 +32,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/StringTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int MaxQueryParams>
 class HttpPathParser {
@@ -183,6 +183,6 @@ private:
     QueryParam m_params[MaxQueryParams];
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

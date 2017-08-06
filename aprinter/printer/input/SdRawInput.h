@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/TransferVector.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SdRawInput {
@@ -285,6 +285,6 @@ APRINTER_ALIAS_STRUCT_EXT(SdRawInputService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -28,7 +28,7 @@
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/FixedPoint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TheFixedPoint>
 APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(FixedPointImport, TheFixedPoint::template ConstImport<Op1>::value(), TheFixedPoint::importFpSaturatedRound(arg1))
@@ -36,6 +36,6 @@ APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(FixedPointImport, TheFixedPoint::template 
 template <typename TheFixedPoint, typename Op1>
 NaryExpr<ExprFunc__FixedPointImport<TheFixedPoint>, Op1> ExprFixedPointImport (Op1);
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

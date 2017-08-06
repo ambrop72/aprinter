@@ -27,7 +27,7 @@
 
 #include <stddef.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename DataWordType>
 struct TransferDescriptor {
@@ -53,6 +53,6 @@ bool CheckTransferVector (TransferVector<DataWordType> vector, size_t num_words)
     return (num_words == 0);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

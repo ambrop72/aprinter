@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 /**
  * This is a utility class used for RAII-based locking.
@@ -134,6 +134,6 @@ for (auto lock_context = aprinter__lock_var.lockContext(); aprinter__lock_run; a
 #define AMBRO_LOCK(mutex, this_context, lock_context) APRINTER_LOCK(mutex, this_context, lock_context)
 #define AMBRO_LOCK_T(mutex, this_context, lock_context) APRINTER_LOCK(mutex, this_context, lock_context)
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_FUNCTION_IF(condition, return_type, remaining_declaration) \
 APRINTER_FUNCTION_IF_EXT(condition, , return_type, remaining_declaration)
@@ -49,6 +49,6 @@ template <typename FunctionIfReturnType=return_type> qualifiers APrinter::templa
 template <typename FunctionIfReturnType=return_type> qualifiers APrinter::template EnableIf<(condition), FunctionIfReturnType> remaining_declaration if_code \
 template <typename FunctionIfReturnType=return_type> qualifiers APrinter::template EnableIf<!(condition), FunctionIfReturnType> remaining_declaration else_code
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

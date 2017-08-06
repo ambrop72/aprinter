@@ -42,7 +42,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/hal/avr/AvrPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class AvrSpi {
@@ -386,6 +386,6 @@ ISR(SPI_STC_vect) \
     avrspi::spi_stc_isr(MakeAtomicContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

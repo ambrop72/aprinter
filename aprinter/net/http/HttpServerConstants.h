@@ -25,7 +25,7 @@
 #ifndef APRINTER_HTTP_SERVER_CONSTANTS_H
 #define APRINTER_HTTP_SERVER_CONSTANTS_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct HttpStatusCodes {
     static constexpr char const * Okay() { return "200 OK"; }
@@ -46,6 +46,6 @@ struct HttpContentTypes {
     static constexpr char const * TextPlainUtf8() { return "text/plain; charset=utf-8"; }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

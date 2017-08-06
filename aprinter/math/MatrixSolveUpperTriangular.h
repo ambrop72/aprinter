@@ -28,7 +28,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/Matrix.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename MA, typename MY, typename MX>
 void MatrixSolveUpperTriangular (MA ma, MY my, MX mx)
@@ -50,6 +50,6 @@ void MatrixSolveUpperTriangular (MA ma, MY my, MX mx)
     }
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

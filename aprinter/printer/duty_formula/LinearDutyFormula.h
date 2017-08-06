@@ -28,7 +28,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/BitsInInt.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename DutyCycleType, DutyCycleType MaxDutyCycle, int PowerBits>
 class LinearDutyFormula {
@@ -53,6 +53,6 @@ struct LinearDutyFormulaService {
     using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, PowerBits>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

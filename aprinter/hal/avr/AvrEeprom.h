@@ -36,7 +36,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject, typename Handler, typename Params>
 class AvrEeprom {
@@ -197,6 +197,6 @@ ISR(EE_READY_vect) \
     TheEeprom::eeprom_isr(MakeAtomicContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

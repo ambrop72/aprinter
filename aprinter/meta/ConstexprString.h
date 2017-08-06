@@ -27,13 +27,13 @@
 
 #include <stddef.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static constexpr size_t ConstexprStrlen (char const *str)
 {
     return (*str == '\0') ? 0 : (1 + ConstexprStrlen(str + 1));
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

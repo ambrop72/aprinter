@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Expr>
 struct TestConstexprHelper {
@@ -43,6 +43,6 @@ struct TestConstexprHelper {
 template <typename Expr>
 using TestConstexpr = WrapBool< TestConstexprHelper<Expr>::test_func(0) >;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

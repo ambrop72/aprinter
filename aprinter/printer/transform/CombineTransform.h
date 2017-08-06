@@ -31,7 +31,7 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Object.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class CombineTransform {
@@ -127,6 +127,6 @@ APRINTER_ALIAS_STRUCT_EXT(CombineTransformService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

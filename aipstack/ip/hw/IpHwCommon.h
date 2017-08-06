@@ -27,13 +27,13 @@
 
 #include <stdint.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 enum class IpHwType : uint8_t {
     Undefined = 0,
     Ethernet = 1,
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

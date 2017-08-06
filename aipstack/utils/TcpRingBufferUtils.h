@@ -36,7 +36,7 @@
 
 #include <aipstack/misc/Buf.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename TcpProto>
 class TcpRingBufferUtils {
@@ -211,6 +211,6 @@ private:
     }
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

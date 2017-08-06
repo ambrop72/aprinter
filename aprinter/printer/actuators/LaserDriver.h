@@ -39,7 +39,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(LaserDriverPrecisionParams, (
     APRINTER_AS_VALUE(int, TimeBits),
@@ -223,6 +223,6 @@ APRINTER_ALIAS_STRUCT_EXT(LaserDriverService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

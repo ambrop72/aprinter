@@ -27,13 +27,13 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(AxisDriverConsumer, (
     APRINTER_AS_TYPE(CommandCallback),
     APRINTER_AS_TYPE(PrestepCallback)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

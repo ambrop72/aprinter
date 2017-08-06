@@ -48,7 +48,7 @@
 #include <aprinter/fs/BlockCache.h>
 #include <aprinter/fs/BlockRange.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class FatFs {
@@ -2170,6 +2170,6 @@ APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -31,7 +31,7 @@
 #include <aprinter/meta/TypeSequenceMakeInt.h>
 #include <aprinter/base/ProgramMemory.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ElemType, int Size>
 struct StaticArrayStruct {
@@ -75,6 +75,6 @@ private:
 template <typename ElemType, int Size, template<int> class ElemValue>
 StaticArrayStruct<ElemType, Size> AMBRO_PROGMEM const StaticArray<ElemType, Size, ElemValue>::data = StaticArrayHelper<ElemType, ElemValue, TypeSequenceMakeInt<Size>>::getHelperStruct();
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

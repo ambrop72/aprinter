@@ -31,7 +31,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/ProgramMemory.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // CRC implementation using a lookup table, based on the one in the
 // Linux kernel (include/linux/crc-itu-t.h, lib/crc-itu-t.c).
@@ -87,6 +87,6 @@ static uint16_t CrcItuTUpdate (uint16_t crc, char const *data, size_t length)
     return crc;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -45,7 +45,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename Arg>
 class IpPathMtuCache;
@@ -616,6 +616,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
     ))
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

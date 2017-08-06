@@ -34,7 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 extern "C" {
     void eeprom_initialize (void);
@@ -189,6 +189,6 @@ struct TeensyEepromService {
     using Eeprom = TeensyEeprom<Context, ParentObject, Handler, TeensyEepromService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

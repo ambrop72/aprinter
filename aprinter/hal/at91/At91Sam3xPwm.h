@@ -38,7 +38,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <uint8_t TPreA, uint8_t TDivA, uint8_t TPreB, uint8_t TDivB>
 struct At91Sam3xPwmParams {
@@ -222,6 +222,6 @@ struct At91Sam3xPwmChannelService {
     using Pwm = At91Sam3xPwmChannel<Context, ParentObject, At91Sam3xPwmChannelService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

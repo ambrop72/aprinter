@@ -36,7 +36,7 @@
 #include <aprinter/meta/IsEmpty.h>
 #include <aprinter/meta/TypeListUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_Object, Object)
 AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
@@ -135,6 +135,6 @@ struct Obj__CollectHelper {
 template <typename ClassList, typename MemberType, bool WithoutRoots = false>
 using ObjCollect = JoinTypeListList<typename Obj__CollectHelper<ClassList, MemberType, WithoutRoots, EmptyTypeList>::Result>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

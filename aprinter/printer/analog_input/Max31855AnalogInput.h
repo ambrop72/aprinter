@@ -37,7 +37,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class Max31855AnalogInput {
@@ -184,6 +184,6 @@ APRINTER_ALIAS_STRUCT_EXT(Max31855AnalogInputService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

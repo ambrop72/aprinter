@@ -27,7 +27,7 @@
 
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace WrapFunctionPrivate {
     template <typename R, typename... Args>
@@ -50,6 +50,6 @@ namespace WrapFunctionPrivate {
 #define AMBRO_WFUNC_T(func) typename decltype(APrinter::WrapFunctionPrivate::MakeHelper(func))::template Wrapper<func>
 #define AMBRO_WFUNC_TD(func) decltype(APrinter::WrapFunctionPrivate::MakeHelper(func))::template Wrapper<func>
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -48,7 +48,7 @@
 #include <aipstack/tcp/IpTcpProto.h>
 #include <aipstack/eth/EthIpIface.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class IpStackNetwork {
@@ -491,6 +491,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

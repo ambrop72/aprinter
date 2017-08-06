@@ -33,7 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Lock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class HardPwm {
@@ -125,6 +125,6 @@ APRINTER_ALIAS_STRUCT_EXT(HardPwmService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

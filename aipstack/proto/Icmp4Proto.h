@@ -31,7 +31,7 @@
 
 #include <aipstack/misc/Struct.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 using Icmp4RestType = StructByteArray<4>;
 
@@ -53,6 +53,6 @@ inline static uint16_t const Icmp4GetMtuFromRest (Icmp4RestType rest)
     return APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>((char const *)rest.data + 2);
 }
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

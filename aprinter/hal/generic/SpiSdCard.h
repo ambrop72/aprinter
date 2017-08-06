@@ -41,7 +41,7 @@
 #include <aprinter/misc/CrcItuT.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SpiSdCard {
@@ -527,6 +527,6 @@ APRINTER_ALIAS_STRUCT_EXT(SpiSdCardService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

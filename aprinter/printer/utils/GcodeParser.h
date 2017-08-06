@@ -36,7 +36,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/printer/utils/GcodeCommand.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct GcodeParserTypeSerial {};
 struct GcodeParserTypeFile {};
@@ -538,6 +538,6 @@ APRINTER_ALIAS_STRUCT_EXT(FileGcodeParserService, (
     using Parser = GcodeParser<Context, TBufferSizeType, FpType, GcodeParserTypeFile, FileGcodeParserService>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

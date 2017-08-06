@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_MODULO_H
 #define AMBROLIB_MODULO_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 constexpr T Modulo (T x, T m)
@@ -33,6 +33,6 @@ constexpr T Modulo (T x, T m)
     return (x >= 0) ? (x % m) : (((x / m) * m) == x) ? 0 : (m - (((x / m) * m) - x));
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

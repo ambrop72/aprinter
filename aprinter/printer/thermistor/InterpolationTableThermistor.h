@@ -38,7 +38,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/math/FloatTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class InterpolationTableThermistor {
@@ -291,6 +291,6 @@ APRINTER_ALIAS_STRUCT_EXT(InterpolationTableThermistorService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

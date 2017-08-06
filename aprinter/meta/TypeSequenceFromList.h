@@ -29,7 +29,7 @@
 #include <aprinter/meta/TypeSequenceMakeInt.h>
 #include <aprinter/meta/TypeListUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename, typename>
 struct TypeSequenceFromListHelper;
@@ -42,6 +42,6 @@ struct TypeSequenceFromListHelper<List, TypeSequence<Indices...>> {
 template <typename List>
 using TypeSequenceFromList = typename TypeSequenceFromListHelper<List, TypeSequenceMakeInt<TypeListLength<List>::Value>>::Result;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

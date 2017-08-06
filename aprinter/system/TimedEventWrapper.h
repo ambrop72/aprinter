@@ -27,7 +27,7 @@
 
 #include <aprinter/base/Preprocessor.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TimedEvent, typename Wrapper, typename Id>
 class TimedEventWrapperOne : private TimedEvent
@@ -87,6 +87,6 @@ friend AprinterTimers; \
 using AprinterTimers::tim; \
 APRINTER_USE_TYPES1(TimersDeclClass, TheTimers)
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

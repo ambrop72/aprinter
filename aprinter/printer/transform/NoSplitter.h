@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class NoSplitter {
@@ -67,6 +67,6 @@ struct NoSplitterService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

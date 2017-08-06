@@ -32,7 +32,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Node in a chain of memory buffers.
@@ -468,6 +468,6 @@ struct IpBufRef {
     }
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

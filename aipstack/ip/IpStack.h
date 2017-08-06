@@ -59,7 +59,7 @@
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * IPv4 network layer implementation.
@@ -1743,6 +1743,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
     ))
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

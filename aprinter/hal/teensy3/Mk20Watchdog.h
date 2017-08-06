@@ -35,7 +35,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class Mk20Watchdog {
@@ -126,6 +126,6 @@ void startup_early_hook (void) \
     WDOG_STCTRLH = WDOG_STCTRLH_WDOGEN | WDOG_STCTRLH_ALLOWUPDATE; \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

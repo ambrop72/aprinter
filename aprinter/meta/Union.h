@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/TypeList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename List>
 struct Union;
@@ -62,6 +62,6 @@ struct Union<ConsTypeList<TElemType, TTailTypes>>
     };
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -41,7 +41,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/tcp/TcpUtils.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <typename> class IpTcpProto;
 template <typename> class IpTcpProto_input;
@@ -878,6 +878,6 @@ public:
     };
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

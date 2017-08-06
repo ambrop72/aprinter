@@ -28,7 +28,7 @@
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class MillisecondClockInfoModule {
@@ -53,6 +53,6 @@ struct MillisecondClockInfoModuleService {
     APRINTER_MODULE_TEMPLATE(MillisecondClockInfoModuleService, MillisecondClockInfoModule)
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

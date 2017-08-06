@@ -28,7 +28,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/ObserverNotification.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 class IpSendRetry {
 private:
@@ -107,6 +107,6 @@ public:
     };
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

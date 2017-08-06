@@ -31,7 +31,7 @@
 
 #include <aipstack/misc/Buf.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 struct TxAllocHelperUninitialized {};
 
@@ -109,6 +109,6 @@ private:
 #endif
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

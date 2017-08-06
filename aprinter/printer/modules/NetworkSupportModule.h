@@ -42,7 +42,7 @@
 
 #include <aipstack/ip/IpDhcpClient.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class NetworkSupportModule {
@@ -278,6 +278,6 @@ APRINTER_ALIAS_STRUCT_EXT(NetworkSupportModuleService, (
     APRINTER_MODULE_TEMPLATE(NetworkSupportModuleService, NetworkSupportModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

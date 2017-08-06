@@ -35,7 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(HookDefinition, (
     APRINTER_AS_TYPE(HookType),
@@ -221,6 +221,6 @@ APRINTER_ALIAS_STRUCT_EXT(HookExecutorArg, (
     APRINTER_DEF_INSTANCE(HookExecutorArg, HookExecutor)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

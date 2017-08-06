@@ -30,7 +30,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/PowerOfTwo.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits, bool Signed, int ShiftCount>
 class IntShiftRight {
@@ -77,6 +77,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

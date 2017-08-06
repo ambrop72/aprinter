@@ -31,7 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MemberType.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace ListCollectImpl {
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_Key, Key)
@@ -182,6 +182,6 @@ using ListCollect = JoinTypeListList<
 template <typename List, typename GroupFunc>
 using ListGroup = TypeListFold<List, EmptyTypeList, ListCollectImpl::template GroupHelper<GroupFunc>::template GroupFoldFunc>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

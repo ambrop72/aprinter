@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(InputClientParams, (
     APRINTER_AS_TYPE(ThePrinterMain),
@@ -36,6 +36,6 @@ APRINTER_ALIAS_STRUCT(InputClientParams, (
     APRINTER_AS_TYPE(StartHandler)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

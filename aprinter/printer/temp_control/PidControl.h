@@ -31,7 +31,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class PidControl {
@@ -107,6 +107,6 @@ APRINTER_ALIAS_STRUCT_EXT(PidControlService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

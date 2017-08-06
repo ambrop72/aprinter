@@ -47,7 +47,7 @@
 #include <aprinter/printer/utils/ModuleUtils.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class SdCardModule {
@@ -596,6 +596,6 @@ APRINTER_ALIAS_STRUCT_EXT(SdCardModuleService, (
     using ProvidedServices = If<InputService::ProvidesFsAccess, MakeTypeList<ServiceDefinition<ServiceList::FsAccessService>>, EmptyTypeList>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

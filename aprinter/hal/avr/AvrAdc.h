@@ -40,7 +40,7 @@
 #include <aprinter/hal/avr/AvrPins.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TPin1, typename TPin2, int TGain>
 struct AvrAdcDifferentialInput {};
@@ -400,6 +400,6 @@ ISR(ADC_vect) \
     adc::adc_isr(MakeAtomicContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

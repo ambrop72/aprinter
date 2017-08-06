@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static constexpr uint32_t ConstexprCrc32__Table[256] = {
     UINT32_C(0x00000000), UINT32_C(0x77073096), UINT32_C(0xee0e612c), UINT32_C(0x990951ba), UINT32_C(0x076dc419),
@@ -100,6 +100,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

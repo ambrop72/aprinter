@@ -33,7 +33,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class BasicTestModule {
@@ -122,6 +122,6 @@ struct BasicTestModuleService {
     APRINTER_MODULE_TEMPLATE(BasicTestModuleService, BasicTestModule)
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

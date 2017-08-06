@@ -31,7 +31,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace ClockUtilsPrivate {
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_Clock, Clock)
@@ -139,6 +139,6 @@ using FastClockUtils = ClockUtilsForClock<
     >
 >;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

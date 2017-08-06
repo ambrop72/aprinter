@@ -35,7 +35,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SoftPwm {
@@ -195,6 +195,6 @@ APRINTER_ALIAS_STRUCT_EXT(SoftPwmService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -28,7 +28,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TimedEvent>
 class TimedEventCompat :
@@ -69,6 +69,6 @@ private:
     HandlerType m_handler;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

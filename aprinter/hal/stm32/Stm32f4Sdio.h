@@ -40,7 +40,7 @@
 #include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class Stm32f4Sdio {
@@ -652,6 +652,6 @@ struct Stm32f4SdioService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -41,7 +41,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/DhcpProto.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Implementation of DHCP option reading and writing for @ref IpDhcpClient.
@@ -480,6 +480,6 @@ private:
     };
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

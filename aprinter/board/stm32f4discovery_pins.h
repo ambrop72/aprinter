@@ -27,7 +27,7 @@
 
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using DiscoveryPinLedGreen = Stm32f4Pin<Stm32f4PortD, 12>;
 using DiscoveryPinLedOrange = Stm32f4Pin<Stm32f4PortD, 13>;
@@ -64,6 +64,6 @@ PC8 PC9 PC10 PC11 PC12 PD2
 Optional for card detection: PA8
 */
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

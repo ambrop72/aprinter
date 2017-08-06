@@ -38,7 +38,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(StepperDef, (
     APRINTER_AS_TYPE(DirPin),
@@ -223,6 +223,6 @@ APRINTER_ALIAS_STRUCT_EXT(SteppersArg, (
     APRINTER_DEF_INSTANCE(SteppersArg, Steppers)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

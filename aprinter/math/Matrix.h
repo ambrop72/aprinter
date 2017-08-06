@@ -30,7 +30,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TTMaybeConst>
 class MatrixRange {
@@ -346,6 +346,6 @@ void MatrixElemOpScalarInPlace (M1 m1, typename M1::T s, Predicate p = Predicate
     }
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -33,7 +33,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class Blinker {
@@ -117,6 +117,6 @@ APRINTER_ALIAS_STRUCT_EXT(BlinkerArg, (
     APRINTER_DEF_INSTANCE(BlinkerArg, Blinker)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

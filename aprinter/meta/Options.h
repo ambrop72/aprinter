@@ -25,10 +25,10 @@
 #ifndef AMBROLIB_OPTIONS_H
 #define AMBROLIB_OPTIONS_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct OptionForceInline {};
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

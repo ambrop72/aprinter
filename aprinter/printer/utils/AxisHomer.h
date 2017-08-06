@@ -41,7 +41,7 @@
 #include <aprinter/printer/planning/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class AxisHomerGlobal {
@@ -327,6 +327,6 @@ APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

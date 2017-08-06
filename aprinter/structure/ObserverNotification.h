@@ -27,7 +27,7 @@
 
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 class ObserverNotification
 {
@@ -221,6 +221,6 @@ public:
 using Observable = ObserverNotification::Observable;
 using Observer = ObserverNotification::Observer;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

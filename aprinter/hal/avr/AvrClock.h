@@ -50,7 +50,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/hal/avr/AvrPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using AvrClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
@@ -1062,6 +1062,6 @@ struct AvrClockPwmService {
     using Pwm = AvrClockPwm<Context, ParentObject, TcChannel, Pin>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

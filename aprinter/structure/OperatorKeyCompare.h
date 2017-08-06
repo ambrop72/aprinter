@@ -25,7 +25,7 @@
 #ifndef APRINTER_OPERATOR_KEY_COMPARE_H
 #define APRINTER_OPERATOR_KEY_COMPARE_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 /**
  * Provides static CompareKeys and KeysAreEqual functions
@@ -47,6 +47,6 @@ public:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

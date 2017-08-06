@@ -37,7 +37,7 @@
 
 #include <aipstack/tcp/TcpUtils.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Implements maintaining information about received
@@ -372,6 +372,6 @@ APRINTER_ALIAS_STRUCT_EXT(TcpOosBufferService, (
     APRINTER_DEF_INSTANCE(TcpOosBufferService, TcpOosBuffer)
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

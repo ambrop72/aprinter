@@ -39,7 +39,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Tcp4Proto.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 class TcpUtils {
     APRINTER_USE_ONEOF
@@ -405,6 +405,6 @@ public:
     }
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

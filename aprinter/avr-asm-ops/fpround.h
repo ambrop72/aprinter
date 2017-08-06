@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/PowerOfTwo.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int SaturateBits>
 static uint32_t fpround_u32 (float op)
@@ -239,6 +239,6 @@ static uint32_t fpround_u32 (float op)
     return res;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -31,7 +31,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/proto/Ip4Proto.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 APRINTER_TSTRUCT(Tcp4Header,
     (SrcPort,     uint16_t)
@@ -66,6 +66,6 @@ static uint8_t const TcpOptionWndScale = 3;
 
 static size_t const Ip4TcpHeaderSize = Ip4Header::Size + Tcp4Header::Size;
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

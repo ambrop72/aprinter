@@ -45,7 +45,7 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class TcpConsoleModule {
@@ -406,6 +406,6 @@ APRINTER_ALIAS_STRUCT_EXT(TcpConsoleModuleService, (
     APRINTER_MODULE_TEMPLATE(TcpConsoleModuleService, TcpConsoleModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

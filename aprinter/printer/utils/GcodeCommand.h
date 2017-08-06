@@ -29,7 +29,7 @@
 
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 enum GcodeError {
     GCODE_ERROR_NO_PARTS = -1,
@@ -113,6 +113,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

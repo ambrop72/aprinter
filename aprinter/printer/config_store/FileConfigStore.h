@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/fs/BufferedFile.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class FileConfigStore {
@@ -252,6 +252,6 @@ struct FileConfigStoreService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

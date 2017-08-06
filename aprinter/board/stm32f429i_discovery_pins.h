@@ -27,7 +27,7 @@
 
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using DiscoveryPinLedGreen = Stm32f4Pin<Stm32f4PortG, 13>;
 using DiscoveryPinLedRed = Stm32f4Pin<Stm32f4PortG, 14>;
@@ -70,6 +70,6 @@ PB3 PA13 PA14
 
 */
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

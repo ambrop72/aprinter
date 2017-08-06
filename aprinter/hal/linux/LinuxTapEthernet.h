@@ -52,7 +52,7 @@
 #include <aipstack/misc/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class LinuxTapEthernet {
@@ -326,6 +326,6 @@ struct LinuxTapEthernetService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

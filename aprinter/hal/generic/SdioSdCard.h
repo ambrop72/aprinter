@@ -39,7 +39,7 @@
 #include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class SdioSdCard {
@@ -504,6 +504,6 @@ APRINTER_ALIAS_STRUCT_EXT(SdioSdCardService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

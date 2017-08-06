@@ -34,7 +34,7 @@
 #include <aprinter/hal/generic/SimpleSpi.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <
     uint32_t TSpiAddr,
@@ -171,6 +171,6 @@ void SPI_Handler (void) \
 
 #endif
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

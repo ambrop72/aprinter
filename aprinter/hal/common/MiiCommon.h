@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <
     typename TActivateHandler,
@@ -88,6 +88,6 @@ struct PhyClientParams {
     using PhyRequester = TPhyRequester;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

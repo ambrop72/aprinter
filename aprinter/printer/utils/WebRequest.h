@@ -33,7 +33,7 @@
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/printer/utils/JsonBuilder.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context>
 class WebRequestCallback {
@@ -153,6 +153,6 @@ private:
     WebRequest<Context> *m_request;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

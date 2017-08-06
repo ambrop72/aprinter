@@ -40,7 +40,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_AT91SAM_I2C_DEFINE_DEVICE(Index) \
 struct At91SamI2cDevice##Index { \
@@ -283,6 +283,6 @@ void TWI##TheDeviceIndex##_Handler (void) \
     TheI2c::twi_irq(MakeInterruptContext((context))); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

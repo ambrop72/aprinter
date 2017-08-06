@@ -37,7 +37,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/hal/avr/AvrIo.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define AMBRO_DEFINE_AVR_PORT(ClassName, PortReg, PinReg, DdrReg) \
 struct ClassName { \
@@ -231,6 +231,6 @@ struct AvrPinsService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

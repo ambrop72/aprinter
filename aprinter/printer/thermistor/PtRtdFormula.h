@@ -29,7 +29,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class PtRtdFormula {
@@ -104,6 +104,6 @@ APRINTER_ALIAS_STRUCT_EXT(PtRtdFormulaService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

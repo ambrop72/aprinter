@@ -33,7 +33,7 @@
 #include <aprinter/structure/AvlTree.h>
 #include <aprinter/structure/TreeCompare.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class AvlTreeIndex {
@@ -111,6 +111,6 @@ struct AvlTreeIndexService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

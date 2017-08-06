@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class AdcAnalogInput {
@@ -79,6 +79,6 @@ APRINTER_ALIAS_STRUCT_EXT(AdcAnalogInputService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

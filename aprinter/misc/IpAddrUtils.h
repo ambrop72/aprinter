@@ -30,7 +30,7 @@
 
 #include <aprinter/base/LoopUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct IpAddrUtils
 {
@@ -75,6 +75,6 @@ struct IpAddrUtils
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

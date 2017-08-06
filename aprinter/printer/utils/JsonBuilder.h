@@ -38,7 +38,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/math/FloatTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct JsonUint32 {
     uint32_t val;
@@ -323,6 +323,6 @@ private:
     bool m_inhibit_comma;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

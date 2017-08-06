@@ -25,7 +25,7 @@
 #ifndef APRINTER_BASIC_META_UTILS_H
 #define APRINTER_BASIC_META_UTILS_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // DedummyIndexTemplate
 
@@ -154,6 +154,6 @@ using WrapInt = WrapValue<int, Value>;
 
 #define AMBRO_WRAP_DOUBLE(Value) APRINTER_WRAP_COMPLEX_VALUE(double, (Value))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

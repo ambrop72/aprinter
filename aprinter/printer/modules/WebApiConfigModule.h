@@ -33,7 +33,7 @@
 #include <aprinter/printer/utils/WebRequest.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class WebApiConfigModule {
@@ -112,6 +112,6 @@ struct WebApiConfigModuleService {
     using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::WebApiHandlerService>>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

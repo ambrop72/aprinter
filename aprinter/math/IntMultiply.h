@@ -36,7 +36,7 @@
 #include <aprinter/avr-asm-ops/mul.h>
 #endif
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int RightShift>
 class IntMultiply {
@@ -73,6 +73,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

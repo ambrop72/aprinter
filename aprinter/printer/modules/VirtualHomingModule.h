@@ -38,7 +38,7 @@
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class VirtualHomingModule {
@@ -358,6 +358,6 @@ APRINTER_ALIAS_STRUCT_EXT(VirtualHomingModuleService, (
     >;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

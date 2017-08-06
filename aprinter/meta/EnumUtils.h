@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename EnumType>
 constexpr inline auto ToUnderlyingType (EnumType e)
@@ -76,6 +76,6 @@ constexpr bool IsSameOrEnumWithBaseType ()
 template <typename Type>
 using GetSameOrEnumBaseType = typename Private::GetSameOrBaseTypeHelper<std::is_enum<Type>::value, Type>::ResultType;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

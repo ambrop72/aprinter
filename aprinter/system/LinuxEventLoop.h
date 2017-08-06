@@ -59,7 +59,7 @@
 #include <aprinter/misc/ClockUtils.h>
 #include <aprinter/system/TimedEventCompat.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename> class LinuxEventLoopQueuedEvent;
 template <typename> class LinuxEventLoopTimedEvent;
@@ -1001,6 +1001,6 @@ private:
     int m_events;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

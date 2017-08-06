@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int TNumBits, bool TSigned>
 struct IntTypeInfoHelper {
@@ -81,6 +81,6 @@ DEFINE_TYPEINFO(__int24, __uint24)
 template <typename T>
 using IntTypeInfo = decltype(IntTypeInfoFunc(WrapType<T>()));
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

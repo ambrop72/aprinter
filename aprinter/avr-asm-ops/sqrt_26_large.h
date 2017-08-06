@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/Options.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define SQRT_26_ITER_3_5(i) \
 "    cp %D[x],%B[goo]\n" \
@@ -156,6 +156,6 @@ static uint16_t sqrt_26_large_round (uint32_t x, Option opt = 0)
     return sqrt_26_large_round(x, OptionForceInline());
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

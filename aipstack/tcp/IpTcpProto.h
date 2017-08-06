@@ -60,7 +60,7 @@
 #include "IpTcpProto_input.h"
 #include "IpTcpProto_output.h"
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * TCP protocol implementation.
@@ -944,6 +944,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     ))
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

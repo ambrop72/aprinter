@@ -30,7 +30,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <class, class, bool>
 class DoubleEndedListWithAccessor;
@@ -165,6 +165,6 @@ class DoubleEndedListForBase : public DoubleEndedListWithAccessor<
     WithLast
 > {};
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

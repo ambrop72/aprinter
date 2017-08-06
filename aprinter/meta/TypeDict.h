@@ -28,7 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TKey, typename TValue>
 struct TypeDictEntry {
@@ -109,6 +109,6 @@ using TypeDictFind = TypeDictFindNoDupl<TypeDictRemoveDuplicatesAndReverse<Entri
 template <typename EntriesList, typename Key, typename Default>
 using TypeDictGetOrDefault = typename Private::template TypeDictDefaultHelper<Default, TypeDictFind<EntriesList, Key>>::Result;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -37,7 +37,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/math/PrintInt.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 struct IsFpType {
@@ -374,6 +374,6 @@ public:
     static constexpr FpType Value = helper(MaxInt);
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -28,7 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // See: http://stackoverflow.com/questions/24088373/building-a-compile-time-list-incrementally-in-c
 
@@ -53,6 +53,6 @@ using Name = APrinter::TypeListReverse<decltype(Name##__Helper(APrinter::TypeLis
 #define APRINTER_START_LIST_FUNC(Name) APRINTER_START_LIST_INTERNAL(Name,)
 #define APRINTER_ADD_TO_LIST_FUNC(Name, Type) APRINTER_ADD_TO_LIST_INTERNAL(Name, Type,)
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

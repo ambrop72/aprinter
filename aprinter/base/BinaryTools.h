@@ -32,7 +32,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace Private {
     template <int Bits>
@@ -205,6 +205,6 @@ inline void WriteBinaryInt (Type value, char *dst)
     return Private::BinaryToolsHelper<TypeInfo::Signed>::template write_it<Type, Endian::BigEndian>(value, dst);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -46,7 +46,7 @@ struct At91Sam3xClock__IrqCompHelper {
     static void call () {}
 };
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <uint32_t TAddr, int TId, enum IRQn TIrq>
 struct At91Sam3xClockTC {
@@ -410,6 +410,6 @@ struct At91Sam3xClock__IrqCompHelper<tcspec, comp> { \
     } \
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

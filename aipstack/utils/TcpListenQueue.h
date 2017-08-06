@@ -35,7 +35,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 template <
     typename Context,
@@ -389,6 +389,6 @@ public:
     };
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

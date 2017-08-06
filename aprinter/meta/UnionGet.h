@@ -30,7 +30,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Union.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TheUnion, int Index>
 struct UnionGet;
@@ -77,6 +77,6 @@ auto UnionGetElem (UnionType *tuple) -> decltype(UnionGet<typename UnionType::El
     return UnionGet<typename UnionType::ElemTypes, Index>::getElem(tuple);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

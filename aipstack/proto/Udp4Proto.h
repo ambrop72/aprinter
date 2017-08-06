@@ -29,7 +29,7 @@
 
 #include <aipstack/misc/Struct.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 APRINTER_TSTRUCT(Udp4Header,
     (SrcPort,     uint16_t)
@@ -38,6 +38,6 @@ APRINTER_TSTRUCT(Udp4Header,
     (Checksum,    uint16_t)
 )
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

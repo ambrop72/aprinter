@@ -38,7 +38,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class EepromConfigStore {
@@ -327,6 +327,6 @@ APRINTER_ALIAS_STRUCT_EXT(EepromConfigStoreService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

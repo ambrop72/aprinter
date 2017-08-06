@@ -29,7 +29,7 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkedList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 //#define APRINTER_SORTED_LIST_VERIFY 1
 
@@ -227,6 +227,6 @@ struct SortedListService {
     using Structure = SortedList<Accessor, Compare, LinkModel>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

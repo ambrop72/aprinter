@@ -29,7 +29,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ServiceUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class IdentityTransform {
@@ -81,6 +81,6 @@ APRINTER_ALIAS_STRUCT_EXT(IdentityTransformService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

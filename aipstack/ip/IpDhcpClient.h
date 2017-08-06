@@ -55,7 +55,7 @@
 #include <aipstack/ip/hw/IpEthHw.h>
 #include <aipstack/ip/IpDhcpClient_options.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 /**
  * Type of DHCP client event as reported by
@@ -1472,6 +1472,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
     ))
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

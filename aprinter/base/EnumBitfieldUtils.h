@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/EnumUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 /**
  * Dummy type used with == and != operators for checking if a bitfield enum is zero.
@@ -95,6 +95,6 @@ APRINTER_ENUM_COMPOUND_OP(EnumType, &) \
 APRINTER_ENUM_COMPOUND_OP(EnumType, ^) \
 APRINTER_ENUM_ZERO_OPS(EnumType)
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

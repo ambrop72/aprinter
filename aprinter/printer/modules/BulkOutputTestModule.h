@@ -37,7 +37,7 @@
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_BULKOUTPUT_TEST_DATA "0123456789ABCDEF"
 
@@ -161,6 +161,6 @@ struct BulkOutputTestModuleService {
     APRINTER_MODULE_TEMPLATE(BulkOutputTestModuleService, BulkOutputTestModule)
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

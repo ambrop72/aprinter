@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_PRINT_INT_H
 #define AMBROLIB_PRINT_INT_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 static int PrintNonnegativeIntDecimal (T x, char *s)
@@ -45,6 +45,6 @@ static int PrintNonnegativeIntDecimal (T x, char *s)
     return len;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

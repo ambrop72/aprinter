@@ -28,7 +28,7 @@
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 constexpr T MinValue (T op1, T op2)
@@ -70,6 +70,6 @@ constexpr MinValueURetType<T1, T2> MinValueU (T1 op1, T2 op2)
     }
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

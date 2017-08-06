@@ -44,7 +44,7 @@
 
 #include <aipstack/misc/Err.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class At91SamEmacMii {
@@ -418,6 +418,6 @@ struct At91SamEmacMiiService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

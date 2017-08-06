@@ -27,7 +27,7 @@
 
 #include "InterpolationTableThermistor.h"
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 // NOTE: Tables must always be sorted by voltage regardless of
 // positive/negative slope.
@@ -83,6 +83,6 @@ APRINTER_DEFINE_INTERPOLATION_TABLE(InterpolationTableE3dPt100, false, 5.0, ({
     {4.73,  1100.0},
 }))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

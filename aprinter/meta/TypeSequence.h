@@ -25,11 +25,11 @@
 #ifndef AMBROLIB_TYPE_SEQUENCE_H
 #define AMBROLIB_TYPE_SEQUENCE_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename... Types>
 struct TypeSequence {};
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

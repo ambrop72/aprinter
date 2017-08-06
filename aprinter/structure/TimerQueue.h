@@ -35,7 +35,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/structure/TreeCompare.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename, typename, typename, typename, typename>
 class TimerQueue;
@@ -300,6 +300,6 @@ APRINTER_ALIAS_STRUCT_EXT(TimerQueueService, (
                              TimeType, NodeUserData>;
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

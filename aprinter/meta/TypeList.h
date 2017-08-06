@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_TYPE_LIST_H
 #define AMBROLIB_TYPE_LIST_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct EmptyTypeList {};
 
@@ -35,6 +35,6 @@ struct ConsTypeList {
     typedef TTail Tail;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

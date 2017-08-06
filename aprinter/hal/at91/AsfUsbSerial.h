@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 extern "C" uint32_t udi_cdc_get_free_tx_buffer (void);
 extern "C" uint32_t udi_cdc_write_buf (const void* buf, uint32_t size);
@@ -294,6 +294,6 @@ struct AsfUsbSerialService {
     using Serial = AsfUsbSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, AsfUsbSerialService>;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

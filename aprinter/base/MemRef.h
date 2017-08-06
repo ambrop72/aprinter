@@ -30,7 +30,7 @@
 
 #include <aprinter/base/Assert.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct MemRef {
     char const *ptr;
@@ -99,6 +99,6 @@ struct MemRef {
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

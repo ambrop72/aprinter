@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/TypeList.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename List>
 struct Tuple;
@@ -70,6 +70,6 @@ struct Tuple<ConsTypeList<TElemType, TTailTypes>>
     ElemType elem;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

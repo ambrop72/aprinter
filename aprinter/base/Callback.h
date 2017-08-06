@@ -25,7 +25,7 @@
 #ifndef APRINTER_CALLBACK_H
 #define APRINTER_CALLBACK_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename>
 class Callback;
@@ -107,6 +107,6 @@ namespace CallbackPrivate {
 #define APRINTER_CB_STATFUNC(func) (decltype(APrinter::CallbackPrivate::MakeStatHelper(func))::WithFunc<func>::MakeCallback())
 #define APRINTER_CB_STATFUNC_T(func) (decltype(APrinter::CallbackPrivate::MakeStatHelper(func))::template WithFunc<func>::MakeCallback())
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

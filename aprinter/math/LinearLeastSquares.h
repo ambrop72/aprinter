@@ -30,7 +30,7 @@
 #include <aprinter/math/MatrixQr.h>
 #include <aprinter/math/MatrixSolveUpperTriangular.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int MaxRows, int MaxCols, typename MX, typename MY, typename MBeta>
 void LinearLeastSquaresMaxSize (MX mx, MY my, MBeta mbeta)
@@ -58,6 +58,6 @@ void LinearLeastSquaresMaxSize (MX mx, MY my, MBeta mbeta)
     MatrixSolveUpperTriangular(r_buf++.range(0, 0, cols, cols), mqtyn++, mbeta--);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

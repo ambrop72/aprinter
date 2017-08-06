@@ -59,7 +59,7 @@
 
 #ifdef __cplusplus
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 class ProgPtr {
@@ -104,7 +104,7 @@ public:
     T const *m_ptr;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif
 

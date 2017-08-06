@@ -30,7 +30,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename... Ts>
 struct MakeTypeListHelper;
@@ -509,6 +509,6 @@ using IndexElemListCount = MapTypeList<SequenceList<Count>, ValueTemplateFunc<in
 template <typename List, template<int> class ElemTemplate>
 using IndexElemList = IndexElemListCount<TypeListLength<List>::Value, ElemTemplate>;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

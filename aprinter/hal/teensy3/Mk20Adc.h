@@ -37,7 +37,7 @@
 #include <aprinter/hal/teensy3/Mk20Pins.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct Mk20AdcUnsupportedInput {};
 
@@ -231,6 +231,6 @@ void adc0_isr (void) \
     adc::adc_isr(MakeInterruptContext(context)); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

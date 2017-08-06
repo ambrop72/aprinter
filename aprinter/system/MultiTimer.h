@@ -32,7 +32,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename TimedEvent, typename MT, typename TimerId>
 class MultiTimerOne
@@ -234,6 +234,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

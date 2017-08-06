@@ -33,7 +33,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename TheFsAccess>
 class BufferedFile {
@@ -372,6 +372,6 @@ private:
     };
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

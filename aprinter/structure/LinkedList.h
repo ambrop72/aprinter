@@ -30,7 +30,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename, typename, bool>
 class LinkedList;
@@ -294,6 +294,6 @@ private:
     }
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

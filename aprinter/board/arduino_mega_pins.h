@@ -27,7 +27,7 @@
 
 #include <aprinter/hal/avr/AvrPins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using MegaPin0 = AvrPin<AvrPortE, 0>;
 using MegaPin1 = AvrPin<AvrPortE, 1>;
@@ -117,6 +117,6 @@ using MegaPinA13 = MegaPin67;
 using MegaPinA14 = MegaPin68;
 using MegaPinA15 = MegaPin69;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

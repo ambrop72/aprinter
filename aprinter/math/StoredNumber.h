@@ -31,7 +31,7 @@
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <int NumBits, bool Signed, typename Dummy = void>
 class StoredNumber {
@@ -92,6 +92,6 @@ public:
 
 #endif
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

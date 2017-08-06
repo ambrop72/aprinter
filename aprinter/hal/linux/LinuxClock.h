@@ -43,7 +43,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/misc/ClockUtils.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename>
 class LinuxClockInterruptTimer;
@@ -385,6 +385,6 @@ APRINTER_ALIAS_STRUCT_EXT(LinuxClockInterruptTimerService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

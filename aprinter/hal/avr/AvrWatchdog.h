@@ -35,7 +35,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class AvrWatchdog {
@@ -106,6 +106,6 @@ void clear_mcusr () \
     wdt_disable(); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

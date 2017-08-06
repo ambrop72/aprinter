@@ -31,7 +31,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/MemRef.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 struct WrapBuffer {
     WrapBuffer () = default;
@@ -76,6 +76,6 @@ struct WrapBuffer {
     char *ptr2;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

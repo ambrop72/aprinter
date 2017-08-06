@@ -48,7 +48,7 @@ struct Stm32f4Clock__IrqCompHelper {
     static void call () {}
 };
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using Stm32f4ClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
@@ -445,6 +445,6 @@ struct Stm32f4Clock__IrqCompHelper<tcspec, comp> { \
     } \
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

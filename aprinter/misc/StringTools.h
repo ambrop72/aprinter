@@ -32,7 +32,7 @@
 #include <aprinter/base/MemRef.h>
 #include <aprinter/base/Hints.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 static char AsciiToLower (char c)
 {
@@ -194,6 +194,6 @@ static bool StringParseHexadecimal (MemRef data, uint64_t *out)
     return true;
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

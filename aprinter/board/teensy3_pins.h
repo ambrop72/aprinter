@@ -27,7 +27,7 @@
 
 #include <aprinter/hal/teensy3/Mk20Pins.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 using TeensyPin0 = Mk20Pin<Mk20PortB, 16>;
 using TeensyPin1 = Mk20Pin<Mk20PortB, 17>;
@@ -75,6 +75,6 @@ using TeensyPinA7 = TeensyPin21;
 using TeensyPinA8 = TeensyPin22;
 using TeensyPinA9 = TeensyPin23;
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

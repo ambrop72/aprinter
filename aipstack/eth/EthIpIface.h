@@ -55,7 +55,7 @@
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/hw/IpEthHw.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 struct EthIfaceState {
     bool link_up;
@@ -877,6 +877,6 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
     ))
 ))
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

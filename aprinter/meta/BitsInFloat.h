@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_BITS_IN_FLOAT_H
 #define AMBROLIB_BITS_IN_FLOAT_H
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename T>
 static constexpr int BitsInFloatHelper1 (T x)
@@ -45,6 +45,6 @@ static constexpr int BitsInFloat (T x)
     return (x >= 0.5) ? BitsInFloatHelper1(x) : BitsInFloatHelper2(x);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

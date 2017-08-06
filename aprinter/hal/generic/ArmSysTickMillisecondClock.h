@@ -30,7 +30,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename ParentObject>
 class ArmSysTickMillisecondClock {
@@ -85,6 +85,6 @@ void SysTick_Handler (void) \
     TheClock::systick_handler(MakeInterruptContext((context))); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

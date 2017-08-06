@@ -54,7 +54,7 @@
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename ModuleArg>
 class WebInterfaceModule {
@@ -1043,6 +1043,6 @@ APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
     APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

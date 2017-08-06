@@ -30,7 +30,7 @@
 #include <aprinter/math/MatrixSolveUpperTriangular.h>
 #include <aprinter/math/FloatTools.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename MV, typename MA, typename MColBuf>
 void MatrixTransformHouseholder (MV mv, MA ma, MColBuf col_buf)
@@ -107,6 +107,6 @@ void MatrixQrHouseholder (MA ma, MR mr, MColBuf col_buf, MRowBuf row_buf)
     }
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

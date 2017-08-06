@@ -46,7 +46,7 @@
 #include <aprinter/printer/Console.h>
 #endif
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class MiiEthernet {
@@ -262,6 +262,6 @@ struct MiiEthernetService {
     ))
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

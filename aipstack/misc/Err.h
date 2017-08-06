@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aipstack/BeginNamespace.h>
+namespace AIpStack {
 
 enum class IpErr : uint8_t {
     SUCCESS         = 0,
@@ -45,6 +45,6 @@ enum class IpErr : uint8_t {
     LINK_DOWN       = 12,
 };
 
-#include <aipstack/EndNamespace.h>
+}
 
 #endif

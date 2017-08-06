@@ -54,7 +54,7 @@
 #include <aprinter/printer/planning/LinearPlanner.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 APRINTER_ALIAS_STRUCT(MotionPlannerAxisSpec, (
     APRINTER_AS_TYPE(TheAxisDriver),
@@ -1602,6 +1602,6 @@ APRINTER_ALIAS_STRUCT_EXT(MotionPlannerArg, (
     APRINTER_DEF_INSTANCE(MotionPlannerArg, MotionPlanner)
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

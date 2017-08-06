@@ -32,7 +32,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/OneOf.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Context, typename TheFsAccess>
 class DirLister {
@@ -176,6 +176,6 @@ private:
     };
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

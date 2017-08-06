@@ -33,7 +33,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <bool UseBitInstrs>
 struct AvrIoBitRegHelper {
@@ -163,6 +163,6 @@ void avrSoftClearBitReg (uint8_t bit)
     _SFR_IO8(IoAddr) &= ~(1 << bit);
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

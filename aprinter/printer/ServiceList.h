@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 namespace ServiceList {
     struct FsAccessService {};
@@ -47,6 +47,6 @@ struct ServiceDefinition {
     using UserId = TUserId;
 };
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

@@ -34,7 +34,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 template <typename Arg>
 class DeltaTransform {
@@ -132,6 +132,6 @@ APRINTER_ALIAS_STRUCT_EXT(DeltaTransformService, (
     ))
 ))
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif

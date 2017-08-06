@@ -35,7 +35,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aprinter/BeginNamespace.h>
+namespace APrinter {
 
 #define APRINTER_AT91SAM3X_FLASH_DEFINE_DEVICE(Index) \
 struct At91Sam3xFlashDevice##Index { \
@@ -176,6 +176,6 @@ void EFC##TheDeviceIndex##_Handler (void) \
     TheFlash::efc_irq(MakeInterruptContext((context))); \
 }
 
-#include <aprinter/EndNamespace.h>
+}
 
 #endif
