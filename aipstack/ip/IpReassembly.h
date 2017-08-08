@@ -41,6 +41,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
+#include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {
 
@@ -66,7 +67,9 @@ class IpReassembly :
 {
     APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
                                     MaxReassTimeSeconds))
-    APRINTER_USE_TYPES1(Arg, (Context))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl, Context))
+    
+    using Platform = PlatformFacade<PlatformImpl>;
     
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
@@ -130,7 +133,7 @@ public:
     /**
      * Initialize reassembly.
      */
-    void init ()
+    IpReassembly (Platform platform)
     {
         // Initialize the timer.
         tim(PurgeTimer()).init(Context());
@@ -147,7 +150,7 @@ public:
     /**
      * Deinitialize reassembly.
      */
-    void deinit ()
+    ~IpReassembly ()
     {
         // Deinitialize the timer.
         tim(PurgeTimer()).deinit(Context());
@@ -494,6 +497,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpReassemblyService, (
     APRINTER_AS_VALUE(uint8_t, MaxReassTimeSeconds)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(Context)
     ), (
         using Params = IpReassemblyService;

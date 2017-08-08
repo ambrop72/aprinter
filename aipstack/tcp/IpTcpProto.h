@@ -353,12 +353,12 @@ public:
      * 
      * The TCP will register itself with the IpStack to receive incoming TCP packets.
      */
-    void init (TheIpStack *stack)
+    IpTcpProto (IpProtocolHandlerArgs<TheIpStack> args)
     {
-        AMBRO_ASSERT(stack != nullptr)
+        AMBRO_ASSERT(args.stack != nullptr)
         
         // Remember things.
-        m_stack = stack;
+        m_stack = args.stack;
         
         // Initialize the list of listeners.
         m_listeners_list.init();
@@ -400,7 +400,7 @@ public:
      * Any TCP listeners and connections must have been deinited.
      * It is not permitted to call this from any TCP callbacks.
      */
-    void deinit ()
+    ~IpTcpProto ()
     {
         AMBRO_ASSERT(m_listeners_list.isEmpty())
         AMBRO_ASSERT(m_current_pcb == nullptr)

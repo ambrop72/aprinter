@@ -154,6 +154,19 @@ using WrapInt = WrapValue<int, Value>;
 
 #define AMBRO_WRAP_DOUBLE(Value) APRINTER_WRAP_COMPLEX_VALUE(double, (Value))
 
+// GetReturnType
+
+template <typename Func>
+struct GetReturnTypeHelper;
+
+template <typename Ret, typename... Args>
+struct GetReturnTypeHelper<Ret(Args...)> {
+    using Result = Ret;
+};
+
+template <typename Func>
+using GetReturnType = typename GetReturnTypeHelper<Func>::Result;
+
 }
 
 #endif

@@ -37,6 +37,8 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
+#include <aprinter/base/NonCopyable.h>
+#include <aprinter/base/ManualRaii.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 
@@ -47,12 +49,16 @@
 #include <aipstack/ip/IpDhcpClient.h>
 #include <aipstack/tcp/IpTcpProto.h>
 #include <aipstack/eth/EthIpIface.h>
+#include <aipstack/platform/PlatformFacade.h>
 
 namespace APrinter {
 
 template <typename Arg>
 class IpStackNetwork {
     APRINTER_USE_TYPES1(Arg, (Context, ParentObject, Params))
+    
+    APRINTER_USE_TYPES1(Context, (Clock, EventLoop))
+    APRINTER_USE_TYPES1(EventLoop, (TimedEventNew))
     
     APRINTER_USE_TYPES2(AIpStack, (EthHeader, Ip4Header, Tcp4Header, IpBufRef, IpBufNode,
                                    MacAddr, IpErr, Ip4Addr, EthIfaceState,
@@ -72,12 +78,78 @@ class IpStackNetwork {
     static size_t const TcpMaxMSS = EthMTU - EthHeader::Size - Ip4Header::Size - Tcp4Header::Size;
     static_assert(TcpMaxMSS == 1460, "");
     
+    static uint8_t const IpTTL = 64;
+    static bool const AllowBroadcastPing = false;
+    
 public:
     struct Object;
     
 private:
-    static uint8_t const IpTTL = 64;
-    static bool const AllowBroadcastPing = false;
+    class PlatformImpl
+    {
+        using PlatformRef = AIpStack::PlatformRef<PlatformImpl>;
+        
+    public:
+        static bool const ImplIsStatic = true;
+        
+        using TimeType = typename Clock::TimeType;
+        
+        static constexpr double TimeFreq = Clock::time_freq;
+        
+        static TimeType getTime ()
+        {
+            return Clock::getTime(Context());
+        }
+        
+        class Timer :
+            public PlatformRef,
+            private TimedEventNew,
+            private NonCopyable
+        {
+        public:
+            Timer (PlatformRef ref) :
+                PlatformRef(ref)
+            {
+                TimedEventNew::init(Context());
+            }
+            
+            ~Timer ()
+            {
+                TimedEventNew::deinit(Context());
+            }
+            
+            inline bool isSet ()
+            {
+                return TimedEventNew::isSet(Context());
+            }
+            
+            inline TimeType getSetTime ()
+            {
+                return TimedEventNew::getSetTime(Context());
+            }
+            
+            void unset ()
+            {
+                return TimedEventNew::unset(Context());
+            }
+            
+            void setAt (TimeType abs_time)
+            {
+                return TimedEventNew::appendAt(Context(), abs_time);
+            }
+            
+        protected:
+            virtual void handleTimerExpired () = 0;
+            
+        private:
+            void handleTimerExpired (Context) override final
+            {
+                return handleTimerExpired();
+            }
+        };
+    };
+    
+    using Platform = AIpStack::PlatformFacade<PlatformImpl>;
     
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
         IpTTL,
@@ -98,7 +170,8 @@ private:
         typename Arg::Params::PathMtuParams,
         typename Arg::Params::ReassemblyService
     >;
-    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<Context, ProtocolServicesList>))
+    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<
+        PlatformImpl, Context, ProtocolServicesList>))
     
     using Iface = typename TheIpStack::Iface;
     
@@ -142,7 +215,7 @@ public:
         
         TheEthernet::init(c);
         o->event_listeners.init();
-        o->ip_stack.init();
+        o->ip_stack.construct(Platform());
         o->activation_state = NOT_ACTIVATED;
     }
     
@@ -152,7 +225,7 @@ public:
         AMBRO_ASSERT(o->event_listeners.isEmpty())
         
         deinit_iface();
-        o->ip_stack.deinit();
+        o->ip_stack.destruct();
         TheEthernet::deinit(c);
     }
     
@@ -189,7 +262,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        return o->ip_stack.template getProtocol<TcpProto>();
+        return o->ip_stack->template getProtocol<TcpProto>();
     }
     
     static NetworkParams getConfig (Context c)
@@ -367,12 +440,12 @@ private:
             o->activation_state = ACTIVATED;
             o->dhcp_enabled = false;
             
-            o->ip_iface.init(&o->ip_stack);
+            o->ip_iface.init(&*o->ip_stack);
             
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
                 AIpStack::IpDhcpClientInitOptions dhcp_opts;
-                o->dhcp_client.init(&o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
+                o->dhcp_client.init(&*o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
@@ -459,7 +532,7 @@ public:
         TheEthernet
     >> {
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
-        TheIpStack ip_stack;
+        APrinter::ManualRaii<TheIpStack> ip_stack;
         EthActivateState activation_state;
         bool dhcp_enabled;
         TheIpDhcpClient dhcp_client;

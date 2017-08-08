@@ -232,6 +232,11 @@ public:
     }
 };
 
+template <typename TheIpStack>
+struct IpProtocolHandlerArgs {
+    TheIpStack *stack;
+};
+
 }
 
 #endif

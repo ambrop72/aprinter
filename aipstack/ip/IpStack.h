@@ -26,6 +26,7 @@
 #define APRINTER_IPSTACK_IPSTACK_H
 
 #include <limits>
+#include <tuple>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -35,17 +36,19 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/InstantiateVariadic.h>
+#include <aprinter/meta/MakeTupleOfSame.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/EnumBitfieldUtils.h>
+#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/ObserverNotification.h>
+#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
@@ -58,6 +61,7 @@
 #include <aipstack/ip/IpPathMtuCache.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
+#include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {
 
@@ -70,22 +74,25 @@ namespace AIpStack {
  * @tparam Arg Instantiation parameters (use via @ref IpStackService).
  */
 template <typename Arg>
-class IpStack
+class IpStack :
+    private APrinter::NonCopyable
 {
-    APRINTER_USE_TYPES1(Arg, (Params, Context, ProtocolServicesList))
+    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, Context, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
     APRINTER_USE_TYPES1(Params, (PathMtuParams, ReassemblyService))
     
     APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     APRINTER_USE_VALS(APrinter, (EnumZero))
     
+    using Platform = PlatformFacade<PlatformImpl>;
+    
     APRINTER_USE_TYPE1(Context, Clock)
     APRINTER_USE_TYPE1(Clock, TimeType)
     
-    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<Context>))
+    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl, Context>))
     
     using PathMtuCacheService = IpPathMtuCacheService<PathMtuParams>;
-    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<Context, IpStack>))
+    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<PlatformImpl, Context, IpStack>))
     
     // Instantiate the protocols.
     template <int ProtocolIndex>
@@ -102,10 +109,12 @@ class IpStack
         // Helper function to get the pointer to the protocol.
         inline static Protocol * get (IpStack *stack)
         {
-            return APrinter::TupleFindElem<Protocol>(&stack->m_protocols);
+            return &std::get<ProtocolIndex>(stack->m_protocols);
         }
     };
     using ProtocolHelpersList = APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
+    
+    static int const NumProtocols = APrinter::TypeListLength<ProtocolHelpersList>::Value;
     
     // Create a list of the instantiated protocols, for the tuple.
     template <typename Helper>
@@ -114,6 +123,8 @@ class IpStack
     
     // Helper to extract IpProtocolNumber from a ProtocolHelper.
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
+    
+    using ProtocolHandlerArgs = IpProtocolHandlerArgs<IpStack>;
     
 public:
     /**
@@ -147,44 +158,25 @@ public:
     static uint16_t const MinMTU = 256;
     
     /**
-     * Initialize the IP stack.
+     * Construct the IP stack.
      */
-    void init ()
+    IpStack (Platform platform) :
+        m_reassembly(platform),
+        m_path_mtu_cache(platform, this),
+        m_next_id(0),
+        m_protocols(APrinter::MakeTupleOfSame<NumProtocols>(ProtocolHandlerArgs{this}))
     {
-        // Initialize helper objects.
-        m_reassembly.init();
-        m_path_mtu_cache.init(this);
-        
-        // Initialize the list of interfaces.
-        m_iface_list.init();
-        
-        // Initialize the packet identification counter.
-        m_next_id = 0;
-        
-        // Initialize protocol handlers.
-        APrinter::ListFor<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
-            Helper::get(this)->init(static_cast<IpStack *>(this));
-        }));
     }
     
     /**
-     * Deinitialize the IP stack.
+     * Destruct the IP stack.
      * 
      * There must be no remaining interfaces associated with this stack
-     * when this is called.
+     * when the IP stack is destructed.
      */
-    void deinit ()
+    ~IpStack ()
     {
         AMBRO_ASSERT(m_iface_list.isEmpty())
-        
-        // Deinitialize the protocol handlers.
-        APrinter::ListForReverse<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
-            Helper::get(this)->deinit();
-        }));
-        
-        // Deinitialize helper objects.
-        m_path_mtu_cache.deinit();
-        m_reassembly.deinit();
     }
     
     /**
@@ -210,7 +202,7 @@ public:
     template <typename Protocol>
     inline Protocol * getProtocol ()
     {
-        return APrinter::TupleFindElem<Protocol>(&m_protocols);
+        return &std::get<Protocol>(m_protocols);
     }
     
 public:
@@ -1692,9 +1684,9 @@ private:
 private:
     Reassembly m_reassembly;
     PathMtuCache m_path_mtu_cache;
-    IfaceList m_iface_list;
+    APrinter::StructureRaiiWrapper<IfaceList> m_iface_list;
     uint16_t m_next_id;
-    APrinter::Tuple<ProtocolsList> m_protocols;
+    APrinter::InstantiateVariadic<std::tuple, ProtocolsList> m_protocols;
 };
 
 /**
@@ -1735,6 +1727,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
      *         parameters passed to IpTcpProtoService.
      */
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(ProtocolServicesList)
     ), (

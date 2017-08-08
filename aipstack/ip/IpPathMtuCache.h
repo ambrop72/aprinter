@@ -37,6 +37,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/OneOf.h>
+#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
@@ -44,6 +45,7 @@
 
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
+#include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {
 
@@ -62,11 +64,14 @@ APRINTER_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::Context,
  */
 template <typename Arg>
 class IpPathMtuCache :
-    private IpPathMtuCacheTimers<Arg>::Timers
+    private IpPathMtuCacheTimers<Arg>::Timers,
+    private APrinter::NonCopyable
 {
-    APRINTER_USE_TYPES1(Arg, (Params, Context, IpStack))
+    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, Context, IpStack))
     APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MtuTimeoutMinutes))
     APRINTER_USE_TYPES1(Params::PathMtuParams, (MtuIndexService))
+    
+    using Platform = PlatformFacade<PlatformImpl>;
     
     APRINTER_USE_TYPES1(Context, (Clock))
     APRINTER_USE_TYPES1(Clock, (TimeType))
@@ -179,7 +184,7 @@ private:
         public APRINTER_MEMBER_ACCESSOR(&IpPathMtuCache::m_mtu_entries) {};
     
 public:
-    void init (IpStack *ip_stack)
+    IpPathMtuCache (Platform platform, IpStack *ip_stack)
     {
         // Initialize resources.
         tim(MtuTimer()).init(Context());
@@ -196,7 +201,7 @@ public:
         }
     }
     
-    void deinit ()
+    ~IpPathMtuCache ()
     {
         // Deinitialize resources.
         tim(MtuTimer()).deinit(Context());
@@ -608,6 +613,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
     APRINTER_AS_TYPE(PathMtuParams)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(IpStack)
     ), (
