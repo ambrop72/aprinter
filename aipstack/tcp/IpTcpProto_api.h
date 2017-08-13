@@ -52,8 +52,8 @@ class IpTcpProto_api
 {
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
     APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
-    APRINTER_USE_TYPES1(TcpProto, (Context, TcpPcb, Input, Output, Constants,
-                                   PcbFlags, MtuRef, OosBuffer, RttType))
+    APRINTER_USE_TYPES1(TcpProto, (TcpPcb, Input, Output, Constants, PcbFlags, MtuRef,
+                                   OosBuffer, RttType))
     
 public:
     class TcpConnection;

@@ -35,6 +35,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/meta/ResourceArray.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
@@ -44,7 +45,6 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/system/MultiTimer.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -54,6 +54,8 @@
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
 #include <aipstack/tcp/TcpOosBuffer.h>
+#include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/MultiTimer.h>
 
 #include "IpTcpProto_constants.h"
 #include "IpTcpProto_api.h"
@@ -72,10 +74,11 @@ class IpTcpProto
                                     EphemeralPortFirst, EphemeralPortLast,
                                     LinkWithArrayIndices))
     APRINTER_USE_TYPES1(Arg::Params, (PcbIndexService))
-    APRINTER_USE_TYPES1(Arg, (Context, TheIpStack))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl, TheIpStack))
     
-    APRINTER_USE_TYPE1(Context, Clock)
-    APRINTER_USE_TYPE1(Clock, TimeType)
+    using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPE1(Platform, TimeType)
+    
     APRINTER_USE_ONEOF
     
     APRINTER_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef))
@@ -143,12 +146,12 @@ private:
         // NOTE: Currently no more bits are available, see TcpPcb::flags.
     }; };
     
-    // For retransmission time calculations we right-shift the Clock time
+    // For retransmission time calculations we right-shift the TimeType
     // to obtain granularity between 1ms and 2ms.
-    static int const RttShift = APrinter::BitsInFloat(1e-3 / Clock::time_unit);
+    static int const RttShift = APrinter::BitsInFloat(1e-3 * Platform::TimeFreq);
     static_assert(RttShift >= 0, "");
     static constexpr double RttTimeFreq =
-        Clock::time_freq / APrinter::PowerOfTwoFunc<double>(RttShift);
+        Platform::TimeFreq / APrinter::PowerOfTwoFunc<double>(RttShift);
     
     // We store such scaled times in 16-bit variables.
     // This gives us a range of at least 65 seconds.
@@ -206,9 +209,8 @@ private:
     struct AbrtTimer {};
     struct OutputTimer {};
     struct RtxTimer {};
-    using PcbMultiTimer = APrinter::MultiTimer<
-        typename Context::EventLoop::TimedEventNew, TcpPcb, MultiTimerUserData,
-        AbrtTimer, OutputTimer, RtxTimer>;
+    using PcbMultiTimer = MultiTimer<PlatformImpl, TcpPcb, MultiTimerUserData,
+                                     AbrtTimer, OutputTimer, RtxTimer>;
     
     /**
      * A TCP Protocol Control Block.
@@ -223,6 +225,13 @@ private:
         // Local/remote IP address and port
         public PcbKey
     {
+        using PcbMultiTimer::platform;
+        
+        inline TcpPcb (Platform platform) :
+            PcbMultiTimer(platform)
+        {
+        }
+        
         // Node for the PCB index.
         typename PcbIndex::Node index_hook;
         
@@ -310,7 +319,7 @@ private:
         // has been changed before returning to the event loop.
         inline void doDelayedTimerUpdate ()
         {
-            PcbMultiTimer::doDelayedUpdate(Context());
+            PcbMultiTimer::doDelayedUpdate();
         }
         
         // Call doDelayedTimerUpdate if not called from input processing (pcb_input).
@@ -325,17 +334,17 @@ private:
         
         // Trampolines for timer handlers.
         
-        inline void timerExpired (AbrtTimer, Context)
+        inline void timerExpired (AbrtTimer)
         {
             pcb_abrt_timer_handler(this);
         }
         
-        inline void timerExpired (OutputTimer, Context)
+        inline void timerExpired (OutputTimer)
         {
             Output::pcb_output_timer_handler(this);
         }
         
-        inline void timerExpired (RtxTimer, Context)
+        inline void timerExpired (RtxTimer)
         {
             Output::pcb_rtx_timer_handler(this);
         }
@@ -353,7 +362,8 @@ public:
      * 
      * The TCP will register itself with the IpStack to receive incoming TCP packets.
      */
-    IpTcpProto (IpProtocolHandlerArgs<TheIpStack> args)
+    IpTcpProto (IpProtocolHandlerArgs<Platform, TheIpStack> args) :
+        m_pcbs(APrinter::ResourceArrayInitSame(), args.platform)
     {
         AMBRO_ASSERT(args.stack != nullptr)
         
@@ -378,9 +388,6 @@ public:
         m_pcb_index_timewait.init();
         
         for (TcpPcb &pcb : m_pcbs) {
-            // Initialize the PCB timers.
-            pcb.PcbMultiTimer::init(Context());
-            
             // Initialize the send-retry Request object.
             pcb.IpSendRetry::Request::init();
             
@@ -409,7 +416,6 @@ public:
             AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
             AMBRO_ASSERT(pcb.con == nullptr)
             pcb.IpSendRetry::Request::deinit();
-            pcb.PcbMultiTimer::deinit(Context());
         }
     }
     
@@ -425,6 +431,11 @@ public:
     }
     
 private:
+    inline Platform platform ()
+    {
+        return m_pcbs[0].platform();
+    }
+    
     TcpPcb * allocate_pcb ()
     {
         // No PCB available?
@@ -448,9 +459,9 @@ private:
     
     void pcb_assert_closed (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet(Context()))
-        AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet(Context()))
-        AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet(Context()))
+        AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet())
+        AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet())
+        AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet())
         AMBRO_ASSERT(!pcb->IpSendRetry::Request::isActive())
         AMBRO_ASSERT(pcb->tcp == this)
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
@@ -507,7 +518,7 @@ private:
         }
         
         // Reset other relevant fields to initial state.
-        pcb->PcbMultiTimer::unsetAll(Context());
+        pcb->PcbMultiTimer::unsetAll();
         pcb->IpSendRetry::Request::reset();
         pcb->state = TcpState::CLOSED;
         
@@ -540,14 +551,14 @@ private:
         tcp->m_pcb_index_timewait.addEntry({*pcb, *tcp}, *tcp);
         
         // Stop timers due to asserts in their handlers.
-        pcb->tim(OutputTimer()).unset(Context());
-        pcb->tim(RtxTimer()).unset(Context());
+        pcb->tim(OutputTimer()).unset();
+        pcb->tim(RtxTimer()).unset();
         
         // Clear the OUT_PENDING flag due to its preconditions.
         pcb->clearFlag(PcbFlags::OUT_PENDING);
         
         // Start the TIME_WAIT timeout.
-        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
+        pcb->tim(AbrtTimer()).setAfter(Constants::TimeWaitTimeTicks);
     }
     
     // NOTE: doDelayedTimerUpdate must be called after return.
@@ -560,8 +571,8 @@ private:
         pcb->state = TcpState::FIN_WAIT_2;
         
         // Stop these timers due to asserts in their handlers.
-        pcb->tim(OutputTimer()).unset(Context());
-        pcb->tim(RtxTimer()).unset(Context());
+        pcb->tim(OutputTimer()).unset();
+        pcb->tim(RtxTimer()).unset();
         
         // Clear the OUT_PENDING flag due to its preconditions.
         pcb->clearFlag(PcbFlags::OUT_PENDING);
@@ -655,7 +666,7 @@ private:
         // requires the connection to not be abandoned when the idle timeout expires.
         if (pcb->hasFlag(PcbFlags::IDLE_TIMER)) {
             pcb->clearFlag(PcbFlags::IDLE_TIMER);
-            pcb->tim(RtxTimer()).unset(Context());
+            pcb->tim(RtxTimer()).unset();
         }
         
         // Arrange for sending the FIN.
@@ -670,7 +681,7 @@ private:
         }
         
         // Start the abort timeout.
-        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::AbandonedTimeoutTicks);
+        pcb->tim(AbrtTimer()).setAfter(Constants::AbandonedTimeoutTicks);
         
         pcb->doDelayedTimerUpdateIfNeeded();
     }
@@ -699,9 +710,9 @@ private:
         return tcp->m_current_pcb == nullptr;
     }
     
-    static inline SeqType make_iss ()
+    inline SeqType make_iss ()
     {
-        return Clock::getTime(Context());
+        return platform().getTime();
     }
     
     TcpListener * find_listener (Ip4Addr addr, PortType port)
@@ -801,10 +812,10 @@ private:
         m_pcb_index_active.addEntry({*pcb, *this}, *this);
         
         // Start the connection timeout.
-        pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynSentTimeoutTicks);
+        pcb->tim(AbrtTimer()).setAfter(Constants::SynSentTimeoutTicks);
         
         // Start the retransmission timer.
-        pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+        pcb->tim(RtxTimer()).setAfter(Output::pcb_rto_time(pcb));
         
         pcb->doDelayedTimerUpdate();
         
@@ -918,7 +929,7 @@ private:
     UnrefedPcbsList m_unrefed_pcbs_list;
     typename PcbIndex::Index m_pcb_index_active;
     typename PcbIndex::Index m_pcb_index_timewait;
-    TcpPcb m_pcbs[NumTcpPcbs];
+    APrinter::ResourceArray<TcpPcb, NumTcpPcbs> m_pcbs;
     
     struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
 };
@@ -936,7 +947,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
     using IpProtocolNumber = APrinter::WrapValue<uint8_t, Ip4ProtocolTcp>;
     
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(TheIpStack)
     ), (
         using Params = IpTcpProtoService;

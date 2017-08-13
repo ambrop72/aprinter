@@ -26,7 +26,6 @@
 #define APRINTER_IPSTACK_IPSTACK_H
 
 #include <limits>
-#include <tuple>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -39,6 +38,7 @@
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/InstantiateVariadic.h>
 #include <aprinter/meta/MakeTupleOfSame.h>
+#include <aprinter/meta/ResourceTuple.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
@@ -75,9 +75,9 @@ namespace AIpStack {
  */
 template <typename Arg>
 class IpStack :
-    private APrinter::NonCopyable
+    private APrinter::NonCopyable<IpStack<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, Context, ProtocolServicesList))
+    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
     APRINTER_USE_TYPES1(Params, (PathMtuParams, ReassemblyService))
     
@@ -85,14 +85,12 @@ class IpStack :
     APRINTER_USE_VALS(APrinter, (EnumZero))
     
     using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPE1(Platform, TimeType)
     
-    APRINTER_USE_TYPE1(Context, Clock)
-    APRINTER_USE_TYPE1(Clock, TimeType)
-    
-    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl, Context>))
+    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl>))
     
     using PathMtuCacheService = IpPathMtuCacheService<PathMtuParams>;
-    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<PlatformImpl, Context, IpStack>))
+    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<PlatformImpl, IpStack>))
     
     // Instantiate the protocols.
     template <int ProtocolIndex>
@@ -104,12 +102,12 @@ class IpStack :
         using IpProtocolNumber = typename ProtocolService::IpProtocolNumber;
         
         // Instantiate the protocol.
-        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<Context, IpStack>))
+        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<PlatformImpl, IpStack>))
         
         // Helper function to get the pointer to the protocol.
         inline static Protocol * get (IpStack *stack)
         {
-            return &std::get<ProtocolIndex>(stack->m_protocols);
+            return &stack->m_protocols.template get<ProtocolIndex>();
         }
     };
     using ProtocolHelpersList = APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
@@ -124,7 +122,7 @@ class IpStack :
     // Helper to extract IpProtocolNumber from a ProtocolHelper.
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
-    using ProtocolHandlerArgs = IpProtocolHandlerArgs<IpStack>;
+    using ProtocolHandlerArgs = IpProtocolHandlerArgs<Platform, IpStack>;
     
 public:
     /**
@@ -164,7 +162,7 @@ public:
         m_reassembly(platform),
         m_path_mtu_cache(platform, this),
         m_next_id(0),
-        m_protocols(APrinter::MakeTupleOfSame<NumProtocols>(ProtocolHandlerArgs{this}))
+        m_protocols(APrinter::ResourceTupleInitSame(), ProtocolHandlerArgs{platform, this})
     {
     }
     
@@ -202,7 +200,9 @@ public:
     template <typename Protocol>
     inline Protocol * getProtocol ()
     {
-        return &std::get<Protocol>(m_protocols);
+        static int const ProtocolIndex =
+            APrinter::TypeListIndex<ProtocolsList, Protocol>::Value;
+        return &m_protocols.template get<ProtocolIndex>();
     }
     
 public:
@@ -1686,7 +1686,7 @@ private:
     PathMtuCache m_path_mtu_cache;
     APrinter::StructureRaiiWrapper<IfaceList> m_iface_list;
     uint16_t m_next_id;
-    APrinter::InstantiateVariadic<std::tuple, ProtocolsList> m_protocols;
+    APrinter::InstantiateVariadic<APrinter::ResourceTuple, ProtocolsList> m_protocols;
 };
 
 /**
@@ -1728,7 +1728,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
      */
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(ProtocolServicesList)
     ), (
         using Params = IpStackService;

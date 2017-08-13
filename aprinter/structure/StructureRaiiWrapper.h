@@ -38,7 +38,7 @@ template <
 >
 class StructureRaiiWrapper :
     public StructureType,
-    private NonCopyable
+    private NonCopyable<StructureRaiiWrapper<StructureType, DestructAction>>
 {
 public:
     inline StructureRaiiWrapper ()

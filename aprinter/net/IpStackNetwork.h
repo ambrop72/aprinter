@@ -104,7 +104,7 @@ private:
         class Timer :
             public PlatformRef,
             private TimedEventNew,
-            private NonCopyable
+            private NonCopyable<Timer>
         {
         public:
             Timer (PlatformRef ref) :
@@ -171,7 +171,7 @@ private:
         typename Arg::Params::ReassemblyService
     >;
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<
-        PlatformImpl, Context, ProtocolServicesList>))
+        PlatformImpl, ProtocolServicesList>))
     
     using Iface = typename TheIpStack::Iface;
     

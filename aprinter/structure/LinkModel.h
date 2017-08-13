@@ -178,7 +178,7 @@ public:
     ArrayLinkModelAccessorState() = delete;
     
     inline ArrayLinkModelAccessorState (ArrayContainer &container)
-    : m_array(ArrayAccessor::access(container)) {}
+    : m_array(&ArrayAccessor::access(container)[0]) {}
     
     inline Entry & getEntryAt (size_t index)
     {

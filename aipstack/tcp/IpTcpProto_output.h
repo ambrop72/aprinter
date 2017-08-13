@@ -51,9 +51,9 @@ class IpTcpProto_output
                                    OptionFlags, TcpOptions))
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
                                  can_output_in_state, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4RxInfo, TcpPcb, PcbFlags, Input, Clock,
-                                   TimeType, RttType, RttNextType, Constants, OutputTimer,
-                                   RtxTimer, TheIpStack, MtuRef, TcpConnection, PcbKey))
+    APRINTER_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpPcb, PcbFlags, Input, TimeType, RttType,
+                                   RttNextType, Constants, OutputTimer, RtxTimer,
+                                   TheIpStack, MtuRef, TcpConnection, PcbKey))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
@@ -381,7 +381,7 @@ public:
         // for sending with no idle timeouts in between.
         if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
             pcb->clearFlag(PcbFlags::IDLE_TIMER);
-            pcb->tim(RtxTimer()).unset(Context());
+            pcb->tim(RtxTimer()).unset();
         }
         
         // If the retransmission timer is already running then leave it.
@@ -389,9 +389,9 @@ public:
         // if we have zero window (to send windor probe). Note that for
         // zero window it would not be wrong to have an extra condition
         // !pcb_may_delay_snd but we don't for simplicity.
-        if (!pcb->tim(RtxTimer()).isSet(Context())) {
+        if (!pcb->tim(RtxTimer()).isSet()) {
             if (AMBRO_LIKELY(pcb_has_snd_unacked(pcb)) || pcb->con->m_v.snd_wnd == 0) {
-                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
+                pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
             }
         }
     }
@@ -451,9 +451,9 @@ public:
         
         // Set the retransmission timer as needed. This is really the same as
         // in pcb_output_active, the logic just reduces to this.
-        if (!pcb->tim(RtxTimer()).isSet(Context())) {
+        if (!pcb->tim(RtxTimer()).isSet()) {
             if (AMBRO_LIKELY(!pcb->hasFlag(PcbFlags::FIN_PENDING))) {
-                pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
+                pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
             }
         }
     }
@@ -561,7 +561,7 @@ public:
         // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
         pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
-        pcb->tim(RtxTimer()).appendAfter(Context(), pcb_rto_time(pcb));
+        pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
         
         // In SYN_SENT and SYN_RCVD, only retransmit the SYN or SYN-ACK.
         if (syn_sent_rcvd) {
@@ -810,7 +810,7 @@ public:
         pcb->clearFlag(PcbFlags::RTT_PENDING);
         
         // Calculate how much time has passed, also in RTT units.
-        TimeType time_diff = Clock::getTime(Context()) - pcb->rtt_test_time;
+        TimeType time_diff = pcb->platform().getTime() - pcb->rtt_test_time;
         RttType this_rtt = APrinter::MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
         
         TcpConnection *con = pcb->con;
@@ -984,7 +984,7 @@ public:
             // the other kind too early. If the timer is actually needed it will
             // be restarted by pcb_output_active due to setting OUT_PENDING.
             if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0))) {
-                pcb->tim(RtxTimer()).unset(Context());
+                pcb->tim(RtxTimer()).unset();
             }
         }
     }
@@ -1035,12 +1035,12 @@ private:
         // the OutputTimer is stopped before the check below.
         if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
             pcb->clearFlag(PcbFlags::OUT_RETRY);
-            pcb->tim(OutputTimer()).unset(Context());
+            pcb->tim(OutputTimer()).unset();
         }
         
         // Set the timer if it is not running already.
-        if (!pcb->tim(OutputTimer()).isSet(Context())) {
-            pcb->tim(OutputTimer()).appendAfter(Context(), Constants::OutputTimerTicks);
+        if (!pcb->tim(OutputTimer()).isSet()) {
+            pcb->tim(OutputTimer()).setAfter(Constants::OutputTimerTicks);
         }
     }
     
@@ -1053,7 +1053,7 @@ private:
         // being already set, avoiding undesired delays.
         TimeType after = (err == IpErr::BUFFER_FULL) ?
             Constants::OutputRetryFullTicks : Constants::OutputRetryOtherTicks;
-        pcb->tim(OutputTimer()).appendAfter(Context(), after);
+        pcb->tim(OutputTimer()).setAfter(after);
         pcb->setFlag(PcbFlags::OUT_RETRY);
     }
     
@@ -1183,7 +1183,7 @@ private:
         
         // Set the flag, remember the time.
         pcb->setFlag(PcbFlags::RTT_PENDING);
-        pcb->rtt_test_time = Clock::getTime(Context());
+        pcb->rtt_test_time = pcb->platform().getTime();
         
         // Remember the sequence number except for SYN.
         if (AMBRO_LIKELY(!syn)) {

@@ -41,7 +41,7 @@ template <typename TcpProto>
 class IpTcpProto_constants
 {
     APRINTER_USE_TYPES1(TcpUtils, (SeqType))
-    APRINTER_USE_TYPES1(TcpProto, (TimeType, RttType, Clock, TheIpStack))
+    APRINTER_USE_TYPES1(TcpProto, (TimeType, RttType, Platform, TheIpStack))
     APRINTER_USE_VALS(TcpProto, (RttTimeFreq, RttTypeMaxDbl))
     
     // Make sure the MinMTU permits an unfragmented TCP segment with some data.
@@ -67,25 +67,25 @@ public:
     static SeqType const MaxAckBefore = UINT32_C(0xFFFF);
     
     // SYN_RCVD state timeout.
-    static TimeType const SynRcvdTimeoutTicks     = 20.0  * Clock::time_freq;
+    static TimeType const SynRcvdTimeoutTicks     = 20.0  * Platform::TimeFreq;
     
     // SYN_SENT state timeout.
-    static TimeType const SynSentTimeoutTicks     = 30.0  * Clock::time_freq;
+    static TimeType const SynSentTimeoutTicks     = 30.0  * Platform::TimeFreq;
     
     // TIME_WAIT state timeout.
-    static TimeType const TimeWaitTimeTicks       = 120.0 * Clock::time_freq;
+    static TimeType const TimeWaitTimeTicks       = 120.0 * Platform::TimeFreq;
     
     // Timeout to abort connection after it has been abandoned.
-    static TimeType const AbandonedTimeoutTicks   = 30.0  * Clock::time_freq;
+    static TimeType const AbandonedTimeoutTicks   = 30.0  * Platform::TimeFreq;
     
     // Time after the send buffer is extended to calling pcb_output.
-    static TimeType const OutputTimerTicks        = 0.0005 * Clock::time_freq;
+    static TimeType const OutputTimerTicks        = 0.0005 * Platform::TimeFreq;
     
     // Time to retry after sending failed with error IpErr::BUFFER_FULL.
-    static TimeType const OutputRetryFullTicks    = 0.1 * Clock::time_freq;
+    static TimeType const OutputRetryFullTicks    = 0.1 * Platform::TimeFreq;
     
     // Time to retry after sending failed with error other then IpErr::BUFFER_FULL.
-    static TimeType const OutputRetryOtherTicks   = 2.0 * Clock::time_freq;
+    static TimeType const OutputRetryOtherTicks   = 2.0 * Platform::TimeFreq;
     
     // Initial retransmission time, before any round-trip-time measurement.
     static RttType const InitialRtxTime           = 1.0 * RttTimeFreq;

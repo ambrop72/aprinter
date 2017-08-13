@@ -141,7 +141,7 @@ public:
     };
     
     class Timer :
-        private APrinter::NonCopyable,
+        private APrinter::NonCopyable<Timer>,
         private Impl::Timer
     {
         using ImplTimer = typename Impl::Timer;

@@ -22,19 +22,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_NONCOPYABLE_H
-#define APRINTER_NONCOPYABLE_H
+#ifndef APRINTER_EXCEPTION_UTILS_H
+#define APRINTER_EXCEPTION_UTILS_H
 
-namespace APrinter {
+#ifdef __GNUC__
+    #if __EXCEPTIONS
+        #define APRINTER_HAS_EXCEPTIONS 1
+    #else
+        #define APRINTER_HAS_EXCEPTIONS 0
+    #endif
+#else
+    #define APRINTER_HAS_EXCEPTIONS 1
+#endif
 
-template <typename Derived = void>
-class NonCopyable {
-public:
-    NonCopyable () = default;
-    NonCopyable (NonCopyable const &) = delete;
-    NonCopyable & operator= (NonCopyable const &) = delete;
-};
-
-}
+#if APRINTER_HAS_EXCEPTIONS
+#define APRINTER_TRY try
+#define APRINTER_CATCH(catch_exception, catch_block) catch (catch_exception) catch_block
+#else
+#define APRINTER_TRY
+#define APRINTER_CATCH(catch_exception, catch_block)
+#endif
 
 #endif

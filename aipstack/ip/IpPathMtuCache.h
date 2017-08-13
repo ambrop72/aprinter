@@ -41,11 +41,11 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
-#include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
 
@@ -53,7 +53,7 @@ template <typename Arg>
 class IpPathMtuCache;
 
 template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::Context,
+AIPSTACK_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::PlatformImpl,
                            IpPathMtuCache<Arg>, (MtuTimer))
 
 /**
@@ -65,16 +65,15 @@ APRINTER_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::Context,
 template <typename Arg>
 class IpPathMtuCache :
     private IpPathMtuCacheTimers<Arg>::Timers,
-    private APrinter::NonCopyable
+    private APrinter::NonCopyable<IpPathMtuCache<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, Context, IpStack))
+    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, IpStack))
     APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MtuTimeoutMinutes))
     APRINTER_USE_TYPES1(Params::PathMtuParams, (MtuIndexService))
     
-    using Platform = PlatformFacade<PlatformImpl>;
+    using Platform = PlatformFacade<PlatformImpl>;    
+    APRINTER_USE_TYPES1(Platform, (TimeType))
     
-    APRINTER_USE_TYPES1(Context, (Clock))
-    APRINTER_USE_TYPES1(Clock, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Iface, Ip4RouteInfo))
     APRINTER_USE_VALS(IpStack, (MinMTU))
     APRINTER_USE_ONEOF
@@ -82,7 +81,7 @@ class IpPathMtuCache :
     static_assert(NumMtuEntries > 0, "");
     static_assert(MtuTimeoutMinutes > 0, "");
     
-    APRINTER_USE_TIMERS_CLASS(IpPathMtuCacheTimers<Arg>, (MtuTimer))
+    AIPSTACK_USE_TIMERS_CLASS(IpPathMtuCacheTimers<Arg>, (MtuTimer))
     
     struct MtuEntry;
     
@@ -113,7 +112,7 @@ public:
     
 private:
     // Timeout period for the MTU timer (one minute).
-    static TimeType const MtuTimerTicks = 60.0 * (TimeType)Clock::time_freq;
+    static TimeType const MtuTimerTicks = 60.0 * (TimeType)Platform::TimeFreq;
     
     // MTU entry states.
     enum class EntryState {
@@ -184,11 +183,9 @@ private:
         public APRINTER_MEMBER_ACCESSOR(&IpPathMtuCache::m_mtu_entries) {};
     
 public:
-    IpPathMtuCache (Platform platform, IpStack *ip_stack)
+    IpPathMtuCache (Platform platform, IpStack *ip_stack) :
+        IpPathMtuCacheTimers<Arg>::Timers(platform)
     {
-        // Initialize resources.
-        tim(MtuTimer()).init(Context());
-        
         // Initialize other things.
         m_ip_stack = ip_stack;
         m_mtu_index.init();
@@ -199,12 +196,6 @@ public:
             mtu_entry.state = EntryState::Invalid;
             m_mtu_free_list.append({mtu_entry, *this}, *this);
         }
-    }
-    
-    ~IpPathMtuCache ()
-    {
-        // Deinitialize resources.
-        tim(MtuTimer()).deinit(Context());
     }
     
     bool handlePacketTooBig (Ip4Addr remote_addr, uint16_t mtu_info)
@@ -400,9 +391,9 @@ public:
                 
                 // Make sure the MtuTimer is running, since it would not have been
                 // running if we didn't have any non-Invalid timers before.
-                if (!cache->tim(MtuTimer()).isSet(Context())) {
+                if (!cache->tim(MtuTimer()).isSet()) {
                     mtu_entry.minutes_old = 1; // don't waste a minute
-                    cache->tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
+                    cache->tim(MtuTimer()).setAfter(MtuTimerTicks);
                 }
                 
                 // Clear the next link since we are the first node.
@@ -486,7 +477,7 @@ private:
         AMBRO_ASSERT(mtu_entry.first_ref.link != nullptr)
     }
     
-    void timerExpired (MtuTimer, Context)
+    void timerExpired (MtuTimer)
     {
         // Update non-Invalid MTU entries.
         MtuLinkModelRef mtu_ref = m_mtu_index.first(*this);
@@ -499,7 +490,7 @@ private:
         
         // Restart the timer if there is any non-Invalid entry left.
         if (!m_mtu_index.first(*this).isNull()) {
-            tim(MtuTimer()).appendAfter(Context(), MtuTimerTicks);
+            tim(MtuTimer()).setAfter(MtuTimerTicks);
         }
     }
     
@@ -614,7 +605,6 @@ APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(IpStack)
     ), (
         using Params = IpPathMtuCacheService;

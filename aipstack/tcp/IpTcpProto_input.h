@@ -55,9 +55,9 @@ class IpTcpProto_input
     APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
                                  state_is_synsent_synrcvd, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Context, Ip4RxInfo, TcpListener, TcpConnection,
-                                   TcpPcb, PcbFlags, Output, Constants, AbrtTimer, RtxTimer,
-                                   OutputTimer, TheIpStack))
+    APRINTER_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpListener, TcpConnection, TcpPcb, PcbFlags,
+                                   Output, Constants, AbrtTimer, RtxTimer, OutputTimer,
+                                   TheIpStack))
     APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
     APRINTER_USE_ONEOF
     
@@ -405,7 +405,7 @@ private:
             }
             
             // Generate an initial sequence number.
-            SeqType iss = TcpProto::make_iss();
+            SeqType iss = tcp->make_iss();
             
             // Initially advertised receive window, at most 16-bit wide since
             // SYN-ACK segments have unscaled window.
@@ -457,10 +457,10 @@ private:
             tcp->move_unrefed_pcb_to_front(pcb);
             
             // Start the SYN_RCVD abort timeout.
-            pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::SynRcvdTimeoutTicks);
+            pcb->tim(AbrtTimer()).setAfter(Constants::SynRcvdTimeoutTicks);
             
             // Start the retransmission timer.
-            pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+            pcb->tim(RtxTimer()).setAfter(Output::pcb_rto_time(pcb));
             
             pcb->doDelayedTimerUpdate();
             
@@ -545,7 +545,7 @@ private:
         else if (pcb->state == TcpState::TIME_WAIT) {
             // Reply with an ACK and restart the timeout.
             pcb->setFlag(PcbFlags::ACK_PENDING);
-            pcb->tim(AbrtTimer()).appendAfter(Context(), Constants::TimeWaitTimeTicks);
+            pcb->tim(AbrtTimer()).setAfter(Constants::TimeWaitTimeTicks);
         }
         
         // Output if needed.
@@ -747,8 +747,7 @@ private:
                     // This seems to be a retransmission of the SYN, retransmit our
                     // SYN+ACK and bump the abort timeout.
                     Output::pcb_send_syn(pcb);
-                    pcb->tim(AbrtTimer()).appendAfter(Context(),
-                                                      Constants::SynRcvdTimeoutTicks);
+                    pcb->tim(AbrtTimer()).setAfter(Constants::SynRcvdTimeoutTicks);
                 }
                 else {
                     Output::pcb_send_empty_ack(pcb);
@@ -815,10 +814,10 @@ private:
         AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
         
         // Stop the SYN_RCVD abort timer.
-        pcb->tim(AbrtTimer()).unset(Context());
+        pcb->tim(AbrtTimer()).unset();
         
         // Stop the retransmission timer.
-        pcb->tim(RtxTimer()).unset(Context());
+        pcb->tim(RtxTimer()).unset();
         
         // NOTE: Not updating snd_una here since we will use it to store
         // snd_wnd, it will be updated in pcb_complete_established_transition.
@@ -1079,7 +1078,7 @@ private:
                 if (AMBRO_LIKELY(Output::pcb_has_snd_outstanding(pcb))) {
                     // Stop the rtx_timer since any running timeout is no longer
                     // valid due to something having been acked.
-                    pcb->tim(RtxTimer()).unset(Context());
+                    pcb->tim(RtxTimer()).unset();
                     
                     // Schedule pcb_output_active/pcb_output_abandoned, so that the
                     // rtx_timer will be restarted if needed (for retransmission or
@@ -1087,14 +1086,14 @@ private:
                     pcb->setFlag(PcbFlags::OUT_PENDING);
                 } else {
                     // Start the idle timeout.
-                    pcb->tim(RtxTimer()).appendAfter(Context(), Output::pcb_rto_time(pcb));
+                    pcb->tim(RtxTimer()).setAfter(Output::pcb_rto_time(pcb));
                     pcb->setFlag(PcbFlags::IDLE_TIMER);
                     
                     // Clear the OUT_PENDING flag due to its preconditions.
                     pcb->clearFlag(PcbFlags::OUT_PENDING);
                     
                     // Stop the output timer due to assert in its handler.
-                    pcb->tim(OutputTimer()).unset(Context());
+                    pcb->tim(OutputTimer()).unset();
                 }
             }
         }

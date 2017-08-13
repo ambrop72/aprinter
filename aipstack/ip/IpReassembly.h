@@ -34,14 +34,13 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/misc/ClockUtils.h>
-#include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
 
@@ -49,7 +48,7 @@ template <typename Arg>
 class IpReassembly;
 
 template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::Context, IpReassembly<Arg>,
+AIPSTACK_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::PlatformImpl, IpReassembly<Arg>,
                            (PurgeTimer))
 
 /**
@@ -67,15 +66,13 @@ class IpReassembly :
 {
     APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
                                     MaxReassTimeSeconds))
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl, Context))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl))
     
     using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPES1(Platform, (TimeType))
     
-    APRINTER_USE_TYPES1(Context, (Clock))
-    APRINTER_USE_TYPES1(Clock, (TimeType))
-    using TheClockUtils = APrinter::ClockUtils<Context>;
-    
-    APRINTER_USE_TIMERS_CLASS(IpReassemblyTimers<Arg>, (PurgeTimer)) 
+    AIPSTACK_USE_TIMERS_CLASS(IpReassemblyTimers<Arg>, (PurgeTimer)) 
+    using IpReassemblyTimers<Arg>::Timers::platform;
     
     static_assert(MaxReassEntrys > 0, "");
     static_assert(MaxReassSize >= Ip4RequiredRecvSize, "");
@@ -102,13 +99,13 @@ class IpReassembly :
     
     // Maximum time that a reassembly entry can be valid.
     static TimeType const ReassMaxExpirationTicks =
-        MaxReassTimeSeconds * (TimeType)Clock::time_freq;
+        MaxReassTimeSeconds * (TimeType)Platform::TimeFreq;
     
-    static_assert(ReassMaxExpirationTicks <= TheClockUtils::WorkingTimeSpanTicks, "");
+    static_assert(ReassMaxExpirationTicks <= Platform::WorkingTimeSpanTicks, "");
     
     // Interval of the purge timer. Use as large as possible, we only need it to
     // expire before any expiration time becomes ambiguous due to clock wraparound.
-    static TimeType const PurgeTimerInterval = TheClockUtils::WorkingTimeSpanTicks;
+    static TimeType const PurgeTimerInterval = Platform::WorkingTimeSpanTicks;
     
     struct ReassEntry {
         // Offset in data to the first hole, or ReassNullLink for free entry.
@@ -133,27 +130,16 @@ public:
     /**
      * Initialize reassembly.
      */
-    IpReassembly (Platform platform)
+    IpReassembly (Platform platform) :
+        IpReassemblyTimers<Arg>::Timers(platform)
     {
-        // Initialize the timer.
-        tim(PurgeTimer()).init(Context());
-        
         // Start the timer for the first interval.
-        tim(PurgeTimer()).appendAfter(Context(), PurgeTimerInterval);
+        tim(PurgeTimer()).setAfter(PurgeTimerInterval);
         
         // Mark all reassembly entries as unused.
         for (auto &reass : m_reass_packets) {
             reass.first_hole_offset = ReassNullLink;
         }
-    }
-    
-    /**
-     * Deinitialize reassembly.
-     */
-    ~IpReassembly ()
-    {
-        // Deinitialize the timer.
-        tim(PurgeTimer()).deinit(Context());
     }
     
     /**
@@ -194,7 +180,7 @@ public:
         }
         
         // Check if we have a reassembly entry for this datagram.
-        TimeType now = Clock::getTime(Context());
+        TimeType now = platform().getTime();
         ReassEntry *reass = find_reass_entry(now, ident, src_addr, dst_addr, proto);
         
         if (reass == nullptr) {
@@ -444,7 +430,7 @@ private:
         
         // Set the expiration time.
         uint8_t seconds = APrinter::MinValue(ttl, MaxReassTimeSeconds);
-        result_reass->expiration_time = now + seconds * (TimeType)Clock::time_freq;
+        result_reass->expiration_time = now + seconds * (TimeType)Platform::TimeFreq;
         
         return result_reass;
     }
@@ -466,14 +452,14 @@ private:
         return hole_offset <= MaxReassSize;
     }
     
-    void timerExpired (PurgeTimer, Context)
+    void timerExpired (PurgeTimer)
     {
         // Restart the timer.
-        tim(PurgeTimer()).appendAfter(Context(), PurgeTimerInterval);
+        tim(PurgeTimer()).setAfter(PurgeTimerInterval);
         
         // Purge any expired reassembly entries by calling find_reass_entry with
         // dummy IP information.
-        TimeType now = Clock::getTime(Context());
+        TimeType now = platform().getTime();
         find_reass_entry(now, 0, Ip4Addr::ZeroAddr(), Ip4Addr::ZeroAddr(), 0);
     }
 };
@@ -497,8 +483,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpReassemblyService, (
     APRINTER_AS_VALUE(uint8_t, MaxReassTimeSeconds)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(Context)
+        APRINTER_AS_TYPE(PlatformImpl)
     ), (
         using Params = IpReassemblyService;
         APRINTER_DEF_INSTANCE(Compose, IpReassembly)
