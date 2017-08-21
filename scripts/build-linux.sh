@@ -68,7 +68,7 @@ build_linux() {
     done
     
     echo "   Linking objects"
-    ( $V ; "${HOST_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${BUILD}/aprinter.elf" -lpthread -lrt -lm )
+    ( $V ; "${HOST_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${BUILD}/aprinter.elf" -lpthread -lrt -lm -lstdc++ )
     
     echo "   Size of build: "
     "$HOST_SIZE" "${BUILD}/aprinter.elf" | sed 's/^/    /'
