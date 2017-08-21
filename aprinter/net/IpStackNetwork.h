@@ -101,6 +101,11 @@ private:
             return Clock::getTime(Context());
         }
         
+        static TimeType getEventTime ()
+        {
+            return EventLoop::getEventTime(Context());
+        }
+        
         class Timer :
             public PlatformRef,
             private TimedEventNew,
@@ -192,7 +197,7 @@ private:
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
         AIpStack::IpDhcpClientDefaultConfig
     >;
-    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<Context, TheIpStack>))
+    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<PlatformImpl, TheIpStack>))
     
 public:
     using TcpProto = typename TheIpStack::template GetProtocolType<AIpStack::Ip4ProtocolTcp>;
@@ -384,7 +389,7 @@ private:
         
         if (o->activation_state == ACTIVATED) {
             if (o->dhcp_enabled) {
-                o->dhcp_client.deinit();
+                o->dhcp_client.destruct();
             }
             o->ip_iface.deinit();
         }
@@ -445,7 +450,7 @@ private:
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
                 AIpStack::IpDhcpClientInitOptions dhcp_opts;
-                o->dhcp_client.init(&*o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
+                o->dhcp_client.construct(Platform(), &*o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
@@ -535,7 +540,7 @@ public:
         APrinter::ManualRaii<TheIpStack> ip_stack;
         EthActivateState activation_state;
         bool dhcp_enabled;
-        TheIpDhcpClient dhcp_client;
+        APrinter::ManualRaii<TheIpDhcpClient> dhcp_client;
         DhcpClientCallback dhcp_client_callback;
         MyIface ip_iface;
         NetworkParams config;

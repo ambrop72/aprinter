@@ -129,6 +129,11 @@ public:
         return callImpl<TimeType()>(&Impl::getTime);
     }
     
+    inline TimeType getEventTime () const
+    {
+        return callImpl<TimeType()>(&Impl::getEventTime);
+    }
+    
     template <typename Derived>
     class RefWrapper :
         public Ref

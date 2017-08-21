@@ -38,8 +38,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/MemRef.h>
-#include <aprinter/misc/ClockUtils.h>
-#include <aprinter/system/TimedEventWrapper.h>
+#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
@@ -54,6 +53,8 @@
 #include <aipstack/ip/hw/IpHwCommon.h>
 #include <aipstack/ip/hw/IpEthHw.h>
 #include <aipstack/ip/IpDhcpClient_options.h>
+#include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
 
@@ -177,7 +178,7 @@ template <typename Arg>
 class IpDhcpClient;
 
 template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::Context,
+AIPSTACK_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::PlatformImpl,
                            IpDhcpClient<Arg>, (DhcpTimer))
 
 /**
@@ -192,18 +193,19 @@ class IpDhcpClient :
     private Arg::IpStack::IfaceStateObserver,
     private IpDhcpClientTimers<Arg>::Timers,
     private IpSendRetry::Request,
-    private IpEthHw::ArpObserver
+    private IpEthHw::ArpObserver,
+    private APrinter::NonCopyable<IpDhcpClient<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (Context, IpStack))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl, IpStack))
     APRINTER_USE_TYPES1(Arg::Params, (Config))
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
-    APRINTER_USE_TYPES1(Context, (Clock))
-    APRINTER_USE_TYPES1(Clock, (TimeType))
+    using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPES1(Platform, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4RxInfo, Iface, IfaceListener, IfaceStateObserver))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     APRINTER_USE_ONEOF
-    using TheClockUtils = APrinter::ClockUtils<Context>;
-    APRINTER_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
+    AIPSTACK_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
+    using IpDhcpClientTimers<Arg>::Timers::platform;
     
     static_assert(Config::MaxDnsServers > 0 && Config::MaxDnsServers < 32, "");
     static_assert(Config::XidReuseMax >= 1 && Config::XidReuseMax <= 5, "");
@@ -260,7 +262,7 @@ class IpDhcpClient :
     // are used with keeping track of leftover seconds.
     static uint32_t const MaxTimerSeconds = APrinter::MinValueU(
         std::numeric_limits<uint32_t>::max(),
-        TheClockUtils::WorkingTimeSpanTicks / (TimeType)Clock::time_freq);
+        Platform::WorkingTimeSpanTicks / (TimeType)Platform::TimeFreq);
     
     static_assert(MaxTimerSeconds >= 255, "");
     
@@ -319,9 +321,9 @@ private:
     
 public:
     /**
-     * Initialize the DHCP client.
+     * Construct the DHCP client.
      * 
-     * The interface must exist as long as the DHCP client is initialized.
+     * The interface must exist as long as the DHCP client exists.
      * The DHCP client assumes that it has exclusive control over the
      * IP address and gateway address assignement for the interface and
      * that both of these are initially unassigned.
@@ -335,22 +337,20 @@ public:
      * @param callback Object which will receive callbacks about the status
      *        of the lease, null for none.
      */
-    void init (IpStack *stack, Iface *iface, IpDhcpClientInitOptions const &opts,
-               IpDhcpClientCallback *callback)
+    IpDhcpClient (Platform platform, IpStack *stack, Iface *iface,
+                  IpDhcpClientInitOptions const &opts, IpDhcpClientCallback *callback) :
+        IpDhcpClientTimers<Arg>::Timers(platform),
+        m_ipstack(stack),
+        m_callback(callback),
+        m_client_id(opts.client_id),
+        m_vendor_class_id(opts.vendor_class_id)
     {
         // We only support Ethernet interfaces.
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
-        // Remember stuff.
-        m_ipstack = stack;
-        m_callback = callback;
-        m_client_id = opts.client_id;
-        m_vendor_class_id = opts.vendor_class_id;
-        
         // Init resources.
         IfaceListener::init(iface, Ip4ProtocolUdp);
         IfaceStateObserver::init();
-        tim(DhcpTimer()).init(Context());
         IpSendRetry::Request::init();
         ArpObserver::init();
         
@@ -370,12 +370,12 @@ public:
     }
     
     /**
-     * Deinitialize the DHCP client.
+     * Destruct the DHCP client.
      * 
      * This will remove any IP address or gateway address assignment
      * from the interface.
      */
-    void deinit ()
+    ~IpDhcpClient ()
     {
         // Remove any configuration that might have been done (no callback).
         handle_dhcp_down(/*call_callback=*/false, /*link_down=*/false);
@@ -383,7 +383,6 @@ public:
         // Deinit resources.
         ArpObserver::deinit();
         IpSendRetry::Request::deinit();
-        tim(DhcpTimer()).deinit(Context());
         IfaceStateObserver::deinit();
         IfaceListener::deinit();
     }
@@ -437,19 +436,19 @@ private:
     // Same but without assert that seconds <= MaxTimerSeconds.
     inline static TimeType SecToTicksNoAssert (uint32_t seconds)
     {
-        return seconds * (TimeType)Clock::time_freq;
+        return seconds * (TimeType)Platform::TimeFreq;
     }
     
     // Convert ticks to seconds, rounding down.
     inline static TimeType TicksToSec (TimeType ticks)
     {
-        return ticks / (TimeType)Clock::time_freq;
+        return ticks / (TimeType)Platform::TimeFreq;
     }
     
     // Shortcut to last timer set time.
     inline TimeType getTimSetTime ()
     {
-        return tim(DhcpTimer()).getSetTime(Context());
+        return tim(DhcpTimer()).getSetTime();
     }
     
     // Set m_rtx_timeout to BaseRtxTimeoutSeconds.
@@ -468,7 +467,7 @@ private:
     // Set the timer to expire after m_rtx_timeout.
     void set_timer_for_rtx ()
     {
-        tim(DhcpTimer()).appendAfter(Context(), SecToTicks(m_rtx_timeout));
+        tim(DhcpTimer()).setAfter(SecToTicks(m_rtx_timeout));
     }
     
     // Start discovery process.
@@ -491,7 +490,7 @@ private:
             m_state = DhcpState::Rebooting;
             
             // Remember when the first request was sent.
-            m_request_send_time = Clock::getTime(Context());
+            m_request_send_time = platform().getTime();
             
             // Send request.
             send_request();
@@ -523,7 +522,7 @@ private:
         }
     }
     
-    void timerExpired (DhcpTimer, Context)
+    void timerExpired (DhcpTimer)
     {
         switch (m_state) {
             case DhcpState::Resetting:
@@ -608,8 +607,7 @@ private:
             m_request_count++;
             
             // Start the timeout.
-            tim(DhcpTimer()).appendAfter(
-                Context(), SecToTicks(Config::ArpResponseTimeoutSeconds));
+            tim(DhcpTimer()).setAfter(SecToTicks(Config::ArpResponseTimeoutSeconds));
             
             // Send an ARP query.
             ethHw()->sendArpQuery(m_info.ip_address);
@@ -634,7 +632,7 @@ private:
         
         AMBRO_ASSERT(m_lease_time_passed <= m_info.lease_time_s)
         
-        TimeType now = Clock::getTime(Context());
+        TimeType now = platform().getTime();
         
         // Calculate how much time in seconds has passed since the time this timer
         // was set to expire at.
@@ -709,7 +707,7 @@ private:
         m_lease_time_passed += timer_rel_sec;
         TimeType timer_time = getTimSetTime() +
             SecToTicksNoAssert(m_lease_time_passed - prev_lease_time_passed);
-        tim(DhcpTimer()).appendAt(Context(), timer_time);
+        tim(DhcpTimer()).setAt(timer_time);
     }
     
     void retrySending () override final
@@ -902,7 +900,7 @@ private:
             // the offer (which m_xid already is due to the check earlier).
             
             // Remember when the first request was sent.
-            m_request_send_time = Clock::getTime(Context());
+            m_request_send_time = platform().getTime();
             
             // Send request.
             send_request();
@@ -999,7 +997,7 @@ private:
                 // Reset resources to prevent undesired callbacks.
                 ArpObserver::reset();
                 IpSendRetry::Request::reset();
-                tim(DhcpTimer()).unset(Context());
+                tim(DhcpTimer()).unset();
                 
                 // If we had a lease, unbind and notify user.
                 if (had_lease) {
@@ -1134,8 +1132,7 @@ private:
             m_state = DhcpState::Resetting;
             
             // Set timeout to start discovery.
-            tim(DhcpTimer()).appendAfter(
-                Context(), SecToTicks(Config::ResetTimeoutSeconds));
+            tim(DhcpTimer()).setAfter(SecToTicks(Config::ResetTimeoutSeconds));
         }
         
         // If we had a lease, remove it.
@@ -1158,8 +1155,7 @@ private:
         ArpObserver::observe(*ethHw());
         
         // Start the timeout.
-        tim(DhcpTimer()).appendAfter(
-            Context(), SecToTicks(Config::ArpResponseTimeoutSeconds));
+        tim(DhcpTimer()).setAfter(SecToTicks(Config::ArpResponseTimeoutSeconds));
         
         // Send an ARP query.
         ethHw()->sendArpQuery(m_info.ip_address);
@@ -1171,7 +1167,7 @@ private:
                                       DhcpState::Rebinding, DhcpState::Rebooting))
         
         bool had_lease = hasLease();
-        TimeType now = Clock::getTime(Context());
+        TimeType now = platform().getTime();
         
         // Calculate how much time in seconds has passed since the request was sent
         // and set m_lease_time_passed accordingly. There is no need to limit to this
@@ -1204,7 +1200,7 @@ private:
         m_lease_time_passed += timer_rel_sec;
         TimeType timer_time =
             m_request_send_time + SecToTicksNoAssert(m_lease_time_passed);
-        tim(DhcpTimer()).appendAt(Context(), timer_time);
+        tim(DhcpTimer()).setAt(timer_time);
         
         // Apply IP configuration etc..
         return handle_dhcp_up(had_lease);
@@ -1384,7 +1380,7 @@ private:
     
     void new_xid ()
     {
-        m_xid = Clock::getTime(Context());
+        m_xid = platform().getTime();
     }
 };
 
@@ -1464,7 +1460,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
     APRINTER_AS_TYPE(Config)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(IpStack)
     ), (
         using Params = IpDhcpClientService;

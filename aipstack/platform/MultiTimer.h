@@ -167,8 +167,7 @@ private:
         
         // We use this as the base time to compare timers to. We will also
         // be computing the minium time relative to this time for efficiency.
-        // TODO: Get cached event time?
-        TimeType ref_time = platform().getTime() - msb;
+        TimeType ref_time = platform().getEventTime() - msb;
         
         // State for the minimum calculation.
         TimeType min_time_rel = (TimeType)-1;
