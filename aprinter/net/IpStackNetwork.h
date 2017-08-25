@@ -192,7 +192,7 @@ private:
         0, // HeaderBeforeEth
         ArpTableTimersStructureService
     >;
-    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<Context, Iface>))
+    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<PlatformImpl, Iface>))
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
         AIpStack::IpDhcpClientDefaultConfig
@@ -291,13 +291,13 @@ public:
             status.link_up = TheEthernet::getLinkUp(c);
             status.dhcp_enabled = o->dhcp_enabled;
             
-            auto addr_setting = o->ip_iface.getIp4Addr();
+            auto addr_setting = o->ip_iface->getIp4Addr();
             if (addr_setting.present) {
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_addr, addr_setting.addr);
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_netmask, Ip4Addr::PrefixMask(addr_setting.prefix));
             }
             
-            auto gw_setting = o->ip_iface.getIp4Gateway();
+            auto gw_setting = o->ip_iface->getIp4Gateway();
             if (gw_setting.present) {
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gw_setting.addr);
             }
@@ -391,30 +391,25 @@ private:
             if (o->dhcp_enabled) {
                 o->dhcp_client.destruct();
             }
-            o->ip_iface.deinit();
+            o->ip_iface.destruct();
         }
     }
     
-    class MyIface : public TheEthIpIface {
+    class MyIface :
+        public TheEthIpIface
+    {
         friend IpStackNetwork;
         
+    public:
+        MyIface (TheIpStack *stack) :
+            TheEthIpIface(Platform(), stack, {
+                /*eth_mtu=*/ EthMTU,
+                /*mac_addr=*/ TheEthernet::getMacAddr(Context())
+            })
+        {
+        }
+        
     private:
-        MacAddr const * driverGetMacAddr () override final
-        {
-            auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->activation_state == ACTIVATED)
-            
-            return TheEthernet::getMacAddr(Context());
-        }
-        
-        size_t driverGetEthMtu () override final
-        {
-            auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->activation_state == ACTIVATED)
-            
-            return EthMTU;
-        }
-        
         IpErr driverSendFrame (IpBufRef frame) override final
         {
             auto *o = Object::self(Context());
@@ -445,22 +440,22 @@ private:
             o->activation_state = ACTIVATED;
             o->dhcp_enabled = false;
             
-            o->ip_iface.init(&*o->ip_stack);
+            o->ip_iface.construct(&*o->ip_stack);
             
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
                 AIpStack::IpDhcpClientInitOptions dhcp_opts;
-                o->dhcp_client.construct(Platform(), &*o->ip_stack, &o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
+                o->dhcp_client.construct(Platform(), &*o->ip_stack, &*o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
                 Ip4Addr gateway = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
                 
                 if (addr != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface.setIp4Addr(AIpStack::IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
+                    o->ip_iface->setIp4Addr(AIpStack::IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
                 }
                 if (gateway != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface.setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting{true, gateway});
+                    o->ip_iface->setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting{true, gateway});
                 }
             }
         }
@@ -476,7 +471,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-        o->ip_iface.ethStateChangedFromDriver();
+        o->ip_iface->ethStateChangedFromDriver();
         
         NetworkEvent event{NetworkEventType::LINK};
         event.link.up = link_status;
@@ -498,7 +493,7 @@ private:
         IpBufNode node1 = {data1, size1, &node2};        
         IpBufRef frame = {&node1, 0, (size_t)(size1 + size2)};
         
-        o->ip_iface.recvFrameFromDriver(frame);
+        o->ip_iface->recvFrameFromDriver(frame);
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&IpStackNetwork::ethernet_receive_handler) {};
     
@@ -542,7 +537,7 @@ public:
         bool dhcp_enabled;
         APrinter::ManualRaii<TheIpDhcpClient> dhcp_client;
         DhcpClientCallback dhcp_client_callback;
-        MyIface ip_iface;
+        APrinter::ManualRaii<MyIface> ip_iface;
         NetworkParams config;
     };
 };

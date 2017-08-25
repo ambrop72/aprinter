@@ -873,6 +873,36 @@ private:
     
 public:
     /**
+     * Encapsulates interface information passed to the @ref Iface constructor.
+     */
+    struct IfaceInitInfo {
+        /**
+         * The Maximum Transmission Unit (MTU), including the IP header.
+         * 
+         * It must be at least @ref MinMTU (this is an assert).
+         */
+        size_t ip_mtu = 0;
+        
+        /**
+         * The type of the hardware-type-specific interface.
+         * 
+         * See @ref Iface::getHwType for an explanation of the hardware-type-specific
+         * interface mechanism. If no hardware-type-specific interface is available,
+         * use @ref IpHwType::Undefined.
+         */
+        IpHwType hw_type = IpHwType::Undefined;
+        
+        /**
+         * Pointer to the hardware-type-specific interface.
+         * 
+         * If @ref hw_type is @ref IpHwType::Undefined, use null. Otherwise this must
+         * point to an instance of the hardware-type-specific interface class
+         * corresponding to @ref hw_type.
+         */
+        void *hw_iface = nullptr;
+    };
+    
+    /**
      * A network interface.
      * 
      * This class is generally designed to be inherited and owned by the IP driver.
@@ -885,7 +915,9 @@ public:
      * The IP stack does not provide or impose any model for management of interfaces
      * and interface drivers. Such a system could be build on top if it is needed.
      */
-    class Iface {
+    class Iface :
+        private APrinter::NonCopyable<Iface>
+    {
         friend IpStack;
         
     public:
@@ -899,27 +931,25 @@ public:
          * 
          * This should be used by the driver when the interface should start existing
          * from the perspective of the IP stack. After this, the various virtual
-         * functions may be called. Some virtual functions (@ref driverGetHwType
-         * and @ref driverGetHwIface) may be called directly from this function.
+         * functions may be called.
          * 
-         * @param stack Pointer to the IP stack (must not be null).
+         * @param stack Pointer to the IP stack.
+         * @param info Interface information, see @ref IfaceInitInfo.
          */
-        void init (IpStack *stack)
+        Iface (IpStack *stack, IfaceInitInfo const &info) :
+            m_stack(stack),
+            m_hw_iface(info.hw_iface),
+            m_ip_mtu(APrinter::MinValueU((uint16_t)UINT16_MAX, info.ip_mtu)),
+            m_hw_type(info.hw_type),
+            m_have_addr(false),
+            m_have_gateway(false)
         {
             AMBRO_ASSERT(stack != nullptr)
+            AMBRO_ASSERT(m_ip_mtu >= MinMTU)
             
             // Initialize stuffs.
-            m_stack = stack;
-            m_hw_type = driverGetHwType();
-            m_hw_iface = driverGetHwIface();
-            m_have_addr = false;
-            m_have_gateway = false;
             m_listeners_list.init();
             m_state_observable.init();
-            
-            // Get the MTU.
-            m_ip_mtu = APrinter::MinValueU((uint16_t)UINT16_MAX, driverGetIpMtu());
-            AMBRO_ASSERT(m_ip_mtu >= MinMTU)
             
             // Register interface.
             m_stack->m_iface_list.prepend(*this);
@@ -941,7 +971,7 @@ public:
          * (@ref recvIp4PacketFromDriver). For maximum safety this should be called
          * from a top-level event handler.
          */
-        void deinit ()
+        ~Iface ()
         {
             AMBRO_ASSERT(m_listeners_list.isEmpty())
             AMBRO_ASSERT(!m_state_observable.hasObservers())
@@ -1033,8 +1063,8 @@ public:
          * @ref IpHwType::Ethernet, then an interface of type @ref IpEthHw::HwIface
          * is available.
          * 
-         * This function will return whatever the driver returned when
-         * @ref driverGetHwType was called in @ref init.
+         * This function will return whatever was passed as @ref IfaceInitInfo::hw_type
+         * when the interface was constructed.
          * 
          * This mechanism was created to support the DHCP client which requires
          * access to certain Ethernet/ARP-level functionality.
@@ -1053,8 +1083,8 @@ public:
          * If that value is @ref IpHwType::Undefined, then this function should not
          * be called at all.
          * 
-         * This function will return whatever the driver returned when
-         * @ref driverGetHwIface was called in @ref init.
+         * This function will return whatever was passed as @ref IfaceInitInfo::hw_iface
+         * when the interface was constructed.
          * 
          * @tparam HwIface Type of hardware-type-specific interface.
          * @return Pointer to hardware-type-specific interface.
@@ -1132,17 +1162,6 @@ public:
         
     protected:
         /**
-         * Driver function used to get the Maximum Transmission Unit (MTU).
-         * 
-         * Currently, this is called once from the @ref init function, and the
-         * MTU is then cached for efficiency. The returned MTU must be as least
-         * @ref MinMTU (this is an assert).
-         * 
-         * @return MTU in bytes including IP header.
-         */
-        virtual size_t driverGetIpMtu () = 0;
-        
-        /**
          * Driver function used to send IPv4 packets through the interface.
          * 
          * This is called whenever an IPv4 packet needs to be sent. The driver should
@@ -1165,32 +1184,6 @@ public:
          */
         virtual IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
                                            IpSendRetry::Request *sendRetryReq) = 0;
-        
-        /**
-         * Driver function to get the type of the hardware-type-specific interface.
-         * 
-         * See @ref getHwType for an explanation of the hardware-type-specific
-         * interface mechanism.
-         * 
-         * @return Type of the hardware-type-specific interface. If no
-         *         hardware-type-specific interface is available, then
-         *         @ref IpHwType::Undefined should be returned.
-         */
-        virtual IpHwType driverGetHwType () = 0;
-        
-        /**
-         * Driver function to get the hardware-type-specific interface.
-         * 
-         * See @ref getHwIface for details. Note that this will always be called,
-         * and it should return null if no hardware-type-specific interface is
-         * available.
-         * 
-         * @return Pointer to the hardware-type-specific interface, or null if
-         *         not available. The pointer (if not null) must point to an
-         *         instance of the hardware-type-specific interface class
-         *         corresponding to the value returned by @ref driverGetHwType.
-         */
-        virtual void * driverGetHwIface () = 0;
         
         /**
          * Driver function to get the driver-provided interface state.

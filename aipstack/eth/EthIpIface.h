@@ -38,11 +38,11 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Accessor.h>
+#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/ObserverNotification.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/TimerQueue.h>
-#include <aprinter/system/TimedEventWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
@@ -54,6 +54,8 @@
 #include <aipstack/proto/ArpProto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/hw/IpEthHw.h>
+#include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
 
@@ -65,23 +67,26 @@ template <typename Arg>
 class EthIpIface;
 
 template <typename Arg>
-APRINTER_DECL_TIMERS_CLASS(EthIpIfaceTimers,
-    typename Arg::Context, EthIpIface<Arg>, (ArpTimer))
+AIPSTACK_DECL_TIMERS_CLASS(EthIpIfaceTimers, typename Arg::PlatformImpl,
+                           EthIpIface<Arg>, (ArpTimer))
 
 template <typename Arg>
-class EthIpIface : public Arg::Iface,
+class EthIpIface :
+    public Arg::Iface,
     private EthIpIfaceTimers<Arg>::Timers,
-    private IpEthHw::HwIface
+    private IpEthHw::HwIface,
+    private APrinter::NonCopyable<EthIpIface<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg::Params, (TimersStructureService))
-    APRINTER_USE_TYPES1(Arg, (Context, Iface))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl, Iface))
     
     APRINTER_USE_ONEOF
     APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
-    APRINTER_USE_TYPE1(Context, Clock)
-    APRINTER_USE_TYPE1(Clock, TimeType)
-    APRINTER_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
+    using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
+    using EthIpIfaceTimers<Arg>::Timers::platform;
     
     using IpStack = typename Iface::IfaceIpStack;
     
@@ -108,10 +113,10 @@ class EthIpIface : public Arg::Iface,
     static_assert(ArpRefreshAttempts <= 15, "");
     
     // Base ARP response timeout, doubled for each retransmission.
-    static TimeType const ArpBaseResponseTimeoutTicks = 1.0 * Clock::time_freq;
+    static TimeType const ArpBaseResponseTimeoutTicks = 1.0 * Platform::TimeFreq;
     
     // Time after a Valid entry will go to Refreshing when used.
-    static TimeType const ArpValidTimeoutTicks = 60.0 * Clock::time_freq;
+    static TimeType const ArpValidTimeoutTicks = 60.0 * Platform::TimeFreq;
     
     struct ArpEntry;
     struct ArpEntryTimerQueueNodeUserData;
@@ -196,16 +201,25 @@ class EthIpIface : public Arg::Iface,
         ArpEntryTimerQueueNodeUserData>;
     
 public:
-    void init (IpStack *stack)
+    struct InitInfo {
+        size_t eth_mtu = 0;
+        MacAddr const *mac_addr = nullptr;
+    };
+    
+    EthIpIface (Platform platform, IpStack *stack, InitInfo const &info) :
+        Iface(stack, {
+            /*ip_mtu=*/ (size_t)(info.eth_mtu - EthHeader::Size),
+            /*hw_type=*/ IpHwType::Ethernet,
+            /*hw_iface=*/ static_cast<IpEthHw::HwIface *>(this)
+        }),
+        EthIpIfaceTimers<Arg>::Timers(platform),
+        m_mac_addr(info.mac_addr)
     {
-        // Initialize timer.
-        tim(ArpTimer()).init(Context());
+        AMBRO_ASSERT(info.eth_mtu >= EthHeader::Size)
+        AMBRO_ASSERT(info.mac_addr != nullptr)
         
         // Initialize ARP observable.
         m_arp_observable.init();
-        
-        // Remember the (pointer to the) device MAC address.
-        m_mac_addr = driverGetMacAddr();
         
         // Initialize data structures.
         m_used_entries_list.init();
@@ -226,16 +240,10 @@ public:
             // Initialize the send-retry list for this entry.
             e.retry_list.init();
         }
-        
-        // Initialize the IpStack interface.
-        Iface::init(stack);
     }
     
-    void deinit ()
+    ~EthIpIface ()
     {
-        // Deinitialize the IpStack interface.
-        Iface::deinit();
-        
         // There must be no more ARP observers.
         AMBRO_ASSERT(!m_arp_observable.hasObservers())
         
@@ -244,17 +252,10 @@ public:
             // Deinitialize the send-retry list (unlink any requests).
             e.retry_list.deinit();
         }
-        
-        // Deinitialize timer.
-        tim(ArpTimer()).deinit(Context());
     }
     
 protected:
     // These functions are implemented or called by the Ethernet driver.
-    
-    virtual MacAddr const * driverGetMacAddr () = 0;
-    
-    virtual size_t driverGetEthMtu () = 0;
     
     virtual IpErr driverSendFrame (IpBufRef frame) = 0;
     
@@ -292,15 +293,6 @@ protected:
     }
     
 private:
-    size_t driverGetIpMtu () override final
-    {
-        // Get the MTU from the lower-layer driver and subtract the Ethernet
-        // header size.
-        size_t eth_mtu = driverGetEthMtu();
-        AMBRO_ASSERT(eth_mtu >= EthHeader::Size)
-        return eth_mtu - EthHeader::Size;
-    }
-    
     IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
                                IpSendRetry::Request *retryReq) override final
     {
@@ -325,16 +317,6 @@ private:
         
         // Send the frame via the lower-layer driver.
         return driverSendFrame(frame);
-    }
-    
-    IpHwType driverGetHwType () override final
-    {
-        return IpHwType::Ethernet;
-    }
-    
-    void * driverGetHwIface () override final
-    {
-        return static_cast<IpEthHw::HwIface *>(this);
     }
     
     IpIfaceDriverState driverGetState () override final
@@ -723,7 +705,7 @@ private:
         }
         
         // Get the current time.
-        TimeType now = Clock::getTime(Context());
+        TimeType now = platform().getTime();
         
         // Update the reference time of the timer queue (needed before insert).
         m_timer_queue.updateReferenceTime(now, *this);
@@ -755,16 +737,16 @@ private:
     {
         TimeType time;
         if (m_timer_queue.getFirstTime(time, *this)) {
-            tim(ArpTimer()).appendAt(Context(), time);
+            tim(ArpTimer()).setAt(time);
         } else {
-            tim(ArpTimer()).unset(Context());
+            tim(ArpTimer()).unset();
         }
     }
     
-    void timerExpired (ArpTimer, Context)
+    void timerExpired (ArpTimer)
     {
         // Prepare timer queue for removing expired timers.
-        m_timer_queue.prepareForRemovingExpired(Clock::getTime(Context()), *this);
+        m_timer_queue.prepareForRemovingExpired(platform().getTime(), *this);
         
         // Dispatch expired timers...
         ArpEntryRef timer_ref;
@@ -869,7 +851,7 @@ APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
     APRINTER_AS_TYPE(TimersStructureService)
 ), (
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(Iface)
     ), (
         using Params = EthIpIfaceService;
