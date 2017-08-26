@@ -388,9 +388,6 @@ public:
         m_pcb_index_timewait.init();
         
         for (TcpPcb &pcb : m_pcbs) {
-            // Initialize the send-retry Request object.
-            pcb.IpSendRetry::Request::init();
-            
             // Initialize some PCB variables.
             pcb.tcp = this;
             pcb.state = TcpState::CLOSED;
@@ -415,7 +412,6 @@ public:
         for (TcpPcb &pcb : m_pcbs) {
             AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
             AMBRO_ASSERT(pcb.con == nullptr)
-            pcb.IpSendRetry::Request::deinit();
         }
     }
     

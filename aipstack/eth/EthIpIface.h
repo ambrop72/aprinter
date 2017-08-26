@@ -218,9 +218,6 @@ public:
         AMBRO_ASSERT(info.eth_mtu >= EthHeader::Size)
         AMBRO_ASSERT(info.mac_addr != nullptr)
         
-        // Initialize ARP observable.
-        m_arp_observable.init();
-        
         // Initialize data structures.
         m_used_entries_list.init();
         m_free_entries_list.init();
@@ -236,21 +233,6 @@ public:
             
             // Insert to free list.
             m_free_entries_list.append({e, *this}, *this);
-            
-            // Initialize the send-retry list for this entry.
-            e.retry_list.init();
-        }
-    }
-    
-    ~EthIpIface ()
-    {
-        // There must be no more ARP observers.
-        AMBRO_ASSERT(!m_arp_observable.hasObservers())
-        
-        // Deinitialize ARP entries...
-        for (auto &e : m_arp_entries) {
-            // Deinitialize the send-retry list (unlink any requests).
-            e.retry_list.deinit();
         }
     }
     

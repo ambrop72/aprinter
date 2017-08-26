@@ -26,6 +26,7 @@
 #define APRINTER_OBSERVER_NOTIFICATION_H
 
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/NonCopyable.h>
 
 namespace APrinter {
 
@@ -39,7 +40,8 @@ class ObserverNotification
 public:
     class Observer;
     
-    class Observable
+    class Observable :
+        private NonCopyable<Observable>
     {
         friend ObserverNotification;
         
@@ -47,9 +49,13 @@ public:
         ListNode *m_first;
         
     public:
-        inline void init ()
+        inline Observable () :
+            m_first(nullptr)
+        {}
+        
+        inline ~Observable ()
         {
-            m_first = nullptr;
+            reset();
         }
         
         inline bool hasObservers ()
@@ -57,7 +63,7 @@ public:
             return m_first != nullptr;
         }
         
-        void removeObservers ()
+        void reset ()
         {
             for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
                 AMBRO_ASSERT(node->m_prev != nullptr)
@@ -110,7 +116,7 @@ public:
             
             void endNotify ()
             {
-                // It is possible that removeObservers was called while notifying.
+                // It is possible that reset was called while notifying.
                 // In that case m_temp_node.m_prev was set to null. We have to check
                 // this otherwise very bad things would happen.
                 
@@ -180,17 +186,18 @@ public:
     };
 
     class Observer :
-        private ListNode
+        private ListNode,
+        private NonCopyable<Observer>
     {
         friend ObserverNotification;
         
     public:
-        inline void init ()
+        inline Observer ()
         {
             m_prev = nullptr;
         }
         
-        inline void deinit ()
+        inline ~Observer ()
         {
             reset();
         }
@@ -209,7 +216,7 @@ public:
         }
         
     protected:
-        void observe (Observable &observable)
+        void observeObservable (Observable &observable)
         {
             AMBRO_ASSERT(!isActive())
             

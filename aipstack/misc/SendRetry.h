@@ -41,16 +41,6 @@ public:
         friend IpSendRetry;
         
     public:
-        inline void init ()
-        {
-            Observer::init();
-        }
-        
-        inline void deinit ()
-        {
-            Observer::deinit();
-        }
-        
         inline bool isActive ()
         {
             return Observer::isActive();
@@ -69,19 +59,9 @@ public:
         private Observable
     {
     public:
-        inline void init ()
-        {
-            Observable::init();
-        }
-        
-        inline void deinit ()
-        {
-            Observable::removeObservers();
-        }
-        
         inline void reset ()
         {
-            Observable::removeObservers();
+            Observable::reset();
         }
         
         inline bool hasRequests ()
@@ -93,7 +73,7 @@ public:
         {
             if (req != nullptr) {
                 req->Observer::reset();
-                req->Observer::observe(*this);
+                req->Observer::observeObservable(*this);
             }
         }
         

@@ -812,34 +812,12 @@ public:
      * This class can be used to receive a callback whenever the driver-reported
      * state may have changed.
      */
-    class IfaceStateObserver : private Observer {
+    class IfaceStateObserver :
+        public Observer
+    {
         friend IpStack;
         
     public:
-        /**
-         * Initialize the observer.
-         * @see ObserverNotification::Observer::init
-         */
-        using Observer::init;
-        
-        /**
-         * Deinitialize the observer.
-         * @see ObserverNotification::Observer::deinit
-         */
-        using Observer::deinit;
-        
-        /**
-         * Reset the observer, making it inactive.
-         * @see ObserverNotification::Observer::reset
-         */
-        using Observer::reset;
-        
-        /**
-         * Check if the observer is active.
-         * @see ObserverNotification::Observer::isActive
-         */
-        using Observer::isActive;
-        
         /**
          * Start observing an interface, making the observer active.
          * 
@@ -849,7 +827,7 @@ public:
          */
         inline void observe (Iface &iface)
         {
-            Observer::observe(iface.m_state_observable);
+            Observer::observeObservable(iface.m_state_observable);
         }
         
     protected:
@@ -950,7 +928,6 @@ public:
             
             // Initialize stuffs.
             m_listeners_list.init();
-            m_state_observable.init();
             
             // Register interface.
             m_stack->m_iface_list.prepend(*this);
@@ -975,7 +952,6 @@ public:
         ~Iface ()
         {
             AMBRO_ASSERT(m_listeners_list.isEmpty())
-            AMBRO_ASSERT(!m_state_observable.hasObservers())
             
             // Unregister interface.
             m_stack->m_iface_list.remove(*this);

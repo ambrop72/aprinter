@@ -349,11 +349,6 @@ public:
         // We only support Ethernet interfaces.
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
-        // Init resources.
-        IfaceStateObserver::init();
-        IpSendRetry::Request::init();
-        ArpObserver::init();
-        
         // Start observing interface state.
         IfaceStateObserver::observe(*iface);
         
@@ -379,11 +374,6 @@ public:
     {
         // Remove any configuration that might have been done (no callback).
         handle_dhcp_down(/*call_callback=*/false, /*link_down=*/false);
-        
-        // Deinit resources.
-        ArpObserver::deinit();
-        IpSendRetry::Request::deinit();
-        IfaceStateObserver::deinit();
     }
     
     /**

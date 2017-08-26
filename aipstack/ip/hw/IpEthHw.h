@@ -103,31 +103,12 @@ public:
      * Allows receiving information about ARP updates received
      * on the interface.
      */
-    class ArpObserver : private Observer
+    class ArpObserver :
+        public Observer
     {
         friend IpEthHw;
         
     public:
-        /**
-         * Initialize.
-         */
-        using Observer::init;
-        
-        /**
-         * Deinitialize.
-         */
-        using Observer::deinit;
-        
-        /**
-         * Reset (unsubscribe if subscribed).
-         */
-        using Observer::reset;
-        
-        /**
-         * Check if subscribed.
-         */
-        using Observer::isActive;
-        
         /**
          * Subscribe ARP updates on an interface.
          * 
@@ -137,7 +118,7 @@ public:
          */
         inline void observe (HwIface &hw)
         {
-            Observer::observe(hw.getArpObservable());
+            Observer::observeObservable(hw.getArpObservable());
         }
         
     private:
