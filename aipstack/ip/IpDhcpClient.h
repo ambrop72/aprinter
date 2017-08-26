@@ -339,6 +339,7 @@ public:
      */
     IpDhcpClient (Platform platform, IpStack *stack, Iface *iface,
                   IpDhcpClientInitOptions const &opts, IpDhcpClientCallback *callback) :
+        IfaceListener(iface, Ip4ProtocolUdp),
         IpDhcpClientTimers<Arg>::Timers(platform),
         m_ipstack(stack),
         m_callback(callback),
@@ -349,7 +350,6 @@ public:
         AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
         // Init resources.
-        IfaceListener::init(iface, Ip4ProtocolUdp);
         IfaceStateObserver::init();
         IpSendRetry::Request::init();
         ArpObserver::init();
@@ -384,7 +384,6 @@ public:
         ArpObserver::deinit();
         IpSendRetry::Request::deinit();
         IfaceStateObserver::deinit();
-        IfaceListener::deinit();
     }
     
     /**

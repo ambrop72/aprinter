@@ -736,7 +736,9 @@ public:
      * implementation. It may be removed at some point if a proper UDP protocol
      * handle is implemented that is usable for DHCP.
      */
-    class IfaceListener {
+    class IfaceListener :
+        private APrinter::NonCopyable<IfaceListener>
+    {
         friend IpStack;
         
     public:
@@ -751,11 +753,10 @@ public:
          *        not removed while this object is still initialized.
          * @param proto IP protocol number that the user is interested on.
          */
-        void init (Iface *iface, uint8_t proto)
+        IfaceListener (Iface *iface, uint8_t proto) :
+            m_iface(iface),
+            m_proto(proto)
         {
-            m_iface = iface;
-            m_proto = proto;
-            
             m_iface->m_listeners_list.prepend(*this);
         }
         
@@ -764,7 +765,7 @@ public:
          * 
          * After this, @ref recvIp4Dgram will not be called.
          */
-        void deinit ()
+        ~IfaceListener ()
         {
             m_iface->m_listeners_list.remove(*this);
         }
