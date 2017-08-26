@@ -93,6 +93,10 @@ using TimerWrapperName = AIpStack::TimerWrapper< \
     APRINTER_AS_MAP(AIPSTACK_DECL_TIMERS_GIVE_TIMER, APRINTER_AS_MAP_DELIMITER_COMMA, 0, TheTimers) \
 >;
 
+#define AIPSTACK_USE_TIMERS(TimerWrapperName) \
+friend TimerWrapperName; \
+using TimerWrapperName::tim;
+
 #define AIPSTACK_DECL_TIMERS_CLASS(ClassName, PlatformImpl, Derived, TheTimers) \
 class ClassName { \
     friend Derived; \

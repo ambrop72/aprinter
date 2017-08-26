@@ -30,21 +30,23 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/misc/ClockUtils.h>
+#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
+#include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
 
 template <
-    typename Context,
+    typename PlatformImpl,
     typename TcpProto,
     size_t RxBufferSize
 >
 class TcpListenQueue {
-    using TimeType = typename Context::Clock::TimeType;
-    using TheClockUtils = APrinter::ClockUtils<Context>;
+    using Platform = PlatformFacade<PlatformImpl>;
+    APRINTER_USE_TYPES1(Platform, (TimeType))
     APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener,
                                    TcpListenerCallback, TcpConnection))
     
@@ -82,7 +84,7 @@ public:
             
             TcpConnection::setRecvBuf(IpBufRef{&m_rx_buf_node, 0, RxBufferSize});
             
-            m_time = Context::Clock::getTime(Context());
+            m_time = TcpConnection::getTcp().platform().getTime();
             m_ready = false;
             
             // Added a not-ready connection -> update timeout.
@@ -137,7 +139,7 @@ public:
                 m_listener->update_timeout();
                 
                 // Try to hand over ready connections.
-                m_listener->dequeue_event_handler(Context());
+                m_listener->dispatch_connections();
             }
         }
         
@@ -166,36 +168,41 @@ public:
         virtual void connectionEstablished (QueuedListener *lis) = 0;
     };
     
+private:
+    AIPSTACK_DECL_TIMERS(QueuedListenerTimers, PlatformImpl,
+                         QueuedListener, (DequeueTimer, TimeoutTimer))
+    
+public:
     class QueuedListener :
-        private TcpListenerCallback
+        private TcpListenerCallback,
+        private QueuedListenerTimers,
+        private APrinter::NonCopyable<QueuedListener>
     {
         friend class ListenQueueEntry;
         
+        AIPSTACK_USE_TIMERS(QueuedListenerTimers)
+        
     public:
-        void init (QueuedListenerCallback *callback)
+        QueuedListener (Platform platform, QueuedListenerCallback *callback) :
+            QueuedListenerTimers(platform),
+            m_callback(callback)
         {
-            Context c;
             AMBRO_ASSERT(callback != nullptr)
             
-            m_dequeue_event.init(c, APRINTER_CB_OBJFUNC_T(&QueuedListener::dequeue_event_handler, this));
-            m_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&QueuedListener::timeout_event_handler, this));
             m_listener.init(this);
-            m_callback = callback;
         }
         
-        void deinit ()
+        ~QueuedListener ()
         {
             deinit_queue();
             m_listener.deinit();
-            m_timeout_event.deinit(Context());
-            m_dequeue_event.deinit(Context());
         }
         
         void reset ()
         {
             deinit_queue();
-            m_dequeue_event.unset(Context());
-            m_timeout_event.unset(Context());
+            tim(DequeueTimer()).unset();
+            tim(TimeoutTimer()).unset();
             m_listener.reset();
         }
         
@@ -234,7 +241,7 @@ public:
             AMBRO_ASSERT(m_listener.isListening())
             
             if (m_queue_size > 0) {
-                m_dequeue_event.prependNow(Context());
+                tim(DequeueTimer()).setNow();
             }
         }
         
@@ -297,7 +304,12 @@ public:
             // If the connection was not accepted, it will be aborted.
         }
         
-        void dequeue_event_handler (Context)
+        void timerExpired (DequeueTimer)
+        {
+            dispatch_connections();
+        }
+        
+        void dispatch_connections ()
         {
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(m_queue_size > 0)
@@ -329,13 +341,13 @@ public:
             
             if (entry != nullptr) {
                 TimeType expire_time = entry->m_time + m_queue_timeout;
-                m_timeout_event.appendAt(Context(), expire_time);
+                tim(TimeoutTimer()).setAt(expire_time);
             } else {
-                m_timeout_event.unset(Context());
+                tim(TimeoutTimer()).unset();
             }
         }
         
-        void timeout_event_handler (Context)
+        void timerExpired (TimeoutTimer)
         {
             AMBRO_ASSERT(m_listener.isListening())
             AMBRO_ASSERT(m_queue_size > 0)
@@ -369,7 +381,7 @@ public:
                 ListenQueueEntry &entry = m_queue[i];
                 if (!entry.TcpConnection::isInit() && entry.m_ready == ready &&
                     (oldest_entry == nullptr ||
-                     !TheClockUtils::timeGreaterOrEqual(entry.m_time, oldest_entry->m_time)))
+                     !Platform::timeGreaterOrEqual(entry.m_time, oldest_entry->m_time)))
                 {
                     oldest_entry = &entry;
                 }
@@ -378,8 +390,6 @@ public:
             return oldest_entry;
         }
         
-        typename Context::EventLoop::QueuedEvent m_dequeue_event;
-        typename Context::EventLoop::TimedEvent m_timeout_event;
         QueuedListenerCallback *m_callback;
         TcpListener m_listener;
         ListenQueueEntry *m_queue;

@@ -84,7 +84,7 @@ class IpStackNetwork {
 public:
     struct Object;
     
-private:
+public:
     class PlatformImpl
     {
         using PlatformRef = AIpStack::PlatformRef<PlatformImpl>;
@@ -154,6 +154,7 @@ private:
         };
     };
     
+private:
     using Platform = AIpStack::PlatformFacade<PlatformImpl>;
     
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<

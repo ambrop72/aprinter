@@ -161,6 +161,18 @@ public:
         }
         
         /**
+         * Return a reference to the TCP protocol.
+         * 
+         * May only be called when listening.
+         */
+        TcpProto & getTcp ()
+        {
+            AMBRO_ASSERT(isListening())
+            
+            return *m_tcp;
+        }
+        
+        /**
          * Listen on an IPv4 address and port.
          * 
          * Listening on the all-zeros address listens on all local addresses.
@@ -416,6 +428,18 @@ public:
         inline bool isConnected ()
         {
             return m_v.pcb != nullptr;
+        }
+        
+        /**
+         * Return a reference to the TCP protocol.
+         * 
+         * May only be called in CONNECTED state.
+         */
+        TcpProto & getTcp ()
+        {
+            AMBRO_ASSERT(isConnected())
+            
+            return *m_v.pcb->tcp;
         }
         
         /**

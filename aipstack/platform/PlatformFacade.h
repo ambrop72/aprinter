@@ -124,6 +124,8 @@ public:
     
     static_assert(WorkingTimeSpanSec >= 600.0, "");
     
+    static TimeType const TimeMSB = (TimeType)1 << (TimeBits - 1);
+    
     inline TimeType getTime () const
     {
         return callImpl<TimeType()>(&Impl::getTime);
@@ -132,6 +134,11 @@ public:
     inline TimeType getEventTime () const
     {
         return callImpl<TimeType()>(&Impl::getEventTime);
+    }
+    
+    inline static bool timeGreaterOrEqual (TimeType t1, TimeType t2)
+    {
+        return (TimeType)(t1 - t2) < TimeMSB;
     }
     
     template <typename Derived>
@@ -192,6 +199,11 @@ public:
         {
             TimeType abs_time = platform().getTime() + rel_time;
             return setAt(abs_time);
+        }
+        
+        inline void setNow ()
+        {
+            return setAfter(0);
         }
         
     protected:

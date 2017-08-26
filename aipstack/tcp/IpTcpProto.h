@@ -430,12 +430,12 @@ public:
         Input::handleIp4DestUnreach(this, du_meta, ip_info, dgram_initial);
     }
     
-private:
     inline Platform platform ()
     {
         return m_pcbs[0].platform();
     }
     
+private:
     TcpPcb * allocate_pcb ()
     {
         // No PCB available?

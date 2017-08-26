@@ -43,6 +43,7 @@
 #include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Preprocessor.h>
+#include <aprinter/base/ManualRaii.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
@@ -75,13 +76,13 @@ private:
     APRINTER_USE_TYPES2(AIpStack, (Ip4Addr))
     APRINTER_USE_TYPE1(Context::Clock, TimeType)
     APRINTER_USE_TYPE1(Context, Network)
-    APRINTER_USE_TYPES1(Network, (TcpProto))
+    APRINTER_USE_TYPES1(Network, (TcpProto, PlatformImpl))
     APRINTER_USE_TYPES1(TcpProto, (TcpConnection, TcpListenParams))
     
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
     
-    using ListenQueue = AIpStack::TcpListenQueue<Context, TcpProto, Params::Net::QueueRecvBufferSize>;
+    using ListenQueue = AIpStack::TcpListenQueue<PlatformImpl, TcpProto, Params::Net::QueueRecvBufferSize>;
     APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams,
                                       QueuedListenerCallback, QueuedListener))
     
@@ -145,7 +146,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.init(&o->listener_callback);
+        o->listener.construct(Network::getTcpProto(c)->platform(), &o->listener_callback);
         
         auto listen_params = TcpListenParams{};
         listen_params.addr = Ip4Addr::ZeroAddr();
@@ -158,7 +159,7 @@ public:
         queue_params.queue_timeout = QueueTimeoutTicks;
         queue_params.queue_entries = o->queue;
         
-        if (!o->listener.startListening(Network::getTcpProto(c), listen_params, queue_params)) {
+        if (!o->listener->startListening(Network::getTcpProto(c), listen_params, queue_params)) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         
@@ -175,7 +176,7 @@ public:
             client.deinit(c);
         }
         
-        o->listener.deinit();
+        o->listener.destruct();
     }
     
 private:
@@ -187,7 +188,7 @@ private:
             
             for (Client &client : o->clients) {
                 if (client.m_state == Client::State::NOT_CONNECTED) {
-                    return client.accept_connection(c, &o->listener);
+                    return client.accept_connection(c, *o->listener);
                 }
             }
         }
@@ -243,13 +244,13 @@ private:
             m_send_event.deinit(c);
         }
         
-        void accept_connection (Context c, QueuedListener *listener)
+        void accept_connection (Context c, QueuedListener &listener)
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
             // Accept the connection.
             AIpStack::IpBufRef initial_rx_data;
-            if (listener->acceptConnection(*this, initial_rx_data) != AIpStack::IpErr::SUCCESS) {
+            if (listener.acceptConnection(*this, initial_rx_data) != AIpStack::IpErr::SUCCESS) {
                 return;
             }
             
@@ -285,7 +286,7 @@ private:
             m_send_state = SendState::INVALID;
             
             // Remind the listener to give any queued connection.
-            o->listener.scheduleDequeue();
+            o->listener->scheduleDequeue();
         }
         
         void terminate_user (Context c)
@@ -1472,7 +1473,7 @@ private:
     
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
-        QueuedListener listener;
+        ManualRaii<QueuedListener> listener;
         ListenerCallback listener_callback;
         ListenQueueEntry queue[Params::Net::QueueSize];
         Client clients[Params::Net::MaxClients];
