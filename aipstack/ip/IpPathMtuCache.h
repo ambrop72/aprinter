@@ -241,15 +241,21 @@ public:
     
     class MtuRef :
         private PrevLink,
-        private NextLink
+        private NextLink,
+        private APrinter::NonCopyable<MtuRef>
     {
         friend IpPathMtuCache;
         
     public:
-        inline void init ()
+        inline MtuRef ()
         {
             // Clear prev link to indicate unused MtuRef.
             PrevLink::link = nullptr;
+        }
+        
+        inline ~MtuRef ()
+        {
+            AMBRO_ASSERT(PrevLink::link == nullptr)
         }
         
         void reset (IpPathMtuCache *cache)
@@ -299,7 +305,7 @@ public:
             PrevLink::link = nullptr;
         }
         
-        inline bool isSetup ()
+        inline bool isSetup () const
         {
             return PrevLink::link != nullptr;
         }

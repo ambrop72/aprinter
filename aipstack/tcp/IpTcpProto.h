@@ -228,9 +228,21 @@ private:
     {
         using PcbMultiTimer::platform;
         
-        inline TcpPcb (Platform platform) :
-            PcbMultiTimer(platform)
+        inline TcpPcb (Platform platform, IpTcpProto *tcp) :
+            PcbMultiTimer(platform),
+            tcp(tcp),
+            state(TcpState::CLOSED)
         {
+            con = nullptr;
+            
+            // Add the PCB to the list of unreferenced PCBs.
+            tcp->m_unrefed_pcbs_list.prepend({*this, *tcp}, *tcp);
+        }
+        
+        inline ~TcpPcb ()
+        {
+            AMBRO_ASSERT(state != TcpState::SYN_RCVD)
+            AMBRO_ASSERT(con == nullptr)
         }
         
         // Node for the PCB index.
@@ -364,29 +376,12 @@ public:
      * The TCP will register itself with the IpStack to receive incoming TCP packets.
      */
     IpTcpProto (IpProtocolHandlerArgs<Platform, TheIpStack> args) :
-        m_pcbs(APrinter::ResourceArrayInitSame(), args.platform)
+        m_stack(args.stack),
+        m_current_pcb(nullptr),
+        m_next_ephemeral_port(EphemeralPortFirst),
+        m_pcbs(APrinter::ResourceArrayInitSame(), args.platform, this)
     {
         AMBRO_ASSERT(args.stack != nullptr)
-        
-        // Remember things.
-        m_stack = args.stack;
-        
-        // Clear m_current_pcb which tracks the current PCB being
-        // processed by pcb_input().
-        m_current_pcb = nullptr;
-        
-        // Set the initial counter for ephemeral ports.
-        m_next_ephemeral_port = EphemeralPortFirst;
-        
-        for (TcpPcb &pcb : m_pcbs) {
-            // Initialize some PCB variables.
-            pcb.tcp = this;
-            pcb.state = TcpState::CLOSED;
-            pcb.con = nullptr;
-            
-            // Add the PCB to the list of unreferenced PCBs.
-            m_unrefed_pcbs_list.prepend({pcb, *this}, *this);
-        }
     }
     
     /**
@@ -399,11 +394,6 @@ public:
     {
         AMBRO_ASSERT(m_listeners_list.isEmpty())
         AMBRO_ASSERT(m_current_pcb == nullptr)
-        
-        for (TcpPcb &pcb : m_pcbs) {
-            AMBRO_ASSERT(pcb.state != TcpState::SYN_RCVD)
-            AMBRO_ASSERT(pcb.con == nullptr)
-        }
     }
     
     inline void recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram)

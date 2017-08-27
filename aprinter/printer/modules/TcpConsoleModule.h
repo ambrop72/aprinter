@@ -94,14 +94,12 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.init(&o->listener_callback);
-        
         TcpListenParams params = {};
         params.addr = Ip4Addr::ZeroAddr();
         params.port = Params::Port;
         params.max_pcbs = Params::MaxPcbs;
         
-        if (!o->listener.startListening(Network::getTcpProto(c), params)) {
+        if (!o->listener.startListening(Network::getTcpProto(c), params, &o->listener_callback)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         } else {
             o->listener.setInitialReceiveWindow(RecvBufferSize);
@@ -120,11 +118,12 @@ public:
             client.deinit(c);
         }
         
-        o->listener.deinit();
+        o->listener.reset();
     }
     
 private:
-    struct ListenerCallback : public TcpProto::TcpListenerCallback
+    struct ListenerCallback :
+        public TcpProto::TcpListenerCallback
     {
         void connectionEstablished (TcpListener *) override final
         {
@@ -154,7 +153,6 @@ private:
         
         void init (Context c)
         {
-            TcpConnection::init();
             m_state = State::NOT_CONNECTED;
         }
         
@@ -165,7 +163,7 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
-            TcpConnection::deinit();
+            TcpConnection::reset();
         }
         
         void accept_connection (Context c)

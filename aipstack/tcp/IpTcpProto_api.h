@@ -34,6 +34,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aipstack/misc/Buf.h>
@@ -89,7 +90,9 @@ public:
     /**
      * Represents listening for connections on a specific address and port.
      */
-    class TcpListener {
+    class TcpListener :
+        private APrinter::NonCopyable<TcpListener>
+    {
         template <typename> friend class IpTcpProto;
         template <typename> friend class IpTcpProto_input;
         friend class TcpConnection;
@@ -102,14 +105,11 @@ public:
          * newly accepted connections. Upon init, the listener is in not-listening
          * state, and listenIp4 should be called to start listening.
          */
-        void init (TcpListenerCallback *callback)
+        TcpListener () :
+            m_initial_rcv_wnd(0),
+            m_accept_pcb(nullptr),
+            m_listening(false)
         {
-            AMBRO_ASSERT(callback != nullptr)
-            
-            m_callback = callback;
-            m_initial_rcv_wnd = 0;
-            m_accept_pcb = nullptr;
-            m_listening = false;
         }
         
         /**
@@ -119,7 +119,7 @@ public:
          * but any already established connection (those associated with a
          * TcpConnection object) will not be affected.
          */
-        void deinit ()
+        ~TcpListener ()
         {
             reset();
         }
@@ -180,11 +180,13 @@ public:
          * Return success/failure to start listening. It can fail only if there
          * is another listener listening on the same pair of address and port.
          */
-        bool startListening (TcpProto *tcp, TcpListenParams const &params)
+        bool startListening (TcpProto *tcp, TcpListenParams const &params,
+                             TcpListenerCallback *callback)
         {
             AMBRO_ASSERT(!m_listening)
             AMBRO_ASSERT(tcp != nullptr)
             AMBRO_ASSERT(params.max_pcbs > 0)
+            AMBRO_ASSERT(callback != nullptr)
             
             // Check if there is an existing listener listning on this address+port.
             if (tcp->find_listener(params.addr, params.port) != nullptr) {
@@ -193,6 +195,7 @@ public:
             
             // Start listening.
             m_tcp = tcp;
+            m_callback = callback;
             m_addr = params.addr;
             m_port = params.port;
             m_max_pcbs = params.max_pcbs;
@@ -244,6 +247,7 @@ public:
      * - CLOSED: There was a connection but is no more.
      */
     class TcpConnection :
+        private APrinter::NonCopyable<TcpConnection>,
         // MTU reference.
         // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
         private MtuRef
@@ -257,9 +261,8 @@ public:
          * Initializes the connection object.
          * The object is initialized in INIT state.
          */
-        void init ()
+        TcpConnection ()
         {
-            MtuRef::init();
             m_v.pcb = nullptr;
             reset_flags();
         }
@@ -267,7 +270,7 @@ public:
         /**
          * Deinitializes the connection object.
          */
-        void deinit ()
+        ~TcpConnection ()
         {
             reset();
         }
@@ -295,8 +298,6 @@ public:
             }
             
             reset_flags();
-            
-            // NOTE: MtuRef has no deinit(), only reset is needed if it was setup.
         }
         
         /**

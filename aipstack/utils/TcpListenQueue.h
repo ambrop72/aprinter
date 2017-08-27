@@ -64,13 +64,12 @@ public:
         void init (QueuedListener *listener)
         {
             m_listener = listener;
-            TcpConnection::init();
             m_rx_buf_node = IpBufNode{m_rx_buf, RxBufferSize, nullptr};
         }
         
         void deinit ()
         {
-            TcpConnection::deinit();
+            TcpConnection::reset();
         }
         
         void accept_connection ()
@@ -188,14 +187,11 @@ public:
             m_callback(callback)
         {
             AMBRO_ASSERT(callback != nullptr)
-            
-            m_listener.init(this);
         }
         
         ~QueuedListener ()
         {
             deinit_queue();
-            m_listener.deinit();
         }
         
         void reset ()
@@ -214,7 +210,7 @@ public:
             AMBRO_ASSERT(q_params.queue_size == 0 || q_params.min_rcv_buf_size >= RxBufferSize)
             
             // Start listening.
-            if (!m_listener.startListening(tcp, params)) {
+            if (!m_listener.startListening(tcp, params, this)) {
                 return false;
             }
             

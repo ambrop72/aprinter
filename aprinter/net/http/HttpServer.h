@@ -194,7 +194,9 @@ private:
         }
     };
     
-    class Client : private TcpConnection {
+    class Client :
+        private TcpConnection
+    {
         friend HttpServer;
         
     private:
@@ -226,7 +228,6 @@ private:
             m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
             m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
             m_recv_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_timeout_event_handler, this));
-            TcpConnection::init();
             m_user = nullptr;
             m_state = State::NOT_CONNECTED;
             m_recv_state = RecvState::INVALID;
@@ -237,7 +238,7 @@ private:
         void deinit (Context c)
         {
             m_user_client_state.deinit(c);
-            TcpConnection::deinit();
+            TcpConnection::reset();
             m_recv_timeout_event.deinit(c);
             m_send_timeout_event.deinit(c);
             m_recv_event.deinit(c);

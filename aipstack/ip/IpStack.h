@@ -1247,7 +1247,8 @@ public:
     /**
      * Allows keeping track of the Path MTU estimate for a remote address.
      */
-    class MtuRef : private BaseMtuRef
+    class MtuRef :
+        private BaseMtuRef
     {
     public:
         /**
@@ -1258,10 +1259,17 @@ public:
          * This function must be called before any other function in this
          * class is called.
          */
-        inline void init ()
-        {
-            return BaseMtuRef::init();
-        }
+        MtuRef () = default;
+        
+        /**
+         * Destructor, asserts that the object is in not-setup state.
+         * 
+         * It is required to ensure the object is in not-setup state before
+         * destructing it (by calling @ref reset if needed). The destructor
+         * cannot do the reset because it does not have the @ref IpStack
+         * pointer available.
+         */
+        ~MtuRef () = default;
         
         /**
          * Reset the MTU reference.
@@ -1283,7 +1291,7 @@ public:
          * 
          * @return True if in setup state, false if in not-setup state.
          */
-        inline bool isSetup ()
+        inline bool isSetup () const
         {
             return BaseMtuRef::isSetup();
         }

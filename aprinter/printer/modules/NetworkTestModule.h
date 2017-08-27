@@ -125,16 +125,16 @@ private:
         cmd->finishCommand(c);
     }
     
-    struct Connection : private TcpConnection
+    struct Connection :
+        private TcpConnection
     {
         void init (Context c)
         {
-            TcpConnection::init();
         }
         
         void deinit (Context c)
         {
-            TcpConnection::deinit();
+            TcpConnection::reset();
         }
         
         bool start_connection (Context c, Ip4Addr addr, uint16_t port, typename ThePrinterMain::TheCommand *cmd)
