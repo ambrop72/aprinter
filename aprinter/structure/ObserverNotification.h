@@ -30,7 +30,7 @@
 
 namespace APrinter {
 
-class ObserverNotification
+class ObserverNotificationPrivate
 {
     struct ListNode {
         ListNode **m_prev;
@@ -38,27 +38,27 @@ class ObserverNotification
     };
     
 public:
-    class Observer;
+    class BaseObserver;
     
-    class Observable :
-        private NonCopyable<Observable>
+    class BaseObservable :
+        private NonCopyable<BaseObservable>
     {
-        friend ObserverNotification;
+        friend BaseObserver;
         
     private:
         ListNode *m_first;
         
     public:
-        inline Observable () :
+        inline BaseObservable () :
             m_first(nullptr)
         {}
         
-        inline ~Observable ()
+        inline ~BaseObservable ()
         {
             reset();
         }
         
-        inline bool hasObservers ()
+        inline bool hasObservers () const
         {
             return m_first != nullptr;
         }
@@ -72,20 +72,40 @@ public:
             m_first = nullptr;
         }
         
+        template <typename EnumerateFunc>
+        void enumerateObservers (EnumerateFunc enumerate)
+        {
+            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
+                enumerate(static_cast<BaseObserver &>(*node));
+            }
+        }
+        
+        template <bool RemoveNotified, typename NotifyFunc>
+        void notifyObservers (NotifyFunc notify)
+        {
+            NotificationIterator iter(*this);
+            
+            while (BaseObserver *observer = iter.template beginNotify<RemoveNotified>()) {
+                notify(*observer);
+                iter.endNotify();
+            }
+        }
+        
+    private:
         class NotificationIterator
         {
         private:
-            Observer *m_observer;
+            BaseObserver *m_observer;
             ListNode m_temp_node;
             
         public:
-            inline NotificationIterator (Observable &observable)
+            inline NotificationIterator (BaseObservable &observable)
             {
-                m_observer = static_cast<Observer *>(observable.m_first);
+                m_observer = static_cast<BaseObserver *>(observable.m_first);
             }
             
             template <bool RemoveNotified>
-            Observer * beginNotify ()
+            BaseObserver * beginNotify ()
             {
                 if (m_observer == nullptr) {
                     return nullptr;
@@ -125,43 +145,11 @@ public:
                     return;
                 }
                 
-                m_observer = static_cast<Observer *>(m_temp_node.m_next);
+                m_observer = static_cast<BaseObserver *>(m_temp_node.m_next);
                 
                 remove_node(m_temp_node);
             }
         };
-        
-        template <typename EnumerateFunc>
-        void enumerateObservers (EnumerateFunc enumerate)
-        {
-            for (ListNode *node = m_first; node != nullptr; node = node->m_next) {
-                enumerate(static_cast<Observer &>(*node));
-            }
-        }
-        
-        template <typename NotifyFunc>
-        inline void notifyKeepObservers (NotifyFunc notify)
-        {
-            notify_observers<false>(notify);
-        }
-        
-        template <typename NotifyFunc>
-        inline void notifyRemoveObservers (NotifyFunc notify)
-        {
-            notify_observers<true>(notify);
-        }
-        
-    private:
-        template <bool RemoveNotified, typename NotifyFunc>
-        void notify_observers (NotifyFunc notify)
-        {
-            NotificationIterator iter(*this);
-            
-            while (Observer *observer = iter.template beginNotify<RemoveNotified>()) {
-                notify(*observer);
-                iter.endNotify();
-            }
-        }
         
         inline void prepend_node (ListNode &node)
         {
@@ -185,24 +173,24 @@ public:
         }
     };
 
-    class Observer :
+    class BaseObserver :
         private ListNode,
-        private NonCopyable<Observer>
+        private NonCopyable<BaseObserver>
     {
-        friend ObserverNotification;
+        friend BaseObservable;
         
     public:
-        inline Observer ()
+        inline BaseObserver ()
         {
             m_prev = nullptr;
         }
         
-        inline ~Observer ()
+        inline ~BaseObserver ()
         {
             reset();
         }
         
-        inline bool isActive ()
+        inline bool isActive () const
         {
             return m_prev != nullptr;
         }
@@ -210,13 +198,13 @@ public:
         void reset ()
         {
             if (m_prev != nullptr) {
-                Observable::remove_node(*this);
+                BaseObservable::remove_node(*this);
                 m_prev = nullptr;
             }
         }
         
     protected:
-        void observeObservable (Observable &observable)
+        void observeBase (BaseObservable &observable)
         {
             AMBRO_ASSERT(!isActive())
             
@@ -225,8 +213,77 @@ public:
     };
 };
 
-using Observable = ObserverNotification::Observable;
-using Observer = ObserverNotification::Observer;
+template <typename ObserverDerived>
+class Observable;
+
+template <typename ObserverDerived>
+class Observer :
+    private ObserverNotificationPrivate::BaseObserver
+{
+    friend Observable<ObserverDerived>;
+    
+public:
+    inline bool isActive () const
+    {
+        return BaseObserver::isActive();
+    }
+    
+    inline void reset ()
+    {
+        return BaseObserver::reset();
+    }
+};
+
+template <typename ObserverDerived>
+class Observable :
+    private ObserverNotificationPrivate::BaseObservable
+{
+    using BaseObserver = ObserverNotificationPrivate::BaseObserver;
+    
+public:
+    inline bool hasObservers () const
+    {
+        return BaseObservable::hasObservers();
+    }
+    
+    inline void reset ()
+    {
+        BaseObservable::reset();
+    }
+    
+    inline void addObserver (Observer<ObserverDerived> &observer)
+    {
+        observer.BaseObserver::observeBase(*this);
+    }
+    
+    template <typename EnumerateFunc>
+    inline void enumerateObservers (EnumerateFunc enumerate)
+    {
+        BaseObservable::enumerateObservers(convertObserverFunc(enumerate));
+    }
+    
+    template <typename NotifyFunc>
+    inline void notifyKeepObservers (NotifyFunc notify)
+    {
+        BaseObservable::template notifyObservers<false>(convertObserverFunc(notify));
+    }
+    
+    template <typename NotifyFunc>
+    inline void notifyRemoveObservers (NotifyFunc notify)
+    {
+        BaseObservable::template notifyObservers<true>(convertObserverFunc(notify));
+    }
+    
+private:
+    template <typename Func>
+    inline static auto convertObserverFunc (Func func)
+    {
+        return [=](BaseObserver &base_observer) {
+            auto &observer = static_cast<Observer<ObserverDerived> &>(base_observer);
+            return func(static_cast<ObserverDerived &>(observer));
+        };
+    }
+};
 
 }
 

@@ -81,7 +81,6 @@ class IpStack :
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
     APRINTER_USE_TYPES1(Params, (PathMtuParams, ReassemblyService))
     
-    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     APRINTER_USE_VALS(APrinter, (EnumZero))
     
     using Platform = PlatformFacade<PlatformImpl>;
@@ -813,9 +812,10 @@ public:
      * state may have changed.
      */
     class IfaceStateObserver :
-        public Observer
+        public APrinter::Observer<IfaceStateObserver>
     {
         friend IpStack;
+        friend APrinter::Observable<IfaceStateObserver>;
         
     public:
         /**
@@ -827,7 +827,7 @@ public:
          */
         inline void observe (Iface &iface)
         {
-            Observer::observeObservable(iface.m_state_observable);
+            iface.m_state_observable.addObserver(*this);
         }
         
     protected:
@@ -1221,8 +1221,7 @@ public:
          */
         void stateChangedFromDriver ()
         {
-            m_state_observable.notifyKeepObservers([&](Observer &observer_base) {
-                IfaceStateObserver &observer = static_cast<IfaceStateObserver &>(observer_base);
+            m_state_observable.notifyKeepObservers([&](IfaceStateObserver &observer) {
                 observer.ifaceStateChanged();
             });
         }
@@ -1230,7 +1229,7 @@ public:
     private:
         APrinter::LinkedListNode<IfaceLinkModel> m_iface_list_node;
         IfaceListenerList m_listeners_list;
-        Observable m_state_observable;
+        APrinter::Observable<IfaceStateObserver> m_state_observable;
         IpStack *m_stack;
         void *m_hw_iface;
         uint16_t m_ip_mtu;

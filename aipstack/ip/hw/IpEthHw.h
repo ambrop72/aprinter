@@ -44,10 +44,13 @@ namespace AIpStack {
  */
 class IpEthHw
 {
-    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
-    
 public:
     class ArpObserver;
+    
+    /**
+     * Observable type for ARP updates, see @ref HwIface::getArpObservable.
+     */
+    using ArpObservable = APrinter::Observable<ArpObserver>;
     
     /**
      * Interface provided through IpStack::Iface::getHwIface.
@@ -59,16 +62,16 @@ public:
         
     public:
         /**
-        * Get the MAC address of the interface.
-        */
+         * Get the MAC address of the interface.
+         */
         virtual MacAddr getMacAddr () = 0;
         
         /**
-        * Get a reference to the Ethernet header of the current
-        * frame being processed.
-        * 
-        * This MUST NOT be called outside of processing of received frames.
-        */
+         * Get a reference to the Ethernet header of the current
+         * frame being processed.
+         * 
+         * This MUST NOT be called outside of processing of received frames.
+         */
         virtual EthHeader::Ref getRxEthHeader () = 0;
         
         /**
@@ -78,47 +81,47 @@ public:
         
     private:
         /**
-         * Return a reference to an ObserverNotification::Observable
-         * which provides notification of received ARP updates.
+         * Return a reference to an observable which provides notification of
+         * received ARP updates.
+         * 
          * To notify observers, the implementation should use
-         * Observable::notifyKeepObservers and use notifyArpObserver
-         * in its callback.
+         * @ref APrinter::Observable::notifyKeepObservers and use
+         * @ref notifyArpObserver in its notify callback.
          */
-        virtual Observable & getArpObservable () = 0;
+        virtual ArpObservable & getArpObservable () = 0;
         
     protected:
         /**
-         * Nofity one ARP observer; see getArpObservable.
+         * Nofity one ARP observer; see @ref getArpObservable.
          */
-        inline static void notifyArpObserver (Observer &observer, Ip4Addr ip_addr, MacAddr mac_addr)
+        inline static void notifyArpObserver (
+            ArpObserver &observer, Ip4Addr ip_addr, MacAddr mac_addr)
         {
-            ArpObserver &arp_observer = static_cast<ArpObserver &>(observer);
-            AMBRO_ASSERT(arp_observer.isActive())
+            AMBRO_ASSERT(observer.isActive())
             
-            arp_observer.arpInfoReceived(ip_addr, mac_addr);
+            observer.arpInfoReceived(ip_addr, mac_addr);
         }
     };
     
     /**
-     * Allows receiving information about ARP updates received
-     * on the interface.
+     * Allows receiving information about ARP updates received on the interface.
      */
     class ArpObserver :
-        public Observer
+        public APrinter::Observer<ArpObserver>
     {
         friend IpEthHw;
+        friend ArpObservable;
         
     public:
         /**
-         * Subscribe ARP updates on an interface.
+         * Subscribe to ARP updates on an interface.
          * 
          * Must not be subscribed already.
-         * Updates will be reported using arpInfoReceived.
-         * NOTE: You must unsubscribe before deinit/reset of the interface.
+         * Updates will be reported using @ref arpInfoReceived.
          */
         inline void observe (HwIface &hw)
         {
-            Observer::observeObservable(hw.getArpObservable());
+            hw.getArpObservable().addObserver(*this);
         }
         
     private:

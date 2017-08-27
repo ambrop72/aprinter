@@ -25,30 +25,29 @@
 #ifndef APRINTER_IPSTACK_SEND_RETRY_H
 #define APRINTER_IPSTACK_SEND_RETRY_H
 
-#include <aprinter/base/Preprocessor.h>
 #include <aprinter/structure/ObserverNotification.h>
 
 namespace AIpStack {
 
 class IpSendRetry {
 private:
-    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
-    
 public:
     class Request :
-        private Observer
+        private APrinter::Observer<Request>
     {
+        using BaseObserver = APrinter::Observer<Request>;
         friend IpSendRetry;
+        friend APrinter::Observable<Request>;
         
     public:
-        inline bool isActive ()
+        inline bool isActive () const
         {
-            return Observer::isActive();
+            return BaseObserver::isActive();
         }
         
         inline void reset ()
         {
-            Observer::reset();
+            BaseObserver::reset();
         }
         
     protected:
@@ -56,31 +55,32 @@ public:
     };
     
     class List :
-        private Observable
+        private APrinter::Observable<Request>
     {
+        using BaseObservable = APrinter::Observable<Request>;
+        
     public:
         inline void reset ()
         {
-            Observable::reset();
+            BaseObservable::reset();
         }
         
-        inline bool hasRequests ()
+        inline bool hasRequests () const
         {
-            return Observable::hasObservers();
+            return BaseObservable::hasObservers();
         }
         
         void addRequest (Request *req)
         {
             if (req != nullptr) {
-                req->Observer::reset();
-                req->Observer::observeObservable(*this);
+                req->BaseObserver::reset();
+                BaseObservable::addObserver(*req);
             }
         }
         
         void dispatchRequests ()
         {
-            Observable::notifyRemoveObservers([&](Observer &observer) {
-                Request &request = static_cast<Request &>(observer);
+            BaseObservable::notifyRemoveObservers([&](Request &request) {
                 request.retrySending();
             });
         }

@@ -82,7 +82,6 @@ class EthIpIface :
     APRINTER_USE_TYPES1(Arg, (PlatformImpl, Iface))
     
     APRINTER_USE_ONEOF
-    APRINTER_USE_TYPES2(APrinter, (Observer, Observable))
     using Platform = PlatformFacade<PlatformImpl>;
     APRINTER_USE_TYPES1(Platform, (TimeType))
     AIPSTACK_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
@@ -328,7 +327,7 @@ private: // IpEthHw::HwIface
         return send_arp_packet(ArpOpTypeRequest, MacAddr::BroadcastAddr(), ip_addr);
     }
     
-    Observable & getArpObservable () override final
+    IpEthHw::ArpObservable & getArpObservable () override final
     {
         return m_arp_observable;
     }
@@ -483,7 +482,7 @@ private:
         // will not happen if the interface has no IP address configured, which is
         // exactly when DHCP needs to be notified.
         if (ip_addr != Ip4Addr::AllOnesAddr() && ip_addr != Ip4Addr::ZeroAddr()) {
-            m_arp_observable.notifyKeepObservers([&](Observer &observer) {
+            m_arp_observable.notifyKeepObservers([&](IpEthHw::ArpObserver &observer) {
                 IpEthHw::HwIface::notifyArpObserver(observer, ip_addr, mac_addr);
             });
         }
@@ -813,7 +812,7 @@ private:
     }
     
 private:
-    Observable m_arp_observable;
+    IpEthHw::ArpObservable m_arp_observable;
     MacAddr const *m_mac_addr;
     ArpEntryList m_used_entries_list;
     ArpEntryList m_free_entries_list;
