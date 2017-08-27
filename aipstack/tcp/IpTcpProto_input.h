@@ -920,7 +920,7 @@ private:
             
             // Call the connectionEstablished callback of the listener to allow the
             // application to accept the connection.
-            lis->m_callback->connectionEstablished(lis);
+            lis->connectionEstablished();
             
             // Handle abort of PCB.
             if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {

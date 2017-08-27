@@ -29,7 +29,6 @@
 
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Callback.h>
 #include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
@@ -47,8 +46,7 @@ template <
 class TcpListenQueue {
     using Platform = PlatformFacade<PlatformImpl>;
     APRINTER_USE_TYPES1(Platform, (TimeType))
-    APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener,
-                                   TcpListenerCallback, TcpConnection))
+    APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener, TcpConnection))
     
     static_assert(RxBufferSize > 0, "");
     
@@ -77,7 +75,7 @@ public:
             AMBRO_ASSERT(TcpConnection::isInit())
             AMBRO_ASSERT(m_listener->m_queue_size > 0)
             
-            if (TcpConnection::acceptConnection(&m_listener->m_listener) != IpErr::SUCCESS) {
+            if (TcpConnection::acceptConnection(m_listener) != IpErr::SUCCESS) {
                 return;
             }
             
@@ -162,18 +160,13 @@ public:
         ListenQueueEntry *queue_entries;
     };
     
-    class QueuedListenerCallback {
-    public:
-        virtual void connectionEstablished (QueuedListener *lis) = 0;
-    };
-    
 private:
     AIPSTACK_DECL_TIMERS(QueuedListenerTimers, PlatformImpl,
                          QueuedListener, (DequeueTimer, TimeoutTimer))
     
 public:
     class QueuedListener :
-        private TcpListenerCallback,
+        private TcpListener,
         private QueuedListenerTimers,
         private APrinter::NonCopyable<QueuedListener>
     {
@@ -182,12 +175,9 @@ public:
         AIPSTACK_USE_TIMERS(QueuedListenerTimers)
         
     public:
-        QueuedListener (Platform platform, QueuedListenerCallback *callback) :
-            QueuedListenerTimers(platform),
-            m_callback(callback)
-        {
-            AMBRO_ASSERT(callback != nullptr)
-        }
+        QueuedListener (Platform platform) :
+            QueuedListenerTimers(platform)
+        {}
         
         ~QueuedListener ()
         {
@@ -199,18 +189,18 @@ public:
             deinit_queue();
             tim(DequeueTimer()).unset();
             tim(TimeoutTimer()).unset();
-            m_listener.reset();
+            TcpListener::reset();
         }
         
         bool startListening (TcpProto *tcp, TcpListenParams const &params, ListenQueueParams const &q_params)
         {
-            AMBRO_ASSERT(!m_listener.isListening())
+            AMBRO_ASSERT(!TcpListener::isListening())
             AMBRO_ASSERT(q_params.queue_size >= 0)
             AMBRO_ASSERT(q_params.queue_size == 0 || q_params.queue_entries != nullptr)
             AMBRO_ASSERT(q_params.queue_size == 0 || q_params.min_rcv_buf_size >= RxBufferSize)
             
             // Start listening.
-            if (!m_listener.startListening(tcp, params, this)) {
+            if (!TcpListener::startListening(tcp, params)) {
                 return false;
             }
             
@@ -227,14 +217,14 @@ public:
             
             // Set the initial receive window.
             size_t initial_rx_window = (m_queue_size == 0) ? q_params.min_rcv_buf_size : RxBufferSize;
-            m_listener.setInitialReceiveWindow(initial_rx_window);
+            TcpListener::setInitialReceiveWindow(initial_rx_window);
             
             return true;
         }
         
         void scheduleDequeue ()
         {
-            AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(TcpListener::isListening())
             
             if (m_queue_size > 0) {
                 tim(DequeueTimer()).setNow();
@@ -254,14 +244,14 @@ public:
         //   dataReceived(0) callback.
         IpErr acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
         {
-            AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(TcpListener::isListening())
             AMBRO_ASSERT(dst_con.isInit())
             
             if (m_queue_size == 0) {
-                AMBRO_ASSERT(m_listener.hasAcceptPending())
+                AMBRO_ASSERT(TcpListener::hasAcceptPending())
                 
                 initial_rx_data = IpBufRef{};
-                return dst_con.acceptConnection(&m_listener);
+                return dst_con.acceptConnection(this);
             } else {
                 AMBRO_ASSERT(m_queued_to_accept != nullptr)
                 AMBRO_ASSERT(!m_queued_to_accept->TcpConnection::isInit())
@@ -276,16 +266,18 @@ public:
             }
         }
         
+    protected:
+        virtual void queuedListenerConnectionEstablished () = 0;
+        
     private:
-        void connectionEstablished (TcpListener *lis) override final
+        void connectionEstablished () override final
         {
-            AMBRO_ASSERT(lis == &m_listener)
-            AMBRO_ASSERT(m_listener.isListening())
-            AMBRO_ASSERT(m_listener.hasAcceptPending())
+            AMBRO_ASSERT(TcpListener::isListening())
+            AMBRO_ASSERT(TcpListener::hasAcceptPending())
             
             if (m_queue_size == 0) {
                 // Call the accept callback so the user can call acceptConnection.
-                m_callback->connectionEstablished(this);
+                queuedListenerConnectionEstablished();
             } else {
                 // Try to accept the connection into the queue.
                 for (int i = 0; i < m_queue_size; i++) {
@@ -307,7 +299,7 @@ public:
         
         void dispatch_connections ()
         {
-            AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(TcpListener::isListening())
             AMBRO_ASSERT(m_queue_size > 0)
             AMBRO_ASSERT(m_queued_to_accept == nullptr)
             
@@ -318,7 +310,7 @@ public:
                 
                 // Call the accept handler, while publishing the connection.
                 m_queued_to_accept = entry;
-                m_callback->connectionEstablished(this);
+                queuedListenerConnectionEstablished();
                 m_queued_to_accept = nullptr;
                 
                 // If the connection was not taken, stop trying.
@@ -330,7 +322,7 @@ public:
         
         void update_timeout ()
         {
-            AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(TcpListener::isListening())
             AMBRO_ASSERT(m_queue_size > 0)
             
             ListenQueueEntry *entry = find_oldest(false);
@@ -345,7 +337,7 @@ public:
         
         void timerExpired (TimeoutTimer)
         {
-            AMBRO_ASSERT(m_listener.isListening())
+            AMBRO_ASSERT(TcpListener::isListening())
             AMBRO_ASSERT(m_queue_size > 0)
             
             // We must have a non-ready connection since we keep the timeout
@@ -362,7 +354,7 @@ public:
         
         void deinit_queue ()
         {
-            if (m_listener.isListening()) {
+            if (TcpListener::isListening()) {
                 for (int i = 0; i < m_queue_size; i++) {
                     m_queue[i].deinit();
                 }
@@ -386,8 +378,6 @@ public:
             return oldest_entry;
         }
         
-        QueuedListenerCallback *m_callback;
-        TcpListener m_listener;
         ListenQueueEntry *m_queue;
         int m_queue_size;
         TimeType m_queue_timeout;

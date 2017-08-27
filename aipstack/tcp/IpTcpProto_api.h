@@ -61,24 +61,6 @@ public:
     class TcpListener;
     
     /**
-     * Callback interface for TcpListener.
-     */
-    class TcpListenerCallback {
-    public:
-        /**
-         * Called when a new connection has been established.
-         * 
-         * To accept the connection, the user should call TcpConnection::acceptConnection.
-         * Note that there are no special restrictions regarding accessing the connection
-         * from within this callback. It is also permissible to deinit/reset the listener.
-         * 
-         * If the connection is not accepted by acceptConnection within this callback,
-         * it will be aborted.
-         */
-        virtual void connectionEstablished (TcpListener *lis) = 0;
-    };
-    
-    /**
      * Structure for listening parameters.
      */
     struct TcpListenParams {
@@ -101,9 +83,8 @@ public:
         /**
          * Initialize the listener.
          * 
-         * A callback interface must be provided, which is used to inform of
-         * newly accepted connections. Upon init, the listener is in not-listening
-         * state, and listenIp4 should be called to start listening.
+         * Upon init, the listener is in not-listening state, and listenIp4 should
+         * be called to start listening.
          */
         TcpListener () :
             m_initial_rcv_wnd(0),
@@ -180,13 +161,11 @@ public:
          * Return success/failure to start listening. It can fail only if there
          * is another listener listening on the same pair of address and port.
          */
-        bool startListening (TcpProto *tcp, TcpListenParams const &params,
-                             TcpListenerCallback *callback)
+        bool startListening (TcpProto *tcp, TcpListenParams const &params)
         {
             AMBRO_ASSERT(!m_listening)
             AMBRO_ASSERT(tcp != nullptr)
             AMBRO_ASSERT(params.max_pcbs > 0)
-            AMBRO_ASSERT(callback != nullptr)
             
             // Check if there is an existing listener listning on this address+port.
             if (tcp->find_listener(params.addr, params.port) != nullptr) {
@@ -195,7 +174,6 @@ public:
             
             // Start listening.
             m_tcp = tcp;
-            m_callback = callback;
             m_addr = params.addr;
             m_port = params.port;
             m_max_pcbs = params.max_pcbs;
@@ -225,10 +203,22 @@ public:
             m_initial_rcv_wnd = APrinter::MinValueU(Constants::MaxWindow, rcv_wnd);
         }
         
+    protected:
+        /**
+         * Called when a new connection has been established.
+         * 
+         * To accept the connection, the user should call TcpConnection::acceptConnection.
+         * Note that there are no special restrictions regarding accessing the connection
+         * from within this callback. It is also permissible to deinit/reset the listener.
+         * 
+         * If the connection is not accepted by acceptConnection within this callback,
+         * it will be aborted.
+         */
+        virtual void connectionEstablished () = 0;
+        
     private:
         APrinter::DoubleEndedListNode<TcpListener> m_listeners_node;
         TcpProto *m_tcp;
-        TcpListenerCallback *m_callback;
         SeqType m_initial_rcv_wnd;
         TcpPcb *m_accept_pcb;
         Ip4Addr m_addr;

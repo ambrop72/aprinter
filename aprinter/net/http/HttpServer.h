@@ -83,8 +83,7 @@ private:
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
     
     using ListenQueue = AIpStack::TcpListenQueue<PlatformImpl, TcpProto, Params::Net::QueueRecvBufferSize>;
-    APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams,
-                                      QueuedListenerCallback, QueuedListener))
+    APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams, QueuedListener))
     
     // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
     // This has to be set to a sufficiently large value that accomodates the worst case
@@ -146,7 +145,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.construct(Network::getTcpProto(c)->platform(), &o->listener_callback);
+        o->listener.construct();
         
         auto listen_params = TcpListenParams{};
         listen_params.addr = Ip4Addr::ZeroAddr();
@@ -180,8 +179,14 @@ public:
     }
     
 private:
-    struct ListenerCallback : public QueuedListenerCallback {
-        void connectionEstablished (QueuedListener *lis) override final
+    struct Listener :
+        public QueuedListener
+    {
+        Listener () :
+            QueuedListener(Network::getTcpProto(Context())->platform())
+        {}
+        
+        void queuedListenerConnectionEstablished () override final
         {
             Context c;
             auto *o = Object::self(c);
@@ -1474,8 +1479,7 @@ private:
     
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
-        ManualRaii<QueuedListener> listener;
-        ListenerCallback listener_callback;
+        ManualRaii<Listener> listener;
         ListenQueueEntry queue[Params::Net::QueueSize];
         Client clients[Params::Net::MaxClients];
     };

@@ -99,7 +99,7 @@ public:
         params.port = Params::Port;
         params.max_pcbs = Params::MaxPcbs;
         
-        if (!o->listener.startListening(Network::getTcpProto(c), params, &o->listener_callback)) {
+        if (!o->listener.startListening(Network::getTcpProto(c), params)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         } else {
             o->listener.setInitialReceiveWindow(RecvBufferSize);
@@ -122,10 +122,10 @@ public:
     }
     
 private:
-    struct ListenerCallback :
-        public TcpProto::TcpListenerCallback
+    struct Listener :
+        public TcpListener
     {
-        void connectionEstablished (TcpListener *) override final
+        void connectionEstablished () override final
         {
             Context c;
             auto *o = Object::self(c);
@@ -384,8 +384,7 @@ private:
     
 public:
     struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
-        TcpListener listener;
-        ListenerCallback listener_callback;
+        Listener listener;
         Client clients[MaxClients];
     };
 };
