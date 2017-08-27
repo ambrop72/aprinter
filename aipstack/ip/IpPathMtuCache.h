@@ -41,6 +41,7 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
+#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
@@ -174,8 +175,8 @@ private:
     
 private:
     IpStack *m_ip_stack;
-    typename MtuIndex::Index m_mtu_index;
-    MtuFreeList m_mtu_free_list;
+    APrinter::StructureRaiiWrapper<typename MtuIndex::Index> m_mtu_index;
+    APrinter::StructureRaiiWrapper<MtuFreeList> m_mtu_free_list;
     MtuEntry m_mtu_entries[NumMtuEntries];
     
     // Accessor for the m_mtu_entries array.
@@ -188,8 +189,6 @@ public:
     {
         // Initialize other things.
         m_ip_stack = ip_stack;
-        m_mtu_index.init();
-        m_mtu_free_list.init();
         
         // Initialize the MTU entries.
         for (MtuEntry &mtu_entry : m_mtu_entries) {

@@ -45,6 +45,7 @@
 #include <aprinter/base/Accessor.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
+#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
@@ -370,22 +371,12 @@ public:
         // Remember things.
         m_stack = args.stack;
         
-        // Initialize the list of listeners.
-        m_listeners_list.init();
-        
         // Clear m_current_pcb which tracks the current PCB being
         // processed by pcb_input().
         m_current_pcb = nullptr;
         
         // Set the initial counter for ephemeral ports.
         m_next_ephemeral_port = EphemeralPortFirst;
-        
-        // Initialize the list of unreferenced PCBs.
-        m_unrefed_pcbs_list.init();
-        
-        // Initialize the PCB indices.
-        m_pcb_index_active.init();
-        m_pcb_index_timewait.init();
         
         for (TcpPcb &pcb : m_pcbs) {
             // Initialize some PCB variables.
@@ -917,14 +908,14 @@ private:
         APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
-    ListenersList m_listeners_list;
+    APrinter::StructureRaiiWrapper<ListenersList> m_listeners_list;
     TcpPcb *m_current_pcb;
     IpBufRef m_received_opts_buf;
     TcpOptions m_received_opts;
     PortType m_next_ephemeral_port;
-    UnrefedPcbsList m_unrefed_pcbs_list;
-    typename PcbIndex::Index m_pcb_index_active;
-    typename PcbIndex::Index m_pcb_index_timewait;
+    APrinter::StructureRaiiWrapper<UnrefedPcbsList> m_unrefed_pcbs_list;
+    APrinter::StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_active;
+    APrinter::StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_timewait;
     APrinter::ResourceArray<TcpPcb, NumTcpPcbs> m_pcbs;
     
     struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};

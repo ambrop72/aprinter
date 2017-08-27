@@ -926,9 +926,6 @@ public:
             AMBRO_ASSERT(stack != nullptr)
             AMBRO_ASSERT(m_ip_mtu >= MinMTU)
             
-            // Initialize stuffs.
-            m_listeners_list.init();
-            
             // Register interface.
             m_stack->m_iface_list.prepend(*this);
         }
@@ -1228,7 +1225,7 @@ public:
         
     private:
         APrinter::LinkedListNode<IfaceLinkModel> m_iface_list_node;
-        IfaceListenerList m_listeners_list;
+        APrinter::StructureRaiiWrapper<IfaceListenerList> m_listeners_list;
         APrinter::Observable<IfaceStateObserver> m_state_observable;
         IpStack *m_stack;
         void *m_hw_iface;

@@ -43,6 +43,7 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/TimerQueue.h>
+#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
@@ -216,11 +217,6 @@ public:
     {
         AMBRO_ASSERT(info.eth_mtu >= EthHeader::Size)
         AMBRO_ASSERT(info.mac_addr != nullptr)
-        
-        // Initialize data structures.
-        m_used_entries_list.init();
-        m_free_entries_list.init();
-        m_timer_queue.init();
         
         // Initialize ARP entries...
         for (auto &e : m_arp_entries) {
@@ -814,9 +810,9 @@ private:
 private:
     IpEthHw::ArpObservable m_arp_observable;
     MacAddr const *m_mac_addr;
-    ArpEntryList m_used_entries_list;
-    ArpEntryList m_free_entries_list;
-    ArpEntryTimerQueue m_timer_queue;
+    APrinter::StructureRaiiWrapper<ArpEntryList> m_used_entries_list;
+    APrinter::StructureRaiiWrapper<ArpEntryList> m_free_entries_list;
+    APrinter::StructureRaiiWrapper<ArpEntryTimerQueue> m_timer_queue;
     TimeType m_timers_ref_time;
     EthHeader::Ref m_rx_eth_header;
     ArpEntry m_arp_entries[NumArpEntries];

@@ -25,6 +25,8 @@
 #ifndef APRINTER_STRUCTURE_RAII_WRAPPER_H
 #define APRINTER_STRUCTURE_RAII_WRAPPER_H
 
+#include <type_traits>
+
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/NonCopyable.h>
 
@@ -40,6 +42,8 @@ class StructureRaiiWrapper :
     public StructureType,
     private NonCopyable<StructureRaiiWrapper<StructureType, DestructAction>>
 {
+    using ActionType = StructureDestructAction;
+    
 public:
     inline StructureRaiiWrapper ()
     {
@@ -48,9 +52,16 @@ public:
     
     inline ~StructureRaiiWrapper ()
     {
-        if (DestructAction == StructureDestructAction::AssertEmpty) {
-            AMBRO_ASSERT(StructureType::isEmpty())
-        }
+        destructAction(std::integral_constant<ActionType, DestructAction>());
+    }
+    
+private:
+    inline void destructAction (std::integral_constant<ActionType, ActionType::None>)
+    {}
+    
+    inline void destructAction (std::integral_constant<ActionType, ActionType::AssertEmpty>)
+    {
+        AMBRO_ASSERT(StructureType::isEmpty())
     }
 };
 
