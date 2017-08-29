@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <limits>
 #include <type_traits>
 
 #include <aprinter/meta/MinMax.h>
@@ -52,9 +53,9 @@ template <typename TcpProto>
 class IpTcpProto_api
 {
     APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
-    APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state, seq_diff))
-    APRINTER_USE_TYPES1(TcpProto, (TcpPcb, Input, Output, Constants, PcbFlags, MtuRef,
-                                   OosBuffer, RttType))
+    APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
+    APRINTER_USE_TYPES1(TcpProto, (TcpPcb, Input, Output, Constants, MtuRef, OosBuffer,
+                                   RttType))
     
 public:
     class TcpConnection;
@@ -90,8 +91,7 @@ public:
             m_initial_rcv_wnd(0),
             m_accept_pcb(nullptr),
             m_listening(false)
-        {
-        }
+        {}
         
         /**
          * Deinitialize the listener.
@@ -469,7 +469,7 @@ public:
                 ann_wnd--;
             }
             
-            AMBRO_ASSERT(ann_wnd <= SIZE_MAX)
+            AMBRO_ASSERT(ann_wnd <= std::numeric_limits<size_t>::max())
             return ann_wnd;
         }
         
@@ -504,7 +504,7 @@ public:
         void extendRecvBuf (size_t amount)
         {
             assert_started();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_v.rcv_buf.tot_len)
+            AMBRO_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.rcv_buf.tot_len)
             
             // Extend the receive buffer.
             m_v.rcv_buf.tot_len += amount;
@@ -594,7 +594,7 @@ public:
         void extendSendBuf (size_t amount)
         {
             assert_sending();
-            AMBRO_ASSERT(amount <= SIZE_MAX - m_v.snd_buf.tot_len)
+            AMBRO_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.snd_buf.tot_len)
             AMBRO_ASSERT(m_v.snd_buf_cur.tot_len <= m_v.snd_buf.tot_len)
             
             // Increment the amount of data in the send buffer.
@@ -694,6 +694,37 @@ public:
             }
         }
         
+    protected:
+        /**
+         * Called when the connection is aborted.
+         * This callback corresponds to a transition from CONNECTED
+         * to CLOSED state, which happens just before the callback.
+         */
+        virtual void connectionAborted () = 0;
+        
+        /**
+         * Called for actively opened connections when the connection
+         * is established.
+         */
+        virtual void connectionEstablished () {}
+        
+        /**
+         * Called when some data or FIN has been received.
+         * 
+         * Each callback corresponds to shifting of the receive
+         * buffer by that amount. Zero amount indicates that FIN
+         * was received.
+         */
+        virtual void dataReceived (size_t amount) = 0;
+        
+        /**
+         * Called when some data or FIN has been sent and acknowledged.
+         * 
+         * Each dataSent callback corresponds to shifting of the send buffer
+         * by that amount. Zero amount indicates that FIN was acknowledged.
+         */
+        virtual void dataSent (size_t amount) = 0;
+        
     private:
         void assert_init ()
         {
@@ -741,37 +772,6 @@ public:
             // Set STARTED flag to indicate we're no longer in INIT state.
             m_v.started = true;
         }
-        
-    private:
-        /**
-         * Called when the connection is aborted.
-         * This callback corresponds to a transition from CONNECTED
-         * to CLOSED state, which happens just before the callback.
-         */
-        virtual void connectionAborted () = 0;
-        
-        /**
-         * Called for actively opened connections when the connection
-         * is established.
-         */
-        virtual void connectionEstablished () {}
-        
-        /**
-         * Called when some data or FIN has been received.
-         * 
-         * Each callback corresponds to shifting of the receive
-         * buffer by that amount. Zero amount indicates that FIN
-         * was received.
-         */
-        virtual void dataReceived (size_t amount) = 0;
-        
-        /**
-         * Called when some data or FIN has been sent and acknowledged.
-         * 
-         * Each dataSent callback corresponds to shifting of the send buffer
-         * by that amount. Zero amount indicates that FIN was acknowledged.
-         */
-        virtual void dataSent (size_t amount) = 0;
         
     private:
         // These are called by TCP internals when various things happen.

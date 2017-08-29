@@ -128,7 +128,7 @@ public:
     {
         SeqType sum = op1 + op2;
         if (sum < op2) {
-            sum = UINT32_MAX;
+            sum = std::numeric_limits<uint32_t>::max();
         }
         return sum;
     }

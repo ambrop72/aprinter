@@ -25,10 +25,10 @@
 #ifndef APRINTER_IPSTACK_IPSTACK_H
 #define APRINTER_IPSTACK_IPSTACK_H
 
-#include <limits>
-
 #include <stddef.h>
 #include <stdint.h>
+
+#include <limits>
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
@@ -289,7 +289,7 @@ public:
     IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
                     Iface *iface, IpSendRetry::Request *retryReq, IpSendFlags send_flags)
     {
-        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
         AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
         
@@ -546,7 +546,7 @@ public:
     IpErr sendIp4DgramFast (Ip4SendPrepared const &prep, IpBufRef dgram,
                             IpSendRetry::Request *retryReq)
     {
-        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
         AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
         
         // Reveal IP header.
@@ -889,7 +889,8 @@ public:
         Iface (IpStack *stack, IpIfaceInitInfo const &info) :
             m_stack(stack),
             m_hw_iface(info.hw_iface),
-            m_ip_mtu(APrinter::MinValueU((uint16_t)UINT16_MAX, info.ip_mtu)),
+            m_ip_mtu(APrinter::MinValueU(std::numeric_limits<uint16_t>::max(),
+                                         info.ip_mtu)),
             m_hw_type(info.hw_type),
             m_have_addr(false),
             m_have_gateway(false)

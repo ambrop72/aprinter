@@ -173,7 +173,7 @@ public:
                         uint8_t ttl, bool more_fragments, uint16_t fragment_offset,
                         char const *header, IpBufRef &dgram)
     {
-        AMBRO_ASSERT(dgram.tot_len <= UINT16_MAX)
+        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
         AMBRO_ASSERT(more_fragments || fragment_offset > 0)
         
         // Sanity check data length.

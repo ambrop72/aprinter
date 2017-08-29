@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <limits>
+
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
@@ -152,7 +154,7 @@ public:
 private:
     inline void foldOnce ()
     {
-        m_sum = (m_sum & UINT16_MAX) + (m_sum >> 16);
+        m_sum = (m_sum & std::numeric_limits<uint16_t>::max()) + (m_sum >> 16);
     }
     
     inline static uint32_t swapBytes (uint32_t x)

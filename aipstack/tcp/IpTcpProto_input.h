@@ -30,6 +30,8 @@
 #include <string.h>
 #include <limits.h>
 
+#include <limits>
+
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
@@ -252,13 +254,13 @@ public:
         uint32_t hdr_wnd = pcb->rcv_ann_wnd >> pcb->rcv_wnd_shift;
         
         // This must fit into 16-bits because: invariant
-        // - In SYN_SENT/SYN_RCVD, rcv_ann_wnd will itself not exceed
-        //   UINT16_MAX, so it will also not after right-shifting.
+        // - In SYN_SENT/SYN_RCVD, rcv_ann_wnd will itself fit into uint16_t,
+        //   so it will also not after right-shifting.
         // - In other states, rcv_ann_wnd would never be set to more
         //   than the maximum window that can be advertised (see
         //   max_rcv_wnd_ann), and could only be decreased upon
         //   receiving ACKs.
-        AMBRO_ASSERT(hdr_wnd <= UINT16_MAX)
+        AMBRO_ASSERT(hdr_wnd <= std::numeric_limits<uint16_t>::max())
         
         return hdr_wnd;
     }
@@ -303,8 +305,9 @@ public:
         
         // Make sure it fits in size_t (relevant if size_t is 16-bit),
         // to ensure the invariant that rcv_ann_wnd always fits in size_t.
-        if (SIZE_MAX < UINT32_MAX) {
-            min_window = APrinter::MinValueU(min_window, (size_t)SIZE_MAX);
+        if (std::numeric_limits<size_t>::max() < std::numeric_limits<uint32_t>::max()) {
+            min_window = APrinter::MinValueU(
+                min_window, (size_t)std::numeric_limits<size_t>::max());
         }
         
         // Round up to the nearest window that can be advertised.
@@ -411,9 +414,9 @@ private:
             // SYN-ACK segments have unscaled window.
             // NOTE: rcv_ann_wnd fits into size_t as required since m_initial_rcv_wnd
             // also does (TcpListener::setInitialReceiveWindow).
-            AMBRO_ASSERT(lis->m_initial_rcv_wnd <= SIZE_MAX)
-            SeqType rcv_wnd =
-                APrinter::MinValueU((uint16_t)UINT16_MAX, lis->m_initial_rcv_wnd);
+            AMBRO_ASSERT(lis->m_initial_rcv_wnd <= std::numeric_limits<size_t>::max())
+            SeqType rcv_wnd = APrinter::MinValueU(std::numeric_limits<uint16_t>::max(),
+                                                  lis->m_initial_rcv_wnd);
             
             // Initialize most of the PCB.
             pcb->state = TcpState::SYN_RCVD;
@@ -447,7 +450,7 @@ private:
             }
             
             // Increment the listener's PCB count.
-            AMBRO_ASSERT(lis->m_num_pcbs < INT_MAX)
+            AMBRO_ASSERT(lis->m_num_pcbs < std::numeric_limits<int>::max())
             lis->m_num_pcbs++;
             
             // Add the PCB to the active index.
@@ -987,7 +990,7 @@ private:
             
             // Calculate the amount of acknowledged data (without ACK of FIN).
             SeqType data_acked_seq = acked - (SeqType)fin_acked;
-            AMBRO_ASSERT(data_acked_seq <= SIZE_MAX)
+            AMBRO_ASSERT(data_acked_seq <= std::numeric_limits<size_t>::max())
             size_t data_acked = data_acked_seq;
             
             if (AMBRO_LIKELY(data_acked > 0)) {
@@ -1150,9 +1153,10 @@ private:
         // We only get here if the segment fits into the receive window, this is assured
         // by pcb_input_basic_processing. It is also ensured that pcb->rcv_ann_wnd fits
         // into size_t and we need this to avoid oveflows in buffer space checks below.
-        if (SIZE_MAX < UINT32_MAX) {
-            AMBRO_ASSERT(eff_rel_seq <= SIZE_MAX)
-            AMBRO_ASSERT(tcp_data.tot_len <= SIZE_MAX - eff_rel_seq)
+        if (std::numeric_limits<size_t>::max() < std::numeric_limits<uint32_t>::max()) {
+            AMBRO_ASSERT(eff_rel_seq <= std::numeric_limits<size_t>::max())
+            AMBRO_ASSERT(tcp_data.tot_len <=
+                             std::numeric_limits<size_t>::max() - eff_rel_seq)
         }
         
         TcpConnection *con = pcb->con;
@@ -1348,7 +1352,7 @@ private:
     // with respect to window scaling.
     static SeqType max_rcv_wnd_ann (TcpPcb *pcb)
     {
-        return (SeqType)UINT16_MAX << pcb->rcv_wnd_shift;
+        return (SeqType)std::numeric_limits<uint16_t>::max() << pcb->rcv_wnd_shift;
     }
     
     // Calculate how much window would be announced if sent an ACK now.

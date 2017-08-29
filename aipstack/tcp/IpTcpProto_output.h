@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <limits>
+
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
@@ -85,7 +87,8 @@ public:
         }
         
         // The SYN and SYN-ACK must always have non-scaled window size.
-        AMBRO_ASSERT(pcb->rcv_ann_wnd <= UINT16_MAX) // see create_connection, listen_input
+        // For justification of assert see see create_connection, listen_input.
+        AMBRO_ASSERT(pcb->rcv_ann_wnd <= std::numeric_limits<uint16_t>::max())
         uint16_t window_size = pcb->rcv_ann_wnd;
         
         // Send SYN or SYN-ACK flags depending on the state.

@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 
+#include <limits>
+
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/Preprocessor.h>
@@ -108,7 +110,7 @@ public:
     
     // Minimum amount to extend the receive window when a PCB is
     // abandoned before the FIN has been received.
-    static SeqType const MinAbandonRcvWndIncr = UINT16_MAX;
+    static SeqType const MinAbandonRcvWndIncr = std::numeric_limits<uint16_t>::max();
     
 public:
     static int const DupAckBits =

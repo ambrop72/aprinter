@@ -29,6 +29,8 @@
 #include <stdint.h>
 #include <limits.h>
 
+#include <limits>
+
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
@@ -765,7 +767,8 @@ private:
         // at most 16-bit wide since SYN segments have unscaled window.
         // NOTE: rcv_ann_wnd after SYN-ACKSYN reception (-1) fits into size_t
         // as required since user_rcv_wnd is size_t.
-        SeqType rcv_wnd = 1 + APrinter::MinValueU((uint16_t)(UINT16_MAX - 1), user_rcv_wnd);
+        SeqType rcv_wnd = 1 + APrinter::MinValueU(
+            (uint16_t)(std::numeric_limits<uint16_t>::max() - 1), user_rcv_wnd);
         
         // Initialize most of the PCB.
         pcb->state = TcpState::SYN_SENT;
