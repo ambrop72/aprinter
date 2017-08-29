@@ -184,6 +184,8 @@ private:
     APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
         PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
     
+    using ListenerLinkModel = APrinter::PointerLinkModel<typename Api::TcpListener>;
+    
 public:
     APRINTER_USE_TYPES1(Api, (TcpConnection, TcpListenParams, TcpListener))
     
@@ -694,7 +696,7 @@ private:
     TcpListener * find_listener (Ip4Addr addr, PortType port)
     {
         for (TcpListener *lis = m_listeners_list.first();
-             lis != nullptr; lis = m_listeners_list.next(lis))
+             lis != nullptr; lis = m_listeners_list.next(*lis))
         {
             AMBRO_ASSERT(lis->m_listening)
             if (lis->m_addr == addr && lis->m_port == port) {
@@ -857,7 +859,7 @@ private:
     TcpListener * find_listener_for_rx (Ip4Addr local_addr, PortType local_port)
     {
         for (TcpListener *lis = m_listeners_list.first();
-             lis != nullptr; lis = m_listeners_list.next(lis))
+             lis != nullptr; lis = m_listeners_list.next(*lis))
         {
             AMBRO_ASSERT(lis->m_listening)
             if (lis->m_port == local_port &&
@@ -890,8 +892,9 @@ private:
     APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
     
 private:
-    using ListenersList = APrinter::DoubleEndedList<
-        TcpListener, &TcpListener::m_listeners_node, false>;
+    using ListenersList = APrinter::LinkedList<
+        APRINTER_MEMBER_ACCESSOR_TN(&TcpListener::m_listeners_node),
+        ListenerLinkModel, false>;
     
     using UnrefedPcbsList = APrinter::LinkedList<
         APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;

@@ -35,7 +35,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/NonCopyable.h>
-#include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/structure/LinkedList.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
@@ -115,7 +115,7 @@ public:
         {
             // Stop listening.
             if (m_listening) {
-                m_tcp->m_listeners_list.remove(this);
+                m_tcp->m_listeners_list.remove(*this);
                 m_tcp->unlink_listener(this);
             }
             
@@ -179,7 +179,7 @@ public:
             m_max_pcbs = params.max_pcbs;
             m_num_pcbs = 0;
             m_listening = true;
-            m_tcp->m_listeners_list.prepend(this);
+            m_tcp->m_listeners_list.prepend(*this);
             
             return true;
         }
@@ -217,7 +217,7 @@ public:
         virtual void connectionEstablished () = 0;
         
     private:
-        APrinter::DoubleEndedListNode<TcpListener> m_listeners_node;
+        APrinter::LinkedListNode<typename TcpProto::ListenerLinkModel> m_listeners_node;
         TcpProto *m_tcp;
         SeqType m_initial_rcv_wnd;
         TcpPcb *m_accept_pcb;
