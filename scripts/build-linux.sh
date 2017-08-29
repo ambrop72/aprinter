@@ -28,7 +28,6 @@ configure_linux() {
     FLAGS_C_CXX=(
         -DNDEBUG
         -I"${ROOT}"
-        -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal
         "${EXTRA_COMPILE_FLAGS[@]}"
     )
