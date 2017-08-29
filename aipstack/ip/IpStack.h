@@ -68,7 +68,12 @@ namespace AIpStack {
  * IPv4 network layer implementation.
  * 
  * This class provides basic IPv4 services. It communicates with interface
- * drivers on one and and with protocol handlers on the other.
+ * drivers on one end and with protocol handlers on the other.
+ * 
+ * Applications should configure and initialize this class and manage network
+ * interface using the @ref Iface class. Actual network access should be done
+ * using the APIs provided by specific protocol handlers, which are exposed
+ * via @ref getProtocol.
  * 
  * @tparam Arg Instantiation parameters (use via @ref IpStackService).
  */
@@ -126,14 +131,27 @@ public:
      * 
      * Buffers passed to send functions such as @ref sendIp4Dgram and
      * @ref sendIp4DgramFast must have at least this much space available in the
-     * first buffer node before the data. This space is used by the IP stack to write
-     * the IP header and by lower-level protocols such as Ethernet for their own
-     * headers.
+     * first buffer node before the data. This space is used by the IP layer
+     * implementation to write the IP header and by lower-level protocol
+     * implementations such as Ethernet for their own headers.
      */
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
     
+    /**
+     * Encapsulates parameters passed to protocol handler constructors.
+     * 
+     * See @ref IpProtocolHandlerStub::IpProtocolHandlerStub for the documentation
+     * of protocol handler construction.
+     */
     struct ProtocolHandlerArgs {
+        /**
+         * The platform facade, as passed to the @ref IpStack::IpStack constructor.
+         */
         Platform platform;
+        
+        /**
+         * A pointer to the IP stack.
+         */
         IpStack *stack;
     };
     
@@ -158,6 +176,13 @@ public:
     
     /**
      * Construct the IP stack.
+     * 
+     * Construction of the stack includes construction of all configured protocol
+     * handlers.
+     * 
+     * @param platform The platform facade. The Platform type is simply
+     *        PlatformFacade\<PlatformImpl\> where PlatformImpl is as given
+     *        to @ref IpStackService::Compose.
      */
     IpStack (Platform platform) :
         m_reassembly(platform),
@@ -170,7 +195,8 @@ public:
      * Destruct the IP stack.
      * 
      * There must be no remaining interfaces associated with this stack
-     * when the IP stack is destructed.
+     * when the IP stack is destructed. Additionally, specific protocol
+     * handlers may have their own destruction preconditions.
      */
     ~IpStack ()
     {
@@ -287,7 +313,8 @@ public:
      */
     APRINTER_NO_INLINE
     IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
-                    Iface *iface, IpSendRetry::Request *retryReq, IpSendFlags send_flags)
+                        Iface *iface, IpSendRetry::Request *retryReq,
+                        IpSendFlags send_flags)
     {
         AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
         AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
@@ -485,7 +512,8 @@ public:
      */
     AMBRO_ALWAYS_INLINE
     IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto,
-                        char *header_end_ptr, IpSendFlags send_flags, Ip4SendPrepared &prep)
+                               char *header_end_ptr, IpSendFlags send_flags,
+                               Ip4SendPrepared &prep)
     {
         AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
         
@@ -743,7 +771,7 @@ public:
         
     public:
         /**
-         * Initialize the listener object and start listening.
+         * Construct the listener object and start listening.
          * 
          * Received datagrams with matching protocol number will be passed to
          * the @ref recvIp4Dgram callback.
@@ -761,9 +789,7 @@ public:
         }
         
         /**
-         * Deinitialize the listener.
-         * 
-         * After this, @ref recvIp4Dgram will not be called.
+         * Destruct the listener object.
          */
         ~IfaceListener ()
         {
@@ -811,6 +837,10 @@ public:
      * The driver-reported state can be queried using by @ref Iface::getDriverState.
      * This class can be used to receive a callback whenever the driver-reported
      * state may have changed.
+     * 
+     * This class is based on @ref APrinter::Observer and the functionality of
+     * of that class is exposed. The specific @ref observe function is provided to
+     * start observing an interface.
      */
     class IfaceStateObserver :
         public APrinter::Observer<IfaceStateObserver>
@@ -877,11 +907,15 @@ public:
         using IfaceIpStack = IpStack;
         
         /**
-         * Initialize the interface.
+         * Construct the interface.
          * 
          * This should be used by the driver when the interface should start existing
          * from the perspective of the IP stack. After this, the various virtual
          * functions may be called.
+         * 
+         * The owner must be careful to not perform any action that might result in calls
+         * of virtual functions (such as sending packets to this interface) until the
+         * derived class is constructed and ready to accept these calls.
          * 
          * @param stack Pointer to the IP stack.
          * @param info Interface information, see @ref IpIfaceInitInfo.
@@ -903,12 +937,17 @@ public:
         }
         
         /**
-         * Deinitialize the interface.
+         * Destruct the interface.
          * 
-         * This should be used by the driver when the interface should stop existing
+         * The interface should be destructed when the interface should stop existing
          * from the perspective of the IP stack. After this, virtual functions will
          * not be called any more, nor will any virtual function be called from this
          * function.
+         * 
+         * The owner must be careful to not perform any action that might result in calls
+         * of virtual functions (such as sending packets to this interface) after
+         * destruction of the derived class has begun or generally after it is no longer
+         * ready to accept these calls.
          * 
          * When this is called, there must be no remaining @ref IfaceListener
          * objects listening on this interface or @ref IfaceStateObserver objects
@@ -1224,9 +1263,9 @@ public:
     {
     public:
         /**
-         * Initialize the MTU reference.
+         * Construct the MTU reference.
          * 
-         * The object is initialized in not-setup state, that is without an
+         * The object is constructed in not-setup state, that is without an
          * associated remote address. To set the remote address, call @ref setup.
          * This function must be called before any other function in this
          * class is called.
@@ -1234,12 +1273,12 @@ public:
         MtuRef () = default;
         
         /**
-         * Destructor, asserts that the object is in not-setup state.
+         * Destruct the MTU reference, asserting not-setup state.
          * 
          * It is required to ensure the object is in not-setup state before
          * destructing it (by calling @ref reset if needed). The destructor
-         * cannot do the reset because it does not have the @ref IpStack
-         * pointer available.
+         * cannot do the reset itself because it does not have the @ref IpStack
+         * pointer available (to avoid using additional memory).
          */
         ~MtuRef () = default;
         
@@ -1289,7 +1328,8 @@ public:
          * @return True on success (object enters setup state), false on failure
          *         (object remains in not-setup state).
          */
-        inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface, uint16_t &out_pmtu)
+        inline bool setup (IpStack *stack, Ip4Addr remote_addr, Iface *iface,
+                           uint16_t &out_pmtu)
         {
             return BaseMtuRef::setup(mtu_cache(stack), remote_addr, iface, out_pmtu);
         }
@@ -1666,7 +1706,8 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
      * 
      * The template parameters of this class are "dependencies".
      * 
-     * @tparam Param_Context Context class providing the event loop, clock etc..
+     * @tparam Param_PlatformImpl Platform layer implementation, that is the PlatformImpl
+     *         type to be used with @ref PlatformFacade.
      * @tparam Param_ProtocolServicesList List of IP protocol handler services.
      *         For example, to support only TCP, use
      *         APrinter::MakeTypeList\<IpTcpProtoService\<...\>\> with appropriate
