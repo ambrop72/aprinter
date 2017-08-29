@@ -185,11 +185,9 @@ private:
     
 public:
     IpPathMtuCache (Platform platform, IpStack *ip_stack) :
-        IpPathMtuCacheTimers<Arg>::Timers(platform)
+        IpPathMtuCacheTimers<Arg>::Timers(platform),
+        m_ip_stack(ip_stack)
     {
-        // Initialize other things.
-        m_ip_stack = ip_stack;
-        
         // Initialize the MTU entries.
         for (MtuEntry &mtu_entry : m_mtu_entries) {
             mtu_entry.state = EntryState::Invalid;

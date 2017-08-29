@@ -26,12 +26,14 @@
 #define APRINTER_IPSTACK_IPSTACK_HELPER_TYPES_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <aprinter/base/EnumBitfieldUtils.h>
 
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
+#include <aipstack/ip/hw/IpHwCommon.h>
 
 namespace AIpStack {
 
@@ -230,6 +232,36 @@ public:
     {
         return uint8_t(value);
     }
+};
+
+/**
+ * Encapsulates interface information passed to the @ref IpStack::Iface constructor.
+ */
+struct IpIfaceInitInfo {
+    /**
+     * The Maximum Transmission Unit (MTU), including the IP header.
+     * 
+     * It must be at least @ref IpStack::MinMTU (this is an assert).
+     */
+    size_t ip_mtu = 0;
+    
+    /**
+     * The type of the hardware-type-specific interface.
+     * 
+     * See @ref IpStack::Iface::getHwType for an explanation of the
+     * hardware-type-specific interface mechanism. If no hardware-type-specific
+     * interface is available, use @ref IpHwType::Undefined.
+     */
+    IpHwType hw_type = IpHwType::Undefined;
+    
+    /**
+     * Pointer to the hardware-type-specific interface.
+     * 
+     * If @ref hw_type is @ref IpHwType::Undefined, use null. Otherwise this must
+     * point to an instance of the hardware-type-specific interface class
+     * corresponding to @ref hw_type.
+     */
+    void *hw_iface = nullptr;
 };
 
 }

@@ -37,7 +37,6 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/InstantiateVariadic.h>
-#include <aprinter/meta/MakeTupleOfSame.h>
 #include <aprinter/meta/ResourceTuple.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
@@ -165,8 +164,7 @@ public:
         m_path_mtu_cache(platform, this),
         m_next_id(0),
         m_protocols(APrinter::ResourceTupleInitSame(), ProtocolHandlerArgs{platform, this})
-    {
-    }
+    {}
     
     /**
      * Destruct the IP stack.
@@ -782,7 +780,7 @@ public:
             return m_iface;
         }
         
-    private:
+    protected:
         /**
          * Called when a matching datagram is received.
          * 
@@ -855,36 +853,6 @@ private:
     
 public:
     /**
-     * Encapsulates interface information passed to the @ref Iface constructor.
-     */
-    struct IfaceInitInfo {
-        /**
-         * The Maximum Transmission Unit (MTU), including the IP header.
-         * 
-         * It must be at least @ref MinMTU (this is an assert).
-         */
-        size_t ip_mtu = 0;
-        
-        /**
-         * The type of the hardware-type-specific interface.
-         * 
-         * See @ref Iface::getHwType for an explanation of the hardware-type-specific
-         * interface mechanism. If no hardware-type-specific interface is available,
-         * use @ref IpHwType::Undefined.
-         */
-        IpHwType hw_type = IpHwType::Undefined;
-        
-        /**
-         * Pointer to the hardware-type-specific interface.
-         * 
-         * If @ref hw_type is @ref IpHwType::Undefined, use null. Otherwise this must
-         * point to an instance of the hardware-type-specific interface class
-         * corresponding to @ref hw_type.
-         */
-        void *hw_iface = nullptr;
-    };
-    
-    /**
      * A network interface.
      * 
      * This class is generally designed to be inherited and owned by the IP driver.
@@ -916,9 +884,9 @@ public:
          * functions may be called.
          * 
          * @param stack Pointer to the IP stack.
-         * @param info Interface information, see @ref IfaceInitInfo.
+         * @param info Interface information, see @ref IpIfaceInitInfo.
          */
-        Iface (IpStack *stack, IfaceInitInfo const &info) :
+        Iface (IpStack *stack, IpIfaceInitInfo const &info) :
             m_stack(stack),
             m_hw_iface(info.hw_iface),
             m_ip_mtu(APrinter::MinValueU((uint16_t)UINT16_MAX, info.ip_mtu)),
@@ -1040,7 +1008,7 @@ public:
          * @ref IpHwType::Ethernet, then an interface of type @ref IpEthHw::HwIface
          * is available.
          * 
-         * This function will return whatever was passed as @ref IfaceInitInfo::hw_type
+         * This function will return whatever was passed as @ref IpIfaceInitInfo::hw_type
          * when the interface was constructed.
          * 
          * This mechanism was created to support the DHCP client which requires
@@ -1060,7 +1028,7 @@ public:
          * If that value is @ref IpHwType::Undefined, then this function should not
          * be called at all.
          * 
-         * This function will return whatever was passed as @ref IfaceInitInfo::hw_iface
+         * This function will return whatever was passed as @ref IpIfaceInitInfo::hw_iface
          * when the interface was constructed.
          * 
          * @tparam HwIface Type of hardware-type-specific interface.

@@ -39,7 +39,6 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
-#include <aprinter/base/Callback.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Accessor.h>
