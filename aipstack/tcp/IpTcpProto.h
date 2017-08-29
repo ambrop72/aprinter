@@ -82,7 +82,8 @@ class IpTcpProto
     
     APRINTER_USE_ONEOF
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef))
+    APRINTER_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef,
+                                     ProtocolHandlerArgs))
     
     static_assert(NumTcpPcbs > 0, "");
     static_assert(NumOosSegs > 0 && NumOosSegs < 16, "");
@@ -374,7 +375,7 @@ public:
      * 
      * The TCP will register itself with the IpStack to receive incoming TCP packets.
      */
-    IpTcpProto (IpProtocolHandlerArgs<Platform, TheIpStack> args) :
+    IpTcpProto (ProtocolHandlerArgs args) :
         m_stack(args.stack),
         m_current_pcb(nullptr),
         m_next_ephemeral_port(EphemeralPortFirst),

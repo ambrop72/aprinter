@@ -121,8 +121,6 @@ class IpStack :
     // Helper to extract IpProtocolNumber from a ProtocolHelper.
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
-    using ProtocolHandlerArgs = IpProtocolHandlerArgs<Platform, IpStack>;
-    
 public:
     /**
      * Number of bytes which must be available in outgoing datagrams for headers.
@@ -134,6 +132,11 @@ public:
      * headers.
      */
     static size_t const HeaderBeforeIp4Dgram = HeaderBeforeIp + Ip4Header::Size;
+    
+    struct ProtocolHandlerArgs {
+        Platform platform;
+        IpStack *stack;
+    };
     
     class Iface;
     class IfaceListener;

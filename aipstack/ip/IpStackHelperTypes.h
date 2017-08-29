@@ -232,12 +232,6 @@ public:
     }
 };
 
-template <typename Platform, typename TheIpStack>
-struct IpProtocolHandlerArgs {
-    Platform platform;
-    TheIpStack *stack;
-};
-
 }
 
 #endif
