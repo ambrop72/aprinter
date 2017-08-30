@@ -44,6 +44,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Accessor.h>
+#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/StructureRaiiWrapper.h>
@@ -70,7 +71,8 @@ namespace AIpStack {
  * TCP protocol implementation.
  */
 template <typename Arg>
-class IpTcpProto
+class IpTcpProto :
+    private APrinter::NonCopyable<IpTcpProto<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
                                     EphemeralPortFirst, EphemeralPortLast,

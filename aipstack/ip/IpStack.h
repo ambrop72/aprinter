@@ -75,7 +75,7 @@ namespace AIpStack {
  * using the APIs provided by specific protocol handlers, which are exposed
  * via @ref getProtocol.
  * 
- * @tparam Arg Instantiation parameters (use via @ref IpStackService).
+ * @tparam Arg Instantiation parameters (instantiate via @ref IpStackService).
  */
 template <typename Arg>
 class IpStack :

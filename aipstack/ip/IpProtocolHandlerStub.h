@@ -29,9 +29,11 @@
 
 #include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
+#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
+#include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {
 
@@ -47,7 +49,7 @@ namespace AIpStack {
  * 
  * Each protocol handler is defined through its corresponding service class.
  * (see @ref IpProtocolHandlerStubService) and the list of supported
- * protocol handler is passed to @ref IpStackService with the @ref IpStack
+ * protocol handlers is passed to @ref IpStackService when the @ref IpStack
  * is being instantiated. The @ref IpStack then instantiates the protocol
  * handler service classes to obtain the class types of the actual protocol
  * handles (such as an instantiated @ref IpProtocolHandlerStub in this case).
@@ -55,13 +57,13 @@ namespace AIpStack {
  * This protocol handler class provides different functions called by
  * the stack (using simple function calls, not virtual). It is the
  * responsibility of the implementor to make sure that the functions
- * are defined and compatible with how they arecalled. Note that the stack
+ * are defined and compatible with how they are called. Note that the stack
  * static_cast's the function arguments to the types specified in this
  * documentation.
  * 
  * This class is also what is exposed via @ref IpStack::getProtocol,
  * so generally it will provide the application-level API for using the
- * implemented IP protocol in addition to the function called by the stack.
+ * implemented IP protocol in addition to the functions called by the stack.
  * 
  * This class only defines the functions called by the stack on the
  * protocol handler. Functions which the protocol handler can call on
@@ -74,57 +76,87 @@ namespace AIpStack {
  * @ref IpStack::handleLocalPacketTooBig.
  * 
  * The protocol handler will have access to the interface (@ref IpStack::Iface)
- * from which a datagram has been received (in @ref recvIp4Dgram and also
- * @ref handleIp4DestUnreach). But the protocol handler must not remember
- * the interface since it could generally disappear at any time. Currently
- * there is no mechanism to safely remember an interface.
+ * from which a datagram has been received, in @ref recvIp4Dgram and also
+ * @ref handleIp4DestUnreach. The protocol handler must not remember the
+ * interface since it could generally disappear at any time. Currently there
+ * is no mechanism to safely keep a reference to an interface.
  * 
- * @tparam Arg Instantiation parameters (use via @ref IpProtocolHandlerStubService).
+ * The @ref IpStack only constructs and destructs protocol handlers, never
+ * copies, moves, copy-assigns or move-assigns. Therefore the protocol handler
+ * class can have such functions deleted, possibly by inheriting
+ * @ref APrinter::NonCopyable.
+ * 
+ * @tparam Arg Instantiation parameters, that is a type derived from an
+ *         instantiation of the Compose template in the service class for the
+ *         protocol handlers, e.g. @ref IpProtocolHandlerStubService::Compose.
+ *         Therefore all type aliases defined there are available in Arg.
  */
 template <typename Arg>
-class IpProtocolHandlerStub {
+class IpProtocolHandlerStub :
+    private APrinter::NonCopyable<IpProtocolHandlerStub<Arg>>
+{
 public:
     /**
-     * Type alias for the instantiated @ref IpStack as passed to Compose
-     * (only for arguments).
+     * Type alias for the platform layer implementation.
+     * 
+     * This alias is not required but is used here for definitions.
+     */
+    using PlatformImpl = typename Arg::PlatformImpl;
+    
+    /**
+     * Platform facade type.
+     * 
+     * This alias is not required but is used in definitions here.
+     */
+    using Platform = PlatformFacade<PlatformImpl>;
+    
+    /**
+     * Type alias for the instantiated @ref IpStack as passed to Compose.
+     * 
+     * This alias is not required but is used in definitions here.
      */
     using TheIpStack = typename Arg::TheIpStack;
     
     /**
-     * Type alias for @ref IpStack::Ip4RxInfo (only for arguments).
+     * Type alias for @ref IpStack::Ip4RxInfo.
+     * 
+     * This alias is not required but is used in definitions here.
      */
     using Ip4RxInfo = typename TheIpStack::Ip4RxInfo;
     
     /**
-     * Initialize the protocol handler.
+     * Type alias for @ref IpStack::ProtocolHandlerArgs.
      * 
-     * This is called from @ref IpStack::init to initialize the
-     * protocol handler. 
-     * 
-     * Protocol handlers are initialized as the last part of
-     * @ref IpStack::init, in the order they are configured. This function
-     * can already access the stack (but sending datagrams will surely fail
-     * since there are no interfaces yet).
-     * 
-     * @param stack The IP stack. The protocol handler should remember this
-     *        pointer so that it can access the stack later.
+     * This alias is not required but is used in definitions here.
      */
-    void init (TheIpStack *stack)
+    using ProtocolHandlerArgs = typename TheIpStack::ProtocolHandlerArgs;
+    
+    /**
+     * Construct the protocol handler.
+     * 
+     * Protocol handlers are constructed as the last part of the
+     * @ref IpStack::IpStack constructor in the order they are configured.
+     * Therefore they can access the @ref IpStack, but since there are no interfaces
+     * yet any attempt to send datagrams will fail.
+     * 
+     * @param args Encapsulated construction arguments. These include the
+     *        pointer to the @ref IpStack and the platform facade (@ref Platform).
+     *        The protocol handler should remember the @ref IpStack pointer so
+     *        that it can access the stack later.
+     */
+    IpProtocolHandlerStub (ProtocolHandlerArgs args) :
+        m_stack(args.stack)
     {
-        m_stack = stack;
     }
     
     /**
-     * Deinitialize the protocol handler.
+     * Destruct the protocol handler.
      * 
-     * This is called from @ref IpStack::deinit to deinitialize the
-     * protocol handler.
-     * 
-     * Protocol handlers are deinitialized as the first part of
-     * @ref IpStack::deinit, in the reverse order of how they were
-     * initialized.
+     * Protocol handlers are destructed as the first part of the
+     * @ref IpStack::~IpStack destructor, in the reverse order of how they were
+     * constructed.
      */
-    void deinit ()
+    ~IpProtocolHandlerStub ()
     {
     }
     
@@ -230,19 +262,22 @@ struct IpProtocolHandlerStubService {
      * Template through which the @ref IpStack instantiates the service.
      * 
      * The template parameters of this class must be as shown here since
-     * this is what the stack passes. This Compose class will be accessible
+     * this is what @ref IpStack passes. This Compose class will be accessible
      * in the protocol handler class template as the 'Arg' template parameter
-     * (actually Arg will be a class derived from @ref Compose).
+     * (actually Arg will be a class derived from Compose).
      * 
      * The @ref APRINTER_DEF_INSTANCE / @ref APRINTER_MAKE_INSTANCE system
      * is used to obtain the actual protocol handler class type, in this
      * case an @ref IpProtocolHandlerStub template class. 
      * 
-     * @tparam Param_Context The Context class as used by the stack.
+     * @tparam Param_PlatformImpl The platform implementation class as used by
+     *         the stack. Note that this is the original PlatformImpl type
+     *         provided by to @ref IpStackService::Compose and not the
+     *         @ref PlatformFacade.
      * @tparam Param_TheIpStack The @ref IpStack template class type.
      */
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(Context),
+        APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(TheIpStack)
     ), (
         /**
