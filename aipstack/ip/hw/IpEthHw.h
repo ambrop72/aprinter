@@ -41,6 +41,9 @@ namespace AIpStack {
  *
  * These are used by higher level network protocols which require
  * the lower-level functionality (e.g. DHCP).
+ * 
+ * Note that @ref EthIpIface implements these interfaces, so interface drivers
+ * based on @ref EthIpIface do not need to directly implement anything here.
  */
 class IpEthHw
 {
@@ -54,6 +57,7 @@ public:
     
     /**
      * Interface provided through IpStack::Iface::getHwIface.
+     * 
      * The associated IpHwType is IpHwType::Ethernet.
      */
     class HwIface
@@ -63,6 +67,8 @@ public:
     public:
         /**
          * Get the MAC address of the interface.
+         * 
+         * @return The MAC address.
          */
         virtual MacAddr getMacAddr () = 0;
         
@@ -71,11 +77,18 @@ public:
          * frame being processed.
          * 
          * This MUST NOT be called outside of processing of received frames.
+         * 
+         * @return A reference to the received Ethernet header. It must not
+         *         be modified and the reference is valid until only in the
+         *         scope of receive processing.
          */
         virtual EthHeader::Ref getRxEthHeader () = 0;
         
         /**
          * Send a broadcast ARP query for the given IP address.
+         * 
+         * @param ip_addr IP address to send the ARP query to.
+         * @return Success or error code.
          */
         virtual IpErr sendArpQuery (Ip4Addr ip_addr) = 0;
         
@@ -87,12 +100,18 @@ public:
          * To notify observers, the implementation should use
          * @ref APrinter::Observable::notifyKeepObservers and use
          * @ref notifyArpObserver in its notify callback.
+         * 
+         * @return A reference to the observable.
          */
         virtual ArpObservable & getArpObservable () = 0;
         
     protected:
         /**
          * Nofity one ARP observer; see @ref getArpObservable.
+         * 
+         * @param observer The observer to notify.
+         * @param ip_addr IP address to which the ARP update applies.
+         * @param mac_addr The MAC address associated with this IP address.
          */
         inline static void notifyArpObserver (
             ArpObserver &observer, Ip4Addr ip_addr, MacAddr mac_addr)
@@ -104,7 +123,12 @@ public:
     };
     
     /**
-     * Allows receiving information about ARP updates received on the interface.
+     * Allows receiving notifications about ARP updates received on an Ethernet
+     * interface.
+     * 
+     * This class is based on @ref APrinter::Observer and the functionality of
+     * of that class is exposed. The specific @ref observe function is provided to
+     * start observing.
      */
     class ArpObserver :
         public APrinter::Observer<ArpObserver>
@@ -114,10 +138,12 @@ public:
         
     public:
         /**
-         * Subscribe to ARP updates on an interface.
+         * Subscribe to ARP updates on an Ethernet interface.
          * 
-         * Must not be subscribed already.
+         * Must not be observing already.
          * Updates will be reported using @ref arpInfoReceived.
+         * 
+         * @param hw The @ref HwIface of the network interface.
          */
         inline void observe (HwIface &hw)
         {
@@ -127,6 +153,9 @@ public:
     private:
         /**
          * Reports a single ARP update.
+         * 
+         * @param ip_addr IP address to which the ARP update applies.
+         * @param mac_addr The MAC address associated with this IP address.
          */
         virtual void arpInfoReceived (Ip4Addr ip_addr, MacAddr mac_addr) = 0;
     };

@@ -29,8 +29,22 @@
 
 namespace AIpStack {
 
+/**
+ * Enumeration of types of hardware-type-specific interfaces provided
+ * by network interfaces.
+ * 
+ * See @ref IpStack::Iface::getHwType and @ref IpStack::Iface::getHwIface.
+ */
 enum class IpHwType : uint8_t {
+    /**
+     * No hardware-type-specific interface is available for the network interface.
+     */
     Undefined = 0,
+    
+    /**
+     * The network interface uses Ethernet and the @ref IpEthHw::HwIface
+     * hardware-type-specific interface is available.
+     */
     Ethernet = 1,
 };
 

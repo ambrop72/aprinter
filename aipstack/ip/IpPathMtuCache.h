@@ -60,8 +60,13 @@ AIPSTACK_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::PlatformImpl,
 /**
  * Path MTU cache implementation supporting Path MTU Discovery in @ref IpStack.
  * 
- * @tparam Arg Instantiation information (use @ref APRINTER_MAKE_INSTANCE with
- *             @ref IpPathMtuCacheService::Compose).
+ * The @ref IpStack provides wrappers around the functionality of this class,
+ * as such this class and @ref IpPathMtuCache::MtuRef are not directly visible
+ * to protocol handlers and other users of @ref IpStack.
+ * 
+ * @tparam Arg An instantiated @ref IpPathMtuCacheService::Compose template
+ *         or a type derived from such. Note that the @ref IpStack actually
+ *         performs this instantiation.
  */
 template <typename Arg>
 class IpPathMtuCache :

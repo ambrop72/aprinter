@@ -58,8 +58,10 @@ AIPSTACK_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::PlatformImpl, IpRea
  * The implementation uses the strategy suggested in RFC 815, whereby hole
  * descriptors are placed at the beginnings of holes.
  * 
- * @tparam Arg Instantiation information (use @ref APRINTER_MAKE_INSTANCE with
- *             @ref IpReassemblyService::Compose).
+ * @tparam Arg An instantiated @ref IpReassemblyService::Compose template
+ *         or a type derived from such. Note that the @ref IpStack actually
+ *         performs this instantiation, the application must just pass an
+ *         instantiated @ref IpReassemblyService to @ref IpStackService.
  */
 template <typename Arg>
 class IpReassembly :
@@ -130,7 +132,9 @@ private:
     
 public:
     /**
-     * Initialize reassembly.
+     * Constructor.
+     * 
+     * @param platform The platform facade.
      */
     IpReassembly (Platform platform) :
         IpReassemblyTimers<Arg>::Timers(platform)
@@ -468,6 +472,8 @@ private:
 
 /**
  * Service definition for @ref IpReassembly.
+ * 
+ * An instantiation of this template must be passed to @ref IpStackService.
  * 
  * @tparam Param_MaxReassEntrys Maximum number of datagrams being reassembled.
  *         This affects memory use.

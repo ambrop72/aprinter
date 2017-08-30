@@ -184,8 +184,8 @@ AIPSTACK_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::PlatformImpl,
 /**
  * DHCP client implementation.
  * 
- * @tparam Arg Instantiation information (use @ref APRINTER_MAKE_INSTANCE with
- *             @ref IpDhcpClientService::Compose).
+ * @tparam Arg An instantiated @ref IpDhcpClientService::Compose template
+ *         or a type derived from such; see @ref IpDhcpClientService.
  */
 template <typename Arg>
 class IpDhcpClient :
@@ -328,8 +328,10 @@ public:
      * IP address and gateway address assignement for the interface and
      * that both of these are initially unassigned.
      * 
-     * @param stack IP stack.
-     * @param iface Interface to run on. It must be an Ethernet based interface
+     * @param platform The platform facade, should be the same as passed to
+     *        the @ref IpStack::IpStack constructor.
+     * @param stack The IP stack.
+     * @param iface The interface to run on. It must be an Ethernet based interface
      *              and support the @ref IpHwType::Ethernet hardware-type
      *              specific interface (@ref IpEthHw).
      * @param opts Initialization options. This structure itself is copied but
@@ -381,7 +383,7 @@ public:
      * 
      * @return True if a lease is active, false if not.
      */
-    inline bool hasLease ()
+    inline bool hasLease () const
     {
         return m_state == OneOf(DhcpState::Bound, DhcpState::Renewing,
                                 DhcpState::Rebinding);
@@ -395,7 +397,7 @@ public:
      * 
      * @return Reference to lease information (valid only temporarily).
      */
-    inline LeaseInfo const & getLeaseInfoMustHaveLease ()
+    inline LeaseInfo const & getLeaseInfoMustHaveLease () const
     {
         AMBRO_ASSERT(hasLease())
         
@@ -1441,6 +1443,17 @@ using IpDhcpClientDefaultConfig = IpDhcpClientConfig<
 /**
  * Service definition for @ref IpDhcpClient.
  * 
+ * The template parameters of this class are static configuration. After these
+ * are defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
+ * @ref IpDhcpClient class type, like this:
+ * 
+ * @code
+ * using MyDhcpClientService = AIpStack::IpDhcpClientService<IpDhcpClientDefaultConfig>;
+ * APRINTER_MAKE_INSTANCE(MyDhcpClient, (MyDhcpClientService::template Compose<
+ *     PlatformImpl, MyIpStack>))
+ * MyDhcpClient dhcp_client;
+ * @endcode
+ * 
  * @tparam Param_Config Static DHCP client configuration, must be an
  *         @ref IpDhcpClientConfig type. See @ref IpDhcpClientDefaultConfig for
  *         and example.
@@ -1448,6 +1461,15 @@ using IpDhcpClientDefaultConfig = IpDhcpClientConfig<
 APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
     APRINTER_AS_TYPE(Config)
 ), (
+    /**
+     * Template for instantiating @ref IpDhcpClient.
+     * 
+     * See @ref IpDhcpClientService for an example.
+     * 
+     * @tparam Param_PlatformImpl The platform implementation class, should be the
+     *         same as passed to @ref IpStackService::Compose.
+     * @tparam Param_IpStack The @ref IpStack template class type.
+     */
     APRINTER_ALIAS_STRUCT_EXT(Compose, (
         APRINTER_AS_TYPE(PlatformImpl),
         APRINTER_AS_TYPE(IpStack)

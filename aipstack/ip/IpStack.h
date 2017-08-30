@@ -1678,9 +1678,16 @@ private:
 /**
  * Service configuration class for @ref IpStack.
  * 
- * The template parameters of this class are "configuration". After these are
- * defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
- * @ref IpStack class type.
+ * The template parameters of this class are static configuration. After these
+ * are defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
+ * @ref IpStack class type, like this:
+ * 
+ * @code
+ * using MyIpStackService = AIpStack::IpStackService<...>;
+ * APRINTER_MAKE_INSTANCE(MyIpStack, (MyIpStackService::template Compose<
+ *     PlatformImpl, ProtocolServicesList>))
+ * MyIpStack ip_stack;
+ * @endcode
  * 
  * @tparam Param_HeaderBeforeIp Required space for headers before the IP header
  *         in outgoing packets. This should be the maximum of the required space

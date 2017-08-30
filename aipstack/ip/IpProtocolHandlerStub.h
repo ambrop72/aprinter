@@ -86,10 +86,10 @@ namespace AIpStack {
  * class can have such functions deleted, possibly by inheriting
  * @ref APrinter::NonCopyable.
  * 
- * @tparam Arg Instantiation parameters, that is a type derived from an
- *         instantiation of the Compose template in the service class for the
- *         protocol handlers, e.g. @ref IpProtocolHandlerStubService::Compose.
- *         Therefore all type aliases defined there are available in Arg.
+ * @tparam Arg An instantiated Compose template in the service class for the
+ *         protocol handler (e.g. @ref IpProtocolHandlerStubService::Compose)
+ *         or a type derived from such. Therefore all type aliases defined
+ *         there are available in Arg.
  */
 template <typename Arg>
 class IpProtocolHandlerStub :
