@@ -281,7 +281,13 @@ public:
          * the timer has been set to expire at. The timer must be transitioned to
          * the not-set state just before this function is called.
          * 
-         * This must not be called when the timer is already in not-set state.
+         * WARNING: This must not be called when the timer is already in not-set
+         * state and must not be called on behalf of a previously configured expiration
+         * time as opposed to the most recent one. It also (obviously) must not be
+         * called after the timer has been destructed. One will find timer
+         * implementations in various event loop libraries (such as Boost.Asio) which
+         * do not provide these essential guarantees, and which cannot be used to
+         * implement this interface without safeguards.
          */
         virtual void handleTimerExpired () = 0;
     };
