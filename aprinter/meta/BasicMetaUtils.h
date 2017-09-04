@@ -164,6 +164,11 @@ struct GetReturnTypeHelper<Ret(Args...)> {
     using Result = Ret;
 };
 
+template <typename Ret, typename... Args>
+struct GetReturnTypeHelper<Ret(Args...)const> {
+    using Result = Ret;
+};
+
 template <typename Func>
 using GetReturnType = typename GetReturnTypeHelper<Func>::Result;
 

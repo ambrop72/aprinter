@@ -175,14 +175,14 @@ public:
             return static_cast<ImplTimer &>(*this);
         }
         
-        inline bool isSet ()
+        inline bool isSet () const
         {
-            return callObj<ImplTimer, bool()>(&ImplTimer::isSet, *this);
+            return callObj<ImplTimer, bool()const>(&ImplTimer::isSet, *this);
         }
         
-        inline TimeType getSetTime ()
+        inline TimeType getSetTime () const
         {
-            return callObj<ImplTimer, TimeType()>(&ImplTimer::getSetTime, *this);
+            return callObj<ImplTimer, TimeType()const>(&ImplTimer::getSetTime, *this);
         }
         
         inline void unset ()
@@ -241,6 +241,13 @@ private:
     
     template <typename Obj, typename Func, typename... Args>
     inline static RetType<Func> callObj (Func Obj::*func_ptr, Obj &obj, Args && ... args)
+    {
+        return (obj.*func_ptr)(std::forward<Args>(args)...);
+    }
+    
+    template <typename Obj, typename Func, typename... Args>
+    inline static RetType<Func> callObj (
+        Func Obj::*func_ptr, Obj const &obj, Args && ... args)
     {
         return (obj.*func_ptr)(std::forward<Args>(args)...);
     }

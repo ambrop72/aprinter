@@ -123,14 +123,14 @@ public:
                 TimedEventNew::deinit(Context());
             }
             
-            inline bool isSet ()
+            inline bool isSet () const
             {
-                return TimedEventNew::isSet(Context());
+                return const_cast<Timer *>(this)->TimedEventNew::isSet(Context());
             }
             
-            inline TimeType getSetTime ()
+            inline TimeType getSetTime () const
             {
-                return TimedEventNew::getSetTime(Context());
+                return const_cast<Timer *>(this)->TimedEventNew::getSetTime(Context());
             }
             
             void unset ()
