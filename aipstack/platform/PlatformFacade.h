@@ -38,52 +38,117 @@ template <typename Impl>
 class PlatformFacade;
 
 template <typename Impl, bool ImplIsStatic>
-class PlatformRefBase {};
+struct PlatformRefBase {};
 
 template <typename Impl>
-class PlatformRefBase<Impl, false>
+struct PlatformRefBase<Impl, false>
 {
-private:
     Impl *m_platform_impl;
     
-public:
     inline PlatformRefBase (Impl *impl) :
         m_platform_impl(impl)
-    {
-    }
-    
-    inline Impl * platformImpl () const
-    {
-        return m_platform_impl;
-    }
+    {}
 };
 
+/**
+ * A reference to the platform implementation.
+ * 
+ * This class is either an empty class if the platform implementation (Impl) is
+ * static or contains a pointer to Impl if not. Whether the platform implementation
+ * is static is determined by the constant ImplIsStatic in Impl; see
+ * @ref PlatformImplStub::ImplIsStatic.
+ * 
+ * This class is designed to be inherited by classes which need to access the
+ * platform facilities. The empty-base optimization will ensure that no memory is
+ * wasted if the platform implementation is static. However, note that if some
+ * class already uses another class which includes and exposes a platform reference
+ * (such as @ref PlatformFacade::Timer), retrieving the platform reference from that
+ * class should be preferred.
+ * 
+ * Usually the platform is accessed through the @ref PlatformFacade wrapper, an
+ * instance of which can be obtained by calling the @ref platform function in this
+ * class.
+ * 
+ * @tparam Impl The platform implementation class, providing the API described
+ *         in @ref PlatformImplStub.
+ */
 template <typename Impl>
 class PlatformRef :
-    public PlatformRefBase<Impl, Impl::ImplIsStatic>
+    private PlatformRefBase<Impl, Impl::ImplIsStatic>
 {
     using Base = PlatformRefBase<Impl, Impl::ImplIsStatic>;
     
 public:
+    /**
+     * Construct the platform reference.
+     * 
+     * If the platform implementation is static, no arguments must be passed.
+     * If the platform implementation is not static, a pointer to the platform
+     * implementation (Impl) must be passed as the single argument.
+     * 
+     * @param args No arguments (static platform implementation) or a pointer to
+     *        Impl (non-static platform implementation).
+     */
     template <typename... Args>
     inline PlatformRef (Args && ... args) :
         Base(std::forward<Args>(args)...)
     {
     }
     
+    /**
+     * Construct the platform reference from a @ref PlatformFacade.
+     * 
+     * The platform reference is initialized to the one stored within
+     * the given @ref PlatformFacade.
+     * 
+     * @param platform The platform facade to get the platform reference from.
+     */
     inline PlatformRef (PlatformFacade<Impl> platform) :
         PlatformRef(platform.ref())
     {
     }
     
+    /**
+     * Get the platform reference as a value.
+     * 
+     * This is a convenience function which simply returns *this.
+     * 
+     * @return The platform reference.
+     */
     inline PlatformRef ref () const
     {
         return *this;
     }
     
+    /**
+     * Construct and return a @ref PlatformFacade for this platform reference.
+     * 
+     * This is a convenience function which returns a @ref PlatformFacade
+     * constructed from this platform reference.
+     * 
+     * @return The platform facade.
+     */
     inline PlatformFacade<Impl> platform () const
     {
-        return PlatformFacade<Impl>(ref());
+        return PlatformFacade<Impl>(*this);
+    }
+    
+    /**
+     * Return the stored pointer to the platform implementation.
+     * 
+     * This function can only be called when Impl is a non-static platform
+     * implementation (see @ref PlatformImplStub::ImplIsStatic).
+     * 
+     * No arguments must be passed, the argument in the declaration just performs
+     * enable_if magic to disable this function for static platform implementations.
+     * 
+     * @return The pointer to the platform implementation.
+     */
+    template <typename Dummy = std::true_type>
+    inline Impl * platformImpl (
+        std::enable_if_t<!Impl::ImplIsStatic, Dummy> = std::true_type()) const
+    {
+        return this->m_platform_impl;
     }
 };
 
