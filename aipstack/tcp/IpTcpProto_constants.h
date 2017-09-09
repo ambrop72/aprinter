@@ -22,15 +22,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_TCP_PROTO_CONSTANTS_H
-#define APRINTER_IPSTACK_IP_TCP_PROTO_CONSTANTS_H
+#ifndef AIPSTACK_IP_TCP_PROTO_CONSTANTS_H
+#define AIPSTACK_IP_TCP_PROTO_CONSTANTS_H
 
 #include <stdint.h>
 
 #include <limits>
 
-#include <aprinter/meta/BitsInInt.h>
-#include <aprinter/base/Preprocessor.h>
+#include <aipstack/meta/BitsInInt.h>
+#include <aipstack/misc/Preprocessor.h>
 
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/Tcp4Proto.h>
@@ -42,9 +42,9 @@ namespace AIpStack {
 template <typename TcpProto>
 class IpTcpProto_constants
 {
-    APRINTER_USE_TYPES1(TcpUtils, (SeqType))
-    APRINTER_USE_TYPES1(TcpProto, (TimeType, RttType, Platform, TheIpStack))
-    APRINTER_USE_VALS(TcpProto, (RttTimeFreq, RttTypeMaxDbl))
+    AIPSTACK_USE_TYPES1(TcpUtils, (SeqType))
+    AIPSTACK_USE_TYPES1(TcpProto, (TimeType, RttType, Platform, TheIpStack))
+    AIPSTACK_USE_VALS(TcpProto, (RttTimeFreq, RttTypeMaxDbl))
     
     // Make sure the MinMTU permits an unfragmented TCP segment with some data.
     static_assert(TheIpStack::MinMTU >= Ip4TcpHeaderSize + 32, "");
@@ -114,7 +114,7 @@ public:
     
 public:
     static int const DupAckBits =
-        APrinter::BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
+        BitsInInt<FastRtxDupAcks + MaxAdditionaDupAcks>::Value;
 };
 
 }

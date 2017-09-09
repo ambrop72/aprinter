@@ -22,11 +22,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_ETH_HW_H
-#define APRINTER_IPSTACK_IP_ETH_HW_H
+#ifndef AIPSTACK_IP_ETH_HW_H
+#define AIPSTACK_IP_ETH_HW_H
 
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Err.h>
 #include <aipstack/common/ObserverNotification.h>
@@ -115,7 +115,7 @@ public:
         inline static void notifyArpObserver (
             ArpObserver &observer, Ip4Addr ip_addr, MacAddr mac_addr)
         {
-            AMBRO_ASSERT(observer.isActive())
+            AIPSTACK_ASSERT(observer.isActive())
             
             observer.arpInfoReceived(ip_addr, mac_addr);
         }

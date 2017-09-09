@@ -25,7 +25,7 @@
 #ifndef AIPSTACK_ONE_OF_H
 #define AIPSTACK_ONE_OF_H
 
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/Hints.h>
 
 namespace AIpStack {
 
@@ -34,12 +34,12 @@ struct OneOfStruct;
 
 template <typename OptRefType, typename... TailOptRefType>
 struct OneOfStruct<OptRefType, TailOptRefType...> {
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     constexpr OneOfStruct (OptRefType const &opt_ref_arg, TailOptRefType const & ... tail_opt_ref_arg)
     : opt_ref(opt_ref_arg), tail_opt_ref(tail_opt_ref_arg...) {}
     
     template <typename SelType>
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     constexpr bool one_of (SelType const &sel) const
     {
         return sel == opt_ref || tail_opt_ref.one_of(sel);
@@ -51,11 +51,11 @@ struct OneOfStruct<OptRefType, TailOptRefType...> {
 
 template <>
 struct OneOfStruct<> {
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     constexpr OneOfStruct () {}
     
     template <typename SelType>
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     constexpr bool one_of (SelType const &sel) const
     {
         return false;
@@ -63,14 +63,14 @@ struct OneOfStruct<> {
 };
 
 template <typename SelType, typename... OptRefType>
-AMBRO_ALWAYS_INLINE
+AIPSTACK_ALWAYS_INLINE
 bool operator== (SelType const &sel, OneOfStruct<OptRefType...> opt_struct)
 {
     return opt_struct.one_of(sel);
 }
 
 template <typename SelType, typename... OptRefType>
-AMBRO_ALWAYS_INLINE
+AIPSTACK_ALWAYS_INLINE
 bool operator!= (SelType const &sel, OneOfStruct<OptRefType...> opt_struct)
 {
     return !opt_struct.one_of(sel);
@@ -87,7 +87,7 @@ bool operator!= (SelType const &sel, OneOfStruct<OptRefType...> opt_struct)
  * is forced, it should regardless have no special overhead.
  */
 template <typename... OptType>
-AMBRO_ALWAYS_INLINE
+AIPSTACK_ALWAYS_INLINE
 OneOfStruct<OptType...> OneOf (OptType ... opt)
 {
     return OneOfStruct<OptType...>(opt...);

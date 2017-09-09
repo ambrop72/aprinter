@@ -27,7 +27,7 @@
 
 #include <tuple>
 
-#include <aprinter/base/Preprocessor.h>
+#include <aipstack/misc/Preprocessor.h>
 
 #include <aipstack/platform/PlatformFacade.h>
 
@@ -86,11 +86,11 @@ public:
 #define AIPSTACK_DECL_TIMERS_GIVE_TIMER(Dummy, TimerName) TimerName
 
 #define AIPSTACK_DECL_TIMERS(TimerWrapperName, PlatformImpl, Derived, TheTimers) \
-APRINTER_AS_MAP(AIPSTACK_DECL_TIMERS_DECL_TIMER, APRINTER_AS_MAP_DELIMITER_NONE, 0, TheTimers) \
+AIPSTACK_AS_MAP(AIPSTACK_DECL_TIMERS_DECL_TIMER, AIPSTACK_AS_MAP_DELIMITER_NONE, 0, TheTimers) \
 using TimerWrapperName = AIpStack::TimerWrapper< \
     PlatformImpl, \
     Derived, \
-    APRINTER_AS_MAP(AIPSTACK_DECL_TIMERS_GIVE_TIMER, APRINTER_AS_MAP_DELIMITER_COMMA, 0, TheTimers) \
+    AIPSTACK_AS_MAP(AIPSTACK_DECL_TIMERS_GIVE_TIMER, AIPSTACK_AS_MAP_DELIMITER_COMMA, 0, TheTimers) \
 >;
 
 #define AIPSTACK_USE_TIMERS(TimerWrapperName) \
@@ -107,7 +107,7 @@ class ClassName { \
 using AipstackTimers = typename TimersDeclClass::Timers; \
 friend AipstackTimers; \
 using AipstackTimers::tim; \
-APRINTER_USE_TYPES1(TimersDeclClass, TheTimers)
+AIPSTACK_USE_TYPES1(TimersDeclClass, TheTimers)
 
 }
 

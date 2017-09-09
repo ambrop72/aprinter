@@ -22,13 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_PROTOCOL_HANDLER_STUB_H
-#define APRINTER_IPSTACK_IP_PROTOCOL_HANDLER_STUB_H
+#ifndef AIPSTACK_IP_PROTOCOL_HANDLER_STUB_H
+#define AIPSTACK_IP_PROTOCOL_HANDLER_STUB_H
 
 #include <stdint.h>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/meta/BasicMetaUtils.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/meta/BasicMetaUtils.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/misc/NonCopyable.h>
@@ -255,9 +255,9 @@ struct IpProtocolHandlerStubService {
      * 
      * This type alias must appear so that the stack knows which protocol
      * number the handler is responsible for. The type alias should be for an
-     * @ref APrinter::WrapValue type using uint8_t as the value type.
+     * @ref WrapValue type using uint8_t as the value type.
      */
-    using IpProtocolNumber = APrinter::WrapValue<uint8_t, 99>;
+    using IpProtocolNumber = WrapValue<uint8_t, 99>;
     
     /**
      * Template through which the @ref IpStack instantiates the service.
@@ -267,7 +267,7 @@ struct IpProtocolHandlerStubService {
      * in the protocol handler class template as the 'Arg' template parameter
      * (actually Arg will be a class derived from Compose).
      * 
-     * The @ref APRINTER_DEF_INSTANCE / @ref APRINTER_MAKE_INSTANCE system
+     * The @ref AIPSTACK_DEF_INSTANCE / @ref AIPSTACK_MAKE_INSTANCE system
      * is used to obtain the actual protocol handler class type, in this
      * case an @ref IpProtocolHandlerStub template class. 
      * 
@@ -297,7 +297,7 @@ struct IpProtocolHandlerStubService {
         /**
          * Template alias to instantiate the service.
          */
-        APRINTER_DEF_INSTANCE(Compose, IpProtocolHandlerStub)
+        AIPSTACK_DEF_INSTANCE(Compose, IpProtocolHandlerStub)
     };
 };
 

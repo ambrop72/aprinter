@@ -25,16 +25,16 @@
 #ifndef AIPSTACK_OPTIONS_H
 #define AIPSTACK_OPTIONS_H
 
-#include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/TypeDict.h>
+#include <aipstack/meta/BasicMetaUtils.h>
+#include <aipstack/meta/TypeListUtils.h>
+#include <aipstack/meta/TypeDict.h>
 
 namespace AIpStack {
 
 namespace OptionsPrivate {
     template <typename Derived, typename DefaultValue, typename... Options>
-    using GetValue = APrinter::TypeDictGetOrDefault<
-        APrinter::TypeListReverse<APrinter::MakeTypeList<Options...>>, Derived, DefaultValue
+    using GetValue = TypeDictGetOrDefault<
+        TypeListReverse<MakeTypeList<Options...>>, Derived, DefaultValue
     >;
 }
 
@@ -58,13 +58,13 @@ public:
      * @tparam Value The desired value for the option.
      */
     template <ValueType Value>
-    using Is = APrinter::TypeDictEntry<Derived, APrinter::WrapValue<ValueType, Value>>;
+    using Is = TypeDictEntry<Derived, WrapValue<ValueType, Value>>;
     
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
     template <typename... Options>
     struct Config {
         static constexpr ValueType Value = OptionsPrivate::GetValue<
-            Derived, APrinter::WrapValue<ValueType, DefaultValue>, Options...
+            Derived, WrapValue<ValueType, DefaultValue>, Options...
         >::Value;
     };
 #endif
@@ -89,7 +89,7 @@ public:
      * @tparam Value The desired value for the option.
      */
     template <typename Value>
-    using Is = APrinter::TypeDictEntry<Derived, Value>;
+    using Is = TypeDictEntry<Derived, Value>;
     
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
     template <typename... Options>

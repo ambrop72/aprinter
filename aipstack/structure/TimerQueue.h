@@ -28,11 +28,11 @@
 #include <type_traits>
 #include <limits>
 
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Hints.h>
-#include <aprinter/structure/TreeCompare.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Hints.h>
+#include <aipstack/structure/TreeCompare.h>
 
 namespace AIpStack {
 
@@ -75,18 +75,18 @@ class TimerQueue
     static_assert(std::is_unsigned<TimeType>::value, "");
     
     // Get the State and Ref types from the link model.
-    APRINTER_USE_TYPES1(LinkModel, (State, Ref))
+    AIPSTACK_USE_TYPES1(LinkModel, (State, Ref))
     
     // Get the TimerQueueNode type.
     using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType, NodeUserData>;
     
     // Create the accessor type for TimerQueueNode::timers_structure_node.
-    struct TimersStructureNodeAccessor : public APrinter::ComposedAccessor<
-        Accessor, APRINTER_MEMBER_ACCESSOR_TN(&Node::timers_structure_node)> {};
+    struct TimersStructureNodeAccessor : public ComposedAccessor<
+        Accessor, AIPSTACK_MEMBER_ACCESSOR_TN(&Node::timers_structure_node)> {};
     
     // Define the comparator for comparing timers, based on TreeCompare.
     class KeyFuncs;
-    struct TimerCompare : public APrinter::TreeCompare<LinkModel, KeyFuncs> {};
+    struct TimerCompare : public TreeCompare<LinkModel, KeyFuncs> {};
     
     // Get the data structure type for finding the earliest timers (e.g. LinkedHeap).
     using TimersStructure = typename TimersStructureService::template Structure<
@@ -182,7 +182,7 @@ public:
             // past relative to the reference time, because in this case comparing
             // timers to "now" the usual way may yield incorrect results.
             TimeType dispatch_time;
-            if (AMBRO_UNLIKELY(time_less(now, m_referenece_time))) {
+            if (AIPSTACK_UNLIKELY(time_less(now, m_referenece_time))) {
                 dispatch_time = m_referenece_time + (TimeMsb - 1);
             } else {
                 dispatch_time = now;

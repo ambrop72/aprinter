@@ -29,7 +29,7 @@
 #include <utility>
 #include <limits>
 
-#include <aprinter/meta/BasicMetaUtils.h>
+#include <aipstack/meta/BasicMetaUtils.h>
 
 #include <aipstack/misc/NonCopyable.h>
 
@@ -476,7 +476,7 @@ public:
     
 private:
     template <typename Func>
-    using RetType = APrinter::GetReturnType<Func>;
+    using RetType = GetReturnType<Func>;
     
     template <typename Func, typename... Args>
     inline RetType<Func> callImpl (Func Impl::*func_ptr, Args && ... args) const

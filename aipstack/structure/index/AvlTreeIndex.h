@@ -25,22 +25,22 @@
 #ifndef AIPSTACK_AVL_TREE_INDEX_H
 #define AIPSTACK_AVL_TREE_INDEX_H
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/structure/AvlTree.h>
-#include <aprinter/structure/TreeCompare.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/structure/AvlTree.h>
+#include <aipstack/structure/TreeCompare.h>
 
 namespace AIpStack {
 
 template <typename Arg>
 class AvlTreeIndex {
-    APRINTER_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
+    AIPSTACK_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
     
-    APRINTER_USE_TYPES1(LinkModel, (State, Ref))
+    AIPSTACK_USE_TYPES1(LinkModel, (State, Ref))
     
-    using TreeNode = APrinter::AvlTreeNode<LinkModel>;
+    using TreeNode = AvlTreeNode<LinkModel>;
     
 public:
     class Node {
@@ -50,14 +50,14 @@ public:
     };
     
     class Index {
-        using TreeNodeAccessor = APrinter::ComposedAccessor<
+        using TreeNodeAccessor = ComposedAccessor<
             HookAccessor,
-            APRINTER_MEMBER_ACCESSOR_TN(&Node::tree_node)
+            AIPSTACK_MEMBER_ACCESSOR_TN(&Node::tree_node)
         >;
         
-        struct TheTreeCompare : public APrinter::TreeCompare<LinkModel, KeyFuncs> {};
+        struct TheTreeCompare : public TreeCompare<LinkModel, KeyFuncs> {};
         
-        using EntryTree = APrinter::AvlTree<TreeNodeAccessor, TheTreeCompare, LinkModel>;
+        using EntryTree = AvlTree<TreeNodeAccessor, TheTreeCompare, LinkModel>;
         
     public:
         inline void init ()
@@ -68,7 +68,7 @@ public:
         inline void addEntry (Ref e, State st = State())
         {
             bool inserted = m_tree.insert(e, nullptr, st);
-            AMBRO_ASSERT(inserted)
+            AIPSTACK_ASSERT(inserted)
         }
         
         inline void removeEntry (Ref e, State st = State())
@@ -79,7 +79,7 @@ public:
         inline Ref findEntry (LookupKeyArg key, State st = State())
         {
             Ref entry = m_tree.template lookup<LookupKeyArg>(key, st);
-            AMBRO_ASSERT(entry.isNull() ||
+            AIPSTACK_ASSERT(entry.isNull() ||
                          KeyFuncs::KeysAreEqual(KeyFuncs::GetKeyOfEntry(*entry), key))
             return entry;
         }
@@ -107,7 +107,7 @@ struct AvlTreeIndexService {
         using LookupKeyArg = LookupKeyArg_;
         using KeyFuncs = KeyFuncs_;
         using LinkModel = LinkModel_;
-        APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)
+        AIPSTACK_DEF_INSTANCE(Index, AvlTreeIndex)
     };
 };
 

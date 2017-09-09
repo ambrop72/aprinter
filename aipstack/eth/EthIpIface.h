@@ -22,23 +22,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ETH_IP_IFACE_H
-#define APRINTER_IPSTACK_ETH_IP_IFACE_H
+#ifndef AIPSTACK_ETH_IP_IFACE_H
+#define AIPSTACK_ETH_IP_IFACE_H
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <limits>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/LoopUtils.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Hints.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/LinkedList.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/meta/ChooseInt.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/LoopUtils.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Hints.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/structure/LinkModel.h>
+#include <aipstack/structure/LinkedList.h>
 
 #include <aipstack/common/Struct.h>
 #include <aipstack/common/Buf.h>
@@ -81,12 +81,12 @@ class EthIpIface :
     private IpEthHw::HwIface,
     private NonCopyable<EthIpIface<Arg>>
 {
-    APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
-    APRINTER_USE_TYPES1(Arg::Params, (TimersStructureService))
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl, Iface))
+    AIPSTACK_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
+    AIPSTACK_USE_TYPES1(Arg::Params, (TimersStructureService))
+    AIPSTACK_USE_TYPES1(Arg, (PlatformImpl, Iface))
     
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType))
     AIPSTACK_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))
     using EthIpIfaceTimers<Arg>::Timers::platform;
     
@@ -102,7 +102,7 @@ class EthIpIface :
     static int const ArpNonProtectCount = NumArpEntries - ArpProtectCount;
     
     // Get an unsigned integer type sufficient for ARP entry indexes and null value.
-    using ArpEntryIndexType = APrinter::ChooseIntForMax<NumArpEntries, false>;
+    using ArpEntryIndexType = ChooseIntForMax<NumArpEntries, false>;
     static ArpEntryIndexType const ArpEntryNull =
         std::numeric_limits<ArpEntryIndexType>::max();
     
@@ -128,13 +128,13 @@ class EthIpIface :
     using TheTimerQueueService = TimerQueueService<TimersStructureService>;
     
     // Link model for ARP entry data structures.
-    //struct ArpEntriesLinkModel = APrinter::PointerLinkModel<ArpEntry> {};
-    struct ArpEntriesLinkModel : public APrinter::ArrayLinkModelWithAccessor<
+    //struct ArpEntriesLinkModel = PointerLinkModel<ArpEntry> {};
+    struct ArpEntriesLinkModel : public ArrayLinkModelWithAccessor<
         ArpEntry, ArpEntryIndexType, ArpEntryNull, EthIpIface, ArpEntriesAccessor> {};
     using ArpEntryRef = typename ArpEntriesLinkModel::Ref;
     
     // Nodes in ARP entry data structures.
-    using ArpEntryListNode = APrinter::LinkedListNode<ArpEntriesLinkModel>;
+    using ArpEntryListNode = LinkedListNode<ArpEntriesLinkModel>;
     using ArpEntryTimerQueueNode = typename TheTimerQueueService::template Node<
         ArpEntriesLinkModel, TimeType, ArpEntryTimerQueueNodeUserData>;
     
@@ -189,12 +189,12 @@ class EthIpIface :
     
     // Accessors for data structure nodes.
     struct ArpEntryListNodeAccessor :
-        public APRINTER_MEMBER_ACCESSOR(&ArpEntry::list_node) {};
+        public AIPSTACK_MEMBER_ACCESSOR(&ArpEntry::list_node) {};
     struct ArpEntryTimerQueueNodeAccessor :
-        public APRINTER_MEMBER_ACCESSOR(&ArpEntry::timer_queue_node) {};
+        public AIPSTACK_MEMBER_ACCESSOR(&ArpEntry::timer_queue_node) {};
     
     // Linked list type.
-    using ArpEntryList = APrinter::LinkedList<
+    using ArpEntryList = LinkedList<
         ArpEntryListNodeAccessor, ArpEntriesLinkModel, true>;
     
     // Data structure type for ARP entry timers.
@@ -217,8 +217,8 @@ public:
         EthIpIfaceTimers<Arg>::Timers(platform),
         m_mac_addr(info.mac_addr)
     {
-        AMBRO_ASSERT(info.eth_mtu >= EthHeader::Size)
-        AMBRO_ASSERT(info.mac_addr != nullptr)
+        AIPSTACK_ASSERT(info.eth_mtu >= EthHeader::Size)
+        AIPSTACK_ASSERT(info.mac_addr != nullptr)
         
         // Initialize ARP entries...
         for (auto &e : m_arp_entries) {
@@ -243,7 +243,7 @@ protected:
     void recvFrameFromDriver (IpBufRef frame)
     {
         // Check that we have an Ethernet header.
-        if (AMBRO_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
+        if (AIPSTACK_UNLIKELY(!frame.hasHeader(EthHeader::Size))) {
             return;
         }
         
@@ -257,7 +257,7 @@ protected:
         auto pkt = frame.hideHeader(EthHeader::Size);
         
         // Handle based on the EtherType.
-        if (AMBRO_LIKELY(ethtype == EthTypeIpv4)) {
+        if (AIPSTACK_LIKELY(ethtype == EthTypeIpv4)) {
             Iface::recvIp4PacketFromDriver(pkt);
         }
         else if (ethtype == EthTypeArp) {
@@ -278,13 +278,13 @@ private:
         // Try to resolve the MAC address.
         MacAddr dst_mac;
         IpErr resolve_err = resolve_hw_addr(ip_addr, &dst_mac, retryReq);
-        if (AMBRO_UNLIKELY(resolve_err != IpErr::SUCCESS)) {
+        if (AIPSTACK_UNLIKELY(resolve_err != IpErr::SUCCESS)) {
             return resolve_err;
         }
         
         // Reveal the Ethernet header.
         IpBufRef frame;
-        if (AMBRO_UNLIKELY(!pkt.revealHeader(EthHeader::Size, &frame))) {
+        if (AIPSTACK_UNLIKELY(!pkt.revealHeader(EthHeader::Size, &frame))) {
             return IpErr::NO_HEADER_SPACE;
         }
         
@@ -334,7 +334,7 @@ private:
     void recvArpPacket (IpBufRef pkt)
     {
         // Check that we have the ARP header.
-        if (AMBRO_UNLIKELY(!pkt.hasHeader(ArpIp4Header::Size))) {
+        if (AIPSTACK_UNLIKELY(!pkt.hasHeader(ArpIp4Header::Size))) {
             return;
         }
         auto arp_header = ArpIp4Header::MakeRef(pkt.getChunkPtr());
@@ -367,16 +367,16 @@ private:
         }
     }
     
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     IpErr resolve_hw_addr (
         Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetryRequest *retryReq)
     {
         // First look if the first used entry is a match, as an optimization.
         ArpEntryRef entry_ref = m_used_entries_list.first(*this);
         
-        if (AMBRO_LIKELY(!entry_ref.isNull() && (*entry_ref).ip_addr == ip_addr)) {
+        if (AIPSTACK_LIKELY(!entry_ref.isNull() && (*entry_ref).ip_addr == ip_addr)) {
             // Fast path, the first used entry is a match.
-            AMBRO_ASSERT((*entry_ref).nud().state != ArpEntryState::Free)
+            AIPSTACK_ASSERT((*entry_ref).nud().state != ArpEntryState::Free)
             
             // Make sure the entry is hard as get_arp_entry would do below.
             (*entry_ref).nud().weak = false;
@@ -385,7 +385,7 @@ private:
             GetArpEntryRes get_res = get_arp_entry(ip_addr, false, entry_ref);
             
             // Did we not get an (old or new) entry for this address?
-            if (AMBRO_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
+            if (AIPSTACK_UNLIKELY(get_res != GetArpEntryRes::GotArpEntry)) {
                 // If this is a broadcast IP address, return the broadcast MAC address.
                 if (get_res == GetArpEntryRes::BroadcastAddr) {
                     *mac_addr = MacAddr::BroadcastAddr();
@@ -400,15 +400,15 @@ private:
         ArpEntry &entry = *entry_ref;
         
         // Got a Valid or Refreshing entry?
-        if (AMBRO_LIKELY(entry.nud().state >= ArpEntryState::Valid)) {
+        if (AIPSTACK_LIKELY(entry.nud().state >= ArpEntryState::Valid)) {
             // If it is a timed out Valid entry, transition to Refreshing.
-            if (AMBRO_UNLIKELY(entry.nud().attempts_left == 0)) {
+            if (AIPSTACK_UNLIKELY(entry.nud().attempts_left == 0)) {
                 // Refreshing entry never has attempts_left==0 so no need to check for
                 // Valid state in the if. We have a Valid entry and the timer is also
                 // not active (needed by set_entry_timer) since attempts_left==0 implies
                 // that it has expired already
-                AMBRO_ASSERT(entry.nud().state == ArpEntryState::Valid)
-                AMBRO_ASSERT(!entry.nud().timer_active)
+                AIPSTACK_ASSERT(entry.nud().state == ArpEntryState::Valid)
+                AIPSTACK_ASSERT(!entry.nud().timer_active)
                 
                 // Go to Refreshing state, start timeout, send first unicast request.
                 entry.nud().state = ArpEntryState::Refreshing;
@@ -425,7 +425,7 @@ private:
             // If this is a Free entry, initialize it.
             if (entry.nud().state == ArpEntryState::Free) {
                 // Timer is not active for Free entries (needed by set_entry_timer).
-                AMBRO_ASSERT(!entry.nud().timer_active)
+                AIPSTACK_ASSERT(!entry.nud().timer_active)
                 
                 // Go to Query state, start timeout, send first broadcast request.
                 // NOTE: Entry is already inserted to m_used_entries_list.
@@ -447,7 +447,7 @@ private:
     void save_hw_addr (Ip4Addr ip_addr, MacAddr mac_addr)
     {
         // Sanity check MAC address: not broadcast.
-        if (AMBRO_UNLIKELY(mac_addr == MacAddr::BroadcastAddr())) {
+        if (AIPSTACK_UNLIKELY(mac_addr == MacAddr::BroadcastAddr())) {
             return;
         }
         
@@ -505,7 +505,7 @@ private:
         
         while (!entry_ref.isNull()) {
             ArpEntry &entry = *entry_ref;
-            AMBRO_ASSERT(entry.nud().state != ArpEntryState::Free)
+            AIPSTACK_ASSERT(entry.nud().state != ArpEntryState::Free)
             
             if (entry.ip_addr == ip_addr) {
                 break;
@@ -521,7 +521,7 @@ private:
             entry_ref = m_used_entries_list.next(entry_ref, *this);
         }
         
-        if (AMBRO_LIKELY(!entry_ref.isNull())) {
+        if (AIPSTACK_LIKELY(!entry_ref.isNull())) {
             // We found an entry with this IP address.
             // If this is a hard request, make sure the entry is hard.
             if (!weak) {
@@ -562,9 +562,9 @@ private:
             
             if (!entry_ref.isNull()) {
                 // Got a Free entry.
-                AMBRO_ASSERT((*entry_ref).nud().state == ArpEntryState::Free)
-                AMBRO_ASSERT(!(*entry_ref).nud().timer_active)
-                AMBRO_ASSERT(!(*entry_ref).retry_list.hasRequests())
+                AIPSTACK_ASSERT((*entry_ref).nud().state == ArpEntryState::Free)
+                AIPSTACK_ASSERT(!(*entry_ref).nud().timer_active)
+                AIPSTACK_ASSERT(!(*entry_ref).retry_list.hasRequests())
                 
                 // Move the entry from the free list to the used list.
                 m_free_entries_list.removeFirst(*this);
@@ -584,7 +584,7 @@ private:
                 
                 // Get the entry to be recycled.
                 entry_ref = use_weak ? last_weak_entry_ref : last_hard_entry_ref;
-                AMBRO_ASSERT(!entry_ref.isNull())
+                AIPSTACK_ASSERT(!entry_ref.isNull())
                 
                 // Reset the entry, but keep it in the used list.
                 reset_arp_entry(*entry_ref, true);
@@ -613,7 +613,7 @@ private:
     // NOTE: update_timer is needed after this.
     void reset_arp_entry (ArpEntry &entry, bool leave_in_used_list)
     {
-        AMBRO_ASSERT(entry.nud().state != ArpEntryState::Free)
+        AIPSTACK_ASSERT(entry.nud().state != ArpEntryState::Free)
         
         // Make sure the entry timeout is not active.
         clear_entry_timer(entry);
@@ -665,9 +665,9 @@ private:
     // Set tne ARP entry timeout based on the entry state and attempts_left.
     void set_entry_timer (ArpEntry &entry)
     {
-        AMBRO_ASSERT(!entry.nud().timer_active)
-        AMBRO_ASSERT(entry.nud().state == one_of_timer_entry_states())
-        AMBRO_ASSERT(entry.nud().state != ArpEntryState::Valid ||
+        AIPSTACK_ASSERT(!entry.nud().timer_active)
+        AIPSTACK_ASSERT(entry.nud().state == one_of_timer_entry_states())
+        AIPSTACK_ASSERT(entry.nud().state != ArpEntryState::Valid ||
                      entry.nud().attempts_left == 1)
         
         // Determine the relative timeout...
@@ -679,7 +679,7 @@ private:
             // Query or Refreshing entry, compute timeout with exponential backoff.
             uint8_t attempts = (entry.nud().state == ArpEntryState::Query) ?
                 ArpQueryAttempts : ArpRefreshAttempts;
-            AMBRO_ASSERT(entry.nud().attempts_left <= attempts)
+            AIPSTACK_ASSERT(entry.nud().attempts_left <= attempts)
             timeout = ArpBaseResponseTimeoutTicks << (attempts - entry.nud().attempts_left);
         }
         
@@ -731,8 +731,8 @@ private:
         ArpEntryRef timer_ref;
         while (!(timer_ref = m_timer_queue.removeExpired(*this)).isNull()) {
             ArpEntry &entry = *timer_ref;
-            AMBRO_ASSERT(entry.nud().timer_active)
-            AMBRO_ASSERT(entry.nud().state == one_of_timer_entry_states())
+            AIPSTACK_ASSERT(entry.nud().timer_active)
+            AIPSTACK_ASSERT(entry.nud().state == one_of_timer_entry_states())
             
             // Clear the timer_active flag since the entry has just been removed
             // from the timer queue.
@@ -748,8 +748,8 @@ private:
     
     void handle_entry_timeout (ArpEntry &entry)
     {
-        AMBRO_ASSERT(entry.nud().state != ArpEntryState::Free)
-        AMBRO_ASSERT(!entry.nud().timer_active)
+        AIPSTACK_ASSERT(entry.nud().state != ArpEntryState::Free)
+        AIPSTACK_ASSERT(!entry.nud().timer_active)
         
         // Check if the IP address is still consistent with the interface
         // address settings. If not, reset the ARP entry.
@@ -766,7 +766,7 @@ private:
             case ArpEntryState::Query: {
                 // Query state: Decrement attempts_left then either reset the entry
                 // in case of last attempt, else retransmit the broadcast query.
-                AMBRO_ASSERT(entry.nud().attempts_left > 0)
+                AIPSTACK_ASSERT(entry.nud().attempts_left > 0)
                 
                 entry.nud().attempts_left--;
                 if (entry.nud().attempts_left == 0) {
@@ -781,7 +781,7 @@ private:
             case ArpEntryState::Valid: {
                 // Valid state: Set attempts_left to 0 to consider the entry expired.
                 // Upon next use the entry it will go to Refreshing state.
-                AMBRO_ASSERT(entry.nud().attempts_left == 1)
+                AIPSTACK_ASSERT(entry.nud().attempts_left == 1)
                 
                 entry.nud().attempts_left = 0;
             } break;
@@ -790,7 +790,7 @@ private:
                 // Refreshing state: Decrement attempts_left then either move
                 // the entry to Query state (and send the first broadcast query),
                 // else retransmit the unicast query.
-                AMBRO_ASSERT(entry.nud().attempts_left > 0)
+                AIPSTACK_ASSERT(entry.nud().attempts_left > 0)
                 
                 entry.nud().attempts_left--;
                 if (entry.nud().attempts_left == 0) {
@@ -805,7 +805,7 @@ private:
             } break;
             
             default:
-                AMBRO_ASSERT(false);
+                AIPSTACK_ASSERT(false);
         }
     }
     
@@ -820,7 +820,7 @@ private:
     ArpEntry m_arp_entries[NumArpEntries];
     
     struct ArpEntriesAccessor :
-        public APRINTER_MEMBER_ACCESSOR(&EthIpIface::m_arp_entries) {};
+        public AIPSTACK_MEMBER_ACCESSOR(&EthIpIface::m_arp_entries) {};
 };
 
 struct EthIpIfaceOptions {
@@ -846,7 +846,7 @@ public:
         using PlatformImpl = PlatformImpl_;
         using Iface = Iface_;
         using Params = EthIpIfaceService;
-        APRINTER_DEF_INSTANCE(Compose, EthIpIface)
+        AIPSTACK_DEF_INSTANCE(Compose, EthIpIface)
     };
 };
 

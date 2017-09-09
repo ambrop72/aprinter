@@ -22,17 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_TCP_PROTO_OUTPUT_H
-#define APRINTER_IPSTACK_IP_TCP_PROTO_OUTPUT_H
+#ifndef AIPSTACK_IP_TCP_PROTO_OUTPUT_H
+#define AIPSTACK_IP_TCP_PROTO_OUTPUT_H
 
 #include <stdint.h>
 #include <stddef.h>
 
 #include <limits>
 
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Hints.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Chksum.h>
@@ -49,15 +49,15 @@ namespace AIpStack {
 template <typename TcpProto>
 class IpTcpProto_output
 {
-    APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, PortType, TcpState, TcpSegMeta,
+    AIPSTACK_USE_TYPES1(TcpUtils, (FlagsType, SeqType, PortType, TcpState, TcpSegMeta,
                                    OptionFlags, TcpOptions))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
+    AIPSTACK_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lt2, seq_add_sat, tcplen,
                                  can_output_in_state, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpPcb, PcbFlags, Input, TimeType, RttType,
+    AIPSTACK_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpPcb, PcbFlags, Input, TimeType, RttType,
                                    RttNextType, Constants, OutputTimer, RtxTimer,
                                    TheIpStack, MtuRef, TcpConnection, PcbKey))
-    APRINTER_USE_VALS(TcpProto, (RttTypeMax))
-    APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
+    AIPSTACK_USE_VALS(TcpProto, (RttTypeMax))
+    AIPSTACK_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
     
 public:
     // Check if our FIN has been ACKed.
@@ -67,10 +67,10 @@ public:
     }
     
     // Send SYN or SYN-ACK packet (in the SYN_SENT or SYN_RCVD states respectively).
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static void pcb_send_syn (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AIPSTACK_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
         // Include the MSS option.
         TcpOptions tcp_opts;
@@ -87,7 +87,7 @@ public:
         
         // The SYN and SYN-ACK must always have non-scaled window size.
         // For justification of assert see see create_connection, listen_input.
-        AMBRO_ASSERT(pcb->rcv_ann_wnd <= std::numeric_limits<uint16_t>::max())
+        AIPSTACK_ASSERT(pcb->rcv_ann_wnd <= std::numeric_limits<uint16_t>::max())
         uint16_t window_size = pcb->rcv_ann_wnd;
         
         // Send SYN or SYN-ACK flags depending on the state.
@@ -114,7 +114,7 @@ public:
     }
     
     // Send an empty ACK (which may be a window update).
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static void pcb_send_empty_ack (TcpPcb *pcb)
     {
         // Get the window size value.
@@ -135,7 +135,7 @@ public:
     
     static void pcb_need_ack (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->state != TcpState::CLOSED)
         
         // If we're in input processing just set a flag that ACK is
         // needed which will be picked up at the end, otherwise send
@@ -149,10 +149,10 @@ public:
     
     static void pcb_snd_buf_extended (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || snd_open_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(pcb->state == TcpState::SYN_SENT || snd_open_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->state == TcpState::SYN_SENT || pcb_has_snd_outstanding(pcb))
         
-        if (AMBRO_LIKELY(pcb->state != TcpState::SYN_SENT)) {
+        if (AIPSTACK_LIKELY(pcb->state != TcpState::SYN_SENT)) {
             // Set the output timer.
             pcb_set_output_timer_for_output(pcb);
             
@@ -163,17 +163,17 @@ public:
     
     static void pcb_end_sending (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(snd_open_in_state(pcb->state))
+        AIPSTACK_ASSERT(snd_open_in_state(pcb->state))
         // If sending was closed without abandoning the connection, the push
         // index must have been set to the end of the send buffer.
-        AMBRO_ASSERT(pcb->con == nullptr ||
+        AIPSTACK_ASSERT(pcb->con == nullptr ||
                      pcb->con->m_v.snd_psh_index == pcb->con->m_v.snd_buf.tot_len)
         
         // Make the appropriate state transition.
         if (pcb->state == TcpState::ESTABLISHED) {
             pcb->state = TcpState::FIN_WAIT_1;
         } else {
-            AMBRO_ASSERT(pcb->state == TcpState::CLOSE_WAIT)
+            AIPSTACK_ASSERT(pcb->state == TcpState::CLOSE_WAIT)
             pcb->state = TcpState::LAST_ACK;
         }
         
@@ -186,8 +186,8 @@ public:
     
     static void pcb_push_output (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Schedule a call to pcb_output soon.
         if (pcb->inInputProcessing()) {
@@ -204,17 +204,17 @@ public:
     // Check if there is any unacknowledged or unsent data or FIN.
     static bool pcb_has_snd_outstanding (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
         
         // If sending was close, FIN is outstanding.
-        if (AMBRO_UNLIKELY(!snd_open_in_state(pcb->state))) {
+        if (AIPSTACK_UNLIKELY(!snd_open_in_state(pcb->state))) {
             return true;
         }
         
         // PCB must still have a TcpConnection, if not sending would
         // have been closed not open.
         TcpConnection *con = pcb->con;
-        AMBRO_ASSERT(con != nullptr)
+        AIPSTACK_ASSERT(con != nullptr)
         
         // Check whether there is any data in the send buffer.
         return con->m_v.snd_buf.tot_len > 0;
@@ -225,11 +225,11 @@ public:
     // snd_una!=snd_nxt due to requeuing in pcb_rtx_timer_handler.
     static bool pcb_has_snd_unacked (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
         
         TcpConnection *con = pcb->con;
         return
-            (AMBRO_LIKELY(con != nullptr) &&
+            (AIPSTACK_LIKELY(con != nullptr) &&
                 con->m_v.snd_buf_cur.tot_len < con->m_v.snd_buf.tot_len) ||
             (!snd_open_in_state(pcb->state) && !pcb->hasFlag(PcbFlags::FIN_PENDING));
     }
@@ -245,12 +245,12 @@ public:
      * case it only respects snd_wnd not cwnd, and forces sending of at least
      * one sequence count.
      */
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static void pcb_output_active (TcpPcb *pcb, bool rtx_or_window_probe)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         TcpConnection *con = pcb->con;
         
@@ -259,7 +259,7 @@ public:
         size_t data_threshold;
         bool fin;
         
-        if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+        if (AIPSTACK_UNLIKELY(rtx_or_window_probe)) {
             // Send from the start of the start buffer. We take care to not
             // modify the real snd_buf via the snd_buf_cur pointer.
             snd_buf_cur = &con->m_v.snd_buf;
@@ -278,9 +278,9 @@ public:
             // be true, pcb_output_segment will be called once and then this
             // function will return.
         } else {
-            AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
-            AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
-            AMBRO_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
+            AIPSTACK_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
+            AIPSTACK_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+            AIPSTACK_ASSERT(con->m_v.snd_psh_index <= con->m_v.snd_buf.tot_len)
             
             // Use and update real snd_buf_cur.
             snd_buf_cur = &con->m_v.snd_buf_cur;
@@ -291,7 +291,7 @@ public:
             
             // Calculate the remaining window relative to snd_buf_cur.
             size_t snd_offset = con->m_v.snd_buf.tot_len - snd_buf_cur->tot_len;
-            if (AMBRO_LIKELY(snd_offset <= full_wnd)) {
+            if (AIPSTACK_LIKELY(snd_offset <= full_wnd)) {
                 rem_wnd = full_wnd - snd_offset;
             } else {
                 rem_wnd = 0;
@@ -324,33 +324,33 @@ public:
             // does not exceed the interface MTU, to handle lowering of the
             // interface MTU. We don't retry sending immediately, this is a very
             // rare event anyway.
-            if (AMBRO_UNLIKELY(err == IpErr::FRAG_NEEDED)) {
+            if (AIPSTACK_UNLIKELY(err == IpErr::FRAG_NEEDED)) {
                 pcb->tcp->m_stack->handleLocalPacketTooBig(pcb->remote_addr);
             }
             
             // If this was for retransmission or window probe, don't do anything
             // else than sending.
-            if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+            if (AIPSTACK_UNLIKELY(rtx_or_window_probe)) {
                 return;
             }
             
             // If there was an error sending the segment, stop for now and retry later.
-            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+            if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
                 pcb_set_output_timer_for_retry(pcb, err);
                 break;
             }
             
             // If we were successful we must have sent something and not more
             // than the window allowed or more than we had to send.
-            AMBRO_ASSERT(seg_seqlen > 0)
-            AMBRO_ASSERT(seg_seqlen <= rem_wnd)
-            AMBRO_ASSERT(seg_seqlen <= snd_buf_cur->tot_len + fin)
+            AIPSTACK_ASSERT(seg_seqlen > 0)
+            AIPSTACK_ASSERT(seg_seqlen <= rem_wnd)
+            AIPSTACK_ASSERT(seg_seqlen <= snd_buf_cur->tot_len + fin)
             
             // Check sent sequence length to see if a FIN was sent.
             size_t data_sent;
-            if (AMBRO_UNLIKELY(seg_seqlen > snd_buf_cur->tot_len)) {
+            if (AIPSTACK_UNLIKELY(seg_seqlen > snd_buf_cur->tot_len)) {
                 // FIN was sent, we must still have FIN_PENDING.
-                AMBRO_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
+                AIPSTACK_ASSERT(pcb->hasFlag(PcbFlags::FIN_PENDING))
                 
                 // All remaining data was sent.
                 data_sent = snd_buf_cur->tot_len;
@@ -366,7 +366,7 @@ public:
             }
             
             // Advance snd_buf_cur over any data just sent.
-            if (AMBRO_LIKELY(data_sent > 0)) {
+            if (AIPSTACK_LIKELY(data_sent > 0)) {
                 snd_buf_cur->skipBytes(data_sent);
             }
             
@@ -381,7 +381,7 @@ public:
         // is set. This way the code below for setting the timer does not need
         // to concern itself with the idle timeout, and performance is improved
         // for sending with no idle timeouts in between.
-        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
+        if (AIPSTACK_UNLIKELY(pcb->hasFlag(PcbFlags::IDLE_TIMER))) {
             pcb->clearFlag(PcbFlags::IDLE_TIMER);
             pcb->tim(RtxTimer()).unset();
         }
@@ -392,7 +392,7 @@ public:
         // zero window it would not be wrong to have an extra condition
         // !pcb_may_delay_snd but we don't for simplicity.
         if (!pcb->tim(RtxTimer()).isSet()) {
-            if (AMBRO_LIKELY(pcb_has_snd_unacked(pcb)) || pcb->con->m_v.snd_wnd == 0) {
+            if (AIPSTACK_LIKELY(pcb_has_snd_unacked(pcb)) || pcb->con->m_v.snd_wnd == 0) {
                 pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
             }
         }
@@ -402,14 +402,14 @@ public:
      * This is the equivalent of pcb_output_active for abandoned PCBs.
      * NOTE: doDelayedTimerUpdate must be called after return.
      */
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static void pcb_output_abandoned (TcpPcb *pcb, bool rtx_or_window_probe)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->con == nullptr)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->con == nullptr)
         // below are implied by con == nullptr, see also pcb_abandoned
-        AMBRO_ASSERT(!snd_open_in_state(pcb->state))
-        AMBRO_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER))
+        AIPSTACK_ASSERT(!snd_open_in_state(pcb->state))
+        AIPSTACK_ASSERT(!pcb->hasFlag(PcbFlags::IDLE_TIMER))
         
         // Send a FIN if rtx_or_window_probe or otherwise if FIN is queued.
         bool fin = rtx_or_window_probe ? true : pcb->hasFlag(PcbFlags::FIN_PENDING);
@@ -423,7 +423,7 @@ public:
                                         window_size, flags, nullptr, pcb);
             
             // On success take note of what was sent.
-            if (AMBRO_LIKELY(err == IpErr::SUCCESS)) {
+            if (AIPSTACK_LIKELY(err == IpErr::SUCCESS)) {
                 // Set the FIN_SENT flag.
                 pcb->setFlag(PcbFlags::FIN_SENT);
                 
@@ -434,12 +434,12 @@ public:
             }
             
             // If this was for retransmission or window probe, don't do anything else.
-            if (AMBRO_UNLIKELY(rtx_or_window_probe)) {
+            if (AIPSTACK_UNLIKELY(rtx_or_window_probe)) {
                 return;
             }
             
             // If there was an error sending the segment, stop for now and retry later.
-            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+            if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
                 pcb_set_output_timer_for_retry(pcb, err);
                 break;
             }
@@ -454,7 +454,7 @@ public:
         // Set the retransmission timer as needed. This is really the same as
         // in pcb_output_active, the logic just reduces to this.
         if (!pcb->tim(RtxTimer()).isSet()) {
-            if (AMBRO_LIKELY(!pcb->hasFlag(PcbFlags::FIN_PENDING))) {
+            if (AIPSTACK_LIKELY(!pcb->hasFlag(PcbFlags::FIN_PENDING))) {
                 pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
             }
         }
@@ -466,10 +466,10 @@ public:
      */
     inline static void pcb_output (TcpPcb *pcb, bool rtx_or_window_probe)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_outstanding(pcb))
         
-        if (AMBRO_LIKELY(pcb->con != nullptr)) {
+        if (AIPSTACK_LIKELY(pcb->con != nullptr)) {
             pcb_output_active(pcb, rtx_or_window_probe);
         } else {
             pcb_output_abandoned(pcb, rtx_or_window_probe);
@@ -500,7 +500,7 @@ public:
     {
         // This timer is only for SYN_SENT, SYN_RCVD and can_output_in_state
         // states. In any change to another state the timer would be stopped.
-        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD) ||
+        AIPSTACK_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD) ||
                      can_output_in_state(pcb->state))
         
         // Is this an idle timeout?
@@ -518,9 +518,9 @@ public:
             // 2) pcb->con != nullptr could only be invalidated when the connection is
             //    abandoned, and pcb_abandoned would stop the idle timeout.
             
-            AMBRO_ASSERT(can_output_in_state(pcb->state))
-            AMBRO_ASSERT(!pcb_has_snd_unacked(pcb))
-            AMBRO_ASSERT(pcb->con != nullptr)
+            AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+            AIPSTACK_ASSERT(!pcb_has_snd_unacked(pcb))
+            AIPSTACK_ASSERT(pcb->con != nullptr)
             
             // Clear the IDLE_TIMER flag. This is not strictly necessarily but is mostly
             // cosmetical and for a minor performance gain in pcb_output_active where it
@@ -549,7 +549,7 @@ public:
         // We must have something outstanding to be sent or acked.
         // This was the case when we were sent and if that changed
         // the timer would have been unset.
-        AMBRO_ASSERT(syn_sent_rcvd || pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(syn_sent_rcvd || pcb_has_snd_outstanding(pcb))
         
         // Check for spurious timer expiration after timer is no longer
         // needed (no unacked data and no zero window).
@@ -622,11 +622,11 @@ public:
     
     static void pcb_requeue_everything (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
         
         // Requeue data.
         TcpConnection *con = pcb->con;
-        if (AMBRO_LIKELY(con != nullptr)) {
+        if (AIPSTACK_LIKELY(con != nullptr)) {
             con->m_v.snd_buf_cur = con->m_v.snd_buf;
         }
         
@@ -641,8 +641,8 @@ public:
     // transition due to FIN acked).
     static void pcb_output_handle_acked (TcpPcb *pcb, SeqType ack_num, SeqType acked)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // Clear the RTX_ACTIVE flag since any retransmission has now been acked.
         pcb->clearFlag(PcbFlags::RTX_ACTIVE);
@@ -653,7 +653,7 @@ public:
         if (pcb->hasFlag(PcbFlags::RTT_PENDING)) {
             // If we have RTT_PENDING outside of SYN_SENT/SYN_RCVD we must
             // also have a TcpConnection (see pcb_abandoned, pcb_start_rtt_measurement).
-            AMBRO_ASSERT(con != nullptr)
+            AIPSTACK_ASSERT(con != nullptr)
             
             if (seq_lt2(con->m_v.rtt_test_seq, ack_num)) {
                 // Update the RTT variables and RTO.
@@ -665,12 +665,12 @@ public:
         }
         
         // Connection was abandoned?
-        if (AMBRO_UNLIKELY(con == nullptr)) {
+        if (AIPSTACK_UNLIKELY(con == nullptr)) {
             // Reset the duplicate ACK counter.
             pcb->num_dupack = 0;
         }
         // Not in fast recovery?
-        else if (AMBRO_LIKELY(pcb->num_dupack < Constants::FastRtxDupAcks)) {
+        else if (AIPSTACK_LIKELY(pcb->num_dupack < Constants::FastRtxDupAcks)) {
             // Reset the duplicate ACK counter.
             pcb->num_dupack = 0;
             
@@ -686,7 +686,7 @@ public:
                     
                     // If cwnd data has now been acked, increment cwnd and reset cwnd_acked,
                     // and inhibit such increments until the next RTT measurement completes.
-                    if (AMBRO_UNLIKELY(con->m_v.cwnd_acked >= con->m_v.cwnd)) {
+                    if (AIPSTACK_UNLIKELY(con->m_v.cwnd_acked >= con->m_v.cwnd)) {
                         pcb_increase_cwnd_acked(pcb, con->m_v.cwnd_acked);
                         con->m_v.cwnd_acked = 0;
                         pcb->setFlag(PcbFlags::CWND_INCRD);
@@ -700,14 +700,14 @@ public:
             // and this must still be true. Because when all unkacked data is
             // ACKed we would exit fast recovery, just below (the condition
             // below is implied then because recover<=snd_nxt).
-            AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
+            AIPSTACK_ASSERT(pcb_has_snd_unacked(pcb))
             
             // If all data up to recover is being ACKed, exit fast recovery.
             if (!pcb->hasFlag(PcbFlags::RECOVER) || !seq_lt2(ack_num, con->m_v.recover)) {
                 // Deflate the CWND.
                 // Note, cwnd>=snd_mss is respected because ssthresh>=snd_mss.
                 SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
-                AMBRO_ASSERT(con->m_v.ssthresh >= pcb->snd_mss)
+                AIPSTACK_ASSERT(con->m_v.ssthresh >= pcb->snd_mss)
                 con->m_v.cwnd = MinValue(con->m_v.ssthresh,
                     seq_add(MaxValue(flight_size, (SeqType)pcb->snd_mss),
                             pcb->snd_mss));
@@ -720,7 +720,7 @@ public:
                 
                 // Deflate CWND by the amount of data ACKed.
                 // Be careful to not bring CWND below snd_mss.
-                AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
+                AIPSTACK_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
                 con->m_v.cwnd -=
                     MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
                 
@@ -735,7 +735,7 @@ public:
         // If the snd_una increment that will be done for this ACK will
         // leave recover behind snd_una, clear the recover flag to indicate
         // that recover is no longer valid and assumed <snd_una.
-        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::RECOVER)) &&
+        if (AIPSTACK_UNLIKELY(pcb->hasFlag(PcbFlags::RECOVER)) &&
             con != nullptr && seq_lt2(con->m_v.recover, ack_num))
         {
             pcb->clearFlag(PcbFlags::RECOVER);
@@ -746,9 +746,9 @@ public:
     // reached FastRtxDupAcks, the fast recovery threshold.
     static void pcb_fast_rtx_dup_acks_received (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
-        AMBRO_ASSERT(pcb->num_dupack == Constants::FastRtxDupAcks)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_unacked(pcb))
+        AIPSTACK_ASSERT(pcb->num_dupack == Constants::FastRtxDupAcks)
         
         // If we have recover (>=snd_nxt), we must not enter fast recovery.
         // In that case we must decrement num_dupack by one, to indicate that
@@ -763,7 +763,7 @@ public:
         pcb_output(pcb, true);
         
         TcpConnection *con = pcb->con;
-        if (AMBRO_LIKELY(con != nullptr)) {
+        if (AIPSTACK_LIKELY(con != nullptr)) {
             // Set recover.
             pcb->setFlag(PcbFlags::RECOVER);
             con->m_v.recover = pcb->snd_nxt;
@@ -785,11 +785,11 @@ public:
     // received while already in fast recovery.
     static void pcb_extra_dup_ack_received (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_unacked(pcb))
-        AMBRO_ASSERT(pcb->num_dupack > Constants::FastRtxDupAcks)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_unacked(pcb))
+        AIPSTACK_ASSERT(pcb->num_dupack > Constants::FastRtxDupAcks)
         
-        if (AMBRO_LIKELY(pcb->con != nullptr)) {
+        if (AIPSTACK_LIKELY(pcb->con != nullptr)) {
             // Increment CWND by snd_mss.
             pcb->con->m_v.cwnd = seq_add_sat(pcb->con->m_v.cwnd, pcb->snd_mss);
             
@@ -805,8 +805,8 @@ public:
     
     static void pcb_end_rtt_measurement (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->hasFlag(PcbFlags::RTT_PENDING))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(pcb->hasFlag(PcbFlags::RTT_PENDING))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         // Clear the flag to indicate end of RTT measurement.
         pcb->clearFlag(PcbFlags::RTT_PENDING);
@@ -844,7 +844,7 @@ public:
     // retry after ARP resolution completes.
     static void pcb_send_retry (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->state != TcpState::CLOSED)
         
         if (pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD)) {
             // Retry sending SYN or SYN-ACK.
@@ -862,7 +862,7 @@ public:
     // Calculate snd_mss based on the current MtuRef information.
     static uint16_t pcb_calc_snd_mss_from_pmtu (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pmtu >= TheIpStack::MinMTU)
+        AIPSTACK_ASSERT(pmtu >= TheIpStack::MinMTU)
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
         uint16_t mtu_mss = pmtu - Ip4TcpHeaderSize;
@@ -872,7 +872,7 @@ public:
         // - base_snd_mss was explicitly checked in TcpUtils::calc_snd_mss.
         // - mtu-Ip4TcpHeaderSize cannot be less because
         //   MinAllowedMss==MinMTU-Ip4TcpHeaderSize.
-        AMBRO_ASSERT(snd_mss >= Constants::MinAllowedMss)
+        AIPSTACK_ASSERT(snd_mss >= Constants::MinAllowedMss)
         
         return snd_mss;
     }
@@ -882,10 +882,10 @@ public:
     // MtuRef here (including this PCB's, such as through pcb_abort).
     static void pcb_pmtu_changed (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
                                          TcpState::SYN_RCVD, TcpState::TIME_WAIT))
-        AMBRO_ASSERT(pcb->con != nullptr)
-        AMBRO_ASSERT(pcb->con->MtuRef::isSetup())
+        AIPSTACK_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(pcb->con->MtuRef::isSetup())
         
         // In SYN_SENT, just update the PMTU temporarily stuffed in snd_mss.
         if (pcb->state == TcpState::SYN_SENT) {
@@ -903,7 +903,7 @@ public:
         uint16_t new_snd_mss = pcb_calc_snd_mss_from_pmtu(pcb, pmtu);
         
         // If the snd_mss has not changed, there is nothing to do.
-        if (AMBRO_UNLIKELY(new_snd_mss == pcb->snd_mss)) {
+        if (AIPSTACK_UNLIKELY(new_snd_mss == pcb->snd_mss)) {
             return;
         }
         
@@ -948,19 +948,19 @@ public:
     // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_update_snd_wnd (TcpPcb *pcb, SeqType new_snd_wnd)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
                                          TcpState::SYN_SENT, TcpState::SYN_RCVD))
         // With maximum snd_wnd_shift=14, MaxWindow or more cannot be reported.
-        AMBRO_ASSERT(new_snd_wnd <= Constants::MaxWindow)
+        AIPSTACK_ASSERT(new_snd_wnd <= Constants::MaxWindow)
         
         // If the connection has been abandoned we no longer keep snd_wnd.
         TcpConnection *con = pcb->con;
-        if (AMBRO_UNLIKELY(con == nullptr)) {
+        if (AIPSTACK_UNLIKELY(con == nullptr)) {
             return;
         }
         
         // We don't need window updates in states where output is no longer possible.
-        if (AMBRO_UNLIKELY(!can_output_in_state(pcb->state))) {
+        if (AIPSTACK_UNLIKELY(!can_output_in_state(pcb->state))) {
             return;
         }
         
@@ -985,7 +985,7 @@ public:
             // (retransmission or window probe) it might otherwise expire and send
             // the other kind too early. If the timer is actually needed it will
             // be restarted by pcb_output_active due to setting OUT_PENDING.
-            if (AMBRO_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0))) {
+            if (AIPSTACK_UNLIKELY((new_snd_wnd == 0) != (old_snd_wnd == 0))) {
                 pcb->tim(RtxTimer()).unset();
             }
         }
@@ -1015,7 +1015,7 @@ public:
         send_rst(tcp, key, rst_seq_num, rst_ack, rst_ack_num);
     }
     
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static void send_rst (TcpProto *tcp, PcbKey const &key,
                           SeqType seq_num, bool ack, SeqType ack_num)
     {
@@ -1030,12 +1030,12 @@ private:
     // NOTE: doDelayedTimerUpdate must be called after return.
     static void pcb_set_output_timer_for_output (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb_has_snd_outstanding(pcb))
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb_has_snd_outstanding(pcb))
         
         // If the OUT_RETRY flag is set, clear it and ensure that
         // the OutputTimer is stopped before the check below.
-        if (AMBRO_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
+        if (AIPSTACK_UNLIKELY(pcb->hasFlag(PcbFlags::OUT_RETRY))) {
             pcb->clearFlag(PcbFlags::OUT_RETRY);
             pcb->tim(OutputTimer()).unset();
         }
@@ -1061,17 +1061,17 @@ private:
     
     // This function sends data/FIN for referenced PCBs. It is designed to be
     // inlined into pcb_output_active and should not be called from elsewhere.
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     static IpErr pcb_output_segment (TcpPcb *pcb, PcbOutputHelper &helper,
                                      IpBufRef data, bool fin, SeqType rem_wnd,
                                      SeqType *out_seg_seqlen)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->con != nullptr)
-        AMBRO_ASSERT(data.tot_len <= pcb->con->m_v.snd_buf.tot_len)
-        AMBRO_ASSERT(!fin || !snd_open_in_state(pcb->state))
-        AMBRO_ASSERT(data.tot_len > 0 || fin)
-        AMBRO_ASSERT(rem_wnd > 0)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(data.tot_len <= pcb->con->m_v.snd_buf.tot_len)
+        AIPSTACK_ASSERT(!fin || !snd_open_in_state(pcb->state))
+        AIPSTACK_ASSERT(data.tot_len > 0 || fin)
+        AIPSTACK_ASSERT(rem_wnd > 0)
         
         size_t rem_data_len = data.tot_len;
         
@@ -1091,7 +1091,7 @@ private:
         // - there is no more data after any data sent now, and
         // - there is window availabe for the FIN.
         // The first two parts are optimized into a single condition.
-        if (AMBRO_UNLIKELY(data.tot_len + fin > rem_data_len)) {
+        if (AIPSTACK_UNLIKELY(data.tot_len + fin > rem_data_len)) {
             if (rem_wnd > data.tot_len) {
                 seg_flags |= Tcp4FlagFin|Tcp4FlagPsh;
             }
@@ -1111,14 +1111,14 @@ private:
         
         // Send the segment.
         IpErr err = helper.sendSegment(pcb, seq_num, seg_flags, data);
-        if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+        if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
             return err;
         }
         
         // Calculate the sequence length of the segment and set
         // the FIN_SENT flag if a FIN was sent.
         SeqType seg_seqlen = data.tot_len;
-        if (AMBRO_UNLIKELY((seg_flags & Tcp4FlagFin) != 0)) {
+        if (AIPSTACK_UNLIKELY((seg_flags & Tcp4FlagFin) != 0)) {
             seg_seqlen++;
             pcb->setFlag(PcbFlags::FIN_SENT);
         }
@@ -1128,8 +1128,8 @@ private:
         
         // Stop a round-trip-time measurement if we have retransmitted
         // a segment containing the associated sequence number.
-        if (AMBRO_LIKELY(pcb->hasFlag(PcbFlags::RTT_PENDING))) {
-            if (AMBRO_UNLIKELY(seq_diff(pcb->con->m_v.rtt_test_seq, seq_num) < seg_seqlen))
+        if (AIPSTACK_LIKELY(pcb->hasFlag(PcbFlags::RTT_PENDING))) {
+            if (AIPSTACK_UNLIKELY(seq_diff(pcb->con->m_v.rtt_test_seq, seq_num) < seg_seqlen))
             {
                 pcb->clearFlag(PcbFlags::RTT_PENDING);
             }
@@ -1139,7 +1139,7 @@ private:
         SeqType seg_endseq = seq_add(seq_num, seg_seqlen);
         
         // Did we send anything new?
-        if (AMBRO_LIKELY(seq_lt2(pcb->snd_nxt, seg_endseq))) {
+        if (AIPSTACK_LIKELY(seq_lt2(pcb->snd_nxt, seg_endseq))) {
             // Start a round-trip-time measurement if not already started
             // and if we still have a TcpConnection.
             if (!pcb->hasFlag(PcbFlags::RTT_PENDING)) {
@@ -1155,8 +1155,8 @@ private:
     
     static void pcb_increase_cwnd_acked (TcpPcb *pcb, SeqType acked)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         // Increase cwnd by acked but no more than snd_mss.
         SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
@@ -1169,8 +1169,8 @@ private:
     // Sets sshthresh according to RFC 5681 equation (4).
     static void pcb_update_ssthresh_for_rtx (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(can_output_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
         SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
@@ -1179,16 +1179,16 @@ private:
     
     static void pcb_start_rtt_measurement (TcpPcb *pcb, bool syn)
     {
-        AMBRO_ASSERT(!syn || pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
-        AMBRO_ASSERT(syn || can_output_in_state(pcb->state))
-        AMBRO_ASSERT(syn || pcb->con != nullptr)
+        AIPSTACK_ASSERT(!syn || pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AIPSTACK_ASSERT(syn || can_output_in_state(pcb->state))
+        AIPSTACK_ASSERT(syn || pcb->con != nullptr)
         
         // Set the flag, remember the time.
         pcb->setFlag(PcbFlags::RTT_PENDING);
         pcb->rtt_test_time = pcb->platform().getTime();
         
         // Remember the sequence number except for SYN.
-        if (AMBRO_LIKELY(!syn)) {
+        if (AIPSTACK_LIKELY(!syn)) {
             pcb->con->m_v.rtt_test_seq = pcb->snd_nxt;
         }
     }
@@ -1219,7 +1219,7 @@ private:
             // If this is the first tranamission, prepare common things.
             if (!prepared) {
                 IpErr err = prepareCommon(pcb);
-                if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+                if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
                     return err;
                 }
             }
@@ -1232,20 +1232,20 @@ private:
             
             // Sequence number
             tcp_header.set(Tcp4Header::SeqNum(), seq_num);
-            chksum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
+            chksum.addWord(WrapType<uint32_t>(), seq_num);
             
             // Offset+flags
             FlagsType offset_flags = ((FlagsType)5 << TcpOffsetShift) | seg_flags;
             tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
-            chksum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
+            chksum.addWord(WrapType<uint16_t>(), offset_flags);
             
             // Add TCP length to checksum.
             uint16_t tcp_len = Tcp4Header::Size + data.tot_len;
-            chksum.addWord(APrinter::WrapType<uint16_t>(), tcp_len);
+            chksum.addWord(WrapType<uint16_t>(), tcp_len);
             
             // Include any data.
             IpBufNode data_node;
-            if (AMBRO_LIKELY(data.tot_len > 0)) {
+            if (AIPSTACK_LIKELY(data.tot_len > 0)) {
                 data_node = data.toNode();
                 dgram_alloc.setNext(&data_node, data.tot_len);
             }
@@ -1271,26 +1271,26 @@ private:
             
             // Source port
             tcp_header.set(Tcp4Header::SrcPort(), pcb->local_port);
-            chksum.addWord(APrinter::WrapType<uint16_t>(), pcb->local_port);
+            chksum.addWord(WrapType<uint16_t>(), pcb->local_port);
             
             // Destination port
             tcp_header.set(Tcp4Header::DstPort(), pcb->remote_port);
-            chksum.addWord(APrinter::WrapType<uint16_t>(), pcb->remote_port);
+            chksum.addWord(WrapType<uint16_t>(), pcb->remote_port);
             
             // Acknowledgement
             tcp_header.set(Tcp4Header::AckNum(), pcb->rcv_nxt);
-            chksum.addWord(APrinter::WrapType<uint32_t>(), pcb->rcv_nxt);
+            chksum.addWord(WrapType<uint32_t>(), pcb->rcv_nxt);
             
             // Window size (update it first)
             uint16_t window_size = Input::pcb_ann_wnd(pcb);
             tcp_header.set(Tcp4Header::WindowSize(), window_size);
-            chksum.addWord(APrinter::WrapType<uint16_t>(), window_size);
+            chksum.addWord(WrapType<uint16_t>(), window_size);
             
             // Urgent pointer
             tcp_header.set(Tcp4Header::UrgentPtr(), 0);
             
             // Add known pseudo-header fields to checksum.
-            chksum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+            chksum.addWord(WrapType<uint16_t>(), Ip4ProtocolTcp);
             chksum.addWords(&pcb->local_addr.data);
             chksum.addWords(&pcb->remote_addr.data);
             
@@ -1301,7 +1301,7 @@ private:
             IpErr err = pcb->tcp->m_stack->prepareSendIp4Dgram(
                 *pcb, {TcpProto::TcpTTL, Ip4ProtocolTcp}, dgram_alloc.getPtr(),
                 Constants::TcpIpSendFlags, ip_prep);
-            if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+            if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
                 return err;
             }
             
@@ -1311,7 +1311,7 @@ private:
         }
     };
     
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     static IpErr send_tcp_nodata (
         TcpProto *tcp, PcbKey const &key, SeqType seq_num, SeqType ack_num,
         uint16_t window_size, FlagsType flags, TcpOptions *opts,
@@ -1333,28 +1333,28 @@ private:
         
         // Adding constants to checksum is more easily optimized if done first.
         // Add protocol field of pseudo-header.
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
+        chksum_accum.addWord(WrapType<uint16_t>(), Ip4ProtocolTcp);
         
         // Write the TCP header...
         auto tcp_header = Tcp4Header::MakeRef(dgram_alloc.getPtr());
         
         tcp_header.set(Tcp4Header::SrcPort(),     key.local_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), key.local_port);
+        chksum_accum.addWord(WrapType<uint16_t>(), key.local_port);
         
         tcp_header.set(Tcp4Header::DstPort(),     key.remote_port);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), key.remote_port);
+        chksum_accum.addWord(WrapType<uint16_t>(), key.remote_port);
         
         tcp_header.set(Tcp4Header::SeqNum(),      seq_num);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), seq_num);
+        chksum_accum.addWord(WrapType<uint32_t>(), seq_num);
         
         tcp_header.set(Tcp4Header::AckNum(),      ack_num);
-        chksum_accum.addWord(APrinter::WrapType<uint32_t>(), ack_num);
+        chksum_accum.addWord(WrapType<uint32_t>(), ack_num);
         
         tcp_header.set(Tcp4Header::OffsetFlags(), offset_flags);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), offset_flags);
+        chksum_accum.addWord(WrapType<uint16_t>(), offset_flags);
         
         tcp_header.set(Tcp4Header::WindowSize(),  window_size);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), window_size);
+        chksum_accum.addWord(WrapType<uint16_t>(), window_size);
         
         tcp_header.set(Tcp4Header::UrgentPtr(),   0);
         
@@ -1369,7 +1369,7 @@ private:
         // Add remaining pseudo-header to checksum (protocol was added above).
         chksum_accum.addWords(&key.local_addr.data);
         chksum_accum.addWords(&key.remote_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
+        chksum_accum.addWord(WrapType<uint16_t>(), dgram.tot_len);
         
         // Complete and write checksum.
         uint16_t calc_chksum = chksum_accum.getChksum(dgram.hideHeader(Tcp4Header::Size));

@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_TCP_PROTO_INPUT_H
-#define APRINTER_IPSTACK_IP_TCP_PROTO_INPUT_H
+#ifndef AIPSTACK_IP_TCP_PROTO_INPUT_H
+#define AIPSTACK_IP_TCP_PROTO_INPUT_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -32,9 +32,9 @@
 
 #include <limits>
 
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Hints.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Chksum.h>
@@ -52,26 +52,26 @@ namespace AIpStack {
 template <typename TcpProto>
 class IpTcpProto_input
 {
-    APRINTER_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
+    AIPSTACK_USE_TYPES1(TcpUtils, (FlagsType, SeqType, TcpState, TcpSegMeta, TcpOptions,
                                    OptionFlags, PortType))
-    APRINTER_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt2, tcplen,
+    AIPSTACK_USE_VALS(TcpUtils, (seq_add, seq_diff, seq_lte, seq_lt2, tcplen,
                                  can_output_in_state, accepting_data_in_state,
                                  state_is_synsent_synrcvd, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpListener, TcpConnection, TcpPcb, PcbFlags,
+    AIPSTACK_USE_TYPES1(TcpProto, (Ip4RxInfo, TcpListener, TcpConnection, TcpPcb, PcbFlags,
                                    Output, Constants, AbrtTimer, RtxTimer, OutputTimer,
                                    TheIpStack))
-    APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
+    AIPSTACK_USE_VALS(TcpProto, (pcb_aborted_in_callback))
     
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4RxInfo const &ip_info, IpBufRef dgram)
     {
         // The destination address must be the address of the incoming interface.
-        if (AMBRO_UNLIKELY(!ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
+        if (AIPSTACK_UNLIKELY(!ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
             return;
         }
         
         // Check header size, must fit in first buffer.
-        if (AMBRO_UNLIKELY(!dgram.hasHeader(Tcp4Header::Size))) {
+        if (AIPSTACK_UNLIKELY(!dgram.hasHeader(Tcp4Header::Size))) {
             return;
         }
         
@@ -90,9 +90,9 @@ public:
         IpChksumAccumulator chksum_accum;
         chksum_accum.addWords(&ip_info.src_addr.data);
         chksum_accum.addWords(&ip_info.dst_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolTcp);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), dgram.tot_len);
-        if (AMBRO_UNLIKELY(chksum_accum.getChksum(dgram) != 0)) {
+        chksum_accum.addWord(WrapType<uint16_t>(), Ip4ProtocolTcp);
+        chksum_accum.addWord(WrapType<uint16_t>(), dgram.tot_len);
+        if (AIPSTACK_UNLIKELY(chksum_accum.getChksum(dgram) != 0)) {
             return;
         }
         
@@ -108,7 +108,7 @@ public:
         // Check that data offset is within [Tcp4Header::Size, dgram.tot_len].
         // The former bound is checked indirectly since opts_len would have
         // wrapped around.
-        if (AMBRO_UNLIKELY(opts_len > tcp_data.tot_len)) {
+        if (AIPSTACK_UNLIKELY(opts_len > tcp_data.tot_len)) {
             return;
         }
         
@@ -121,7 +121,7 @@ public:
         // Try to handle using a PCB.
         TcpPcb *pcb = tcp->find_pcb({ip_info.dst_addr, ip_info.src_addr,
                                      tcp_meta.local_port, tcp_meta.remote_port});
-        if (AMBRO_LIKELY(pcb != nullptr)) {
+        if (AIPSTACK_LIKELY(pcb != nullptr)) {
             pcb_input(tcp, pcb, tcp_meta, tcp_data);
             return;
         }
@@ -132,7 +132,7 @@ public:
         // minor detail that the original check might have been against
         // a different subnet broadcast address but we prefer speed to
         // completeness of this check.
-        if (AMBRO_UNLIKELY(!TheIpStack::checkUnicastSrcAddr(ip_info))) {
+        if (AIPSTACK_UNLIKELY(!TheIpStack::checkUnicastSrcAddr(ip_info))) {
             return;
         }
         
@@ -231,14 +231,14 @@ public:
         
         // Try to announce as much window as is available, even if a
         // window update would otherwise be inhibited due to rcv_ann_thres.
-        if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
+        if (AIPSTACK_LIKELY(accepting_data_in_state(pcb->state))) {
             // For performance we only update rcv_ann_wnd if the RCV_WND_UPD
             // flag is set and we clear the flag when we do an update. Any
             // state change which may allow advertising more window will set
             // this flag.
             if (pcb->hasAndClearFlag(PcbFlags::RCV_WND_UPD)) {
                 // RCV_WND_UPD implies con != nullptr as needed by pcb_calc_wnd_update.
-                AMBRO_ASSERT(pcb->con != nullptr)
+                AIPSTACK_ASSERT(pcb->con != nullptr)
                 
                 // Calculate how much window can be announced and bump rcv_ann_wnd.
                 SeqType ann_wnd = pcb_calc_wnd_update(pcb);
@@ -259,17 +259,17 @@ public:
         //   than the maximum window that can be advertised (see
         //   max_rcv_wnd_ann), and could only be decreased upon
         //   receiving ACKs.
-        AMBRO_ASSERT(hdr_wnd <= std::numeric_limits<uint16_t>::max())
+        AIPSTACK_ASSERT(hdr_wnd <= std::numeric_limits<uint16_t>::max())
         
         return hdr_wnd;
     }
     
     static void pcb_rcv_buf_extended (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
-        if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
+        if (AIPSTACK_LIKELY(accepting_data_in_state(pcb->state))) {
             // Calculate how much window we could announce.
             SeqType ann_wnd = pcb_calc_wnd_update(pcb);
             
@@ -296,7 +296,7 @@ public:
     
     static void pcb_update_rcv_wnd_after_abandoned (TcpPcb *pcb, SeqType rcv_ann_thres)
     {
-        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        AIPSTACK_ASSERT(accepting_data_in_state(pcb->state))
         
         // This is our heuristic for the window increment.
         SeqType min_window =
@@ -328,8 +328,8 @@ public:
     // associated TcpConnection object.
     static void pcb_complete_established_transition (TcpPcb *pcb, uint16_t pmtu)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::ESTABLISHED)
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(pcb->state == TcpState::ESTABLISHED)
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         // If this is the end of RTT measurement (there was no retransmission),
         // update the RTT vars and RTO based on the delay. Otherwise just reset RTO
@@ -413,7 +413,7 @@ private:
             // SYN-ACK segments have unscaled window.
             // NOTE: rcv_ann_wnd fits into size_t as required since m_initial_rcv_wnd
             // also does (TcpListener::setInitialReceiveWindow).
-            AMBRO_ASSERT(lis->m_initial_rcv_wnd <= std::numeric_limits<size_t>::max())
+            AIPSTACK_ASSERT(lis->m_initial_rcv_wnd <= std::numeric_limits<size_t>::max())
             SeqType rcv_wnd = MinValueU(std::numeric_limits<uint16_t>::max(),
                                                   lis->m_initial_rcv_wnd);
             
@@ -449,7 +449,7 @@ private:
             }
             
             // Increment the listener's PCB count.
-            AMBRO_ASSERT(lis->m_num_pcbs < std::numeric_limits<int>::max())
+            AIPSTACK_ASSERT(lis->m_num_pcbs < std::numeric_limits<int>::max())
             lis->m_num_pcbs++;
             
             // Add the PCB to the active index.
@@ -481,7 +481,7 @@ private:
     {
         // The m_current_pcb is set only during pcb_input execution and points to
         // the PCB for which input is being processed.
-        AMBRO_ASSERT(tcp->m_current_pcb == nullptr)
+        AIPSTACK_ASSERT(tcp->m_current_pcb == nullptr)
         
         // Set the m_current_pcb to this PCB.
         tcp->m_current_pcb = pcb;
@@ -490,7 +490,7 @@ private:
         pcb_input_core(pcb, tcp_meta, tcp_data);
         
         // Is the PCB still alive (was not aborted)?
-        if (AMBRO_LIKELY(tcp->m_current_pcb != nullptr)) {
+        if (AIPSTACK_LIKELY(tcp->m_current_pcb != nullptr)) {
             // Perform delayed timer updated (code within pcb_input_core relies on this).
             tcp->m_current_pcb->doDelayedTimerUpdate();
             
@@ -501,8 +501,8 @@ private:
     
     static void pcb_input_core (TcpPcb *pcb, TcpSegMeta const &tcp_meta, IpBufRef tcp_data)
     {
-        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
-        AMBRO_ASSERT(pcb->tcp->m_current_pcb == pcb)
+        AIPSTACK_ASSERT(pcb->state != TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->tcp->m_current_pcb == pcb)
         
         // Remember original data length.
         size_t orig_data_len = tcp_data.tot_len;
@@ -521,7 +521,7 @@ private:
             return;
         }
         
-        if (AMBRO_UNLIKELY(state_is_synsent_synrcvd(pcb->state))) {
+        if (AIPSTACK_UNLIKELY(state_is_synsent_synrcvd(pcb->state))) {
             // Do SYN_SENT or SYN_RCVD specific processing.
             // Normally we transition to ESTABLISHED state here.
             if (!pcb_input_syn_sent_rcvd_processing(pcb, tcp_meta, acked)) {
@@ -530,7 +530,7 @@ private:
             
             // A successful return of pcb_input_syn_sent_rcvd_processing implies
             // that the PCB entered ESTABLISHED state (but may already have changed).
-            AMBRO_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+            AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
         } else {
             // Process acknowledgements and window updates.
             if (!pcb_input_ack_wnd_processing(pcb, tcp_meta, acked, orig_data_len)) {
@@ -538,7 +538,7 @@ private:
             }
         }
         
-        if (AMBRO_LIKELY(accepting_data_in_state(pcb->state))) {
+        if (AIPSTACK_LIKELY(accepting_data_in_state(pcb->state))) {
             // Process received data or FIN.
             if (!pcb_input_rcv_processing(pcb, eff_rel_seq, seg_fin, tcp_data)) {
                 return;
@@ -553,8 +553,8 @@ private:
         // Output if needed.
         if (pcb->hasAndClearFlag(PcbFlags::OUT_PENDING)) {
             // These are implied by the OUT_PENDING flag.
-            AMBRO_ASSERT(can_output_in_state(pcb->state))
-            AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
+            AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+            AIPSTACK_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             
             // Output queued data.
             Output::pcb_output(pcb, false);
@@ -576,13 +576,13 @@ private:
         FlagsType rst_syn_ack = tcp_meta.flags & (Tcp4FlagRst|Tcp4FlagSyn|Tcp4FlagAck);
         
         // Handle uncommon flags (RST set, SYN set or ACK not set).
-        if (AMBRO_UNLIKELY(rst_syn_ack != Tcp4FlagAck)) {
+        if (AIPSTACK_UNLIKELY(rst_syn_ack != Tcp4FlagAck)) {
             if (!pcb_uncommon_flags_processing(pcb, rst_syn_ack, tcp_meta, tcp_data)) {
                 return false;
             }
         }
         
-        if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_SENT)) {
+        if (AIPSTACK_UNLIKELY(pcb->state == TcpState::SYN_SENT)) {
             // In SYN_SENT we are only accepting a SYN and we have to ignore
             // any data or FIN (so that pcb_input_rcv_processing does nothing).
             eff_rel_seq = 0;
@@ -602,7 +602,7 @@ private:
         } else {
             // Calculate the right edge of the receive window.
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
-            if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD && pcb->con != nullptr)) {
+            if (AIPSTACK_LIKELY(pcb->state != TcpState::SYN_RCVD && pcb->con != nullptr)) {
                 size_t rcv_buf_len = pcb->con->m_v.rcv_buf.tot_len;
                 SeqType avail_wnd = MinValueU(rcv_buf_len, Constants::MaxWindow);
                 rcv_wnd = MaxValue(rcv_wnd, avail_wnd);
@@ -630,7 +630,7 @@ private:
                 bool acceptable = eff_rel_seq <= rcv_wnd;
                 
                 // If not acceptable, send any appropriate response and drop.
-                if (AMBRO_UNLIKELY(!acceptable)) {
+                if (AIPSTACK_UNLIKELY(!acceptable)) {
                     Output::pcb_send_empty_ack(pcb);
                     return false;
                 }
@@ -647,13 +647,13 @@ private:
                 // Note: if the left and right edge are in the window then it follows
                 // the entire segment is; the segment cannot possibly be so long to
                 // start in the window, leave it, wrap around and end in the window.
-                if (AMBRO_UNLIKELY(!left_edge_in_window || !right_edge_in_window)) {
+                if (AIPSTACK_UNLIKELY(!left_edge_in_window || !right_edge_in_window)) {
                     if (left_edge_in_window) {
                         // The segment contains some extra data beyond the receive window,
                         // remove this data from the end.
                         SeqType left_keep = seq_diff(rcv_wnd, eff_rel_seq);
-                        AMBRO_ASSERT(left_keep > 0)   // because left_edge_in_window
-                        AMBRO_ASSERT(left_keep < seqlen) // because !right_edge_in_window
+                        AIPSTACK_ASSERT(left_keep > 0)   // because left_edge_in_window
+                        AIPSTACK_ASSERT(left_keep < seqlen) // because !right_edge_in_window
                         seg_fin = false; // a FIN would be outside the window
                         tcp_data.tot_len = left_keep;
                     }
@@ -661,8 +661,8 @@ private:
                         // The segment contains some already received data
                         // (seq_num < rcv_nxt), remove this data from the front.
                         SeqType left_trim = -eff_rel_seq;
-                        AMBRO_ASSERT(left_trim > 0)   // because !left_edge_in_window
-                        AMBRO_ASSERT(left_trim < seqlen) // because right_edge_in_window
+                        AIPSTACK_ASSERT(left_trim > 0)   // because !left_edge_in_window
+                        AIPSTACK_ASSERT(left_trim < seqlen) // because right_edge_in_window
                         eff_rel_seq = 0;
                         // No change to seg_fin: for SYN we'd have bailed out earlier,
                         // and FIN could not be trimmed because left_trim < seqlen.
@@ -679,14 +679,14 @@ private:
             
             // Check ACK validity as per RFC 5961.
             SeqType ack_minus_una = seq_diff(tcp_meta.ack_num, pcb->snd_una);
-            if (AMBRO_LIKELY(ack_minus_una <= seq_diff(pcb->snd_nxt, pcb->snd_una))) {
+            if (AIPSTACK_LIKELY(ack_minus_una <= seq_diff(pcb->snd_nxt, pcb->snd_una))) {
                 // Fast path: it is not an old ACK.
                 acked = ack_minus_una;
             } else {
                 // Slow path: it is an old or too new ACK. If it is permissibly
                 // old then allow it otherwise just send an empty ACK.
                 SeqType una_minus_ack = -ack_minus_una;
-                if (AMBRO_UNLIKELY(una_minus_ack > Constants::MaxAckBefore)) {
+                if (AIPSTACK_UNLIKELY(una_minus_ack > Constants::MaxAckBefore)) {
                     Output::pcb_send_empty_ack(pcb);
                     return false;
                 }
@@ -770,9 +770,9 @@ private:
     static bool pcb_input_syn_sent_rcvd_processing (
             TcpPcb *pcb, TcpSegMeta const &tcp_meta, SeqType acked)
     {
-        AMBRO_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
-        AMBRO_ASSERT(pcb->state != TcpState::SYN_SENT || pcb->con != nullptr)
-        AMBRO_ASSERT(pcb->state != TcpState::SYN_RCVD || pcb->lis != nullptr)
+        AIPSTACK_ASSERT(pcb->state == OneOf(TcpState::SYN_SENT, TcpState::SYN_RCVD))
+        AIPSTACK_ASSERT(pcb->state != TcpState::SYN_SENT || pcb->con != nullptr)
+        AIPSTACK_ASSERT(pcb->state != TcpState::SYN_RCVD || pcb->lis != nullptr)
         
         // See if this is for SYN_SENT or SYN_RCVD. The processing here is
         // sufficiently similar that we benefit from one function handling
@@ -812,8 +812,8 @@ private:
         
         // In SYN_SENT and SYN_RCVD the remote acks only our SYN no more.
         // Otherwise we would have bailed out already.
-        AMBRO_ASSERT(pcb->snd_nxt == seq_add(pcb->snd_una, 1))
-        AMBRO_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
+        AIPSTACK_ASSERT(pcb->snd_nxt == seq_add(pcb->snd_una, 1))
+        AIPSTACK_ASSERT(tcp_meta.ack_num == pcb->snd_nxt)
         
         // Stop the SYN_RCVD abort timer.
         pcb->tim(AbrtTimer()).unset();
@@ -836,8 +836,8 @@ private:
         
         if (syn_sent) {
             // Update rcv_nxt and rcv_ann_wnd now that we have received the SYN.
-            AMBRO_ASSERT(pcb->rcv_nxt == 0)
-            AMBRO_ASSERT(pcb->rcv_ann_wnd > 0)
+            AIPSTACK_ASSERT(pcb->rcv_nxt == 0)
+            AIPSTACK_ASSERT(pcb->rcv_ann_wnd > 0)
             pcb->rcv_nxt = seq_add(tcp_meta.seq_num, 1);
             pcb->rcv_ann_wnd--;
             
@@ -857,7 +857,7 @@ private:
             }
             
             // Handle the window scale option.
-            AMBRO_ASSERT(pcb->snd_wnd_shift == 0)
+            AIPSTACK_ASSERT(pcb->snd_wnd_shift == 0)
             if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 // Remote sent the window scale flag, so store the window scale
                 // value that they will be using. Note that the window size in
@@ -881,8 +881,8 @@ private:
             
             // We have a TcpConnection (if it went away the PCB would have been aborted).
             TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con != nullptr)
-            AMBRO_ASSERT(con->m_v.pcb == pcb)
+            AIPSTACK_ASSERT(con != nullptr)
+            AIPSTACK_ASSERT(con->m_v.pcb == pcb)
             
             // Make sure sending of any queued data starts.
             if (con->m_v.snd_buf.tot_len > 0) {
@@ -899,7 +899,7 @@ private:
             con->connection_established();
             
             // Handle abort of PCB.
-            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
+            if (AIPSTACK_UNLIKELY(tcp->m_current_pcb == nullptr)) {
                 return false;
             }
             
@@ -908,8 +908,8 @@ private:
         } else {
             // We have a TcpListener (if it went away the PCB would have been aborted).
             TcpListener *lis = pcb->lis;
-            AMBRO_ASSERT(lis->m_listening)
-            AMBRO_ASSERT(lis->m_accept_pcb == nullptr)
+            AIPSTACK_ASSERT(lis->m_listening)
+            AIPSTACK_ASSERT(lis->m_accept_pcb == nullptr)
             
             // In the listener, point m_accept_pcb to this PCB, so that
             // the connection can be accepted using TcpConnection::acceptConnection.
@@ -925,7 +925,7 @@ private:
             lis->connectionEstablished();
             
             // Handle abort of PCB.
-            if (AMBRO_UNLIKELY(tcp->m_current_pcb == nullptr)) {
+            if (AIPSTACK_UNLIKELY(tcp->m_current_pcb == nullptr)) {
                 return false;
             }
             
@@ -940,7 +940,7 @@ private:
             // NOTE: It is important to check state==SYN_RCVD before pcb->con since
             // in SYN_RCVD, pcb->con is undefined because pcb->lis in the same union
             // is relevant.
-            if (AMBRO_UNLIKELY(pcb->state == TcpState::SYN_RCVD || pcb->con == nullptr)) {
+            if (AIPSTACK_UNLIKELY(pcb->state == TcpState::SYN_RCVD || pcb->con == nullptr)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -949,7 +949,7 @@ private:
             // to ESTABLISHED, and possibly then to FIN_WAIT_1 if sending was already.
         }
         
-        AMBRO_ASSERT(pcb->state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1))
+        AIPSTACK_ASSERT(pcb->state == OneOf(TcpState::ESTABLISHED, TcpState::FIN_WAIT_1))
         
         return true;
     }
@@ -957,11 +957,11 @@ private:
     static bool pcb_input_ack_wnd_processing (TcpPcb *pcb, TcpSegMeta const &tcp_meta,
                                               SeqType acked, size_t orig_data_len)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED,
                                          TcpState::SYN_SENT, TcpState::SYN_RCVD))
         
         // If this PCB is unreferenced, move it to the front of the unreferenced list.
-        if (AMBRO_UNLIKELY(pcb->con == nullptr)) {
+        if (AIPSTACK_UNLIKELY(pcb->con == nullptr)) {
             pcb->tcp->move_unrefed_pcb_to_front(pcb);
         }
         
@@ -972,10 +972,10 @@ private:
             // when calculating acked. Further, it is assured that snd_una==snd_nxt
             // in FIN_WAIT_2 and TIME_WAIT (additional states we are asserting we are
             // not in).
-            AMBRO_ASSERT(can_output_in_state(pcb->state))
-            AMBRO_ASSERT(Output::pcb_has_snd_outstanding(pcb))
+            AIPSTACK_ASSERT(can_output_in_state(pcb->state))
+            AIPSTACK_ASSERT(Output::pcb_has_snd_outstanding(pcb))
             // The amount of acknowledged sequence numbers was already calculated.
-            AMBRO_ASSERT(acked == seq_diff(tcp_meta.ack_num, pcb->snd_una))
+            AIPSTACK_ASSERT(acked == seq_diff(tcp_meta.ack_num, pcb->snd_una))
             
             // Inform Output that something was acked. This performs RTT
             // measurement and congestion control related processing.
@@ -989,21 +989,21 @@ private:
             
             // Calculate the amount of acknowledged data (without ACK of FIN).
             SeqType data_acked_seq = acked - (SeqType)fin_acked;
-            AMBRO_ASSERT(data_acked_seq <= std::numeric_limits<size_t>::max())
+            AIPSTACK_ASSERT(data_acked_seq <= std::numeric_limits<size_t>::max())
             size_t data_acked = data_acked_seq;
             
-            if (AMBRO_LIKELY(data_acked > 0)) {
+            if (AIPSTACK_LIKELY(data_acked > 0)) {
                 // We necessarily still have a TcpConnection, if the connection was
                 // abandoned with unsent/unacked data, it would have been aborted.
                 TcpConnection *con = pcb->con;
-                AMBRO_ASSERT(con != nullptr)
-                AMBRO_ASSERT(data_acked <= con->m_v.snd_buf.tot_len)
-                AMBRO_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
+                AIPSTACK_ASSERT(con != nullptr)
+                AIPSTACK_ASSERT(data_acked <= con->m_v.snd_buf.tot_len)
+                AIPSTACK_ASSERT(con->m_v.snd_buf_cur.tot_len <= con->m_v.snd_buf.tot_len)
                 
                 // The snd_wnd needs adjustment because it is relative to snd_una.
                 // It is okay to adjust for acked data only not FIN since after
                 // FIN is acked snd_wnd is no longer relevant.
-                if (AMBRO_LIKELY(data_acked <= con->m_v.snd_wnd)) {
+                if (AIPSTACK_LIKELY(data_acked <= con->m_v.snd_wnd)) {
                     con->m_v.snd_wnd -= data_acked;
                 } else {
                     con->m_v.snd_wnd = 0;
@@ -1027,12 +1027,12 @@ private:
                 
                 // If sending was closed the push index must (still)
                 // point to the end of the send buffer.
-                AMBRO_ASSERT(snd_open_in_state(pcb->state) ||
+                AIPSTACK_ASSERT(snd_open_in_state(pcb->state) ||
                              con->m_v.snd_psh_index == con->m_v.snd_buf.tot_len)
                 
                 // Report data-sent event to the user.
                 con->data_sent(data_acked);
-                if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                if (AIPSTACK_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -1040,17 +1040,17 @@ private:
                 // - CLOSE_WAIT->LAST_ACK
             }
             
-            if (AMBRO_UNLIKELY(fin_acked)) {
+            if (AIPSTACK_UNLIKELY(fin_acked)) {
                 // We must be in a state where we had queued a FIN for sending
                 // but have not received its acknowledgement yet.
-                AMBRO_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
+                AIPSTACK_ASSERT(pcb->state == OneOf(TcpState::FIN_WAIT_1, TcpState::CLOSING,
                                                  TcpState::LAST_ACK))
                 
                 // Tell TcpConnection and application (if any) about end sent.
                 TcpConnection *con = pcb->con;
-                if (AMBRO_LIKELY(con != nullptr)) {
+                if (AIPSTACK_LIKELY(con != nullptr)) {
                     con->end_sent();
-                    if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                    if (AIPSTACK_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                         return false;
                     }
                     // Possible transitions in callback (except to CLOSED): none.
@@ -1067,17 +1067,17 @@ private:
                     return false;
                 }
                 else {
-                    AMBRO_ASSERT(pcb->state == TcpState::LAST_ACK)
+                    AIPSTACK_ASSERT(pcb->state == TcpState::LAST_ACK)
                     // Close the PCB.
                     TcpProto::pcb_abort(pcb, false);
                     return false;
                 }
             } else {
                 // Some data was ACKed but not FIN.
-                AMBRO_ASSERT(can_output_in_state(pcb->state))
+                AIPSTACK_ASSERT(can_output_in_state(pcb->state))
                 
                 // Is any data or FIN outstanding?
-                if (AMBRO_LIKELY(Output::pcb_has_snd_outstanding(pcb))) {
+                if (AIPSTACK_LIKELY(Output::pcb_has_snd_outstanding(pcb))) {
                     // Stop the rtx_timer since any running timeout is no longer
                     // valid due to something having been acked.
                     pcb->tim(RtxTimer()).unset();
@@ -1103,7 +1103,7 @@ private:
         else {
             // Check conditions in such an order that we are typically
             // fast for segments which are not duplicate ACKs.
-            if (AMBRO_UNLIKELY(orig_data_len == 0) &&
+            if (AIPSTACK_UNLIKELY(orig_data_len == 0) &&
                 (tcp_meta.flags & Tcp4FlagFin) == 0 &&
                 tcp_meta.ack_num == pcb->snd_una &&
                 can_output_in_state(pcb->state) && Output::pcb_has_snd_unacked(pcb) &&
@@ -1136,7 +1136,7 @@ private:
         // it may use old window values when the ACK number is the same,
         // but this could only happen if segments are reordered, and is
         // far from being a serious problem even if it does happen.
-        if (AMBRO_LIKELY(pcb->snd_una == tcp_meta.ack_num)) {
+        if (AIPSTACK_LIKELY(pcb->snd_una == tcp_meta.ack_num)) {
             SeqType new_snd_wnd = pcb_decode_wnd_size(pcb, tcp_meta.window_size);
             Output::pcb_update_snd_wnd(pcb, new_snd_wnd);
         }
@@ -1147,14 +1147,14 @@ private:
     static bool pcb_input_rcv_processing (TcpPcb *pcb, SeqType eff_rel_seq, bool seg_fin,
                                           IpBufRef const &tcp_data)
     {
-        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
+        AIPSTACK_ASSERT(accepting_data_in_state(pcb->state))
         
         // We only get here if the segment fits into the receive window, this is assured
         // by pcb_input_basic_processing. It is also ensured that pcb->rcv_ann_wnd fits
         // into size_t and we need this to avoid oveflows in buffer space checks below.
         if (std::numeric_limits<size_t>::max() < std::numeric_limits<uint32_t>::max()) {
-            AMBRO_ASSERT(eff_rel_seq <= std::numeric_limits<size_t>::max())
-            AMBRO_ASSERT(tcp_data.tot_len <=
+            AIPSTACK_ASSERT(eff_rel_seq <= std::numeric_limits<size_t>::max())
+            AIPSTACK_ASSERT(tcp_data.tot_len <=
                              std::numeric_limits<size_t>::max() - eff_rel_seq)
         }
         
@@ -1165,10 +1165,10 @@ private:
         bool rcv_fin;
         
         // Handling for abandoned connection
-        if (AMBRO_UNLIKELY(con == nullptr)) {
+        if (AIPSTACK_UNLIKELY(con == nullptr)) {
             // If the segment is out-of-sequence, or has any data, abort the
             // connection since we cannot accept any more data.
-            if (AMBRO_UNLIKELY(eff_rel_seq != 0 || tcp_data.tot_len != 0)) {
+            if (AIPSTACK_UNLIKELY(eff_rel_seq != 0 || tcp_data.tot_len != 0)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -1179,7 +1179,7 @@ private:
         }
         // Fast path is that recevied segment is in sequence and there
         // is no out-of-sequence data or FIN buffered.
-        else if (AMBRO_LIKELY(eff_rel_seq == 0 && con->m_v.ooseq.isNothingBuffered())) {
+        else if (AIPSTACK_LIKELY(eff_rel_seq == 0 && con->m_v.ooseq.isNothingBuffered())) {
             // Processing the in-sequence segment.
             rcv_datalen = tcp_data.tot_len;
             rcv_fin = seg_fin;
@@ -1188,7 +1188,7 @@ private:
                 // Check that there is buffer space available for the received data.
                 // If not then abort the connection. This can happen if the connection
                 // failed to provide buffer for the initial receive window.
-                if (AMBRO_UNLIKELY(con->m_v.rcv_buf.tot_len < rcv_datalen)) {
+                if (AIPSTACK_UNLIKELY(con->m_v.rcv_buf.tot_len < rcv_datalen)) {
                     TcpProto::pcb_abort(pcb, true);
                     return false;
                 }
@@ -1206,7 +1206,7 @@ private:
                 pcb->rcv_nxt, eff_seq, tcp_data.tot_len, seg_fin, need_ack);
             
             // If there was an inconsistency, abort.
-            if (AMBRO_UNLIKELY(!update_ok)) {
+            if (AIPSTACK_UNLIKELY(!update_ok)) {
                 TcpProto::pcb_abort(pcb, true);
                 return false;
             }
@@ -1218,7 +1218,7 @@ private:
             
             if (tcp_data.tot_len > 0) {
                 // Check that there is buffer space available for the received data.
-                if (AMBRO_UNLIKELY(
+                if (AIPSTACK_UNLIKELY(
                     con->m_v.rcv_buf.tot_len < eff_rel_seq + tcp_data.tot_len))
                 {
                     TcpProto::pcb_abort(pcb, true);
@@ -1237,7 +1237,7 @@ private:
             // If we got any data out of OOS buffering here then the receive buffer
             // can necessarily be shifted by that much. This is because the data was
             // written into the receive buffer when it was received.
-            AMBRO_ASSERT(con->m_v.rcv_buf.tot_len >= rcv_datalen)
+            AIPSTACK_ASSERT(con->m_v.rcv_buf.tot_len >= rcv_datalen)
             
             // Shift any processed data out of the receive buffer.
             if (rcv_datalen > 0) {
@@ -1269,7 +1269,7 @@ private:
         // Note, it is possible that rcv_seqlen is greater than rcv_ann_wnd
         // in case the peer send data before receiving a window update
         // permitting that.
-        if (AMBRO_LIKELY(rcv_seqlen <= pcb->rcv_ann_wnd)) {
+        if (AIPSTACK_LIKELY(rcv_seqlen <= pcb->rcv_ann_wnd)) {
             pcb->rcv_ann_wnd -= rcv_seqlen;
         } else {
             pcb->rcv_ann_wnd = 0;
@@ -1279,7 +1279,7 @@ private:
         pcb->setFlag(PcbFlags::ACK_PENDING);
         
         // Processing a FIN?
-        if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
+        if (AIPSTACK_UNLIKELY(rcv_seqlen > rcv_datalen)) {
             // Make the appropriate state transition.
             if (pcb->state == TcpState::ESTABLISHED) {
                 pcb->state = TcpState::CLOSE_WAIT;
@@ -1288,7 +1288,7 @@ private:
                 pcb->state = TcpState::CLOSING;
             }
             else {
-                AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
+                AIPSTACK_ASSERT(pcb->state == TcpState::FIN_WAIT_2)
                 // Go to FIN_WAIT_2_TIME_WAIT and below continue to TIME_WAIT.
                 // This way we inhibit any cb_rcv_buf_extended processing from
                 // the dataReceived callback below.
@@ -1297,10 +1297,10 @@ private:
         }
         
         // Processing any data?
-        if (AMBRO_LIKELY(rcv_datalen > 0)) {
+        if (AIPSTACK_LIKELY(rcv_datalen > 0)) {
             // Must have TcpConnection here (or we would have bailed out before).
             TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con != nullptr)
+            AIPSTACK_ASSERT(con != nullptr)
             
             // Due to window scaling the reduction of rcv_ann_wnd may permit announcing more
             // window, so set the flag which forces pcb_ann_wnd to update the window when a
@@ -1311,7 +1311,7 @@ private:
             
             // Give any data to the user.
             con->data_received(rcv_datalen);
-            if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+            if (AIPSTACK_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                 return false;
             }
             // Possible transitions in callback (except to CLOSED):
@@ -1320,12 +1320,12 @@ private:
         }
         
         // Processing a FIN?
-        if (AMBRO_UNLIKELY(rcv_seqlen > rcv_datalen)) {
+        if (AIPSTACK_UNLIKELY(rcv_seqlen > rcv_datalen)) {
             // Tell TcpConnection and application (if any) about end received.
             TcpConnection *con = pcb->con;
-            if (AMBRO_LIKELY(con != nullptr)) {
+            if (AIPSTACK_LIKELY(con != nullptr)) {
                 con->end_received();
-                if (AMBRO_UNLIKELY(pcb_aborted_in_callback(pcb))) {
+                if (AIPSTACK_UNLIKELY(pcb_aborted_in_callback(pcb))) {
                     return false;
                 }
                 // Possible transitions in callback (except to CLOSED):
@@ -1357,8 +1357,8 @@ private:
     // Calculate how much window would be announced if sent an ACK now.
     static SeqType pcb_calc_wnd_update (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(accepting_data_in_state(pcb->state))
-        AMBRO_ASSERT(pcb->con != nullptr)
+        AIPSTACK_ASSERT(accepting_data_in_state(pcb->state))
+        AIPSTACK_ASSERT(pcb->con != nullptr)
         
         // Calculate the maximum window that can be announced with the the
         // current window scale factor.

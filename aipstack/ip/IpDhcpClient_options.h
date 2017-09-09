@@ -22,16 +22,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_DHCP_CLIENT_OPTIONS_H
-#define APRINTER_IPSTACK_IP_DHCP_CLIENT_OPTIONS_H
+#ifndef AIPSTACK_IP_DHCP_CLIENT_OPTIONS_H
+#define AIPSTACK_IP_DHCP_CLIENT_OPTIONS_H
 
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/base/LoopUtils.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Preprocessor.h>
+#include <aipstack/misc/LoopUtils.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Preprocessor.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Struct.h>
@@ -61,7 +61,7 @@ class IpDhcpClient_options
     }
     
     // Calculates the size of a DHCP option.
-    // OptDataType is the payload type declared with APRINTER_TSTRUCT.
+    // OptDataType is the payload type declared with AIPSTACK_DEFINE_STRUCT.
     template <typename OptDataType>
     static constexpr size_t OptSize ()
     {
@@ -150,7 +150,7 @@ public:
     // Parse DHCP options from a buffer into DhcpRecvOptions.
     static bool parseOptions (IpBufRef dhcp_header2, IpBufRef data, DhcpRecvOptions &opts)
     {
-        AMBRO_ASSERT(dhcp_header2.tot_len == DhcpHeader2::Size)
+        AIPSTACK_ASSERT(dhcp_header2.tot_len == DhcpHeader2::Size)
         
         // Clear all the "have" fields.
         opts.have = typename DhcpRecvOptions::Have{};
@@ -323,7 +323,7 @@ private:
                               DhcpRecvOptions &opts, OptionRegion region,
                               DhcpOptionOverload &option_overload)
     {
-        AMBRO_ASSERT(data.tot_len >= opt_len)
+        AIPSTACK_ASSERT(data.tot_len >= opt_len)
         
         // Handle different options.
         switch (opt_type) {
@@ -406,7 +406,7 @@ private:
                     goto skip_data;
                 }
                 uint8_t num_servers = opt_len / DhcpOptAddr::Size;
-                for (auto server_index : APrinter::LoopRangeAuto(num_servers)) {
+                for (auto server_index : LoopRangeAuto(num_servers)) {
                     // Must consume all servers from data even if we can't save
                     // them.
                     DhcpOptAddr::Val val;

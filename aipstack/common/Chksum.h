@@ -22,17 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_CHKSUM_H
-#define APRINTER_IPSTACK_CHKSUM_H
+#ifndef AIPSTACK_CHKSUM_H
+#define AIPSTACK_CHKSUM_H
 
 #include <stdint.h>
 #include <stddef.h>
 
 #include <limits>
 
-#include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/meta/BasicMetaUtils.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Hints.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
@@ -47,7 +47,7 @@
 extern "C" uint16_t IpChksumInverted (char const *data, size_t len);
 #else
 
-APRINTER_NO_INLINE
+AIPSTACK_NO_INLINE
 inline uint16_t IpChksumInverted (char const *data, size_t len)
 {
     using namespace AIpStack;
@@ -102,22 +102,22 @@ public:
         return State(m_sum);
     }
     
-    inline void addWord (APrinter::WrapType<uint16_t>, uint16_t word)
+    inline void addWord (WrapType<uint16_t>, uint16_t word)
     {
         m_sum += word;
     }
     
-    inline void addWord (APrinter::WrapType<uint32_t>, uint32_t word)
+    inline void addWord (WrapType<uint32_t>, uint32_t word)
     {
-        addWord(APrinter::WrapType<uint16_t>(), (uint16_t)(word >> 16));
-        addWord(APrinter::WrapType<uint16_t>(), (uint16_t)word);
+        addWord(WrapType<uint16_t>(), (uint16_t)(word >> 16));
+        addWord(WrapType<uint16_t>(), (uint16_t)word);
     }
     
     template <typename WordType, int NumWords>
     inline void addWords (WordType const *words)
     {
         for (int i = 0; i < NumWords; i++) {
-            addWord(APrinter::WrapType<WordType>(), words[i]);
+            addWord(WrapType<WordType>(), words[i]);
         }
     }
     
@@ -129,13 +129,13 @@ public:
     
     inline void addEvenBytes (char const *ptr, size_t num_bytes)
     {
-        AMBRO_ASSERT(num_bytes % 2 == 0)
+        AIPSTACK_ASSERT(num_bytes % 2 == 0)
         
         char const *endptr = ptr + num_bytes;
         while (ptr < endptr) {
             uint16_t word = ReadBinaryInt<uint16_t, BinaryBigEndian>(ptr);
             ptr += 2;
-            addWord(APrinter::WrapType<uint16_t>(), word);
+            addWord(WrapType<uint16_t>(), word);
         }
     }
     
@@ -180,7 +180,7 @@ private:
             m_sum += buf_sum;
             
             // Fold back any overflow.
-            if (AMBRO_UNLIKELY(m_sum < old_sum)) {
+            if (AIPSTACK_UNLIKELY(m_sum < old_sum)) {
                 m_sum++;
             }
             

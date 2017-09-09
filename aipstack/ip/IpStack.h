@@ -22,25 +22,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IPSTACK_H
-#define APRINTER_IPSTACK_IPSTACK_H
+#ifndef AIPSTACK_IPSTACK_H
+#define AIPSTACK_IPSTACK_H
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <limits>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/MemberType.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Hints.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/structure/LinkedList.h>
-#include <aprinter/structure/LinkModel.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/meta/ListForEach.h>
+#include <aipstack/meta/TypeListUtils.h>
+#include <aipstack/meta/FuncUtils.h>
+#include <aipstack/meta/MemberType.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Hints.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/structure/LinkedList.h>
+#include <aipstack/structure/LinkModel.h>
 
 #include <aipstack/common/Err.h>
 #include <aipstack/common/Buf.h>
@@ -81,29 +81,29 @@ template <typename Arg>
 class IpStack :
     private NonCopyable<IpStack<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, ProtocolServicesList))
-    APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
-    APRINTER_USE_TYPES1(Params, (PathMtuCacheService, ReassemblyService))
+    AIPSTACK_USE_TYPES1(Arg, (Params, PlatformImpl, ProtocolServicesList))
+    AIPSTACK_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
+    AIPSTACK_USE_TYPES1(Params, (PathMtuCacheService, ReassemblyService))
     
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPE1(Platform, TimeType)
+    AIPSTACK_USE_TYPE1(Platform, TimeType)
     
-    APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl>))
+    AIPSTACK_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl>))
     
-    APRINTER_MAKE_INSTANCE(PathMtuCache, (
+    AIPSTACK_MAKE_INSTANCE(PathMtuCache, (
         PathMtuCacheService::template Compose<PlatformImpl, IpStack>))
     
     // Instantiate the protocols.
     template <int ProtocolIndex>
     struct ProtocolHelper {
         // Get the protocol service.
-        using ProtocolService = APrinter::TypeListGet<ProtocolServicesList, ProtocolIndex>;
+        using ProtocolService = TypeListGet<ProtocolServicesList, ProtocolIndex>;
         
         // Expose the protocol number for TypeListGetMapped (GetProtocolType).
         using IpProtocolNumber = typename ProtocolService::IpProtocolNumber;
         
         // Instantiate the protocol.
-        APRINTER_MAKE_INSTANCE(Protocol, (
+        AIPSTACK_MAKE_INSTANCE(Protocol, (
             ProtocolService::template Compose<PlatformImpl, IpStack>))
         
         // Helper function to get the pointer to the protocol.
@@ -113,18 +113,18 @@ class IpStack :
         }
     };
     using ProtocolHelpersList =
-        APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
+        IndexElemList<ProtocolServicesList, ProtocolHelper>;
     
-    static int const NumProtocols = APrinter::TypeListLength<ProtocolHelpersList>::Value;
+    static int const NumProtocols = TypeListLength<ProtocolHelpersList>::Value;
     
     // Create a list of the instantiated protocols, for the tuple.
     template <typename Helper>
     using ProtocolForHelper = typename Helper::Protocol;
-    using ProtocolsList = APrinter::MapTypeList<
-        ProtocolHelpersList, APrinter::TemplateFunc<ProtocolForHelper>>;
+    using ProtocolsList = MapTypeList<
+        ProtocolHelpersList, TemplateFunc<ProtocolForHelper>>;
     
     // Helper to extract IpProtocolNumber from a ProtocolHelper.
-    APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
+    AIPSTACK_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
     
 public:
     /**
@@ -160,8 +160,8 @@ public:
     class IfaceListener;
     
 private:
-    using IfaceLinkModel = APrinter::PointerLinkModel<Iface>;
-    using IfaceListenerLinkModel = APrinter::PointerLinkModel<IfaceListener>;
+    using IfaceLinkModel = PointerLinkModel<Iface>;
+    using IfaceListenerLinkModel = PointerLinkModel<IfaceListener>;
     
 public:
     /**
@@ -201,7 +201,7 @@ public:
      */
     ~IpStack ()
     {
-        AMBRO_ASSERT(m_iface_list.isEmpty())
+        AIPSTACK_ASSERT(m_iface_list.isEmpty())
     }
     
     /**
@@ -211,10 +211,10 @@ public:
      *         It must be the number of one of the configured procotols.
      */
     template <uint8_t ProtocolNumber>
-    using GetProtocolType = typename APrinter::TypeListGetMapped<
+    using GetProtocolType = typename TypeListGetMapped<
         ProtocolHelpersList,
         typename MemberTypeIpProtocolNumber::Get,
-        APrinter::WrapValue<uint8_t, ProtocolNumber>
+        WrapValue<uint8_t, ProtocolNumber>
     >::Protocol;
     
     /**
@@ -228,7 +228,7 @@ public:
     inline Protocol * getProtocol ()
     {
         static int const ProtocolIndex =
-            APrinter::TypeListIndex<ProtocolsList, Protocol>::Value;
+            TypeListIndex<ProtocolsList, Protocol>::Value;
         return &m_protocols.template get<ProtocolIndex>();
     }
     
@@ -312,14 +312,14 @@ public:
      *                   @ref IpSendFlags::DontFragmentFlag, other bits must not be set.
      * @return Success or error code.
      */
-    APRINTER_NO_INLINE
+    AIPSTACK_NO_INLINE
     IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
                         Iface *iface, IpSendRetryRequest *retryReq,
                         IpSendFlags send_flags)
     {
-        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
-        AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
-        AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
+        AIPSTACK_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
+        AIPSTACK_ASSERT(dgram.offset >= Ip4Header::Size)
+        AIPSTACK_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
         
         // Reveal IP header.
         IpBufRef pkt = dgram.revealHeaderMust(Ip4Header::Size);
@@ -327,21 +327,21 @@ public:
         // Find an interface and address for output.
         Ip4RouteInfo route_info;
         bool route_ok;
-        if (AMBRO_UNLIKELY(iface != nullptr)) {
+        if (AIPSTACK_UNLIKELY(iface != nullptr)) {
             route_ok = routeIp4ForceIface(addrs.remote_addr, iface, route_info);
         } else {
             route_ok = routeIp4(addrs.remote_addr, route_info);
         }
-        if (AMBRO_UNLIKELY(!route_ok)) {
+        if (AIPSTACK_UNLIKELY(!route_ok)) {
             return IpErr::NO_IP_ROUTE;
         }
         
         // Check if fragmentation is needed...
         uint16_t pkt_send_len;
         
-        if (AMBRO_UNLIKELY(pkt.tot_len > route_info.iface->getMtu())) {
+        if (AIPSTACK_UNLIKELY(pkt.tot_len > route_info.iface->getMtu())) {
             // Reject fragmentation?
-            if (AMBRO_UNLIKELY((send_flags & IpSendFlags::DontFragmentFlag) != EnumZero)) {
+            if (AIPSTACK_UNLIKELY((send_flags & IpSendFlags::DontFragmentFlag) != EnumZero)) {
                 return IpErr::FRAG_NEEDED;
             }
             
@@ -360,20 +360,20 @@ public:
         IpChksumAccumulator chksum;
         
         uint16_t version_ihl_dscp_ecn = (uint16_t)((4 << Ip4VersionShift) | 5) << 8;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), version_ihl_dscp_ecn);
+        chksum.addWord(WrapType<uint16_t>(), version_ihl_dscp_ecn);
         ip4_header.set(Ip4Header::VersionIhlDscpEcn(), version_ihl_dscp_ecn);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), pkt_send_len);
+        chksum.addWord(WrapType<uint16_t>(), pkt_send_len);
         ip4_header.set(Ip4Header::TotalLen(), pkt_send_len);
         
         uint16_t ident = m_next_id++; // generate identification number
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ident);
+        chksum.addWord(WrapType<uint16_t>(), ident);
         ip4_header.set(Ip4Header::Ident(), ident);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), (uint16_t)send_flags);
+        chksum.addWord(WrapType<uint16_t>(), (uint16_t)send_flags);
         ip4_header.set(Ip4Header::FlagsOffset(), (uint16_t)send_flags);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
+        chksum.addWord(WrapType<uint16_t>(), ttl_proto.value);
         ip4_header.set(Ip4Header::TtlProto(), ttl_proto.value);
         
         chksum.addWords(&addrs.local_addr.data);
@@ -387,7 +387,7 @@ public:
         
         // Send the packet to the driver.
         // Fast path is no fragmentation, this permits tail call optimization.
-        if (AMBRO_LIKELY((send_flags & IpSendFlags(Ip4FlagMF)) == EnumZero)) {
+        if (AIPSTACK_LIKELY((send_flags & IpSendFlags(Ip4FlagMF)) == EnumZero)) {
             return route_info.iface->driverSendIp4Packet(pkt, route_info.addr, retryReq);
         }
         
@@ -406,7 +406,7 @@ private:
         // Send the first fragment.
         IpErr err = route_info.iface->driverSendIp4Packet(
             pkt.subTo(pkt_send_len), route_info.addr, retryReq);
-        if (AMBRO_UNLIKELY(err != IpErr::SUCCESS)) {
+        if (AIPSTACK_UNLIKELY(err != IpErr::SUCCESS)) {
             return err;
         }
         
@@ -421,7 +421,7 @@ private:
         while (true) {
             // We must send fragments such that the fragment offset is a multiple of 8.
             // This is achieved by Ip4RoundFragLen.
-            AMBRO_ASSERT(fragment_offset % 8 == 0)
+            AIPSTACK_ASSERT(fragment_offset % 8 == 0)
             
             // If this is the last fragment, calculate its length and clear
             // the MoreFragments flag. Otherwise pkt_send_len is still correct
@@ -457,7 +457,7 @@ private:
             
             // If this was the last fragment or there was an error, return.
             if ((send_flags & IpSendFlags(Ip4FlagMF)) == EnumZero ||
-                AMBRO_UNLIKELY(err != IpErr::SUCCESS))
+                AIPSTACK_UNLIKELY(err != IpErr::SUCCESS))
             {
                 return err;
             }
@@ -511,15 +511,15 @@ public:
      * @param prep Internal information is stored into this structure.
      * @return Success or error code.
      */
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     IpErr prepareSendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto,
                                char *header_end_ptr, IpSendFlags send_flags,
                                Ip4SendPrepared &prep)
     {
-        AMBRO_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
+        AIPSTACK_ASSERT((send_flags & ~IpSendFlags::AllFlags) == EnumZero)
         
         // Get routing information (fill in route_info).
-        if (AMBRO_UNLIKELY(!routeIp4(addrs.remote_addr, prep.route_info))) {
+        if (AIPSTACK_UNLIKELY(!routeIp4(addrs.remote_addr, prep.route_info))) {
             return IpErr::NO_IP_ROUTE;
         }
         
@@ -528,13 +528,13 @@ public:
         IpChksumAccumulator chksum;
         
         uint16_t version_ihl_dscp_ecn = (uint16_t)((4 << Ip4VersionShift) | 5) << 8;
-        chksum.addWord(APrinter::WrapType<uint16_t>(), version_ihl_dscp_ecn);
+        chksum.addWord(WrapType<uint16_t>(), version_ihl_dscp_ecn);
         ip4_header.set(Ip4Header::VersionIhlDscpEcn(), version_ihl_dscp_ecn);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), (uint16_t)send_flags);
+        chksum.addWord(WrapType<uint16_t>(), (uint16_t)send_flags);
         ip4_header.set(Ip4Header::FlagsOffset(), (uint16_t)send_flags);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
+        chksum.addWord(WrapType<uint16_t>(), ttl_proto.value);
         ip4_header.set(Ip4Header::TtlProto(), ttl_proto.value);
         
         chksum.addWords(&addrs.local_addr.data);
@@ -571,18 +571,18 @@ public:
      *                 after an unsuccessful attempt (notification is not guaranteed).
      * @return Success or error code.
      */
-    AMBRO_ALWAYS_INLINE
+    AIPSTACK_ALWAYS_INLINE
     IpErr sendIp4DgramFast (Ip4SendPrepared const &prep, IpBufRef dgram,
                             IpSendRetryRequest *retryReq)
     {
-        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
-        AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
+        AIPSTACK_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
+        AIPSTACK_ASSERT(dgram.offset >= Ip4Header::Size)
         
         // Reveal IP header.
         IpBufRef pkt = dgram.revealHeaderMust(Ip4Header::Size);
         
         // This function does not support fragmentation.
-        if (AMBRO_UNLIKELY(pkt.tot_len > prep.route_info.iface->getMtu())) {
+        if (AIPSTACK_UNLIKELY(pkt.tot_len > prep.route_info.iface->getMtu())) {
             return IpErr::FRAG_NEEDED;
         }
         
@@ -590,11 +590,11 @@ public:
         auto ip4_header = Ip4Header::MakeRef(pkt.getChunkPtr());
         IpChksumAccumulator chksum(prep.partial_chksum_state);
         
-        chksum.addWord(APrinter::WrapType<uint16_t>(), pkt.tot_len);
+        chksum.addWord(WrapType<uint16_t>(), pkt.tot_len);
         ip4_header.set(Ip4Header::TotalLen(), pkt.tot_len);
         
         uint16_t ident = m_next_id++; // generate identification number
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ident);
+        chksum.addWord(WrapType<uint16_t>(), ident);
         ip4_header.set(Ip4Header::Ident(), ident);
         
         // Set the IP header checksum.
@@ -645,7 +645,7 @@ public:
             }
         }
         
-        if (AMBRO_UNLIKELY(best_iface == nullptr)) {
+        if (AIPSTACK_UNLIKELY(best_iface == nullptr)) {
             return false;
         }
         
@@ -678,7 +678,7 @@ public:
      */
     bool routeIp4ForceIface (Ip4Addr dst_addr, Iface *iface, Ip4RouteInfo &route_info)
     {
-        AMBRO_ASSERT(iface != nullptr)
+        AIPSTACK_ASSERT(iface != nullptr)
         
         if (dst_addr == Ip4Addr::AllOnesAddr() || iface->ip4AddrIsLocal(dst_addr)) {
             route_info.addr = dst_addr;
@@ -827,7 +827,7 @@ public:
         virtual bool recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram) = 0;
         
     private:
-        APrinter::LinkedListNode<IfaceListenerLinkModel> m_list_node;
+        LinkedListNode<IfaceListenerLinkModel> m_list_node;
         Iface *m_iface;
         uint8_t m_proto;
     };
@@ -879,8 +879,8 @@ public:
     };
     
 private:
-    using IfaceListenerList = APrinter::LinkedList<
-        APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node),
+    using IfaceListenerList = LinkedList<
+        AIPSTACK_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node),
         IfaceListenerLinkModel, false>;
     
 public:
@@ -931,8 +931,8 @@ public:
             m_have_addr(false),
             m_have_gateway(false)
         {
-            AMBRO_ASSERT(stack != nullptr)
-            AMBRO_ASSERT(m_ip_mtu >= MinMTU)
+            AIPSTACK_ASSERT(stack != nullptr)
+            AIPSTACK_ASSERT(m_ip_mtu >= MinMTU)
             
             // Register interface.
             m_stack->m_iface_list.prepend(*this);
@@ -961,7 +961,7 @@ public:
          */
         ~Iface ()
         {
-            AMBRO_ASSERT(m_listeners_list.isEmpty())
+            AIPSTACK_ASSERT(m_listeners_list.isEmpty())
             
             // Unregister interface.
             m_stack->m_iface_list.remove(*this);
@@ -978,7 +978,7 @@ public:
          */
         void setIp4Addr (IpIfaceIp4AddrSetting value)
         {
-            AMBRO_ASSERT(!value.present || value.prefix <= Ip4Addr::Bits)
+            AIPSTACK_ASSERT(!value.present || value.prefix <= Ip4Addr::Bits)
             
             m_have_addr = value.present;
             if (value.present) {
@@ -1238,7 +1238,7 @@ public:
         }
         
     private:
-        APrinter::LinkedListNode<IfaceLinkModel> m_iface_list_node;
+        LinkedListNode<IfaceLinkModel> m_iface_list_node;
         StructureRaiiWrapper<IfaceListenerList> m_listeners_list;
         Observable<IfaceStateObserver> m_state_observable;
         IpStack *m_stack;
@@ -1252,8 +1252,8 @@ public:
     };
     
 private:
-    using IfaceList = APrinter::LinkedList<
-        APRINTER_MEMBER_ACCESSOR_TN(&Iface::m_iface_list_node), IfaceLinkModel, false>;
+    using IfaceList = LinkedList<
+        AIPSTACK_MEMBER_ACCESSOR_TN(&Iface::m_iface_list_node), IfaceLinkModel, false>;
     
     using BaseMtuRef = typename PathMtuCache::MtuRef;
     
@@ -1380,7 +1380,7 @@ private:
     static void processRecvedIp4Packet (Iface *iface, IpBufRef pkt)
     {
         // Check base IP header length.
-        if (AMBRO_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
+        if (AIPSTACK_UNLIKELY(!pkt.hasHeader(Ip4Header::Size))) {
             return;
         }
         
@@ -1392,7 +1392,7 @@ private:
         
         // Read Version+IHL+DSCP+ECN and add to checksum.
         uint16_t version_ihl_dscp_ecn = ip4_header.get(Ip4Header::VersionIhlDscpEcn());
-        chksum.addWord(APrinter::WrapType<uint16_t>(), version_ihl_dscp_ecn);
+        chksum.addWord(WrapType<uint16_t>(), version_ihl_dscp_ecn);
         
         // Check IP version and header length...
         uint8_t version_ihl = version_ihl_dscp_ecn >> 8;
@@ -1400,20 +1400,20 @@ private:
         
         // Fast path is that the version is correctly 4 and the header
         // length is minimal (5 words = 20 bytes).
-        if (AMBRO_LIKELY(version_ihl == ((4 << Ip4VersionShift) | 5))) {
+        if (AIPSTACK_LIKELY(version_ihl == ((4 << Ip4VersionShift) | 5))) {
             // Header length is minimal, no options. There is no need to check
             // pkt.hasHeader(header_len) since that was already done above.
             header_len = Ip4Header::Size;
         } else {
             // Check IP version.
-            if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
+            if (AIPSTACK_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
                 return;
             }
             
             // Check header length.
             // We require the entire header to fit into the first buffer.
             header_len = (version_ihl & Ip4IhlMask) * 4;
-            if (AMBRO_UNLIKELY(header_len < Ip4Header::Size ||
+            if (AIPSTACK_UNLIKELY(header_len < Ip4Header::Size ||
                                !pkt.hasHeader(header_len)))
             {
                 return;
@@ -1426,10 +1426,10 @@ private:
         
         // Read total length and add to checksum.
         uint16_t total_len = ip4_header.get(Ip4Header::TotalLen());
-        chksum.addWord(APrinter::WrapType<uint16_t>(), total_len);
+        chksum.addWord(WrapType<uint16_t>(), total_len);
         
         // Check total length.
-        if (AMBRO_UNLIKELY(total_len < header_len || total_len > pkt.tot_len)) {
+        if (AIPSTACK_UNLIKELY(total_len < header_len || total_len > pkt.tot_len)) {
             return;
         }
         
@@ -1437,13 +1437,13 @@ private:
         IpBufRef dgram = pkt.hideHeader(header_len).subTo(total_len - header_len);
         
         // Add ident and header checksum to checksum.
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ip4_header.get(Ip4Header::Ident()));
-        chksum.addWord(APrinter::WrapType<uint16_t>(),
+        chksum.addWord(WrapType<uint16_t>(), ip4_header.get(Ip4Header::Ident()));
+        chksum.addWord(WrapType<uint16_t>(),
                        ip4_header.get(Ip4Header::HeaderChksum()));
         
         // Read TTL+protocol and add to checksum.
         Ip4TtlProto ttl_proto = ip4_header.get(Ip4Header::TtlProto());
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ttl_proto.value);
+        chksum.addWord(WrapType<uint16_t>(), ttl_proto.value);
         
         // Read addresses and add to checksum
         Ip4Addr src_addr = ip4_header.get(Ip4Header::SrcAddr());
@@ -1453,15 +1453,15 @@ private:
         
         // Get flags+offset and add to checksum.
         uint16_t flags_offset = ip4_header.get(Ip4Header::FlagsOffset());
-        chksum.addWord(APrinter::WrapType<uint16_t>(), flags_offset);        
+        chksum.addWord(WrapType<uint16_t>(), flags_offset);        
         
         // Verify IP header checksum.
-        if (AMBRO_UNLIKELY(chksum.getChksum() != 0)) {
+        if (AIPSTACK_UNLIKELY(chksum.getChksum() != 0)) {
             return;
         }
         
         // Check if the more-fragments flag is set or the fragment offset is nonzero.
-        if (AMBRO_UNLIKELY((flags_offset & (Ip4FlagMF|Ip4OffsetMask)) != 0)) {
+        if (AIPSTACK_UNLIKELY((flags_offset & (Ip4FlagMF|Ip4OffsetMask)) != 0)) {
             // Only accept fragmented packets which are unicasts to the
             // incoming interface address. This is to prevent filling up
             // our reassembly buffers with irrelevant packets. Note that
@@ -1502,15 +1502,15 @@ private:
              lis != nullptr; lis = ip_info.iface->m_listeners_list.next(*lis))
         {
             if (lis->m_proto == proto) {
-                if (AMBRO_UNLIKELY(lis->recvIp4Dgram(ip_info, dgram))) {
+                if (AIPSTACK_UNLIKELY(lis->recvIp4Dgram(ip_info, dgram))) {
                     return;
                 }
             }
         }
         
         // Handle using a protocol listener if existing.
-        bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>(
-            [&] APRINTER_TL(Helper,
+        bool not_handled = ListForBreak<ProtocolHelpersList>(
+            [&] AIPSTACK_TL(Helper,
         {
             if (proto == Helper::IpProtocolNumber::Value) {
                 Helper::get(ip_info.iface->m_stack)->recvIp4Dgram(
@@ -1535,17 +1535,17 @@ private:
     static void recvIcmp4Dgram (Ip4RxInfo const &ip_info, IpBufRef const &dgram)
     {
         // Sanity check source address - reject broadcast addresses.
-        if (AMBRO_UNLIKELY(!checkUnicastSrcAddr(ip_info))) {
+        if (AIPSTACK_UNLIKELY(!checkUnicastSrcAddr(ip_info))) {
             return;
         }
         
         // Check destination address.
         // Accept only: all-ones broadcast, subnet broadcast, interface address.
         bool is_broadcast_dst;
-        if (AMBRO_LIKELY(ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
+        if (AIPSTACK_LIKELY(ip_info.iface->ip4AddrIsLocalAddr(ip_info.dst_addr))) {
             is_broadcast_dst = false;
         } else {
-            if (AMBRO_UNLIKELY(
+            if (AIPSTACK_UNLIKELY(
                 !ip_info.iface->ip4AddrIsLocalBcast(ip_info.dst_addr) &&
                 ip_info.dst_addr != Ip4Addr::AllOnesAddr()))
             {
@@ -1555,7 +1555,7 @@ private:
         }
         
         // Check ICMP header length.
-        if (AMBRO_UNLIKELY(!dgram.hasHeader(Icmp4Header::Size))) {
+        if (AIPSTACK_UNLIKELY(!dgram.hasHeader(Icmp4Header::Size))) {
             return;
         }
         
@@ -1567,7 +1567,7 @@ private:
         
         // Verify ICMP checksum.
         uint16_t calc_chksum = IpChksum(dgram);
-        if (AMBRO_UNLIKELY(calc_chksum != 0)) {
+        if (AIPSTACK_UNLIKELY(calc_chksum != 0)) {
             return;
         }
         
@@ -1593,7 +1593,7 @@ private:
         Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
     {
         // Can only reply when we have an address assigned.
-        if (AMBRO_UNLIKELY(!iface->m_have_addr)) {
+        if (AIPSTACK_UNLIKELY(!iface->m_have_addr)) {
             return;
         }
         
@@ -1627,7 +1627,7 @@ private:
         uint8_t code, Icmp4RestType rest, IpBufRef icmp_data, Iface *iface)
     {
         // Check base IP header length.
-        if (AMBRO_UNLIKELY(!icmp_data.hasHeader(Ip4Header::Size))) {
+        if (AIPSTACK_UNLIKELY(!icmp_data.hasHeader(Ip4Header::Size))) {
             return;
         }
         
@@ -1640,21 +1640,21 @@ private:
         Ip4Addr dst_addr       = ip4_header.get(Ip4Header::DstAddr());
         
         // Check IP version.
-        if (AMBRO_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
+        if (AIPSTACK_UNLIKELY((version_ihl >> Ip4VersionShift) != 4)) {
             return;
         }
         
         // Check header length.
         // We require the entire header to fit into the first buffer.
         uint8_t header_len = (version_ihl & Ip4IhlMask) * 4;
-        if (AMBRO_UNLIKELY(header_len < Ip4Header::Size ||
+        if (AIPSTACK_UNLIKELY(header_len < Ip4Header::Size ||
                            !icmp_data.hasHeader(header_len)))
         {
             return;
         }
         
         // Check that total_len includes at least the header.
-        if (AMBRO_UNLIKELY(total_len < header_len)) {
+        if (AIPSTACK_UNLIKELY(total_len < header_len)) {
             return;
         }
         
@@ -1669,7 +1669,7 @@ private:
         IpBufRef dgram_initial = icmp_data.hideHeader(header_len).subTo(data_len);
         
         // Dispatch based on the protocol.
-        APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+        ListForBreak<ProtocolHelpersList>([&] AIPSTACK_TL(Helper, {
             if (ip_info.ttl_proto.proto() == Helper::IpProtocolNumber::Value) {
                 Helper::get(this)->handleIp4DestUnreach(
                     static_cast<Ip4DestUnreachMeta const &>(du_meta),
@@ -1734,12 +1734,12 @@ struct IpStackOptions {
  * Service configuration class for @ref IpStack.
  * 
  * The template parameters of this class are static configuration. After these
- * are defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
+ * are defined, use @ref AIPSTACK_MAKE_INSTANCE with @ref Compose to obtain the
  * @ref IpStack class type, like this:
  * 
  * @code
  * using MyIpStackService = AIpStack::IpStackService<...>;
- * APRINTER_MAKE_INSTANCE(MyIpStack, (MyIpStackService::template Compose<
+ * AIPSTACK_MAKE_INSTANCE(MyIpStack, (MyIpStackService::template Compose<
  *     PlatformImpl, ProtocolServicesList>))
  * MyIpStack ip_stack(...);
  * @endcode
@@ -1762,7 +1762,7 @@ class IpStackService {
     
 public:
     /**
-     * Template for use with @ref APRINTER_MAKE_INSTANCE to get an @ref IpStack type.
+     * Template for use with @ref AIPSTACK_MAKE_INSTANCE to get an @ref IpStack type.
      * 
      * See @ref IpStackService for an example of instantiating the @ref IpStack.
      * 
@@ -1770,7 +1770,7 @@ public:
      *         type to be used with @ref PlatformFacade.
      * @tparam ProtocolServicesList_ List of IP protocol handler services.
      *         For example, to support only TCP, use
-     *         APrinter::MakeTypeList\<IpTcpProtoService\<...\>\> with appropriate
+     *         MakeTypeList\<IpTcpProtoService\<...\>\> with appropriate
      *         parameters passed to IpTcpProtoService.
      */
     template <typename PlatformImpl_, typename ProtocolServicesList_>
@@ -1779,7 +1779,7 @@ public:
         using PlatformImpl = PlatformImpl_;
         using ProtocolServicesList = ProtocolServicesList_;
         using Params = IpStackService;
-        APRINTER_DEF_INSTANCE(Compose, IpStack)        
+        AIPSTACK_DEF_INSTANCE(Compose, IpStack)        
 #endif
     };
 };

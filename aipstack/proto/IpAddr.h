@@ -22,13 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_ADDR_H
-#define APRINTER_IPSTACK_IP_ADDR_H
+#ifndef AIPSTACK_IP_ADDR_H
+#define AIPSTACK_IP_ADDR_H
 
 #include <stdint.h>
 
-#include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/meta/BasicMetaUtils.h>
+#include <aipstack/misc/Assert.h>
 #include <aipstack/common/Struct.h>
 
 namespace AIpStack {
@@ -57,7 +57,7 @@ public:
     
     static AddrType PrefixMask (int prefix_bits)
     {
-        AMBRO_ASSERT(prefix_bits <= Bits)
+        AIPSTACK_ASSERT(prefix_bits <= Bits)
         
         AddrType res_addr;
         int elem_idx = 0;

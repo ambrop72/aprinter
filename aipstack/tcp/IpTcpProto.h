@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_TCP_PROTO_H
-#define APRINTER_IPSTACK_IP_TCP_PROTO_H
+#ifndef AIPSTACK_IP_TCP_PROTO_H
+#define AIPSTACK_IP_TCP_PROTO_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,17 +31,17 @@
 
 #include <limits>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/meta/BitsInFloat.h>
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/base/Hints.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/LoopUtils.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/structure/LinkedList.h>
-#include <aprinter/structure/LinkModel.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/meta/BitsInFloat.h>
+#include <aipstack/meta/ChooseInt.h>
+#include <aipstack/meta/BasicMetaUtils.h>
+#include <aipstack/misc/Hints.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/LoopUtils.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/structure/LinkedList.h>
+#include <aipstack/structure/LinkModel.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/SendRetry.h>
@@ -75,16 +75,16 @@ template <typename Arg>
 class IpTcpProto :
     private NonCopyable<IpTcpProto<Arg>>
 {
-    APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
+    AIPSTACK_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
                                     EphemeralPortFirst, EphemeralPortLast,
                                     LinkWithArrayIndices))
-    APRINTER_USE_TYPES1(Arg::Params, (PcbIndexService))
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl, TheIpStack))
+    AIPSTACK_USE_TYPES1(Arg::Params, (PcbIndexService))
+    AIPSTACK_USE_TYPES1(Arg, (PlatformImpl, TheIpStack))
     
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPE1(Platform, TimeType)
+    AIPSTACK_USE_TYPE1(Platform, TimeType)
     
-    APRINTER_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef,
+    AIPSTACK_USE_TYPES1(TheIpStack, (Ip4RxInfo, Ip4RouteInfo, Iface, MtuRef,
                                      ProtocolHandlerArgs))
     
     static_assert(NumTcpPcbs > 0, "");
@@ -98,7 +98,7 @@ class IpTcpProto :
     template <typename> friend class IpTcpProto_output;
     
 public:
-    APRINTER_USE_TYPES1(TcpUtils, (SeqType, PortType))
+    AIPSTACK_USE_TYPES1(TcpUtils, (SeqType, PortType))
     
 private:
     using Constants = IpTcpProto_constants<IpTcpProto>;
@@ -106,8 +106,8 @@ private:
     using Input = IpTcpProto_input<IpTcpProto>;
     using Output = IpTcpProto_output<IpTcpProto>;
     
-    APRINTER_USE_TYPES1(TcpUtils, (TcpState, TcpOptions, PcbKey, PcbKeyCompare))
-    APRINTER_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
+    AIPSTACK_USE_TYPES1(TcpUtils, (TcpState, TcpOptions, PcbKey, PcbKeyCompare))
+    AIPSTACK_USE_VALS(TcpUtils, (state_is_active, accepting_data_in_state,
                                  can_output_in_state, snd_open_in_state,
                                  seq_diff))
     
@@ -152,7 +152,7 @@ private:
     
     // For retransmission time calculations we right-shift the TimeType
     // to obtain granularity between 1ms and 2ms.
-    static int const RttShift = APrinter::BitsInFloat(1e-3 * Platform::TimeFreq);
+    static int const RttShift = BitsInFloat(1e-3 * Platform::TimeFreq);
     static_assert(RttShift >= 0, "");
     static constexpr double RttTimeFreq =
         Platform::TimeFreq / PowerOfTwo<double>(RttShift);
@@ -172,14 +172,14 @@ private:
     // Unsigned integer type usable as an index for the PCBs array.
     // We use the largest value of that type as null (which cannot
     // be a valid PCB index).
-    using PcbIndexType = APrinter::ChooseIntForMax<NumTcpPcbs, false>;
+    using PcbIndexType = ChooseIntForMax<NumTcpPcbs, false>;
     static PcbIndexType const PcbIndexNull = PcbIndexType(-1);
     
     // Instantiate the out-of-sequence buffering.
     using OosBufferService = TcpOosBufferService<
         TcpOosBufferServiceOptions::NumOosSegs::Is<NumOosSegs>
     >;
-    APRINTER_MAKE_INSTANCE(OosBuffer, (OosBufferService))
+    AIPSTACK_MAKE_INSTANCE(OosBuffer, (OosBufferService))
     
     struct PcbLinkModel;
     
@@ -187,13 +187,13 @@ private:
     struct PcbIndexAccessor;
     using PcbIndexLookupKeyArg = PcbKey const &;
     struct PcbIndexKeyFuncs;
-    APRINTER_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
+    AIPSTACK_MAKE_INSTANCE(PcbIndex, (PcbIndexService::template Index<
         PcbIndexAccessor, PcbIndexLookupKeyArg, PcbIndexKeyFuncs, PcbLinkModel>))
     
-    using ListenerLinkModel = APrinter::PointerLinkModel<typename Api::TcpListener>;
+    using ListenerLinkModel = PointerLinkModel<typename Api::TcpListener>;
     
 public:
-    APRINTER_USE_TYPES1(Api, (TcpConnection, TcpListenParams, TcpListener))
+    AIPSTACK_USE_TYPES1(Api, (TcpConnection, TcpListenParams, TcpListener))
     
     static SeqType const MaxRcvWnd = Constants::MaxWindow;
     
@@ -248,8 +248,8 @@ private:
         
         inline ~TcpPcb ()
         {
-            AMBRO_ASSERT(state != TcpState::SYN_RCVD)
-            AMBRO_ASSERT(con == nullptr)
+            AIPSTACK_ASSERT(state != TcpState::SYN_RCVD)
+            AIPSTACK_ASSERT(con == nullptr)
         }
         
         // Node for the PCB index.
@@ -260,7 +260,7 @@ private:
         // a PCB is suposed to be in the unreferenced list. The only
         // exception to this is while pcb_unlink_con is during the callback
         // pcb_unlink_con-->pcb_aborted-->connectionAborted.
-        APrinter::LinkedListNode<PcbLinkModel> unrefed_list_node;
+        LinkedListNode<PcbLinkModel> unrefed_list_node;
         
         // Pointer back to IpTcpProto.
         IpTcpProto *tcp;    
@@ -374,7 +374,7 @@ private:
     };
     
     // Define the hook accessor for the PCB index.
-    struct PcbIndexAccessor : public APRINTER_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
+    struct PcbIndexAccessor : public AIPSTACK_MEMBER_ACCESSOR(&TcpPcb::index_hook) {};
     
 public:
     /**
@@ -388,7 +388,7 @@ public:
         m_next_ephemeral_port(EphemeralPortFirst),
         m_pcbs(ResourceArrayInitSame(), args.platform, this)
     {
-        AMBRO_ASSERT(args.stack != nullptr)
+        AIPSTACK_ASSERT(args.stack != nullptr)
     }
     
     /**
@@ -399,8 +399,8 @@ public:
      */
     ~IpTcpProto ()
     {
-        AMBRO_ASSERT(m_listeners_list.isEmpty())
-        AMBRO_ASSERT(m_current_pcb == nullptr)
+        AIPSTACK_ASSERT(m_listeners_list.isEmpty())
+        AIPSTACK_ASSERT(m_current_pcb == nullptr)
     }
     
     inline void recvIp4Dgram (Ip4RxInfo const &ip_info, IpBufRef dgram)
@@ -429,7 +429,7 @@ private:
         
         // Get a PCB to use.
         TcpPcb *pcb = m_unrefed_pcbs_list.lastNotEmpty(*this);
-        AMBRO_ASSERT(pcb_is_in_unreferenced_list(pcb))
+        AIPSTACK_ASSERT(pcb_is_in_unreferenced_list(pcb))
         
         // Abort the PCB if it's not closed.
         if (pcb->state != TcpState::CLOSED) {
@@ -443,13 +443,13 @@ private:
     
     void pcb_assert_closed (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet())
-        AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet())
-        AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet())
-        AMBRO_ASSERT(!pcb->IpSendRetryRequest::isActive())
-        AMBRO_ASSERT(pcb->tcp == this)
-        AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
-        AMBRO_ASSERT(pcb->con == nullptr)
+        AIPSTACK_ASSERT(!pcb->tim(AbrtTimer()).isSet())
+        AIPSTACK_ASSERT(!pcb->tim(OutputTimer()).isSet())
+        AIPSTACK_ASSERT(!pcb->tim(RtxTimer()).isSet())
+        AIPSTACK_ASSERT(!pcb->IpSendRetryRequest::isActive())
+        AIPSTACK_ASSERT(pcb->tcp == this)
+        AIPSTACK_ASSERT(pcb->state == TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->con == nullptr)
     }
     
     inline static void pcb_abort (TcpPcb *pcb)
@@ -464,7 +464,7 @@ private:
     
     static void pcb_abort (TcpPcb *pcb, bool send_rst)
     {
-        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->state != TcpState::CLOSED)
         IpTcpProto *tcp = pcb->tcp;
         
         // Send RST if desired.
@@ -513,7 +513,7 @@ private:
     // We are okay because this is only called from pcb_input.
     static void pcb_go_to_time_wait (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD,
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD,
                                          TcpState::TIME_WAIT))
         
         // Disassociate any TcpConnection. This will call the
@@ -549,7 +549,7 @@ private:
     // We are okay because this is only called from pcb_input.
     static void pcb_go_to_fin_wait_2 (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::FIN_WAIT_1)
+        AIPSTACK_ASSERT(pcb->state == TcpState::FIN_WAIT_1)
         
         // Change state.
         pcb->state = TcpState::FIN_WAIT_2;
@@ -569,7 +569,7 @@ private:
     
     static void pcb_unlink_con (TcpPcb *pcb, bool closing)
     {
-        AMBRO_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
+        AIPSTACK_ASSERT(pcb->state != OneOf(TcpState::CLOSED, TcpState::SYN_RCVD))
         
         if (pcb->con != nullptr) {
             // Inform the connection object about the aborting.
@@ -577,11 +577,11 @@ private:
             // PCBs, which protects it from being aborted by allocate_pcb
             // during this callback.
             TcpConnection *con = pcb->con;
-            AMBRO_ASSERT(con->m_v.pcb == pcb)
+            AIPSTACK_ASSERT(con->m_v.pcb == pcb)
             con->pcb_aborted();
             
             // The pcb->con has been cleared by con->pcb_aborted().
-            AMBRO_ASSERT(pcb->con == nullptr)
+            AIPSTACK_ASSERT(pcb->con == nullptr)
             
             // Add the PCB to the list of unreferenced PCBs.
             IpTcpProto *tcp = pcb->tcp;
@@ -595,13 +595,13 @@ private:
     
     static void pcb_unlink_lis (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_RCVD)
-        AMBRO_ASSERT(pcb->lis != nullptr)
+        AIPSTACK_ASSERT(pcb->state == TcpState::SYN_RCVD)
+        AIPSTACK_ASSERT(pcb->lis != nullptr)
         
         TcpListener *lis = pcb->lis;
         
         // Decrement the listener's PCB count.
-        AMBRO_ASSERT(lis->m_num_pcbs > 0)
+        AIPSTACK_ASSERT(lis->m_num_pcbs > 0)
         lis->m_num_pcbs--;
         
         // Is this a PCB which is being accepted?
@@ -624,8 +624,8 @@ private:
     // is abandoning the PCB.
     static void pcb_abandoned (TcpPcb *pcb, bool snd_buf_nonempty, SeqType rcv_ann_thres)
     {
-        AMBRO_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
-        AMBRO_ASSERT(pcb->con == nullptr) // TcpConnection just cleared it
+        AIPSTACK_ASSERT(pcb->state == TcpState::SYN_SENT || state_is_active(pcb->state))
+        AIPSTACK_ASSERT(pcb->con == nullptr) // TcpConnection just cleared it
         IpTcpProto *tcp = pcb->tcp;
         
         // Add the PCB to the unreferenced PCBs list.
@@ -672,7 +672,7 @@ private:
     
     static void pcb_abrt_timer_handler (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb->state != TcpState::CLOSED)
+        AIPSTACK_ASSERT(pcb->state != TcpState::CLOSED)
         
         // Abort the PCB.
         pcb_abort(pcb);
@@ -690,7 +690,7 @@ private:
         // while in input processing. If the PCB was aborted or even
         // reused, the tcp pointer must still be valid.
         IpTcpProto *tcp = pcb->tcp;
-        AMBRO_ASSERT(tcp->m_current_pcb == pcb || tcp->m_current_pcb == nullptr)
+        AIPSTACK_ASSERT(tcp->m_current_pcb == pcb || tcp->m_current_pcb == nullptr)
         return tcp->m_current_pcb == nullptr;
     }
     
@@ -704,7 +704,7 @@ private:
         for (TcpListener *lis = m_listeners_list.first();
              lis != nullptr; lis = m_listeners_list.next(*lis))
         {
-            AMBRO_ASSERT(lis->m_listening)
+            AIPSTACK_ASSERT(lis->m_listening)
             if (lis->m_addr == addr && lis->m_port == port) {
                 return lis;
             }
@@ -725,9 +725,9 @@ private:
     IpErr create_connection (TcpConnection *con, Ip4Addr remote_addr, PortType remote_port,
                              size_t user_rcv_wnd, uint16_t pmtu, TcpPcb **out_pcb)
     {
-        AMBRO_ASSERT(con != nullptr)
-        AMBRO_ASSERT(con->MtuRef::isSetup())
-        AMBRO_ASSERT(out_pcb != nullptr)
+        AIPSTACK_ASSERT(con != nullptr)
+        AIPSTACK_ASSERT(con->MtuRef::isSetup())
+        AIPSTACK_ASSERT(out_pcb != nullptr)
         
         // Determine the local interface.
         Ip4RouteInfo route_info;
@@ -815,7 +815,7 @@ private:
     PortType get_ephemeral_port (Ip4Addr local_addr,
                                  Ip4Addr remote_addr, PortType remote_port)
     {
-        for (PortType i : APrinter::LoopRangeAuto(NumEphemeralPorts)) {
+        for (PortType i : LoopRangeAuto(NumEphemeralPorts)) {
             PortType port = m_next_ephemeral_port;
             m_next_ephemeral_port = (port < EphemeralPortLast) ?
                 (port + 1) : EphemeralPortFirst;
@@ -836,7 +836,7 @@ private:
     
     void move_unrefed_pcb_to_front (TcpPcb *pcb)
     {
-        AMBRO_ASSERT(pcb_is_in_unreferenced_list(pcb))
+        AIPSTACK_ASSERT(pcb_is_in_unreferenced_list(pcb))
         
         if (pcb != m_unrefed_pcbs_list.first(*this)) {
             m_unrefed_pcbs_list.remove({*pcb, *this}, *this);
@@ -849,13 +849,13 @@ private:
     {
         // Look in the active index first.
         TcpPcb *pcb = m_pcb_index_active.findEntry(key, *this);
-        AMBRO_ASSERT(pcb == nullptr ||
+        AIPSTACK_ASSERT(pcb == nullptr ||
                      pcb->state != OneOf(TcpState::CLOSED, TcpState::TIME_WAIT))
         
         // If not found, look in the time-wait index.
-        if (AMBRO_UNLIKELY(pcb == nullptr)) {
+        if (AIPSTACK_UNLIKELY(pcb == nullptr)) {
             pcb = m_pcb_index_timewait.findEntry(key, *this);
-            AMBRO_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
+            AIPSTACK_ASSERT(pcb == nullptr || pcb->state == TcpState::TIME_WAIT)
         }
         
         return pcb;
@@ -868,7 +868,7 @@ private:
         for (TcpListener *lis = m_listeners_list.first();
              lis != nullptr; lis = m_listeners_list.next(*lis))
         {
-            AMBRO_ASSERT(lis->m_listening)
+            AIPSTACK_ASSERT(lis->m_listening)
             if (lis->m_port == local_port &&
                 (lis->m_addr == local_addr || lis->m_addr == Ip4Addr::ZeroAddr()))
             {
@@ -891,20 +891,20 @@ private:
     
     // Define the link model for data structures of PCBs.
     struct PcbArrayAccessor;
-    struct PcbLinkModel : public APrinter::If<LinkWithArrayIndices,
-        APrinter::ArrayLinkModelWithAccessor<
+    struct PcbLinkModel : public If<LinkWithArrayIndices,
+        ArrayLinkModelWithAccessor<
             TcpPcb, PcbIndexType, PcbIndexNull, IpTcpProto, PcbArrayAccessor>,
-        APrinter::PointerLinkModel<TcpPcb>
+        PointerLinkModel<TcpPcb>
     > {};
-    APRINTER_USE_TYPES1(PcbLinkModel, (Ref, State))
+    AIPSTACK_USE_TYPES1(PcbLinkModel, (Ref, State))
     
 private:
-    using ListenersList = APrinter::LinkedList<
-        APRINTER_MEMBER_ACCESSOR_TN(&TcpListener::m_listeners_node),
+    using ListenersList = LinkedList<
+        AIPSTACK_MEMBER_ACCESSOR_TN(&TcpListener::m_listeners_node),
         ListenerLinkModel, false>;
     
-    using UnrefedPcbsList = APrinter::LinkedList<
-        APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
+    using UnrefedPcbsList = LinkedList<
+        AIPSTACK_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
     StructureRaiiWrapper<ListenersList> m_listeners_list;
@@ -917,7 +917,7 @@ private:
     StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_timewait;
     ResourceArray<TcpPcb, NumTcpPcbs> m_pcbs;
     
-    struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
+    struct PcbArrayAccessor : public AIPSTACK_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
 };
 
 struct IpTcpProtoOptions {
@@ -944,7 +944,7 @@ class IpTcpProtoService {
     AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, LinkWithArrayIndices)
     
     // This tells IpStack which IP protocol we receive packets for.
-    using IpProtocolNumber = APrinter::WrapValue<uint8_t, Ip4ProtocolTcp>;
+    using IpProtocolNumber = WrapValue<uint8_t, Ip4ProtocolTcp>;
     
 public:
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -953,7 +953,7 @@ public:
         using PlatformImpl = PlatformImpl_;
         using TheIpStack = TheIpStack_;
         using Params = IpTcpProtoService;
-        APRINTER_DEF_INSTANCE(Compose, IpTcpProto)
+        AIPSTACK_DEF_INSTANCE(Compose, IpTcpProto)
     };
 #endif
 };

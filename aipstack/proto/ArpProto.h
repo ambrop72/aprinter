@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ARP_PROTO_H
-#define APRINTER_IPSTACK_ARP_PROTO_H
+#ifndef AIPSTACK_ARP_PROTO_H
+#define AIPSTACK_ARP_PROTO_H
 
 #include <stdint.h>
 
@@ -33,7 +33,7 @@
 
 namespace AIpStack {
 
-APRINTER_TSTRUCT(ArpIp4Header,
+AIPSTACK_DEFINE_STRUCT(ArpIp4Header,
     (HwType,       uint16_t)
     (ProtoType,    uint16_t)
     (HwAddrLen,    uint8_t)

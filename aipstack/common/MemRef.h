@@ -28,7 +28,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Assert.h>
 
 namespace AIpStack {
 
@@ -55,32 +55,32 @@ struct MemRef {
     
     inline char at (size_t pos) const
     {
-        AMBRO_ASSERT(ptr)
-        AMBRO_ASSERT(pos < len)
+        AIPSTACK_ASSERT(ptr)
+        AIPSTACK_ASSERT(pos < len)
         
         return ptr[pos];
     }
     
     inline MemRef subFrom (size_t offset) const
     {
-        AMBRO_ASSERT(ptr)
-        AMBRO_ASSERT(offset <= len)
+        AIPSTACK_ASSERT(ptr)
+        AIPSTACK_ASSERT(offset <= len)
         
         return MemRef(ptr + offset, len - offset);
     }
     
     inline MemRef subTo (size_t offset) const
     {
-        AMBRO_ASSERT(ptr)
-        AMBRO_ASSERT(offset <= len)
+        AIPSTACK_ASSERT(ptr)
+        AIPSTACK_ASSERT(offset <= len)
         
         return MemRef(ptr, offset);
     }
     
     inline bool equalTo (MemRef other) const
     {
-        AMBRO_ASSERT(ptr)
-        AMBRO_ASSERT(other.ptr)
+        AIPSTACK_ASSERT(ptr)
+        AIPSTACK_ASSERT(other.ptr)
         
         return len == other.len && !memcmp(ptr, other.ptr, len);
     }

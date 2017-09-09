@@ -41,6 +41,7 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 
+#include <aipstack/meta/TypeListUtils.h>
 #include <aipstack/misc/NonCopyable.h>
 #include <aipstack/common/Struct.h>
 #include <aipstack/common/Buf.h>
@@ -165,7 +166,7 @@ private:
         AIpStack::IpTcpProtoOptions::LinkWithArrayIndices::Is<LinkWithArrayIndices>
     >;
     
-    using ProtocolServicesList = APrinter::MakeTypeList<TheIpTcpProtoService>;
+    using ProtocolServicesList = AIpStack::MakeTypeList<TheIpTcpProtoService>;
     
     using TheIpStackService = AIpStack::IpStackService<
         AIpStack::IpStackOptions::HeaderBeforeIp::Is<EthHeader::Size>,

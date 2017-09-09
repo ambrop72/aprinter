@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP4_PROTO_H
-#define APRINTER_IPSTACK_IP4_PROTO_H
+#ifndef AIPSTACK_IP4_PROTO_H
+#define AIPSTACK_IP4_PROTO_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -33,7 +33,7 @@
 
 namespace AIpStack {
 
-APRINTER_TSTRUCT(Ip4Header,
+AIPSTACK_DEFINE_STRUCT(Ip4Header,
     (VersionIhlDscpEcn, uint16_t)
     (TotalLen,          uint16_t)
     (Ident,             uint16_t)

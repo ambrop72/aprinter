@@ -27,7 +27,7 @@
 
 #include <stddef.h>
 
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Buf.h>
 
@@ -56,8 +56,8 @@ public:
     
     inline void reset (size_t size)
     {
-        AMBRO_ASSERT(size <= MaxSize)
-        AMBRO_ASSERT(m_node.ptr == m_data)
+        AIPSTACK_ASSERT(size <= MaxSize)
+        AIPSTACK_ASSERT(m_node.ptr == m_data)
         
         m_node.len = HeaderBefore + size;
         m_node.next = nullptr;
@@ -74,9 +74,9 @@ public:
     
     inline void changeSize (size_t size)
     {
-        AMBRO_ASSERT(m_initialized)
-        AMBRO_ASSERT(m_node.next == nullptr)
-        AMBRO_ASSERT(size <= MaxSize)
+        AIPSTACK_ASSERT(m_initialized)
+        AIPSTACK_ASSERT(m_node.next == nullptr)
+        AIPSTACK_ASSERT(size <= MaxSize)
         
         m_node.len = HeaderBefore + size;
         m_tot_len = size;
@@ -84,10 +84,10 @@ public:
     
     inline void setNext (IpBufNode const *next_node, size_t next_len)
     {
-        AMBRO_ASSERT(m_initialized)
-        AMBRO_ASSERT(m_node.next == nullptr)
-        AMBRO_ASSERT(m_node.len == HeaderBefore + m_tot_len)
-        AMBRO_ASSERT(next_node != nullptr)
+        AIPSTACK_ASSERT(m_initialized)
+        AIPSTACK_ASSERT(m_node.next == nullptr)
+        AIPSTACK_ASSERT(m_node.len == HeaderBefore + m_tot_len)
+        AIPSTACK_ASSERT(next_node != nullptr)
         
         m_node.next = next_node;
         m_tot_len += next_len;
@@ -95,7 +95,7 @@ public:
     
     inline IpBufRef getBufRef ()
     {
-        AMBRO_ASSERT(m_initialized)
+        AIPSTACK_ASSERT(m_initialized)
         
         return IpBufRef{&m_node, HeaderBefore, m_tot_len};
     }

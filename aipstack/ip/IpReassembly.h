@@ -22,17 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IPREASSEMBLY_H
-#define APRINTER_IPSTACK_IPREASSEMBLY_H
+#ifndef AIPSTACK_IPREASSEMBLY_H
+#define AIPSTACK_IPREASSEMBLY_H
 
 #include <stdint.h>
 #include <string.h>
 
 #include <limits>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Struct.h>
 #include <aipstack/common/Buf.h>
@@ -71,12 +71,12 @@ class IpReassembly :
     private IpReassemblyTimers<Arg>::Timers,
     private NonCopyable<IpReassembly<Arg>>
 {
-    APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
+    AIPSTACK_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
                                     MaxReassTimeSeconds))
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl))
+    AIPSTACK_USE_TYPES1(Arg, (PlatformImpl))
     
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType))
     
     AIPSTACK_USE_TIMERS_CLASS(IpReassemblyTimers<Arg>, (PurgeTimer)) 
     using IpReassemblyTimers<Arg>::Timers::platform;
@@ -91,7 +91,7 @@ class IpReassembly :
     static uint16_t const ReassNullLink = std::numeric_limits<uint16_t>::max();
     
     // Hole descriptor structure, placed at the beginning of a hole.
-    APRINTER_TSTRUCT(HoleDescriptor,
+    AIPSTACK_DEFINE_STRUCT(HoleDescriptor,
         (HoleSize,       StructRawField<uint16_t>)
         (NextHoleOffset, StructRawField<uint16_t>)
     )
@@ -180,8 +180,8 @@ public:
                         uint8_t ttl, bool more_fragments, uint16_t fragment_offset,
                         char const *header, IpBufRef &dgram)
     {
-        AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
-        AMBRO_ASSERT(more_fragments || fragment_offset > 0)
+        AIPSTACK_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
+        AIPSTACK_ASSERT(more_fragments || fragment_offset > 0)
         
         // Sanity check data length.
         if (dgram.tot_len == 0) {
@@ -252,9 +252,9 @@ public:
             uint16_t hole_offset = reass->first_hole_offset;
             uint8_t num_holes = 0;
             do {
-                AMBRO_ASSERT(prev_hole_offset == ReassNullLink ||
+                AIPSTACK_ASSERT(prev_hole_offset == ReassNullLink ||
                              hole_offset_valid(prev_hole_offset))
-                AMBRO_ASSERT(hole_offset_valid(hole_offset))
+                AIPSTACK_ASSERT(hole_offset_valid(hole_offset))
                 
                 // Get the hole info.
                 auto hole = HoleDescriptor::MakeRef(reass->data + hole_offset);
@@ -263,7 +263,7 @@ public:
                     hole.get(typename HoleDescriptor::NextHoleOffset());
                 
                 // Calculate the hole end.
-                AMBRO_ASSERT(hole_size <= ReassBufferSize - hole_offset)
+                AIPSTACK_ASSERT(hole_size <= ReassBufferSize - hole_offset)
                 uint16_t hole_end = hole_offset + hole_size;
                 
                 // If this is the last fragment, sanity check that the hole offset
@@ -336,7 +336,7 @@ public:
             
             // It is not possible that there are no more holes due to
             // the final HoleDescriptor::Size bytes that cannot be filled.
-            AMBRO_ASSERT(reass->first_hole_offset != ReassNullLink)
+            AIPSTACK_ASSERT(reass->first_hole_offset != ReassNullLink)
             
             // Copy the fragment data into the reassembly buffer.
             IpBufRef dgram_tmp = dgram;
@@ -357,13 +357,13 @@ public:
             // Consider that when we first got a !more_fragments fragment, we would have
             // aborted if there was any existing data buffered beyond data_length or if
             // we later received a fragment with data beyond that.
-            AMBRO_ASSERT(reass->first_hole_offset == reass->data_length)
+            AIPSTACK_ASSERT(reass->first_hole_offset == reass->data_length)
 #ifdef AMBROLIB_ASSERTIONS
             auto hole = HoleDescriptor::MakeRef(reass->data + reass->first_hole_offset);
             uint16_t hole_size        = hole.get(typename HoleDescriptor::HoleSize());
             uint16_t next_hole_offset = hole.get(typename HoleDescriptor::NextHoleOffset());
-            AMBRO_ASSERT(hole_size == ReassBufferSize - reass->first_hole_offset)
-            AMBRO_ASSERT(next_hole_offset == ReassNullLink)
+            AIPSTACK_ASSERT(hole_size == ReassBufferSize - reass->first_hole_offset)
+            AIPSTACK_ASSERT(next_hole_offset == ReassNullLink)
 #endif
             
             // Invalidate the reassembly entry.
@@ -446,7 +446,7 @@ private:
     
     static void reass_link_prev (ReassEntry *reass, uint16_t prev_hole_offset, uint16_t hole_offset)
     {
-        AMBRO_ASSERT(prev_hole_offset == ReassNullLink || hole_offset_valid(prev_hole_offset))
+        AIPSTACK_ASSERT(prev_hole_offset == ReassNullLink || hole_offset_valid(prev_hole_offset))
         
         if (prev_hole_offset == ReassNullLink) {
             reass->first_hole_offset = hole_offset;
@@ -528,7 +528,7 @@ public:
     struct Compose {
         using PlatformImpl = PlatformImpl_;
         using Params = IpReassemblyService;
-        APRINTER_DEF_INSTANCE(Compose, IpReassembly)        
+        AIPSTACK_DEF_INSTANCE(Compose, IpReassembly)        
     };
 #endif
 };

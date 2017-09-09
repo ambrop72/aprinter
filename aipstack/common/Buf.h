@@ -22,14 +22,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_BUF_H
-#define APRINTER_IPSTACK_BUF_H
+#ifndef AIPSTACK_BUF_H
+#define AIPSTACK_BUF_H
 
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Hints.h>
 
 #include <aipstack/misc/MinMax.h>
 
@@ -112,8 +112,8 @@ struct IpBufRef {
      */
     inline char * getChunkPtr () const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
         
         return node->ptr + offset;
     }
@@ -125,8 +125,8 @@ struct IpBufRef {
      */
     inline size_t getChunkLength () const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
         
         return MinValue(tot_len, (size_t)(node->len - offset));
     }
@@ -141,15 +141,15 @@ struct IpBufRef {
      */
     bool nextChunk ()
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
         
         tot_len -= MinValue(tot_len, (size_t)(node->len - offset));
         node = node->next;
         offset = 0;
         
         bool more = (tot_len > 0);
-        AMBRO_ASSERT(!more || node != nullptr)
+        AIPSTACK_ASSERT(!more || node != nullptr)
         
         return more;
     }
@@ -187,7 +187,7 @@ struct IpBufRef {
      */
     inline IpBufRef revealHeaderMust (size_t amount) const
     {
-        AMBRO_ASSERT(amount <= offset)
+        AIPSTACK_ASSERT(amount <= offset)
         
         return IpBufRef {
             node,
@@ -204,8 +204,8 @@ struct IpBufRef {
      */
     inline bool hasHeader (size_t amount) const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
         
         return tot_len >= amount && node->len - offset >= amount;
     }
@@ -220,10 +220,10 @@ struct IpBufRef {
      */
     inline IpBufRef hideHeader (size_t amount) const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
-        AMBRO_ASSERT(amount <= node->len - offset)
-        AMBRO_ASSERT(amount <= tot_len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(amount <= node->len - offset)
+        AIPSTACK_ASSERT(amount <= tot_len)
         
         return IpBufRef {
             node,
@@ -242,8 +242,8 @@ struct IpBufRef {
      */
     inline IpBufNode toNode () const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
         
         return IpBufNode {
             node->ptr + offset,
@@ -279,10 +279,10 @@ struct IpBufRef {
     IpBufRef subHeaderToContinuedBy (size_t header_len, IpBufNode const *cont,
                                             size_t total_len, IpBufNode *out_node) const
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(offset <= node->len)
-        AMBRO_ASSERT(header_len <= node->len - offset)
-        AMBRO_ASSERT(total_len >= header_len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(offset <= node->len)
+        AIPSTACK_ASSERT(header_len <= node->len - offset)
+        AIPSTACK_ASSERT(total_len >= header_len)
         
         *out_node = IpBufNode{node->ptr, (size_t)(offset + header_len), cont};
         return IpBufRef{out_node, offset, total_len};
@@ -363,7 +363,7 @@ struct IpBufRef {
      */
     char takeByte ()
     {
-        AMBRO_ASSERT(tot_len > 0)
+        AIPSTACK_ASSERT(tot_len > 0)
         
         char ch;
         processBytes(1, [&](char *data, size_t len) {
@@ -396,11 +396,11 @@ struct IpBufRef {
     template <typename Func>
     void processBytes (size_t amount, Func func)
     {
-        AMBRO_ASSERT(node != nullptr)
-        AMBRO_ASSERT(amount <= tot_len)
+        AIPSTACK_ASSERT(node != nullptr)
+        AIPSTACK_ASSERT(amount <= tot_len)
         
         while (true) {
-            AMBRO_ASSERT(offset <= node->len)
+            AIPSTACK_ASSERT(offset <= node->len)
             size_t rem_in_buf = node->len - offset;
             
             if (rem_in_buf > 0) {
@@ -415,14 +415,14 @@ struct IpBufRef {
                 
                 if (take < rem_in_buf || node->next == nullptr) {
                     offset += take;
-                    AMBRO_ASSERT(amount == take)
+                    AIPSTACK_ASSERT(amount == take)
                     return;
                 }
                 
                 amount -= take;
             } else {
                 if (node->next == nullptr) {
-                    AMBRO_ASSERT(amount == 0)
+                    AIPSTACK_ASSERT(amount == 0)
                     return;
                 }
             }
@@ -444,7 +444,7 @@ struct IpBufRef {
      */
     inline IpBufRef subTo (size_t new_tot_len) const
     {
-        AMBRO_ASSERT(new_tot_len <= tot_len)
+        AIPSTACK_ASSERT(new_tot_len <= tot_len)
         
         return IpBufRef {
             node,

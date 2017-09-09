@@ -27,7 +27,7 @@
 
 #include <type_traits>
 
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/misc/NonCopyable.h>
 
@@ -62,7 +62,7 @@ private:
     
     inline void destructAction (std::integral_constant<ActionType, ActionType::AssertEmpty>)
     {
-        AMBRO_ASSERT(StructureType::isEmpty())
+        AIPSTACK_ASSERT(StructureType::isEmpty())
     }
 };
 

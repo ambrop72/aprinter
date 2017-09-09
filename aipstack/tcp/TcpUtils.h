@@ -22,15 +22,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_TCP_UTILS_H
-#define APRINTER_IPSTACK_TCP_UTILS_H
+#ifndef AIPSTACK_TCP_UTILS_H
+#define AIPSTACK_TCP_UTILS_H
 
 #include <stdint.h>
 #include <stddef.h>
 
 #include <limits>
 
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
@@ -263,8 +263,8 @@ public:
         if ((tcp_opts.options & OptionFlags::WND_SCALE) != 0) {
             opts_len += OptWriteLenWndScale;
         }
-        AMBRO_ASSERT(opts_len <= MaxOptionsWriteLen)
-        AMBRO_ASSERT(opts_len % 4 == 0) // caller needs padding to 4-byte alignment
+        AIPSTACK_ASSERT(opts_len <= MaxOptionsWriteLen)
+        AIPSTACK_ASSERT(opts_len % 4 == 0) // caller needs padding to 4-byte alignment
         return opts_len;
     }
     

@@ -22,13 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_TCP_LISTEN_QUEUE_H
-#define APRINTER_TCP_LISTEN_QUEUE_H
+#ifndef AIPSTACK_TCP_LISTEN_QUEUE_H
+#define AIPSTACK_TCP_LISTEN_QUEUE_H
 
 #include <stddef.h>
 
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Err.h>
@@ -45,8 +45,8 @@ template <
 >
 class TcpListenQueue {
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType))
-    APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener, TcpConnection))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener, TcpConnection))
     
     static_assert(RxBufferSize > 0, "");
     
@@ -72,8 +72,8 @@ public:
         
         void accept_connection ()
         {
-            AMBRO_ASSERT(TcpConnection::isInit())
-            AMBRO_ASSERT(m_listener->m_queue_size > 0)
+            AIPSTACK_ASSERT(TcpConnection::isInit())
+            AIPSTACK_ASSERT(m_listener->m_queue_size > 0)
             
             if (TcpConnection::acceptConnection(m_listener) != IpErr::SUCCESS) {
                 return;
@@ -90,7 +90,7 @@ public:
         
         void reset_connection ()
         {
-            AMBRO_ASSERT(!TcpConnection::isInit())
+            AIPSTACK_ASSERT(!TcpConnection::isInit())
             
             TcpConnection::reset();
             
@@ -102,10 +102,10 @@ public:
         
         IpBufRef get_received_data ()
         {
-            AMBRO_ASSERT(!TcpConnection::isInit())
+            AIPSTACK_ASSERT(!TcpConnection::isInit())
             
             size_t rx_buf_len = TcpConnection::getRecvBuf().tot_len;
-            AMBRO_ASSERT(rx_buf_len <= RxBufferSize)
+            AIPSTACK_ASSERT(rx_buf_len <= RxBufferSize)
             size_t rx_len = RxBufferSize - rx_buf_len;
             return IpBufRef{&m_rx_buf_node, 0, rx_len};
         }
@@ -113,14 +113,14 @@ public:
     private:
         void connectionAborted () override final
         {
-            AMBRO_ASSERT(!TcpConnection::isInit())
+            AIPSTACK_ASSERT(!TcpConnection::isInit())
             
             reset_connection();
         }
         
         void dataReceived (size_t amount) override final
         {
-            AMBRO_ASSERT(!TcpConnection::isInit())
+            AIPSTACK_ASSERT(!TcpConnection::isInit())
             
             // If we get a FIN without any data, abandon the connection.
             if (amount == 0 && TcpConnection::getRecvBuf().tot_len == RxBufferSize) {
@@ -142,7 +142,7 @@ public:
         
         void dataSent (size_t) override final
         {
-            AMBRO_ASSERT(false) // nothing was sent so this cannot be called
+            AIPSTACK_ASSERT(false) // nothing was sent so this cannot be called
         }
         
     private:
@@ -194,10 +194,10 @@ public:
         
         bool startListening (TcpProto *tcp, TcpListenParams const &params, ListenQueueParams const &q_params)
         {
-            AMBRO_ASSERT(!TcpListener::isListening())
-            AMBRO_ASSERT(q_params.queue_size >= 0)
-            AMBRO_ASSERT(q_params.queue_size == 0 || q_params.queue_entries != nullptr)
-            AMBRO_ASSERT(q_params.queue_size == 0 || q_params.min_rcv_buf_size >= RxBufferSize)
+            AIPSTACK_ASSERT(!TcpListener::isListening())
+            AIPSTACK_ASSERT(q_params.queue_size >= 0)
+            AIPSTACK_ASSERT(q_params.queue_size == 0 || q_params.queue_entries != nullptr)
+            AIPSTACK_ASSERT(q_params.queue_size == 0 || q_params.min_rcv_buf_size >= RxBufferSize)
             
             // Start listening.
             if (!TcpListener::startListening(tcp, params)) {
@@ -224,7 +224,7 @@ public:
         
         void scheduleDequeue ()
         {
-            AMBRO_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(TcpListener::isListening())
             
             if (m_queue_size > 0) {
                 tim(DequeueTimer()).setNow();
@@ -244,18 +244,18 @@ public:
         //   dataReceived(0) callback.
         IpErr acceptConnection (TcpConnection &dst_con, IpBufRef &initial_rx_data)
         {
-            AMBRO_ASSERT(TcpListener::isListening())
-            AMBRO_ASSERT(dst_con.isInit())
+            AIPSTACK_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(dst_con.isInit())
             
             if (m_queue_size == 0) {
-                AMBRO_ASSERT(TcpListener::hasAcceptPending())
+                AIPSTACK_ASSERT(TcpListener::hasAcceptPending())
                 
                 initial_rx_data = IpBufRef{};
                 return dst_con.acceptConnection(this);
             } else {
-                AMBRO_ASSERT(m_queued_to_accept != nullptr)
-                AMBRO_ASSERT(!m_queued_to_accept->TcpConnection::isInit())
-                AMBRO_ASSERT(m_queued_to_accept->m_ready)
+                AIPSTACK_ASSERT(m_queued_to_accept != nullptr)
+                AIPSTACK_ASSERT(!m_queued_to_accept->TcpConnection::isInit())
+                AIPSTACK_ASSERT(m_queued_to_accept->m_ready)
                 
                 ListenQueueEntry *entry = m_queued_to_accept;
                 m_queued_to_accept = nullptr;
@@ -272,8 +272,8 @@ public:
     private:
         void connectionEstablished () override final
         {
-            AMBRO_ASSERT(TcpListener::isListening())
-            AMBRO_ASSERT(TcpListener::hasAcceptPending())
+            AIPSTACK_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(TcpListener::hasAcceptPending())
             
             if (m_queue_size == 0) {
                 // Call the accept callback so the user can call acceptConnection.
@@ -299,14 +299,14 @@ public:
         
         void dispatch_connections ()
         {
-            AMBRO_ASSERT(TcpListener::isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
-            AMBRO_ASSERT(m_queued_to_accept == nullptr)
+            AIPSTACK_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(m_queue_size > 0)
+            AIPSTACK_ASSERT(m_queued_to_accept == nullptr)
             
             // Try to dispatch the oldest ready connections.
             while (ListenQueueEntry *entry = find_oldest(true)) {
-                AMBRO_ASSERT(!entry->TcpConnection::isInit())
-                AMBRO_ASSERT(entry->m_ready)
+                AIPSTACK_ASSERT(!entry->TcpConnection::isInit())
+                AIPSTACK_ASSERT(entry->m_ready)
                 
                 // Call the accept handler, while publishing the connection.
                 m_queued_to_accept = entry;
@@ -322,8 +322,8 @@ public:
         
         void update_timeout ()
         {
-            AMBRO_ASSERT(TcpListener::isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
+            AIPSTACK_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(m_queue_size > 0)
             
             ListenQueueEntry *entry = find_oldest(false);
             
@@ -337,16 +337,16 @@ public:
         
         void timerExpired (TimeoutTimer)
         {
-            AMBRO_ASSERT(TcpListener::isListening())
-            AMBRO_ASSERT(m_queue_size > 0)
+            AIPSTACK_ASSERT(TcpListener::isListening())
+            AIPSTACK_ASSERT(m_queue_size > 0)
             
             // We must have a non-ready connection since we keep the timeout
             // always updated to expire for the oldest non-ready connection
             // (or not expire if there is none).
             ListenQueueEntry *entry = find_oldest(false);
-            AMBRO_ASSERT(entry != nullptr)
-            AMBRO_ASSERT(!entry->TcpConnection::isInit())
-            AMBRO_ASSERT(!entry->m_ready)
+            AIPSTACK_ASSERT(entry != nullptr)
+            AIPSTACK_ASSERT(!entry->TcpConnection::isInit())
+            AIPSTACK_ASSERT(!entry->m_ready)
             
             // Reset the oldest non-ready connection.
             entry->reset_connection();

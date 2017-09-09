@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ICMP4_PROTO_H
-#define APRINTER_IPSTACK_ICMP4_PROTO_H
+#ifndef AIPSTACK_ICMP4_PROTO_H
+#define AIPSTACK_ICMP4_PROTO_H
 
 #include <stdint.h>
 
@@ -36,7 +36,7 @@ using Icmp4RestType = StructByteArray<4>;
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
-APRINTER_TSTRUCT(Icmp4Header,
+AIPSTACK_DEFINE_STRUCT(Icmp4Header,
     (Type,         uint8_t)
     (Code,         uint8_t)
     (Chksum,       uint16_t)

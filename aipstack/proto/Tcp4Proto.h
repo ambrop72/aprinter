@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_TCP4_PROTO_H
-#define APRINTER_IPSTACK_TCP4_PROTO_H
+#ifndef AIPSTACK_TCP4_PROTO_H
+#define AIPSTACK_TCP4_PROTO_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -33,7 +33,7 @@
 
 namespace AIpStack {
 
-APRINTER_TSTRUCT(Tcp4Header,
+AIPSTACK_DEFINE_STRUCT(Tcp4Header,
     (SrcPort,     uint16_t)
     (DstPort,     uint16_t)
     (SeqNum,      uint32_t)

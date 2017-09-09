@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_DHCP_CLIENT_H
-#define APRINTER_IPSTACK_IP_DHCP_CLIENT_H
+#ifndef AIPSTACK_IP_DHCP_CLIENT_H
+#define AIPSTACK_IP_DHCP_CLIENT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -31,10 +31,10 @@
 
 #include <limits>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/misc/Hints.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Chksum.h>
@@ -199,12 +199,12 @@ class IpDhcpClient :
     private IpEthHw::ArpObserver,
     private NonCopyable<IpDhcpClient<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl, IpStack, Params))
-    APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
+    AIPSTACK_USE_TYPES1(Arg, (PlatformImpl, IpStack, Params))
+    AIPSTACK_USE_TYPES1(IpEthHw, (ArpObserver))
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType))
-    APRINTER_USE_TYPES1(IpStack, (Ip4RxInfo, Iface, IfaceListener, IfaceStateObserver))
-    APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TYPES1(IpStack, (Ip4RxInfo, Iface, IfaceListener, IfaceStateObserver))
+    AIPSTACK_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
     AIPSTACK_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     using IpDhcpClientTimers<Arg>::Timers::platform;
     
@@ -233,7 +233,7 @@ class IpDhcpClient :
     using Options = IpDhcpClient_options<
         Params::MaxDnsServers, Params::MaxClientIdSize,
         Params::MaxVendorClassIdSize, MaxMessageSize>;
-    APRINTER_USE_TYPES1(Options, (DhcpRecvOptions, DhcpSendOptions))
+    AIPSTACK_USE_TYPES1(Options, (DhcpRecvOptions, DhcpSendOptions))
     
     // DHCP client states
     enum class DhcpState {
@@ -350,7 +350,7 @@ public:
         m_vendor_class_id(opts.vendor_class_id)
     {
         // We only support Ethernet interfaces.
-        AMBRO_ASSERT(iface->getHwType() == IpHwType::Ethernet)
+        AIPSTACK_ASSERT(iface->getHwType() == IpHwType::Ethernet)
         
         // Start observing interface state.
         IfaceStateObserver::observe(*iface);
@@ -400,7 +400,7 @@ public:
      */
     inline LeaseInfo const & getLeaseInfoMustHaveLease () const
     {
-        AMBRO_ASSERT(hasLease())
+        AIPSTACK_ASSERT(hasLease())
         
         return m_info;
     }
@@ -421,7 +421,7 @@ private:
     // Convert seconds to ticks, requires seconds <= MaxTimerSeconds.
     inline static TimeType SecToTicks (uint32_t seconds)
     {
-        AMBRO_ASSERT(seconds <= MaxTimerSeconds)
+        AIPSTACK_ASSERT(seconds <= MaxTimerSeconds)
         return SecToTicksNoAssert(seconds);
     }
     
@@ -531,7 +531,7 @@ private:
             case DhcpState::Rebinding:
                 return handleTimerBoundRenewingRebinding();
             default:
-                AMBRO_ASSERT(false);
+                AIPSTACK_ASSERT(false);
         }
     }
     
@@ -622,7 +622,7 @@ private:
         // future. We anyway check how much time has actually passed and we
         // may also skip one or more states if more has passed than expected.
         
-        AMBRO_ASSERT(m_lease_time_passed <= m_info.lease_time_s)
+        AIPSTACK_ASSERT(m_lease_time_passed <= m_info.lease_time_s)
         
         TimeType now = platform().getTime();
         
@@ -725,28 +725,28 @@ private:
     {
         {
             // Check that there is a UDP header.
-            if (AMBRO_UNLIKELY(!dgram.hasHeader(Udp4Header::Size))) {
+            if (AIPSTACK_UNLIKELY(!dgram.hasHeader(Udp4Header::Size))) {
                 goto reject;
             }
             
             auto udp_header = Udp4Header::MakeRef(dgram.getChunkPtr());
             
             // Check for expected source and destination port.
-            if (AMBRO_LIKELY(udp_header.get(Udp4Header::SrcPort()) != DhcpServerPort)) {
+            if (AIPSTACK_LIKELY(udp_header.get(Udp4Header::SrcPort()) != DhcpServerPort)) {
                 goto reject;
             }
-            if (AMBRO_LIKELY(udp_header.get(Udp4Header::DstPort()) != DhcpClientPort)) {
+            if (AIPSTACK_LIKELY(udp_header.get(Udp4Header::DstPort()) != DhcpClientPort)) {
                 goto reject;
             }
             
             // Sanity check source address - reject broadcast addresses.
-            if (AMBRO_UNLIKELY(!IpStack::checkUnicastSrcAddr(ip_info))) {
+            if (AIPSTACK_UNLIKELY(!IpStack::checkUnicastSrcAddr(ip_info))) {
                 goto accept;
             }
             
             // Check UDP length.
             uint16_t udp_length = udp_header.get(Udp4Header::Length());
-            if (AMBRO_UNLIKELY(udp_length < Udp4Header::Size ||
+            if (AIPSTACK_UNLIKELY(udp_length < Udp4Header::Size ||
                                udp_length > dgram.tot_len))
             {
                 goto accept;
@@ -761,8 +761,8 @@ private:
                 IpChksumAccumulator chksum_accum;
                 chksum_accum.addWords(&ip_info.src_addr.data);
                 chksum_accum.addWords(&ip_info.dst_addr.data);
-                chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
-                chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
+                chksum_accum.addWord(WrapType<uint16_t>(), Ip4ProtocolUdp);
+                chksum_accum.addWord(WrapType<uint16_t>(), udp_length);
                 if (chksum_accum.getChksum(udp_data) != 0) {
                     goto accept;
                 }
@@ -928,7 +928,7 @@ private:
                 // This check effectively means that the timer is still set for the
                 // first expiration as set in request_in_renewing_or_rebinding and
                 // not for a subsequent expiration due to needing a large delay.
-                AMBRO_ASSERT(m_lease_time_passed >= m_request_send_time_passed)
+                AIPSTACK_ASSERT(m_lease_time_passed >= m_request_send_time_passed)
                 if (m_lease_time_passed - m_request_send_time_passed > MaxTimerSeconds) {
                     // Ignore the ACK. This should not be a problem because
                     // an ACK really should not arrive that long (MaxTimerSeconds)
@@ -1001,7 +1001,7 @@ private:
     
     void arpInfoReceived (Ip4Addr ip_addr, MacAddr mac_addr) override final
     {
-        AMBRO_ASSERT(m_state == DhcpState::Checking)
+        AIPSTACK_ASSERT(m_state == DhcpState::Checking)
         
         // Is this an ARP message from the IP address we are checking?
         if (ip_addr == m_info.ip_address) {
@@ -1155,7 +1155,7 @@ private:
     
     void go_bound ()
     {
-        AMBRO_ASSERT(m_state == OneOf(DhcpState::Checking, DhcpState::Renewing,
+        AIPSTACK_ASSERT(m_state == OneOf(DhcpState::Checking, DhcpState::Renewing,
                                       DhcpState::Rebinding, DhcpState::Rebooting))
         
         bool had_lease = hasLease();
@@ -1234,7 +1234,7 @@ private:
     // Send a DHCP discover message.
     void send_discover ()
     {
-        AMBRO_ASSERT(m_state == DhcpState::Selecting)
+        AIPSTACK_ASSERT(m_state == DhcpState::Selecting)
         
         DhcpSendOptions send_opts;
         send_dhcp_message(DhcpMessageType::Discover, send_opts,
@@ -1244,7 +1244,7 @@ private:
     // Send a DHCP request message.
     void send_request ()
     {
-        AMBRO_ASSERT(m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing,
+        AIPSTACK_ASSERT(m_state == OneOf(DhcpState::Requesting, DhcpState::Renewing,
                                       DhcpState::Rebinding, DhcpState::Rebooting))
         
         DhcpSendOptions send_opts;
@@ -1272,7 +1272,7 @@ private:
     
     void send_decline ()
     {
-        AMBRO_ASSERT(m_state == DhcpState::Checking)
+        AIPSTACK_ASSERT(m_state == DhcpState::Checking)
         
         DhcpSendOptions send_opts;
         
@@ -1339,7 +1339,7 @@ private:
         
         // Calculate the UDP length.
         uint16_t udp_length = opt_endptr - dgram_alloc.getPtr();
-        AMBRO_ASSERT(udp_length <= MaxDhcpSendMsgSize)
+        AIPSTACK_ASSERT(udp_length <= MaxDhcpSendMsgSize)
         
         // Write the UDP header.
         auto udp_header = Udp4Header::MakeRef(dgram_alloc.getPtr());
@@ -1356,8 +1356,8 @@ private:
         IpChksumAccumulator chksum_accum;
         chksum_accum.addWords(&ciaddr.data);
         chksum_accum.addWords(&dst_addr.data);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), Ip4ProtocolUdp);
-        chksum_accum.addWord(APrinter::WrapType<uint16_t>(), udp_length);
+        chksum_accum.addWord(WrapType<uint16_t>(), Ip4ProtocolUdp);
+        chksum_accum.addWord(WrapType<uint16_t>(), udp_length);
         uint16_t checksum = chksum_accum.getChksum(dgram);
         if (checksum == 0) {
             checksum = std::numeric_limits<uint16_t>::max();
@@ -1464,12 +1464,12 @@ struct IpDhcpClientOptions {
  * Service definition for @ref IpDhcpClient.
  * 
  * The template parameters of this class are static configuration. After these
- * are defined, use @ref APRINTER_MAKE_INSTANCE with @ref Compose to obtain the
+ * are defined, use @ref AIPSTACK_MAKE_INSTANCE with @ref Compose to obtain the
  * @ref IpDhcpClient class type, like this:
  * 
  * @code
  * using MyDhcpClientService = AIpStack::IpDhcpClientService<...>;
- * APRINTER_MAKE_INSTANCE(MyDhcpClient, (MyDhcpClientService::template Compose<
+ * AIPSTACK_MAKE_INSTANCE(MyDhcpClient, (MyDhcpClientService::template Compose<
  *     PlatformImpl, MyIpStack>))
  * MyDhcpClient dhcp_client(...);
  * @endcode
@@ -1502,7 +1502,7 @@ class IpDhcpClientService {
     
 public:
     /**
-     * Template for use with @ref APRINTER_MAKE_INSTANCE to get an @ref IpDhcpClient type.
+     * Template for use with @ref AIPSTACK_MAKE_INSTANCE to get an @ref IpDhcpClient type.
      * 
      * See @ref IpDhcpClientService for an example of instantiating the @ref IpDhcpClient.
      * 
@@ -1516,7 +1516,7 @@ public:
         using PlatformImpl = PlatformImpl_;
         using IpStack = IpStack_;
         using Params = IpDhcpClientService;
-        APRINTER_DEF_INSTANCE(Compose, IpDhcpClient)        
+        AIPSTACK_DEF_INSTANCE(Compose, IpDhcpClient)        
 #endif
     };
 };

@@ -25,8 +25,8 @@
 #ifndef AIPSTACK_INSTANTIATE_VARIADIC_H
 #define AIPSTACK_INSTANTIATE_VARIADIC_H
 
-#include <aprinter/meta/TypeSequence.h>
-#include <aprinter/meta/TypeSequenceFromList.h>
+#include <aipstack/meta/TypeSequence.h>
+#include <aipstack/meta/TypeSequenceFromList.h>
 
 namespace AIpStack {
 
@@ -34,13 +34,13 @@ template <template<typename...> class Template, typename Sequence>
 struct InstantiateVariadicHelper;
 
 template <template<typename...> class Template, typename... Args>
-struct InstantiateVariadicHelper<Template, APrinter::TypeSequence<Args...>> {
+struct InstantiateVariadicHelper<Template, TypeSequence<Args...>> {
     using Result = Template<Args...>;
 };
 
 template <template<typename...> class Template, typename List>
 using InstantiateVariadic = typename InstantiateVariadicHelper<
-    Template, APrinter::TypeSequenceFromList<List>>::Result;
+    Template, TypeSequenceFromList<List>>::Result;
 
 }
 

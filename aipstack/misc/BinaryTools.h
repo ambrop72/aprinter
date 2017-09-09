@@ -30,7 +30,7 @@
 #include <type_traits>
 #include <limits>
 
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/Hints.h>
 
 namespace AIpStack {
 
@@ -75,7 +75,7 @@ namespace BinaryToolsPrivate {
         static_assert(Bits % 8 == 0, "");
         static int const Bytes = Bits / 8;
         
-        AMBRO_ALWAYS_INLINE APRINTER_UNROLL_LOOPS
+        AIPSTACK_ALWAYS_INLINE AIPSTACK_UNROLL_LOOPS
         static T readInt (char const *src)
         {
             T val = 0;
@@ -93,7 +93,7 @@ namespace BinaryToolsPrivate {
         static_assert(Bits % 8 == 0, "");
         static int const Bytes = Bits / 8;
         
-        AMBRO_ALWAYS_INLINE APRINTER_UNROLL_LOOPS
+        AIPSTACK_ALWAYS_INLINE AIPSTACK_UNROLL_LOOPS
         static void writeInt (T value, char *dst)
         {
             for (int i = 0; i < Bytes; i++) {
@@ -129,7 +129,7 @@ namespace BinaryToolsPrivate {
     
     template <bool BigEndian>
     struct ReadUnsigned<uint32_t, BigEndian> {
-        AMBRO_ALWAYS_INLINE
+        AIPSTACK_ALWAYS_INLINE
         static uint32_t readInt (char const *src)
         {
             uint32_t w;
@@ -140,7 +140,7 @@ namespace BinaryToolsPrivate {
     
     template <bool BigEndian>
     struct WriteUnsigned<uint32_t, BigEndian> {
-        AMBRO_ALWAYS_INLINE
+        AIPSTACK_ALWAYS_INLINE
         static void writeInt (uint32_t value, char *dst)
         {
             uint32_t w = BigEndian != AIPSTACK_BINARYTOOLS_BIG_ENDIAN ? __builtin_bswap32(value) : value;
@@ -150,7 +150,7 @@ namespace BinaryToolsPrivate {
     
     template <bool BigEndian>
     struct ReadUnsigned<uint16_t, BigEndian> {
-        AMBRO_ALWAYS_INLINE
+        AIPSTACK_ALWAYS_INLINE
         static uint16_t readInt (char const *src)
         {
             uint16_t w;
@@ -161,7 +161,7 @@ namespace BinaryToolsPrivate {
     
     template <bool BigEndian>
     struct WriteUnsigned<uint16_t, BigEndian> {
-        AMBRO_ALWAYS_INLINE
+        AIPSTACK_ALWAYS_INLINE
         static void writeInt (uint16_t value, char *dst)
         {
             uint16_t w = BigEndian != AIPSTACK_BINARYTOOLS_BIG_ENDIAN ? __builtin_bswap16(value) : value;

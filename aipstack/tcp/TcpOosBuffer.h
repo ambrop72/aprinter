@@ -22,18 +22,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_TCP_OOS_BUFFER_H
-#define APRINTER_IPSTACK_TCP_OOS_BUFFER_H
+#ifndef AIPSTACK_TCP_OOS_BUFFER_H
+#define AIPSTACK_TCP_OOS_BUFFER_H
 
 #include <stdint.h>
 #include <stddef.h>
 
 #include <algorithm>
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/meta/ChooseInt.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/common/Options.h>
 #include <aipstack/tcp/TcpUtils.h>
@@ -51,11 +51,11 @@ namespace AIpStack {
 template <typename Arg>
 class TcpOosBuffer
 {
-    APRINTER_USE_TYPES1(TcpUtils, (SeqType))
-    APRINTER_USE_VALS(TcpUtils, (seq_diff, seq_add, seq_lte, seq_lt))
+    AIPSTACK_USE_TYPES1(TcpUtils, (SeqType))
+    AIPSTACK_USE_VALS(TcpUtils, (seq_diff, seq_add, seq_lte, seq_lt))
     
     static_assert(Arg::NumOosSegs > 0, "");
-    using IndexType = APrinter::ChooseIntForMax<Arg::NumOosSegs, false>;
+    using IndexType = ChooseIntForMax<Arg::NumOosSegs, false>;
     static IndexType const NumOosSegs = Arg::NumOosSegs;
     
     // Represents one contiguous region of buffered data or
@@ -240,7 +240,7 @@ public:
                 // seg_end > [pos].start - 1 which is equivalent to the consistency
                 // check (A) assuming [pos] is the FIN, therefore the check would
                 // have failed and we wouldn't be here.
-                AMBRO_ASSERT(!m_ooseq[pos].isFin())
+                AIPSTACK_ASSERT(!m_ooseq[pos].isFin())
                 
                 // Extend the existing segment to the left if needed.
                 if (seq_lt(seg_start, m_ooseq[pos].start, rcv_nxt)) {
@@ -261,7 +261,7 @@ public:
                     {
                         // Segment at [merge_pos] cannot be a FIN, for similar reasons that
                         // [pos] could not be above.
-                        AMBRO_ASSERT(!m_ooseq[merge_pos].isFin())
+                        AIPSTACK_ASSERT(!m_ooseq[merge_pos].isFin())
                         
                         // If the extended segment [pos] extends no more than to the end of
                         // [merge_pos], then [merge_pos] is the last segment to be merged.
@@ -304,7 +304,7 @@ public:
         if (num_ooseq < NumOosSegs) {
             m_ooseq[num_ooseq] = OosSeg::MakeEnd();
         }
-        AMBRO_ASSERT(num_ooseq == count_ooseq())
+        AIPSTACK_ASSERT(num_ooseq == count_ooseq())
         
         return true;
     }
@@ -341,7 +341,7 @@ public:
             // The next segment is not supposed to have any data that we
             // could immediately consume since there are always gaps
             // between segments.
-            AMBRO_ASSERT(m_ooseq[0].isEndOrFin() ||
+            AIPSTACK_ASSERT(m_ooseq[0].isEndOrFin() ||
                          !seq_lte(m_ooseq[0].start, seq_end, rcv_nxt))
         } else {
             // Not returning any data.
@@ -379,7 +379,7 @@ class TcpOosBufferService {
     AIPSTACK_OPTION_CONFIG_VALUE(TcpOosBufferServiceOptions, NumOosSegs)
 
 public:
-    APRINTER_DEF_INSTANCE(TcpOosBufferService, TcpOosBuffer)
+    AIPSTACK_DEF_INSTANCE(TcpOosBufferService, TcpOosBuffer)
 };
 
 }

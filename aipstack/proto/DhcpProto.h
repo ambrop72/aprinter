@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_DHCP_PROTO_H
-#define APRINTER_IPSTACK_DHCP_PROTO_H
+#ifndef AIPSTACK_DHCP_PROTO_H
+#define AIPSTACK_DHCP_PROTO_H
 
 #include <stdint.h>
 
@@ -84,7 +84,7 @@ enum class DhcpMessageType : uint8_t {
     Release = 7,
 };
 
-APRINTER_TSTRUCT(DhcpHeader1,
+AIPSTACK_DEFINE_STRUCT(DhcpHeader1,
     (DhcpOp,      AIpStack::DhcpOp)
     (DhcpHtype,   DhcpHwAddrType)
     (DhcpHlen,    uint8_t)
@@ -99,43 +99,43 @@ APRINTER_TSTRUCT(DhcpHeader1,
     (DhcpChaddr,  StructByteArray<16>)
 )
 
-APRINTER_TSTRUCT(DhcpHeader2,
+AIPSTACK_DEFINE_STRUCT(DhcpHeader2,
     (DhcpSname,   StructByteArray<64>)
     (DhcpFile,    StructByteArray<128>)
 )
 
-APRINTER_TSTRUCT(DhcpHeader3,
+AIPSTACK_DEFINE_STRUCT(DhcpHeader3,
     (DhcpMagic,   uint32_t)
 )
 
 static size_t const DhcpHeaderSize = DhcpHeader1::Size + DhcpHeader2::Size + DhcpHeader3::Size;
 
-APRINTER_TSTRUCT(DhcpOptionHeader,
+AIPSTACK_DEFINE_STRUCT(DhcpOptionHeader,
     (OptType,     DhcpOptionType)
     (OptLen,      uint8_t)
 )
 
-APRINTER_TSTRUCT(DhcpOptMsgType,
+AIPSTACK_DEFINE_STRUCT(DhcpOptMsgType,
     (MsgType,     DhcpMessageType)
 )
 
-APRINTER_TSTRUCT(DhcpOptMaxMsgSize,
+AIPSTACK_DEFINE_STRUCT(DhcpOptMaxMsgSize,
     (MaxMsgSize,  uint16_t)
 )
 
-APRINTER_TSTRUCT(DhcpOptServerId,
+AIPSTACK_DEFINE_STRUCT(DhcpOptServerId,
     (ServerId,    uint32_t)
 )
 
-APRINTER_TSTRUCT(DhcpOptTime,
+AIPSTACK_DEFINE_STRUCT(DhcpOptTime,
     (Time,        uint32_t)
 )
 
-APRINTER_TSTRUCT(DhcpOptAddr,
+AIPSTACK_DEFINE_STRUCT(DhcpOptAddr,
     (Addr,        Ip4Addr)
 )
 
-APRINTER_TSTRUCT(DhcpOptOptionOverload,
+AIPSTACK_DEFINE_STRUCT(DhcpOptOptionOverload,
     (Overload,    DhcpOptionOverload)
 )
 

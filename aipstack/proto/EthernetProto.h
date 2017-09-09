@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ETHERNET_PROTO_H
-#define APRINTER_IPSTACK_ETHERNET_PROTO_H
+#ifndef AIPSTACK_ETHERNET_PROTO_H
+#define AIPSTACK_ETHERNET_PROTO_H
 
 #include <stdint.h>
 
@@ -54,7 +54,7 @@ public:
     }
 };
 
-APRINTER_TSTRUCT(EthHeader,
+AIPSTACK_DEFINE_STRUCT(EthHeader,
     (DstMac,  MacAddr)
     (SrcMac,  MacAddr)
     (EthType, uint16_t)

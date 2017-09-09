@@ -25,11 +25,11 @@
 #ifndef AIPSTACK_MULTI_TIMER_H
 #define AIPSTACK_MULTI_TIMER_H
 
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/ListForEach.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
+#include <aipstack/meta/ChooseInt.h>
+#include <aipstack/meta/TypeListUtils.h>
+#include <aipstack/meta/ListForEach.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
 
 #include <aipstack/platform/PlatformFacade.h>
 
@@ -39,7 +39,7 @@ template <typename PlatformImpl, typename MT, typename TimerId>
 class MultiTimerOne
 {
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType))
     
 public:
     // WARNING: After calling any function which adjusts the timer state and
@@ -92,17 +92,17 @@ class MultiTimer :
     friend class MultiTimerOne;
     
     using Platform = PlatformFacade<PlatformImpl>;
-    APRINTER_USE_TYPES1(Platform, (TimeType, Timer))
+    AIPSTACK_USE_TYPES1(Platform, (TimeType, Timer))
     
     static int const NumTimers = sizeof...(TimerIds);
-    using TimerIdsList = APrinter::MakeTypeList<TimerIds...>;
+    using TimerIdsList = MakeTypeList<TimerIds...>;
     
-    using StateType = APrinter::ChooseInt<NumTimers + 1, false>;
+    using StateType = ChooseInt<NumTimers + 1, false>;
     
     template <typename TimerId>
     static constexpr int TimerIndex (TimerId)
     {
-        return APrinter::TypeListIndex<TimerIdsList, TimerId>::Value;
+        return TypeListIndex<TimerIdsList, TimerId>::Value;
     }
     
     template <typename TimerId>
@@ -156,7 +156,7 @@ private:
         state &= ~DirtyBit;
         m_state = state;
         
-        if (AMBRO_UNLIKELY(state == 0)) {
+        if (AIPSTACK_UNLIKELY(state == 0)) {
             // No user timer is set, unset the underlying timer.
             Timer::unset();
             return;
@@ -173,7 +173,7 @@ private:
         TimeType min_time_rel = (TimeType)-1;
         
         // Go through all timers to find the minimum time.
-        APrinter::ListFor<TimerIdsList>([&] APRINTER_TL(TimerId, {
+        ListFor<TimerIdsList>([&] AIPSTACK_TL(TimerId, {
             if ((state & MultiTimer::TimerBit(TimerId())) != 0) {
                 TimeType time_rel = m_times[MultiTimer::TimerIndex(TimerId())] - ref_time;
                 if (time_rel < min_time_rel) {
@@ -190,11 +190,11 @@ private:
     void handleTimerExpired () override final
     {
         // Any delayed update must have been applied before returning to event loop.
-        AMBRO_ASSERT((m_state & DirtyBit) == 0)
+        AIPSTACK_ASSERT((m_state & DirtyBit) == 0)
         
         TimeType set_time = Timer::getSetTime();
         
-        bool not_handled = APrinter::ListForBreak<TimerIdsList>([&] APRINTER_TL(TimerId,
+        bool not_handled = ListForBreak<TimerIdsList>([&] AIPSTACK_TL(TimerId,
         {
             if ((m_state & MultiTimer::TimerBit(TimerId())) != 0 &&
                 m_times[MultiTimer::TimerIndex(TimerId())] == set_time)
@@ -209,7 +209,7 @@ private:
             return true;
         }));
         
-        AMBRO_ASSERT(!not_handled)
+        AIPSTACK_ASSERT(!not_handled)
     }
 };
 

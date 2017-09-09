@@ -25,20 +25,20 @@
 #ifndef AIPSTACK_MRU_LIST_INDEX_H
 #define AIPSTACK_MRU_LIST_INDEX_H
 
-#include <aprinter/meta/Instance.h>
-#include <aprinter/base/Accessor.h>
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/structure/LinkedList.h>
+#include <aipstack/meta/Instance.h>
+#include <aipstack/misc/Accessor.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/structure/LinkedList.h>
 
 namespace AIpStack {
 
 template <typename Arg>
 class MruListIndex {
-    APRINTER_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
+    AIPSTACK_USE_TYPES1(Arg, (HookAccessor, LookupKeyArg, KeyFuncs, LinkModel))
     
-    APRINTER_USE_TYPES1(LinkModel, (State, Ref))
+    AIPSTACK_USE_TYPES1(LinkModel, (State, Ref))
     
-    using ListNode = APrinter::LinkedListNode<LinkModel>;
+    using ListNode = LinkedListNode<LinkModel>;
     
 public:
     class Node {
@@ -48,11 +48,11 @@ public:
     };
     
     class Index {
-        using ListNodeAccessor = APrinter::ComposedAccessor<
+        using ListNodeAccessor = ComposedAccessor<
             HookAccessor,
-            APRINTER_MEMBER_ACCESSOR_TN(&Node::list_node)
+            AIPSTACK_MEMBER_ACCESSOR_TN(&Node::list_node)
         >;
-        using EntryList = APrinter::LinkedList<ListNodeAccessor, LinkModel, false>;
+        using EntryList = LinkedList<ListNodeAccessor, LinkModel, false>;
         
     public:
         inline void init ()
@@ -107,7 +107,7 @@ struct MruListIndexService {
         using LookupKeyArg = LookupKeyArg_;
         using KeyFuncs = KeyFuncs_;
         using LinkModel = LinkModel_;
-        APRINTER_DEF_INSTANCE(Index, MruListIndex)
+        AIPSTACK_DEF_INSTANCE(Index, MruListIndex)
     };
 };
 

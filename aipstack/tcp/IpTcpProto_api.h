@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_IP_TCP_PROTO_API_H
-#define APRINTER_IPSTACK_IP_TCP_PROTO_API_H
+#ifndef AIPSTACK_IP_TCP_PROTO_API_H
+#define AIPSTACK_IP_TCP_PROTO_API_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -32,9 +32,9 @@
 #include <limits>
 #include <type_traits>
 
-#include <aprinter/base/Preprocessor.h>
-#include <aprinter/base/Assert.h>
-#include <aprinter/structure/LinkedList.h>
+#include <aipstack/misc/Preprocessor.h>
+#include <aipstack/misc/Assert.h>
+#include <aipstack/structure/LinkedList.h>
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Err.h>
@@ -54,9 +54,9 @@ template <typename> class IpTcpProto_output;
 template <typename TcpProto>
 class IpTcpProto_api
 {
-    APRINTER_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
-    APRINTER_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
-    APRINTER_USE_TYPES1(TcpProto, (TcpPcb, Input, Output, Constants, MtuRef, OosBuffer,
+    AIPSTACK_USE_TYPES1(TcpUtils, (TcpState, PortType, SeqType))
+    AIPSTACK_USE_VALS(TcpUtils, (state_is_active, snd_open_in_state))
+    AIPSTACK_USE_TYPES1(TcpProto, (TcpPcb, Input, Output, Constants, MtuRef, OosBuffer,
                                    RttType))
     
 public:
@@ -150,7 +150,7 @@ public:
          */
         TcpProto & getTcp ()
         {
-            AMBRO_ASSERT(isListening())
+            AIPSTACK_ASSERT(isListening())
             
             return *m_tcp;
         }
@@ -165,9 +165,9 @@ public:
          */
         bool startListening (TcpProto *tcp, TcpListenParams const &params)
         {
-            AMBRO_ASSERT(!m_listening)
-            AMBRO_ASSERT(tcp != nullptr)
-            AMBRO_ASSERT(params.max_pcbs > 0)
+            AIPSTACK_ASSERT(!m_listening)
+            AIPSTACK_ASSERT(tcp != nullptr)
+            AIPSTACK_ASSERT(params.max_pcbs > 0)
             
             // Check if there is an existing listener listning on this address+port.
             if (tcp->find_listener(params.addr, params.port) != nullptr) {
@@ -219,7 +219,7 @@ public:
         virtual void connectionEstablished () = 0;
         
     private:
-        APrinter::LinkedListNode<typename TcpProto::ListenerLinkModel> m_listeners_node;
+        LinkedListNode<typename TcpProto::ListenerLinkModel> m_listeners_node;
         TcpProto *m_tcp;
         SeqType m_initial_rcv_wnd;
         TcpPcb *m_accept_pcb;
@@ -301,9 +301,9 @@ public:
         IpErr acceptConnection (TcpListener *lis)
         {
             assert_init();
-            AMBRO_ASSERT(lis->m_accept_pcb != nullptr)
-            AMBRO_ASSERT(lis->m_accept_pcb->state == TcpState::SYN_RCVD)
-            AMBRO_ASSERT(lis->m_accept_pcb->lis == lis)
+            AIPSTACK_ASSERT(lis->m_accept_pcb != nullptr)
+            AIPSTACK_ASSERT(lis->m_accept_pcb->state == TcpState::SYN_RCVD)
+            AIPSTACK_ASSERT(lis->m_accept_pcb->lis == lis)
             
             TcpPcb *pcb = lis->m_accept_pcb;
             TcpProto *tcp = pcb->tcp;
@@ -318,7 +318,7 @@ public:
             lis->m_accept_pcb = nullptr;
             
             // Decrement the listener's PCB count.
-            AMBRO_ASSERT(lis->m_num_pcbs > 0)
+            AIPSTACK_ASSERT(lis->m_num_pcbs > 0)
             lis->m_num_pcbs--;
             
             // Note that the PCB has already been removed from the list of
@@ -370,8 +370,8 @@ public:
             }
             
             // Remember the PCB (the link to us already exists).
-            AMBRO_ASSERT(pcb != nullptr)
-            AMBRO_ASSERT(pcb->con == this)
+            AIPSTACK_ASSERT(pcb != nullptr)
+            AIPSTACK_ASSERT(pcb->con == this)
             m_v.pcb = pcb;
             
             // Initialize TcpConnection variables, set STARTED flag.
@@ -430,7 +430,7 @@ public:
          */
         TcpProto & getTcp ()
         {
-            AMBRO_ASSERT(isConnected())
+            AIPSTACK_ASSERT(isConnected())
             
             return *m_v.pcb->tcp;
         }
@@ -446,8 +446,8 @@ public:
         void setWindowUpdateThreshold (SeqType rcv_ann_thres)
         {
             assert_started();
-            AMBRO_ASSERT(rcv_ann_thres > 0)
-            AMBRO_ASSERT(rcv_ann_thres <= Constants::MaxWindow)
+            AIPSTACK_ASSERT(rcv_ann_thres > 0)
+            AIPSTACK_ASSERT(rcv_ann_thres <= Constants::MaxWindow)
             
             m_v.rcv_ann_thres = rcv_ann_thres;
         }
@@ -467,11 +467,11 @@ public:
             // In SYN_SENT we subtract one because one was added
             // by create_connection for receiving the SYN.
             if (m_v.pcb->state == TcpState::SYN_SENT) {
-                AMBRO_ASSERT(ann_wnd > 0)
+                AIPSTACK_ASSERT(ann_wnd > 0)
                 ann_wnd--;
             }
             
-            AMBRO_ASSERT(ann_wnd <= std::numeric_limits<size_t>::max())
+            AIPSTACK_ASSERT(ann_wnd <= std::numeric_limits<size_t>::max())
             return ann_wnd;
         }
         
@@ -488,7 +488,7 @@ public:
         void setRecvBuf (IpBufRef rcv_buf)
         {
             assert_started();
-            AMBRO_ASSERT(rcv_buf.tot_len >= m_v.rcv_buf.tot_len)
+            AIPSTACK_ASSERT(rcv_buf.tot_len >= m_v.rcv_buf.tot_len)
             
             // Set the receive buffer.
             m_v.rcv_buf = rcv_buf;
@@ -506,7 +506,7 @@ public:
         void extendRecvBuf (size_t amount)
         {
             assert_started();
-            AMBRO_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.rcv_buf.tot_len)
+            AIPSTACK_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.rcv_buf.tot_len)
             
             // Extend the receive buffer.
             m_v.rcv_buf.tot_len += amount;
@@ -572,8 +572,8 @@ public:
         void setSendBuf (IpBufRef snd_buf)
         {
             assert_sending();
-            AMBRO_ASSERT(m_v.snd_buf.tot_len == 0)
-            AMBRO_ASSERT(m_v.snd_buf_cur.tot_len == 0)
+            AIPSTACK_ASSERT(m_v.snd_buf.tot_len == 0)
+            AIPSTACK_ASSERT(m_v.snd_buf_cur.tot_len == 0)
             
             // Set the send buffer.
             m_v.snd_buf = snd_buf;
@@ -582,7 +582,7 @@ public:
             // same as we don't allow calling this with nonempty snd_buf.
             m_v.snd_buf_cur = snd_buf;
             
-            if (AMBRO_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
+            if (AIPSTACK_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_v.pcb);
             }
@@ -596,8 +596,8 @@ public:
         void extendSendBuf (size_t amount)
         {
             assert_sending();
-            AMBRO_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.snd_buf.tot_len)
-            AMBRO_ASSERT(m_v.snd_buf_cur.tot_len <= m_v.snd_buf.tot_len)
+            AIPSTACK_ASSERT(amount <= std::numeric_limits<size_t>::max() - m_v.snd_buf.tot_len)
+            AIPSTACK_ASSERT(m_v.snd_buf_cur.tot_len <= m_v.snd_buf.tot_len)
             
             // Increment the amount of data in the send buffer.
             m_v.snd_buf.tot_len += amount;
@@ -605,7 +605,7 @@ public:
             // Also adjust snd_buf_cur.
             m_v.snd_buf_cur.tot_len += amount;
         
-            if (AMBRO_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
+            if (AIPSTACK_LIKELY(m_v.pcb != nullptr && m_v.snd_buf.tot_len > 0)) {
                 // Inform the output code, so it may send the data.
                 Output::pcb_snd_buf_extended(m_v.pcb);
             }
@@ -730,31 +730,31 @@ public:
     private:
         void assert_init ()
         {
-            AMBRO_ASSERT(!m_v.started && !m_v.snd_closed &&
+            AIPSTACK_ASSERT(!m_v.started && !m_v.snd_closed &&
                          !m_v.end_sent && !m_v.end_received)
-            AMBRO_ASSERT(m_v.pcb == nullptr)
+            AIPSTACK_ASSERT(m_v.pcb == nullptr)
         }
         
         void assert_started ()
         {
-            AMBRO_ASSERT(m_v.started)
-            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
+            AIPSTACK_ASSERT(m_v.started)
+            AIPSTACK_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
                 state_is_active(m_v.pcb->state))
-            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->con == this)
-            AMBRO_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
+            AIPSTACK_ASSERT(m_v.pcb == nullptr || m_v.pcb->con == this)
+            AIPSTACK_ASSERT(m_v.pcb == nullptr || m_v.pcb->state == TcpState::SYN_SENT ||
                 snd_open_in_state(m_v.pcb->state) == !m_v.snd_closed)
         }
         
         void assert_connected ()
         {
             assert_started();
-            AMBRO_ASSERT(m_v.pcb != nullptr)
+            AIPSTACK_ASSERT(m_v.pcb != nullptr)
         }
         
         void assert_sending ()
         {
             assert_started();
-            AMBRO_ASSERT(!m_v.snd_closed)
+            AIPSTACK_ASSERT(!m_v.snd_closed)
         }
         
         void setup_common_started ()
@@ -810,8 +810,8 @@ public:
         void data_sent (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT(!m_v.end_sent)
-            AMBRO_ASSERT(amount > 0)
+            AIPSTACK_ASSERT(!m_v.end_sent)
+            AIPSTACK_ASSERT(amount > 0)
             
             // Call the application callback.
             dataSent(amount);
@@ -820,8 +820,8 @@ public:
         void end_sent ()
         {
             assert_connected();
-            AMBRO_ASSERT(!m_v.end_sent)
-            AMBRO_ASSERT(m_v.snd_closed)
+            AIPSTACK_ASSERT(!m_v.end_sent)
+            AIPSTACK_ASSERT(m_v.snd_closed)
             
             // Remember that end was sent.
             m_v.end_sent = true;
@@ -833,8 +833,8 @@ public:
         void data_received (size_t amount)
         {
             assert_connected();
-            AMBRO_ASSERT(!m_v.end_received)
-            AMBRO_ASSERT(amount > 0)
+            AIPSTACK_ASSERT(!m_v.end_received)
+            AIPSTACK_ASSERT(amount > 0)
             
             // Call the application callback.
             dataReceived(amount);
@@ -843,7 +843,7 @@ public:
         void end_received ()
         {
             assert_connected();
-            AMBRO_ASSERT(!m_v.end_received)
+            AIPSTACK_ASSERT(!m_v.end_received)
             
             // Remember that end was received.
             m_v.end_received = true;
