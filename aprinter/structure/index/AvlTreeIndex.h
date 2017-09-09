@@ -25,7 +25,7 @@
 #ifndef APRINTER_AVL_TREE_INDEX_H
 #define APRINTER_AVL_TREE_INDEX_H
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/Assert.h>
@@ -101,14 +101,15 @@ public:
 };
 
 struct AvlTreeIndexService {
-    APRINTER_ALIAS_STRUCT_EXT(Index, (
-        APRINTER_AS_TYPE(HookAccessor),
-        APRINTER_AS_TYPE(LookupKeyArg),
-        APRINTER_AS_TYPE(KeyFuncs),
-        APRINTER_AS_TYPE(LinkModel)
-    ), (
+    template <typename HookAccessor_, typename LookupKeyArg_,
+              typename KeyFuncs_, typename LinkModel_>
+    struct Index {
+        using HookAccessor = HookAccessor_;
+        using LookupKeyArg = LookupKeyArg_;
+        using KeyFuncs = KeyFuncs_;
+        using LinkModel = LinkModel_;
         APRINTER_DEF_INSTANCE(Index, AvlTreeIndex)
-    ))
+    };
 };
 
 }

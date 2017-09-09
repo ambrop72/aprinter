@@ -1344,6 +1344,7 @@ def setup_network(gen, config, key):
     def option(network_config):
         gen.add_aprinter_include('net/IpStackNetwork.h')
         gen.add_include('aipstack/ip/IpReassembly.h')
+        gen.add_include('aipstack/ip/IpPathMtuCache.h')
         
         num_arp_entries = network_config.get_int('NumArpEntries')
         if not 4 <= num_arp_entries <= 128:
@@ -1394,16 +1395,17 @@ def setup_network(gen, config, key):
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
             num_arp_entries,
             arp_protect_count,
-            TemplateExpr('AIpStack::IpPathMtuParams', [
-                'IpStackNumMtuEntries',
-                mtu_timeout_minutes,
-                get_ip_index(gen, network_config, 'MtuIndexService'),
+            TemplateExpr('AIpStack::IpPathMtuCacheService', [
+                'AIpStack::IpPathMtuCacheOptions::NumMtuEntries::Is<{}>'.format('IpStackNumMtuEntries'),
+                'AIpStack::IpPathMtuCacheOptions::MtuTimeoutMinutes::Is<{}>'.format(mtu_timeout_minutes),
+                'AIpStack::IpPathMtuCacheOptions::MtuIndexService::Is<{}>'.format(
+                    get_ip_index(gen, network_config, 'MtuIndexService')),
             ]),
             TemplateExpr('AIpStack::IpReassemblyService', [
-                max_reass_packets,
-                max_reass_size,
-                max_reass_holes,
-                max_reass_time_sec,
+                'AIpStack::IpReassemblyOptions::MaxReassEntrys::Is<{}>'.format(max_reass_packets),
+                'AIpStack::IpReassemblyOptions::MaxReassSize::Is<{}>'.format(max_reass_size),
+                'AIpStack::IpReassemblyOptions::MaxReassHoles::Is<{}>'.format(max_reass_holes),
+                'AIpStack::IpReassemblyOptions::MaxReassTimeSeconds::Is<{}>'.format(max_reass_time_sec),
             ]),
             num_tcp_pcbs,
             num_oos_segs,

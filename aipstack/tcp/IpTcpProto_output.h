@@ -1316,7 +1316,7 @@ private:
     static IpErr send_tcp_nodata (
         TcpProto *tcp, PcbKey const &key, SeqType seq_num, SeqType ack_num,
         uint16_t window_size, FlagsType flags, TcpOptions *opts,
-        IpSendRetry::Request *retryReq)
+        IpSendRetryRequest *retryReq)
     {
         // Compute length of TCP options.
         uint8_t opts_len = (opts != nullptr) ? TcpUtils::calc_options_len(*opts) : 0;

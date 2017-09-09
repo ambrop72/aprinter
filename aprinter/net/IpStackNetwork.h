@@ -158,23 +158,21 @@ private:
     using Platform = AIpStack::PlatformFacade<PlatformImpl>;
     
     using TheIpTcpProtoService = AIpStack::IpTcpProtoService<
-        IpTTL,
-        NumTcpPcbs,
-        NumOosSegs,
-        49152, // EphemeralPortFirst
-        65535, // EphemeralPortLast
-        PcbIndexService,
-        LinkWithArrayIndices
+        AIpStack::IpTcpProtoOptions::TcpTTL::Is<IpTTL>,
+        AIpStack::IpTcpProtoOptions::NumTcpPcbs::Is<NumTcpPcbs>,
+        AIpStack::IpTcpProtoOptions::NumOosSegs::Is<NumOosSegs>,
+        AIpStack::IpTcpProtoOptions::PcbIndexService::Is<PcbIndexService>,
+        AIpStack::IpTcpProtoOptions::LinkWithArrayIndices::Is<LinkWithArrayIndices>
     >;
     
     using ProtocolServicesList = APrinter::MakeTypeList<TheIpTcpProtoService>;
     
     using TheIpStackService = AIpStack::IpStackService<
-        EthHeader::Size, // HeaderBeforeIp
-        IpTTL,           // IcmpTTL
-        AllowBroadcastPing,
-        typename Arg::Params::PathMtuParams,
-        typename Arg::Params::ReassemblyService
+        AIpStack::IpStackOptions::HeaderBeforeIp::Is<EthHeader::Size>,
+        AIpStack::IpStackOptions::IcmpTTL::Is<IpTTL>,
+        AIpStack::IpStackOptions::AllowBroadcastPing::Is<AllowBroadcastPing>,
+        AIpStack::IpStackOptions::PathMtuCacheService::Is<typename Arg::Params::PathMtuCacheService>,
+        AIpStack::IpStackOptions::ReassemblyService::Is<typename Arg::Params::ReassemblyService>
     >;
     APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<
         PlatformImpl, ProtocolServicesList>))
@@ -188,16 +186,14 @@ private:
     APRINTER_MAKE_INSTANCE(TheEthernet, (EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>))
     
     using TheEthIpIfaceService = AIpStack::EthIpIfaceService<
-        NumArpEntries,
-        ArpProtectCount,
-        0, // HeaderBeforeEth
-        ArpTableTimersStructureService
+        AIpStack::EthIpIfaceOptions::NumArpEntries::Is<NumArpEntries>,
+        AIpStack::EthIpIfaceOptions::ArpProtectCount::Is<ArpProtectCount>,
+        AIpStack::EthIpIfaceOptions::HeaderBeforeEth::Is<0>,
+        AIpStack::EthIpIfaceOptions::TimersStructureService::Is<ArpTableTimersStructureService>
     >;
     APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<PlatformImpl, Iface>))
     
-    using TheIpDhcpClientService = AIpStack::IpDhcpClientService<
-        AIpStack::IpDhcpClientDefaultConfig
-    >;
+    using TheIpDhcpClientService = AIpStack::IpDhcpClientService<>; // default config
     APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<PlatformImpl, TheIpStack>))
     
 public:
@@ -547,7 +543,7 @@ APRINTER_ALIAS_STRUCT_EXT(IpStackNetworkService, (
     APRINTER_AS_TYPE(EthernetService),
     APRINTER_AS_VALUE(int, NumArpEntries),
     APRINTER_AS_VALUE(int, ArpProtectCount),
-    APRINTER_AS_TYPE(PathMtuParams),
+    APRINTER_AS_TYPE(PathMtuCacheService),
     APRINTER_AS_TYPE(ReassemblyService),
     APRINTER_AS_VALUE(int, NumTcpPcbs),
     APRINTER_AS_VALUE(int, NumOosSegs),

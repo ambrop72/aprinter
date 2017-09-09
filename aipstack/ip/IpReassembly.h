@@ -30,7 +30,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
@@ -38,12 +38,15 @@
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
 #include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 template <typename Arg>
 class IpReassembly;
@@ -470,33 +473,65 @@ private:
     }
 };
 
+#endif
+
 /**
- * Service definition for @ref IpReassembly.
+ * Options for @ref IpReassemblyService.
+ */
+struct IpReassemblyOptions {
+    /**
+     * Maximum number of datagrams being reassembled. This affects memory use.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxReassEntrys, int, 1)
+    
+    /**
+     * Maximum size of reassembled datagrams. This affects memory use.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxReassSize, uint16_t, 1480)
+    
+    /**
+     * Maximum number of holes in an incompletely reassembled datagram.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxReassHoles, uint8_t, 10)
+    
+    /**
+     * Maximum allowed timeout of an incompletely reassembled datagram,
+     * as an additional restriction to the TTL seconds limit.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxReassTimeSeconds, uint8_t, 60)
+};
+
+/**
+ * Service definition for the IP Reassembly implementation.
  * 
  * An instantiation of this template must be passed to @ref IpStackService.
  * 
- * @tparam Param_MaxReassEntrys Maximum number of datagrams being reassembled.
- *         This affects memory use.
- * @tparam Param_MaxReassSize Maximum size of reassembled datagrams. This affects
- *         memory use.
- * @tparam Param_MaxReassHoles Maximum number of holes in an incompletely reassembled
- *         datagram.
- * @tparam Param_MaxReassTimeSeconds Maximum allowed timeout of an incompletely
- *         reassembled datagram (imposed on top of TTL seconds).
+ * The template parameters are assignments of options defined in
+ * @ref IpReassemblyOptions, for example:
+ * AIpStack::IpReassemblyOptions::MaxReassEntrys::Is\<5\>.
+ * 
+ * @tparam Options Assignments of options defined in @ref IpReassemblyOptions.
  */
-APRINTER_ALIAS_STRUCT_EXT(IpReassemblyService, (
-    APRINTER_AS_VALUE(int, MaxReassEntrys),
-    APRINTER_AS_VALUE(uint16_t, MaxReassSize),
-    APRINTER_AS_VALUE(uint8_t, MaxReassHoles),
-    APRINTER_AS_VALUE(uint8_t, MaxReassTimeSeconds)
-), (
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl)
-    ), (
+template <typename... Options>
+class IpReassemblyService {
+    template <typename>
+    friend class IpReassembly;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(IpReassemblyOptions, MaxReassEntrys)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpReassemblyOptions, MaxReassSize)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpReassemblyOptions, MaxReassHoles)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpReassemblyOptions, MaxReassTimeSeconds)
+    
+public:
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+    template <typename PlatformImpl_>
+    struct Compose {
+        using PlatformImpl = PlatformImpl_;
         using Params = IpReassemblyService;
-        APRINTER_DEF_INSTANCE(Compose, IpReassembly)
-    ))
-))
+        APRINTER_DEF_INSTANCE(Compose, IpReassembly)        
+    };
+#endif
+};
 
 }
 

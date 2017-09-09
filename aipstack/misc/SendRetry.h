@@ -29,62 +29,60 @@
 
 namespace AIpStack {
 
-class IpSendRetry {
-private:
-public:
-    class Request :
-        private APrinter::Observer<Request>
-    {
-        using BaseObserver = APrinter::Observer<Request>;
-        friend IpSendRetry;
-        friend APrinter::Observable<Request>;
-        
-    public:
-        inline bool isActive () const
-        {
-            return BaseObserver::isActive();
-        }
-        
-        inline void reset ()
-        {
-            BaseObserver::reset();
-        }
-        
-    protected:
-        virtual void retrySending () = 0;
-    };
+class IpSendRetryList;
+
+class IpSendRetryRequest :
+    private APrinter::Observer<IpSendRetryRequest>
+{
+    using BaseObserver = APrinter::Observer<IpSendRetryRequest>;
+    friend class IpSendRetryList;
+    friend APrinter::Observable<IpSendRetryRequest>;
     
-    class List :
-        private APrinter::Observable<Request>
+public:
+    inline bool isActive () const
     {
-        using BaseObservable = APrinter::Observable<Request>;
-        
-    public:
-        inline void reset ()
-        {
-            BaseObservable::reset();
+        return BaseObserver::isActive();
+    }
+    
+    inline void reset ()
+    {
+        BaseObserver::reset();
+    }
+    
+protected:
+    virtual void retrySending () = 0;
+};
+
+class IpSendRetryList :
+    private APrinter::Observable<IpSendRetryRequest>
+{
+    using BaseObservable = APrinter::Observable<IpSendRetryRequest>;
+    
+public:
+    inline void reset ()
+    {
+        BaseObservable::reset();
+    }
+    
+    inline bool hasRequests () const
+    {
+        return BaseObservable::hasObservers();
+    }
+    
+    void addRequest (IpSendRetryRequest *req)
+    {
+        if (req != nullptr) {
+            req->BaseObserver::reset();
+            BaseObservable::addObserver(*req);
         }
-        
-        inline bool hasRequests () const
-        {
-            return BaseObservable::hasObservers();
-        }
-        
-        void addRequest (Request *req)
-        {
-            if (req != nullptr) {
-                req->BaseObserver::reset();
-                BaseObservable::addObserver(*req);
-            }
-        }
-        
-        void dispatchRequests ()
-        {
-            BaseObservable::notifyRemoveObservers([&](Request &request) {
-                request.retrySending();
-            });
-        }
-    };
+    }
+    
+    void dispatchRequests ()
+    {
+        BaseObservable::notifyRemoveObservers([&](IpSendRetryRequest &request) {
+            request.retrySending();
+        });
+    }
 };
 
 }

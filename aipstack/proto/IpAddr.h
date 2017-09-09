@@ -202,8 +202,17 @@ public:
     }
 };
 
+/**
+ * A pair of local and remote IPv4 addresses.
+ */
 struct Ip4Addrs {
+    /**
+     * Local address.
+     */
     Ip4Addr local_addr;
+    /**
+     * Remote address.
+     */
     Ip4Addr remote_addr;
 };
 

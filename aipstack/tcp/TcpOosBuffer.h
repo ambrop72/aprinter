@@ -30,11 +30,12 @@
 
 #include <algorithm>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 
+#include <aipstack/misc/Options.h>
 #include <aipstack/tcp/TcpUtils.h>
 
 namespace AIpStack {
@@ -366,11 +367,20 @@ private:
     }
 };
 
-APRINTER_ALIAS_STRUCT_EXT(TcpOosBufferService, (
-    APRINTER_AS_VALUE(size_t, NumOosSegs)
-), (
+struct TcpOosBufferServiceOptions {
+    AIPSTACK_OPTION_DECL_VALUE(NumOosSegs, size_t, 4)
+};
+
+template <typename... Options>
+class TcpOosBufferService {
+    template <typename>
+    friend class TcpOosBuffer;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(TcpOosBufferServiceOptions, NumOosSegs)
+
+public:
     APRINTER_DEF_INSTANCE(TcpOosBufferService, TcpOosBuffer)
-))
+};
 
 }
 

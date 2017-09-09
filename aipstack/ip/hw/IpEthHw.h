@@ -92,7 +92,7 @@ public:
          */
         virtual IpErr sendArpQuery (Ip4Addr ip_addr) = 0;
         
-    private:
+    protected:
         /**
          * Return a reference to an observable which provides notification of
          * received ARP updates.
@@ -105,7 +105,6 @@ public:
          */
         virtual ArpObservable & getArpObservable () = 0;
         
-    protected:
         /**
          * Nofity one ARP observer; see @ref getArpObservable.
          * 
@@ -150,7 +149,7 @@ public:
             hw.getArpObservable().addObserver(*this);
         }
         
-    private:
+    protected:
         /**
          * Reports a single ARP update.
          * 

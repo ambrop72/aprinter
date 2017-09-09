@@ -31,7 +31,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/PowerOfTwo.h>
@@ -51,6 +51,7 @@
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
@@ -177,7 +178,10 @@ private:
     static PcbIndexType const PcbIndexNull = PcbIndexType(-1);
     
     // Instantiate the out-of-sequence buffering.
-    APRINTER_MAKE_INSTANCE(OosBuffer, (TcpOosBufferService<NumOosSegs>))
+    using OosBufferService = TcpOosBufferService<
+        TcpOosBufferServiceOptions::NumOosSegs::Is<NumOosSegs>
+    >;
+    APRINTER_MAKE_INSTANCE(OosBuffer, (OosBufferService))
     
     struct PcbLinkModel;
     
@@ -225,7 +229,7 @@ private:
      */
     struct TcpPcb :
         // Send retry request (inherited for efficiency).
-        public IpSendRetry::Request,
+        public IpSendRetryRequest,
         // PCB timers.
         public PcbMultiTimer,
         // Local/remote IP address and port
@@ -444,7 +448,7 @@ private:
         AMBRO_ASSERT(!pcb->tim(AbrtTimer()).isSet())
         AMBRO_ASSERT(!pcb->tim(OutputTimer()).isSet())
         AMBRO_ASSERT(!pcb->tim(RtxTimer()).isSet())
-        AMBRO_ASSERT(!pcb->IpSendRetry::Request::isActive())
+        AMBRO_ASSERT(!pcb->IpSendRetryRequest::isActive())
         AMBRO_ASSERT(pcb->tcp == this)
         AMBRO_ASSERT(pcb->state == TcpState::CLOSED)
         AMBRO_ASSERT(pcb->con == nullptr)
@@ -501,7 +505,7 @@ private:
         
         // Reset other relevant fields to initial state.
         pcb->PcbMultiTimer::unsetAll();
-        pcb->IpSendRetry::Request::reset();
+        pcb->IpSendRetryRequest::reset();
         pcb->state = TcpState::CLOSED;
         
         tcp->pcb_assert_closed(pcb);
@@ -918,26 +922,43 @@ private:
     struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
 };
 
-APRINTER_ALIAS_STRUCT_EXT(IpTcpProtoService, (
-    APRINTER_AS_VALUE(uint8_t, TcpTTL),
-    APRINTER_AS_VALUE(int, NumTcpPcbs),
-    APRINTER_AS_VALUE(uint8_t, NumOosSegs),
-    APRINTER_AS_VALUE(uint16_t, EphemeralPortFirst),
-    APRINTER_AS_VALUE(uint16_t, EphemeralPortLast),
-    APRINTER_AS_TYPE(PcbIndexService),
-    APRINTER_AS_VALUE(bool, LinkWithArrayIndices)
-), (
+struct IpTcpProtoOptions {
+    AIPSTACK_OPTION_DECL_VALUE(TcpTTL, uint8_t, 64)
+    AIPSTACK_OPTION_DECL_VALUE(NumTcpPcbs, int, 32)
+    AIPSTACK_OPTION_DECL_VALUE(NumOosSegs, uint8_t, 4)
+    AIPSTACK_OPTION_DECL_VALUE(EphemeralPortFirst, uint16_t, 49152)
+    AIPSTACK_OPTION_DECL_VALUE(EphemeralPortLast, uint16_t, 65535)
+    AIPSTACK_OPTION_DECL_TYPE(PcbIndexService, void)
+    AIPSTACK_OPTION_DECL_VALUE(LinkWithArrayIndices, bool, true)
+};
+
+template <typename... Options>
+class IpTcpProtoService {
+    template <typename>
+    friend class IpTcpProto;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, TcpTTL)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, NumTcpPcbs)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, NumOosSegs)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, EphemeralPortFirst)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, EphemeralPortLast)
+    AIPSTACK_OPTION_CONFIG_TYPE(IpTcpProtoOptions, PcbIndexService)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpTcpProtoOptions, LinkWithArrayIndices)
+    
     // This tells IpStack which IP protocol we receive packets for.
     using IpProtocolNumber = APrinter::WrapValue<uint8_t, Ip4ProtocolTcp>;
     
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(TheIpStack)
-    ), (
+public:
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+    template <typename PlatformImpl_, typename TheIpStack_>
+    struct Compose {
+        using PlatformImpl = PlatformImpl_;
+        using TheIpStack = TheIpStack_;
         using Params = IpTcpProtoService;
         APRINTER_DEF_INSTANCE(Compose, IpTcpProto)
-    ))
-))
+    };
+#endif
+};
 
 }
 

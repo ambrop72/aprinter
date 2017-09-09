@@ -28,7 +28,6 @@
 #include <type_traits>
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/Preprocessor.h>
@@ -288,9 +287,8 @@ private:
     };
 };
 
-APRINTER_ALIAS_STRUCT_EXT(TimerQueueService, (
-    APRINTER_AS_TYPE(TimersStructureService)
-), (
+template <typename TimersStructureService>
+struct TimerQueueService {
     template <typename LinkModel, typename TimeType, typename NodeUserData>
     using Node = TimerQueueNode<TimersStructureService, LinkModel, TimeType, NodeUserData>;
     
@@ -298,7 +296,7 @@ APRINTER_ALIAS_STRUCT_EXT(TimerQueueService, (
               typename TimeType, typename NodeUserData>
     using Queue = TimerQueue<TimersStructureService, LinkModel, Accessor,
                              TimeType, NodeUserData>;
-))
+};
 
 }
 

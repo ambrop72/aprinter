@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,10 +22,24 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_SERVICE_UTILS_H
-#define APRINTER_SERVICE_UTILS_H
+#ifndef APRINTER_INSTANCE_H
+#define APRINTER_INSTANCE_H
 
-#include <aprinter/meta/AliasStruct.h>
-#include <aprinter/meta/Instance.h>
+#define APRINTER_INSTANCE_REMOVE_PARENS(...) __VA_ARGS__
+
+/**
+ * Convenience macro for declaring the Instance template-alias
+ * in a service definition.
+ */
+#define APRINTER_DEF_INSTANCE(self, class) \
+template <typename Instance_self=self> \
+using Instance = class<Instance_self>;
+
+/**
+ * Convenience macro for instantiating a service instance.
+ */
+#define APRINTER_MAKE_INSTANCE(service_name, arg_expr_parens) \
+struct service_name##_arg : public APRINTER_INSTANCE_REMOVE_PARENS arg_expr_parens {}; \
+using service_name = typename service_name##_arg::template Instance<service_name##_arg>;
 
 #endif

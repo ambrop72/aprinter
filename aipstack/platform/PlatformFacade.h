@@ -37,6 +37,8 @@ namespace AIpStack {
 template <typename Impl>
 class PlatformFacade;
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+
 template <typename Impl, bool ImplIsStatic>
 struct PlatformRefBase {};
 
@@ -49,6 +51,8 @@ struct PlatformRefBase<Impl, false>
         m_platform_impl(impl)
     {}
 };
+
+#endif
 
 /**
  * A reference to the platform implementation.
@@ -334,7 +338,7 @@ public:
      * 
      * Note that directly using this class can often be problematic due to base
      * class ambiguity and the need to override virtual functions differently for
-     * different timers in the same class. The class @ref TimerWrapper and its
+     * different timers in the same class. The class TimerWrapper and its
      * associated macros can be used to work around such problems.
      */
     class Timer :
@@ -365,7 +369,7 @@ public:
          * Return the platform facade.
          * 
          * This function calls @ref PlatformImplStub::Timer::ref to obtain the
-         * @ref PlatformRef stored in the timer, calls @ref PlatformRef::platorm on
+         * @ref PlatformRef stored in the timer, calls @ref PlatformRef::platform on
          * that and returns the result.
          * 
          * @return The platform facade.
@@ -453,7 +457,7 @@ public:
         /**
          * Set the timer to expire now.
          * 
-         * This is equivalent to @ref setAfter(0).
+         * This is equivalent to @ref setAfter ""(0).
          */
         inline void setNow ()
         {

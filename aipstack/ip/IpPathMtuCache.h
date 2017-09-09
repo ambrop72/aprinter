@@ -30,7 +30,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
@@ -43,12 +43,15 @@
 #include <aprinter/structure/OperatorKeyCompare.h>
 #include <aprinter/structure/StructureRaiiWrapper.h>
 
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
 #include <aipstack/platform/TimerWrapper.h>
 
 namespace AIpStack {
+
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 template <typename Arg>
 class IpPathMtuCache;
@@ -74,8 +77,8 @@ class IpPathMtuCache :
     private APrinter::NonCopyable<IpPathMtuCache<Arg>>
 {
     APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, IpStack))
-    APRINTER_USE_VALS(Params::PathMtuParams, (NumMtuEntries, MtuTimeoutMinutes))
-    APRINTER_USE_TYPES1(Params::PathMtuParams, (MtuIndexService))
+    APRINTER_USE_VALS(Params, (NumMtuEntries, MtuTimeoutMinutes))
+    APRINTER_USE_TYPES1(Params, (MtuIndexService))
     
     using Platform = PlatformFacade<PlatformImpl>;    
     APRINTER_USE_TYPES1(Platform, (TimeType))
@@ -587,38 +590,62 @@ private:
     }
 };
 
-/**
- * Configuration parameters for @ref IpPathMtuCache.
- * 
- * @tparam Param_NumMtuEntries Number of PMTU cache entries (must be >0).
- * @tparam Param_MtuTimeoutMinutes PMTU cache entry timeout in minutes (must be >0).
- * @tparam Param_MtuIndexService Data structure service for indexing PMTU cache
- *         entries by IP address, one of the available implementations in
- *         aprinter/structure/index. Specifically supported are AvlTreeIndexService
- *         and MruListIndexService.
- */
-APRINTER_ALIAS_STRUCT(IpPathMtuParams, (
-    APRINTER_AS_VALUE(size_t, NumMtuEntries),
-    APRINTER_AS_VALUE(uint8_t, MtuTimeoutMinutes),
-    APRINTER_AS_TYPE(MtuIndexService)
-))
+#endif
 
 /**
- * Service definition for @ref IpPathMtuCache.
- * 
- * @tparam Param_PathMtuParams Configuration parameters as @ref IpPathMtuParams.
+ * Options for @ref IpPathMtuCacheService.
  */
-APRINTER_ALIAS_STRUCT_EXT(IpPathMtuCacheService, (
-    APRINTER_AS_TYPE(PathMtuParams)
-), (
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(IpStack)
-    ), (
+struct IpPathMtuCacheOptions {
+    /**
+     * Number of PMTU cache entries (must be \>0).
+     */
+    AIPSTACK_OPTION_DECL_VALUE(NumMtuEntries, size_t, 0)
+    
+    /**
+     * PMTU cache entry timeout in minutes (must be \>0).
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MtuTimeoutMinutes, uint8_t, 10)
+    
+    /**
+     * Data structure service for indexing PMTU cache entries by IP address.
+     * 
+     * This should be one of the implementations in aprinter/structure/index.
+     * Specifically supported are AvlTreeIndexService and MruListIndexService.
+     */
+    AIPSTACK_OPTION_DECL_TYPE(MtuIndexService, void)
+};
+
+/**
+ * Service definition for the IP Path MTU cache implementation.
+ * 
+ * An instantiation of this template must be passed to @ref IpStackService.
+ * 
+ * The template parameters are assignments of options defined in
+ * @ref IpPathMtuCacheOptions, for example:
+ * AIpStack::IpPathMtuCacheOptions::NumMtuEntries::Is\<100\>.
+ * 
+ * @tparam Options Assignments of options defined in @ref IpPathMtuCacheOptions.
+ */
+template <typename... Options>
+class IpPathMtuCacheService {
+    template <typename>
+    friend class IpPathMtuCache;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(IpPathMtuCacheOptions, NumMtuEntries)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpPathMtuCacheOptions, MtuTimeoutMinutes)
+    AIPSTACK_OPTION_CONFIG_TYPE(IpPathMtuCacheOptions, MtuIndexService)
+    
+public:
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+    template <typename PlatformImpl_, typename IpStack_>
+    struct Compose {
+        using PlatformImpl = PlatformImpl_;
+        using IpStack = IpStack_;
         using Params = IpPathMtuCacheService;
-        APRINTER_DEF_INSTANCE(Compose, IpPathMtuCache)
-    ))
-))
+        APRINTER_DEF_INSTANCE(Compose, IpPathMtuCache)        
+    };
+#endif
+};
 
 }
 

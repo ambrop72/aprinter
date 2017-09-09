@@ -41,7 +41,7 @@ class EnumZeroType {};
 /**
  * An @ref EnumZeroType value for convenience.
  */
-static constexpr EnumZeroType EnumZero = EnumZeroType();
+constexpr EnumZeroType EnumZero = EnumZeroType();
 
 #define APRINTER_ENUM_UN_OP(EnumType, Op) \
 inline constexpr EnumType operator Op (EnumType arg1) \

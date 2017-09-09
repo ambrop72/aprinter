@@ -160,7 +160,7 @@ public:
     /**
      * Returns the size of the structure.
      * This is a function because of issues with eager resolution.
-     * The APRINTER_TSTRUCT macro defines a static ::Size member which
+     * The APRINTER_TSTRUCT macro defines a static Size member which
      * should be used instead of this.
      */
     inline static constexpr size_t GetStructSize () 

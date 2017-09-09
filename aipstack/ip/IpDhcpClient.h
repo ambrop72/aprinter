@@ -31,7 +31,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
@@ -44,6 +44,7 @@
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/SendRetry.h>
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Udp4Proto.h>
@@ -177,9 +178,11 @@ public:
 template <typename Arg>
 class IpDhcpClient;
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <typename Arg>
 AIPSTACK_DECL_TIMERS_CLASS(IpDhcpClientTimers, typename Arg::PlatformImpl,
                            IpDhcpClient<Arg>, (DhcpTimer))
+#endif
 
 /**
  * DHCP client implementation.
@@ -192,12 +195,11 @@ class IpDhcpClient :
     private Arg::IpStack::IfaceListener,
     private Arg::IpStack::IfaceStateObserver,
     private IpDhcpClientTimers<Arg>::Timers,
-    private IpSendRetry::Request,
+    private IpSendRetryRequest,
     private IpEthHw::ArpObserver,
     private APrinter::NonCopyable<IpDhcpClient<Arg>>
 {
-    APRINTER_USE_TYPES1(Arg, (PlatformImpl, IpStack))
-    APRINTER_USE_TYPES1(Arg::Params, (Config))
+    APRINTER_USE_TYPES1(Arg, (PlatformImpl, IpStack, Params))
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))
     using Platform = PlatformFacade<PlatformImpl>;
     APRINTER_USE_TYPES1(Platform, (TimeType))
@@ -207,21 +209,21 @@ class IpDhcpClient :
     AIPSTACK_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     using IpDhcpClientTimers<Arg>::Timers::platform;
     
-    static_assert(Config::MaxDnsServers > 0 && Config::MaxDnsServers < 32, "");
-    static_assert(Config::XidReuseMax >= 1 && Config::XidReuseMax <= 5, "");
-    static_assert(Config::MaxRequests >= 1 && Config::MaxRequests <= 5, "");
-    static_assert(Config::MaxRebootRequests >= 1 && Config::MaxRebootRequests <= 5, "");
-    static_assert(Config::BaseRtxTimeoutSeconds >= 1 &&
-                  Config::BaseRtxTimeoutSeconds <= 4, "");
-    static_assert(Config::MaxRtxTimeoutSeconds >= Config::BaseRtxTimeoutSeconds &&
-                  Config::MaxRtxTimeoutSeconds <= 255, "");
-    static_assert(Config::ResetTimeoutSeconds >= 1 &&
-                  Config::ResetTimeoutSeconds <= 128, "");
-    static_assert(Config::MinRenewRtxTimeoutSeconds >= 10 &&
-                  Config::MinRenewRtxTimeoutSeconds <= 255, "");
-    static_assert(Config::ArpResponseTimeoutSeconds >= 1 &&
-                  Config::ArpResponseTimeoutSeconds <= 5, "");
-    static_assert(Config::NumArpQueries >= 1 && Config::NumArpQueries <= 10, "");
+    static_assert(Params::MaxDnsServers > 0 && Params::MaxDnsServers < 32, "");
+    static_assert(Params::XidReuseMax >= 1 && Params::XidReuseMax <= 5, "");
+    static_assert(Params::MaxRequests >= 1 && Params::MaxRequests <= 5, "");
+    static_assert(Params::MaxRebootRequests >= 1 && Params::MaxRebootRequests <= 5, "");
+    static_assert(Params::BaseRtxTimeoutSeconds >= 1 &&
+                  Params::BaseRtxTimeoutSeconds <= 4, "");
+    static_assert(Params::MaxRtxTimeoutSeconds >= Params::BaseRtxTimeoutSeconds &&
+                  Params::MaxRtxTimeoutSeconds <= 255, "");
+    static_assert(Params::ResetTimeoutSeconds >= 1 &&
+                  Params::ResetTimeoutSeconds <= 128, "");
+    static_assert(Params::MinRenewRtxTimeoutSeconds >= 10 &&
+                  Params::MinRenewRtxTimeoutSeconds <= 255, "");
+    static_assert(Params::ArpResponseTimeoutSeconds >= 1 &&
+                  Params::ArpResponseTimeoutSeconds <= 5, "");
+    static_assert(Params::NumArpQueries >= 1 && Params::NumArpQueries <= 10, "");
     
     // Message text to include in the DECLINE response if the address
     // was not used due to an ARP response (defined outside of class).
@@ -230,8 +232,8 @@ class IpDhcpClient :
     
     // Instatiate the options class with needed configuration.
     using Options = IpDhcpClient_options<
-        Config::MaxDnsServers, Config::MaxClientIdSize,
-        Config::MaxVendorClassIdSize, MaxMessageSize>;
+        Params::MaxDnsServers, Params::MaxClientIdSize,
+        Params::MaxVendorClassIdSize, MaxMessageSize>;
     APRINTER_USE_TYPES1(Options, (DhcpRecvOptions, DhcpSendOptions))
     
     // DHCP client states
@@ -302,7 +304,7 @@ public:
         bool have_router;
         uint8_t domain_name_servers_count;
         Ip4Addr router;
-        Ip4Addr domain_name_servers[Config::MaxDnsServers];
+        Ip4Addr domain_name_servers[Params::MaxDnsServers];
     };
     
 private:
@@ -445,14 +447,14 @@ private:
     // Set m_rtx_timeout to BaseRtxTimeoutSeconds.
     void reset_rtx_timeout ()
     {
-        m_rtx_timeout = Config::BaseRtxTimeoutSeconds;
+        m_rtx_timeout = Params::BaseRtxTimeoutSeconds;
     }
     
     // Double m_rtx_timeout, but to no more than MaxRtxTimeoutSeconds.
     void double_rtx_timeout ()
     {
-        m_rtx_timeout = (m_rtx_timeout > Config::MaxRtxTimeoutSeconds / 2) ?
-            Config::MaxRtxTimeoutSeconds : (2 * m_rtx_timeout);
+        m_rtx_timeout = (m_rtx_timeout > Params::MaxRtxTimeoutSeconds / 2) ?
+            Params::MaxRtxTimeoutSeconds : (2 * m_rtx_timeout);
     }
     
     // Set the timer to expire after m_rtx_timeout.
@@ -546,7 +548,7 @@ private:
         // Timer was set for retransmitting discover.
         
         // Update request count, generate new XID if needed.
-        if (m_request_count >= Config::XidReuseMax) {
+        if (m_request_count >= Params::XidReuseMax) {
             m_request_count = 1;
             new_xid();
         } else {
@@ -567,7 +569,7 @@ private:
         
         // If we sent enough requests, start discovery.
         auto limit = (m_state == DhcpState::Rebooting) ?
-            Config::MaxRebootRequests : Config::MaxRequests;
+            Params::MaxRebootRequests : Params::MaxRequests;
         if (m_request_count >= limit) {
             start_discovery();
             return;
@@ -593,12 +595,12 @@ private:
     {
         // Timer was set to continue after no response to ARP query.
         
-        if (m_request_count < Config::NumArpQueries) {
+        if (m_request_count < Params::NumArpQueries) {
             // Increment the ARP query counter.
             m_request_count++;
             
             // Start the timeout.
-            tim(DhcpTimer()).setAfter(SecToTicks(Config::ArpResponseTimeoutSeconds));
+            tim(DhcpTimer()).setAfter(SecToTicks(Params::ArpResponseTimeoutSeconds));
             
             // Send an ARP query.
             ethHw()->sendArpQuery(m_info.ip_address);
@@ -674,7 +676,7 @@ private:
             // NOTE: Retransmission may actually be done earlier if this is
             // greater than MaxTimerSeconds, that is all right.
             uint32_t rtx_rel_sec = APrinter::MaxValue(
-                (uint32_t)Config::MinRenewRtxTimeoutSeconds,
+                (uint32_t)Params::MinRenewRtxTimeoutSeconds,
                 (uint32_t)(next_state_rel_sec / 2));
             
             // Timer should expire at the earlier of the above two.
@@ -706,7 +708,7 @@ private:
         // Retry sending a message after a send error, probably due to ARP cache miss.
         // To be complete we support retrying for all message types even broadcasts.
         
-        // Note that send_dhcp_message calls IpSendRetry::Request::reset before
+        // Note that send_dhcp_message calls IpSendRetryRequest::reset before
         // trying to send a message. This is enough to avoid spurious retransmissions,
         // because entry to all states which we handle here involves send_dhcp_message,
         // and we ignore this callback in other states.
@@ -987,7 +989,7 @@ private:
                 
                 // Reset resources to prevent undesired callbacks.
                 ArpObserver::reset();
-                IpSendRetry::Request::reset();
+                IpSendRetryRequest::reset();
                 tim(DhcpTimer()).unset();
                 
                 // If we had a lease, unbind and notify user.
@@ -1123,7 +1125,7 @@ private:
             m_state = DhcpState::Resetting;
             
             // Set timeout to start discovery.
-            tim(DhcpTimer()).setAfter(SecToTicks(Config::ResetTimeoutSeconds));
+            tim(DhcpTimer()).setAfter(SecToTicks(Params::ResetTimeoutSeconds));
         }
         
         // If we had a lease, remove it.
@@ -1146,7 +1148,7 @@ private:
         ArpObserver::observe(*ethHw());
         
         // Start the timeout.
-        tim(DhcpTimer()).setAfter(SecToTicks(Config::ArpResponseTimeoutSeconds));
+        tim(DhcpTimer()).setAfter(SecToTicks(Params::ArpResponseTimeoutSeconds));
         
         // Send an ARP query.
         ethHw()->sendArpQuery(m_info.ip_address);
@@ -1293,7 +1295,7 @@ private:
                             Ip4Addr ciaddr, Ip4Addr dst_addr)
     {
         // Reset send-retry (not interested in retrying sending previous messages).
-        IpSendRetry::Request::reset();
+        IpSendRetryRequest::reset();
         
         // Add client identifier if configured.
         if (m_client_id.len > 0) {
@@ -1365,7 +1367,7 @@ private:
         
         // Send the datagram.
         Ip4Addrs addrs{ciaddr, dst_addr};
-        m_ipstack->sendIp4Dgram(addrs, {Config::DhcpTTL, Ip4ProtocolUdp}, dgram, iface(),
+        m_ipstack->sendIp4Dgram(addrs, {Params::DhcpTTL, Ip4ProtocolUdp}, dgram, iface(),
                                 this, IpSendFlags());
     }
     
@@ -1375,70 +1377,89 @@ private:
     }
 };
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <typename Arg>
 char const IpDhcpClient<Arg>::DeclineMessageArpResponse[] = "ArpResponse";
+#endif
 
 /**
- * DHCP client static configuration.
- * 
- * @tparam Param_DhcpTTL TTL of outgoing DHCP datagrams.
- * @tparam Param_MaxDnsServers Maximum number of DNS servers that can be stored.
- * @tparam Param_MaxClientIdSize Maximum size of client identifier that can be sent.
- * @tparam Param_MaxVendorClassIdSize Maximum size of vendor class ID that can be sent.
- * @tparam Param_XidReuseMax Maximum times that an XID will be reused.
- * @tparam Param_MaxRequests Maximum times to send a request after an offer before
- *         reverting to discovery.
- * @tparam Param_MaxRebootRequests Maximum times to send a request in Rebooting state
- *         before revering to discovery.
- * @tparam Param_BaseRtxTimeoutSeconds Base retransmission time in seconds, before
- *         any backoff.
- * @tparam Param_MaxRtxTimeoutSeconds Maximum retransmission timeout (except in
- *         RENEWING or REBINDING states).
- * @tparam Param_ResetTimeoutSeconds Delay before sending a discover after having
- *         received a NAK in response to a request after an offer, or after receiving
- *         an ARP response while checking the offered address.
- * @tparam Param_MinRenewRtxTimeoutSeconds Minimum request retransmission time when
- *         renewing a lease (in RENEWING or REBINDING states).
- * @tparam Param_ArpResponseTimeoutSeconds How long to wait for a response to each
- *         ARP query when checking the address.
- * @tparam Param_NumArpQueries Number of ARP queries to send before proceeding with
- *         address assignment if no response is received. Normally when there is no
- *         response, ArpResponseTimeoutSeconds*NumArpQueries will be spent for checking.
+ * Options for @ref IpDhcpClientService.
  */
-APRINTER_ALIAS_STRUCT(IpDhcpClientConfig, (
-    APRINTER_AS_VALUE(uint8_t, DhcpTTL),
-    APRINTER_AS_VALUE(uint8_t, MaxDnsServers),
-    APRINTER_AS_VALUE(uint8_t, MaxClientIdSize),
-    APRINTER_AS_VALUE(uint8_t, MaxVendorClassIdSize),
-    APRINTER_AS_VALUE(uint8_t, XidReuseMax),
-    APRINTER_AS_VALUE(uint8_t, MaxRequests),
-    APRINTER_AS_VALUE(uint8_t, MaxRebootRequests),
-    APRINTER_AS_VALUE(uint8_t, BaseRtxTimeoutSeconds),
-    APRINTER_AS_VALUE(uint8_t, MaxRtxTimeoutSeconds),
-    APRINTER_AS_VALUE(uint8_t, ResetTimeoutSeconds),
-    APRINTER_AS_VALUE(uint8_t, MinRenewRtxTimeoutSeconds),
-    APRINTER_AS_VALUE(uint8_t, ArpResponseTimeoutSeconds),
-    APRINTER_AS_VALUE(uint8_t, NumArpQueries)
-))
-
-/**
- * Example and recommended DHCP client configuration.
- */
-using IpDhcpClientDefaultConfig = IpDhcpClientConfig<
-    64, // DhcpTTL
-    2,  // MaxDnsServers,
-    16, // MaxClientIdSize
-    16, // MaxVendorClassIdSize
-    3,  // XidReuseMax
-    3,  // MaxRequests
-    2,  // MaxRebootRequests
-    3,  // BaseRtxTimeoutSeconds
-    64, // MaxRtxTimeoutSeconds
-    3,  // ResetTimeoutSeconds
-    60, // MinRenewRtxTimeoutSeconds
-    1,  // ArpResponseTimeoutSeconds
-    2   // NumArpQueries
->;
+struct IpDhcpClientOptions {
+    /**
+     * TTL of outgoing DHCP datagrams.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(DhcpTTL, uint8_t, 64)
+    
+    /**
+     * Maximum number of DNS servers that can be stored.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxDnsServers, uint8_t, 2)
+    
+    /**
+     * Maximum size of client identifier that can be sent.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxClientIdSize, uint8_t, 16)
+    
+    /**
+     * Maximum size of vendor class ID that can be sent.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxVendorClassIdSize, uint8_t, 16)
+    
+    /**
+     * Maximum times that an XID will be reused.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(XidReuseMax, uint8_t, 3)
+    
+    /**
+     * Maximum times to send a request after an offer before reverting to discovery.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxRequests, uint8_t, 3)
+    
+    /**
+     * Maximum times to send a request in REBOOTING state before revering to discovery.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxRebootRequests, uint8_t, 2)
+    
+    /**
+     * Base retransmission time in seconds, before any backoff.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(BaseRtxTimeoutSeconds, uint8_t, 3)
+    
+    /**
+     * Maximum retransmission timeout (except in RENEWING or REBINDING states).
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MaxRtxTimeoutSeconds, uint8_t, 64)
+    
+    /**
+     * Delay before sending a discover in certain error scenarios.
+     *
+     * This delay is used:
+     * - after receing a NAK in response to a request following an offer,
+     * - after receiving an ARP response while checking the offered address.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(ResetTimeoutSeconds, uint8_t, 3)
+    
+    /**
+     * Minimum request retransmission time when renewing a lease (in RENEWING or
+     * REBINDING states).
+     */
+    AIPSTACK_OPTION_DECL_VALUE(MinRenewRtxTimeoutSeconds, uint8_t, 60)
+    
+    /**
+     * How long to wait for a response to each ARP query when checking the address.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(ArpResponseTimeoutSeconds, uint8_t, 1)
+    
+    /**
+     * Number of ARP queries to send before proceeding with address assignment if no
+     * response is received.
+     * 
+     * Normally when there is no response, ArpResponseTimeoutSeconds*NumArpQueries
+     * will be spent for checking the address using ARP.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(NumArpQueries, uint8_t, 2)
+};
 
 /**
  * Service definition for @ref IpDhcpClient.
@@ -1448,36 +1469,58 @@ using IpDhcpClientDefaultConfig = IpDhcpClientConfig<
  * @ref IpDhcpClient class type, like this:
  * 
  * @code
- * using MyDhcpClientService = AIpStack::IpDhcpClientService<IpDhcpClientDefaultConfig>;
+ * using MyDhcpClientService = AIpStack::IpDhcpClientService<...>;
  * APRINTER_MAKE_INSTANCE(MyDhcpClient, (MyDhcpClientService::template Compose<
  *     PlatformImpl, MyIpStack>))
- * MyDhcpClient dhcp_client;
+ * MyDhcpClient dhcp_client(...);
  * @endcode
  * 
- * @tparam Param_Config Static DHCP client configuration, must be an
- *         @ref IpDhcpClientConfig type. See @ref IpDhcpClientDefaultConfig for
- *         and example.
+ * The template parameters are assignments of options defined in
+ * @ref IpDhcpClientOptions, for example:
+ * AIpStack::IpDhcpClientOptions::DhcpTTL::Is\<16\>. The defaults (achieved with
+ * an emtpy parameter list) should be suitable for most uses.
+ * 
+ * @tparam Options Assignments of options defined in @ref IpDhcpClientOptions.
  */
-APRINTER_ALIAS_STRUCT_EXT(IpDhcpClientService, (
-    APRINTER_AS_TYPE(Config)
-), (
+template <typename... Options>
+class IpDhcpClientService {
+    template <typename>
+    friend class IpDhcpClient;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, DhcpTTL)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxDnsServers)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxClientIdSize)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxVendorClassIdSize)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, XidReuseMax)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxRequests)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxRebootRequests)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, BaseRtxTimeoutSeconds)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MaxRtxTimeoutSeconds)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, ResetTimeoutSeconds)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, MinRenewRtxTimeoutSeconds)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, ArpResponseTimeoutSeconds)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpDhcpClientOptions, NumArpQueries)
+    
+public:
     /**
-     * Template for instantiating @ref IpDhcpClient.
+     * Template for use with @ref APRINTER_MAKE_INSTANCE to get an @ref IpDhcpClient type.
      * 
-     * See @ref IpDhcpClientService for an example.
+     * See @ref IpDhcpClientService for an example of instantiating the @ref IpDhcpClient.
      * 
-     * @tparam Param_PlatformImpl The platform implementation class, should be the
-     *         same as passed to @ref IpStackService::Compose.
-     * @tparam Param_IpStack The @ref IpStack template class type.
+     * @tparam PlatformImpl_ The platform implementation class, should be the same as
+     *         passed to @ref IpStackService::Compose.
+     * @tparam IpStack_ The @ref IpStack template class type.
      */
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(IpStack)
-    ), (
+    template <typename PlatformImpl_, typename IpStack_>
+    struct Compose {
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+        using PlatformImpl = PlatformImpl_;
+        using IpStack = IpStack_;
         using Params = IpDhcpClientService;
-        APRINTER_DEF_INSTANCE(Compose, IpDhcpClient)
-    ))
-))
+        APRINTER_DEF_INSTANCE(Compose, IpDhcpClient)        
+#endif
+    };
+};
 
 }
 

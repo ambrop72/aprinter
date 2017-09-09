@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,10 +22,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_SERVICE_UTILS_H
-#define APRINTER_SERVICE_UTILS_H
+#ifndef AIPSTACK_INDEX_STRUCTURES_H
+#define AIPSTACK_INDEX_STRUCTURES_H
 
-#include <aprinter/meta/AliasStruct.h>
-#include <aprinter/meta/Instance.h>
+// This header is not meant to be actually included but is here to ensure that
+// the available "index" data structure headers (and their dependencies) are
+// copied by tools/copy_aprinter_srcs.py.
+
+#include <aprinter/structure/index/AvlTreeIndex.h>
+#include <aprinter/structure/index/MruListIndex.h>
 
 #endif

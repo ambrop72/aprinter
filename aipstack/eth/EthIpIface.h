@@ -30,7 +30,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
@@ -50,6 +50,7 @@
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Err.h>
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
@@ -67,9 +68,11 @@ struct EthIfaceState {
 template <typename Arg>
 class EthIpIface;
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
 template <typename Arg>
 AIPSTACK_DECL_TIMERS_CLASS(EthIpIfaceTimers, typename Arg::PlatformImpl,
                            EthIpIface<Arg>, (ArpTimer))
+#endif
 
 template <typename Arg>
 class EthIpIface :
@@ -182,7 +185,7 @@ class EthIpIface :
         Ip4Addr ip_addr;
         
         // List of send-retry waiters to be notified when resolution is complete.
-        IpSendRetry::List retry_list;
+        IpSendRetryList retry_list;
     };
     
     // Accessors for data structure nodes.
@@ -271,7 +274,7 @@ protected:
     
 private:
     IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
-                               IpSendRetry::Request *retryReq) override final
+                               IpSendRetryRequest *retryReq) override final
     {
         // Try to resolve the MAC address.
         MacAddr dst_mac;
@@ -367,7 +370,7 @@ private:
     
     AMBRO_ALWAYS_INLINE
     IpErr resolve_hw_addr (
-        Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetry::Request *retryReq)
+        Ip4Addr ip_addr, MacAddr *mac_addr, IpSendRetryRequest *retryReq)
     {
         // First look if the first used entry is a match, as an optimization.
         ArpEntryRef entry_ref = m_used_entries_list.first(*this);
@@ -821,20 +824,32 @@ private:
         public APRINTER_MEMBER_ACCESSOR(&EthIpIface::m_arp_entries) {};
 };
 
-APRINTER_ALIAS_STRUCT_EXT(EthIpIfaceService, (
-    APRINTER_AS_VALUE(int,    NumArpEntries),
-    APRINTER_AS_VALUE(int,    ArpProtectCount),
-    APRINTER_AS_VALUE(size_t, HeaderBeforeEth),
-    APRINTER_AS_TYPE(TimersStructureService)
-), (
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(Iface)
-    ), (
+struct EthIpIfaceOptions {
+    AIPSTACK_OPTION_DECL_VALUE(NumArpEntries, int, 16)
+    AIPSTACK_OPTION_DECL_VALUE(ArpProtectCount, int, 8)
+    AIPSTACK_OPTION_DECL_VALUE(HeaderBeforeEth, size_t, 0)
+    AIPSTACK_OPTION_DECL_TYPE(TimersStructureService, void)
+};
+
+template <typename... Options>
+class EthIpIfaceService {
+    template <typename>
+    friend class EthIpIface;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(EthIpIfaceOptions, NumArpEntries)
+    AIPSTACK_OPTION_CONFIG_VALUE(EthIpIfaceOptions, ArpProtectCount)
+    AIPSTACK_OPTION_CONFIG_VALUE(EthIpIfaceOptions, HeaderBeforeEth)
+    AIPSTACK_OPTION_CONFIG_TYPE(EthIpIfaceOptions, TimersStructureService)
+    
+public:
+    template <typename PlatformImpl_, typename Iface_>
+    struct Compose {
+        using PlatformImpl = PlatformImpl_;
+        using Iface = Iface_;
         using Params = EthIpIfaceService;
         APRINTER_DEF_INSTANCE(Compose, EthIpIface)
-    ))
-))
+    };
+};
 
 }
 

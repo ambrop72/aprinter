@@ -30,6 +30,8 @@
 
 namespace APrinter {
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+
 class ObserverNotificationPrivate
 {
     struct ListNode {
@@ -213,6 +215,8 @@ public:
     };
 };
 
+#endif
+
 template <typename ObserverDerived>
 class Observable;
 
@@ -234,6 +238,20 @@ public:
     }
 };
 
+/**
+ * Represents an entity which can notify its observers.
+ * 
+ * An observable has an associated set of observers (@ref Observer instances).
+ * Observers can be added and removed dynamically.
+ * 
+ * Observers of an observable are notified by calling @ref notifyKeepObservers
+ * or @ref notifyRemoveObservers. These functions take a function object which
+ * is called for each observer, passed as a reference to ObserverDerived.
+ * 
+ * This facility does not provide any dynamic dispatch for notifying observers,
+ * but it is easy and encouraged to create classes derived from @ref Observable
+ * which use a pure virtual function for notifying observers.
+ */
 template <typename ObserverDerived>
 class Observable :
     private ObserverNotificationPrivate::BaseObservable
@@ -241,33 +259,85 @@ class Observable :
     using BaseObserver = ObserverNotificationPrivate::BaseObserver;
     
 public:
+    /**
+     * Return if the observable has any observers.
+     * 
+     * @return True if there is at least one observer, false if none.
+     */
     inline bool hasObservers () const
     {
         return BaseObservable::hasObservers();
     }
     
+    /**
+     * Disassociate any observers from this observable.
+     * 
+     * Any observers which were associated with this observable become inactive.
+     */
     inline void reset ()
     {
         BaseObservable::reset();
     }
     
+    /**
+     * Add an observer to this observable.
+     * 
+     * The observer being added must be inactive.
+     * 
+     * @param observer The observer to add (must be inactive).
+     */
     inline void addObserver (Observer<ObserverDerived> &observer)
     {
         observer.BaseObserver::observeBase(*this);
     }
     
+    /**
+     * Enumerate the observers of this observable.
+     * 
+     * This calls enumerate(ObserverDerived &) for each observer. The order of
+     * enumeration is not specified.
+     * 
+     * The enumerate function must not add/remove observers to/from this observable.
+     * 
+     * @param enumerate Function object to call for each observer.
+     */
     template <typename EnumerateFunc>
     inline void enumerateObservers (EnumerateFunc enumerate)
     {
         BaseObservable::enumerateObservers(convertObserverFunc(enumerate));
     }
     
+    /**
+     * Notify the observers of this observable without removing them.
+     * 
+     * This calls notify(ObserverDerived &) for each observer. The order of
+     * notifications is not specified.
+     * 
+     * The notify function is permitted to add/remove observers to/from this observable;
+     * the implementation is specifically designed to be safe in this respect. However,
+     * the notify function must not destruct this observable.
+     * 
+     * @param notify Function object to call to notify a specific observer.
+     */
     template <typename NotifyFunc>
     inline void notifyKeepObservers (NotifyFunc notify)
     {
         BaseObservable::template notifyObservers<false>(convertObserverFunc(notify));
     }
     
+    /**
+     * Notify the observers of this observable while removing them.
+     * 
+     * This calls notify(ObserverDerived &) for each observer, removing each observer
+     * from the observable just before its notify call. The order of notifications
+     * is not specified.
+     * 
+     * The notify function is permitted to add/remove observers to/from this observable;
+     * the implementation is specifically designed to be safe in this respect. However,
+     * the notify function must not destruct this observable.
+     * 
+     * @param notify Function object to call to notify a specific observer.
+     */
     template <typename NotifyFunc>
     inline void notifyRemoveObservers (NotifyFunc notify)
     {

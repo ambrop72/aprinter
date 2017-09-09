@@ -30,7 +30,7 @@
 
 #include <limits>
 
-#include <aprinter/meta/ServiceUtils.h>
+#include <aprinter/meta/Instance.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
@@ -54,10 +54,10 @@
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/TxAllocHelper.h>
+#include <aipstack/misc/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
-#include <aipstack/ip/IpPathMtuCache.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/ip/hw/IpHwCommon.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -83,7 +83,7 @@ class IpStack :
 {
     APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
-    APRINTER_USE_TYPES1(Params, (PathMtuParams, ReassemblyService))
+    APRINTER_USE_TYPES1(Params, (PathMtuCacheService, ReassemblyService))
     
     APRINTER_USE_VALS(APrinter, (EnumZero))
     
@@ -92,8 +92,8 @@ class IpStack :
     
     APRINTER_MAKE_INSTANCE(Reassembly, (ReassemblyService::template Compose<PlatformImpl>))
     
-    using PathMtuCacheService = IpPathMtuCacheService<PathMtuParams>;
-    APRINTER_MAKE_INSTANCE(PathMtuCache, (PathMtuCacheService::template Compose<PlatformImpl, IpStack>))
+    APRINTER_MAKE_INSTANCE(PathMtuCache, (
+        PathMtuCacheService::template Compose<PlatformImpl, IpStack>))
     
     // Instantiate the protocols.
     template <int ProtocolIndex>
@@ -105,7 +105,8 @@ class IpStack :
         using IpProtocolNumber = typename ProtocolService::IpProtocolNumber;
         
         // Instantiate the protocol.
-        APRINTER_MAKE_INSTANCE(Protocol, (ProtocolService::template Compose<PlatformImpl, IpStack>))
+        APRINTER_MAKE_INSTANCE(Protocol, (
+            ProtocolService::template Compose<PlatformImpl, IpStack>))
         
         // Helper function to get the pointer to the protocol.
         inline static Protocol * get (IpStack *stack)
@@ -113,14 +114,16 @@ class IpStack :
             return &stack->m_protocols.template get<ProtocolIndex>();
         }
     };
-    using ProtocolHelpersList = APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
+    using ProtocolHelpersList =
+        APrinter::IndexElemList<ProtocolServicesList, ProtocolHelper>;
     
     static int const NumProtocols = APrinter::TypeListLength<ProtocolHelpersList>::Value;
     
     // Create a list of the instantiated protocols, for the tuple.
     template <typename Helper>
     using ProtocolForHelper = typename Helper::Protocol;
-    using ProtocolsList = APrinter::MapTypeList<ProtocolHelpersList, APrinter::TemplateFunc<ProtocolForHelper>>;
+    using ProtocolsList = APrinter::MapTypeList<
+        ProtocolHelpersList, APrinter::TemplateFunc<ProtocolForHelper>>;
     
     // Helper to extract IpProtocolNumber from a ProtocolHelper.
     APRINTER_DEFINE_MEMBER_TYPE(MemberTypeIpProtocolNumber, IpProtocolNumber)
@@ -313,7 +316,7 @@ public:
      */
     APRINTER_NO_INLINE
     IpErr sendIp4Dgram (Ip4Addrs const &addrs, Ip4TtlProto ttl_proto, IpBufRef dgram,
-                        Iface *iface, IpSendRetry::Request *retryReq,
+                        Iface *iface, IpSendRetryRequest *retryReq,
                         IpSendFlags send_flags)
     {
         AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
@@ -396,7 +399,7 @@ public:
     
 private:
     IpErr send_fragmented (IpBufRef pkt, Ip4RouteInfo route_info,
-                           IpSendFlags send_flags, IpSendRetry::Request *retryReq)
+                           IpSendFlags send_flags, IpSendRetryRequest *retryReq)
     {
         // Recalculate pkt_send_len (not passed for optimization).
         uint16_t pkt_send_len =
@@ -572,7 +575,7 @@ public:
      */
     AMBRO_ALWAYS_INLINE
     IpErr sendIp4DgramFast (Ip4SendPrepared const &prep, IpBufRef dgram,
-                            IpSendRetry::Request *retryReq)
+                            IpSendRetryRequest *retryReq)
     {
         AMBRO_ASSERT(dgram.tot_len <= std::numeric_limits<uint16_t>::max())
         AMBRO_ASSERT(dgram.offset >= Ip4Header::Size)
@@ -701,7 +704,7 @@ public:
      * the address. Also if there is no route for the address then the min is
      * not done.
      * 
-     * If the Path MTU estimate was lowered, then all existing @ref MtuRef setup
+     * If the Path MTU estimate was lowered, then all existing MtuRef setup
      * for this address are notified (@ref MtuRef::pmtuChanged are called),
      * directly from this function.
      * 
@@ -724,7 +727,7 @@ public:
      * the address is routed has changed, because this is a local issue and would
      * not be detected via an ICMP message.
      * 
-     * If the Path MTU estimate was lowered, then all existing @ref MtuRef setup
+     * If the Path MTU estimate was lowered, then all existing MtuRef setup
      * for this address are notified (@ref MtuRef::pmtuChanged are called),
      * directly from this function.
      * 
@@ -879,7 +882,8 @@ public:
     
 private:
     using IfaceListenerList = APrinter::LinkedList<
-        APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node), IfaceListenerLinkModel, false>;
+        APRINTER_MEMBER_ACCESSOR_TN(&IfaceListener::m_list_node),
+        IfaceListenerLinkModel, false>;
     
 public:
     /**
@@ -983,7 +987,8 @@ public:
                 m_addr.addr = value.addr;
                 m_addr.netmask = Ip4Addr::PrefixMask(value.prefix);
                 m_addr.netaddr = m_addr.addr & m_addr.netmask;
-                m_addr.bcastaddr = m_addr.netaddr | (Ip4Addr::AllOnesAddr() & ~m_addr.netmask);
+                m_addr.bcastaddr = m_addr.netaddr |
+                    (Ip4Addr::AllOnesAddr() & ~m_addr.netmask);
                 m_addr.prefix = value.prefix;
             }
         }
@@ -1168,7 +1173,7 @@ public:
          * @return Success or error code.
          */
         virtual IpErr driverSendIp4Packet (IpBufRef pkt, Ip4Addr ip_addr,
-                                           IpSendRetry::Request *sendRetryReq) = 0;
+                                           IpSendRetryRequest *sendRetryReq) = 0;
         
         /**
          * Driver function to get the driver-provided interface state.
@@ -1410,12 +1415,15 @@ private:
             // Check header length.
             // We require the entire header to fit into the first buffer.
             header_len = (version_ihl & Ip4IhlMask) * 4;
-            if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !pkt.hasHeader(header_len))) {
+            if (AMBRO_UNLIKELY(header_len < Ip4Header::Size ||
+                               !pkt.hasHeader(header_len)))
+            {
                 return;
             }
             
             // Add options to checksum.
-            chksum.addEvenBytes(ip4_header.data + Ip4Header::Size, header_len - Ip4Header::Size);
+            chksum.addEvenBytes(ip4_header.data + Ip4Header::Size,
+                                header_len - Ip4Header::Size);
         }
         
         // Read total length and add to checksum.
@@ -1432,7 +1440,8 @@ private:
         
         // Add ident and header checksum to checksum.
         chksum.addWord(APrinter::WrapType<uint16_t>(), ip4_header.get(Ip4Header::Ident()));
-        chksum.addWord(APrinter::WrapType<uint16_t>(), ip4_header.get(Ip4Header::HeaderChksum()));
+        chksum.addWord(APrinter::WrapType<uint16_t>(),
+                       ip4_header.get(Ip4Header::HeaderChksum()));
         
         // Read TTL+protocol and add to checksum.
         Ip4TtlProto ttl_proto = ip4_header.get(Ip4Header::TtlProto());
@@ -1502,7 +1511,9 @@ private:
         }
         
         // Handle using a protocol listener if existing.
-        bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>([&] APRINTER_TL(Helper, {
+        bool not_handled = APrinter::ListForBreak<ProtocolHelpersList>(
+            [&] APRINTER_TL(Helper,
+        {
             if (proto == Helper::IpProtocolNumber::Value) {
                 Helper::get(ip_info.iface->m_stack)->recvIp4Dgram(
                     static_cast<Ip4RxInfo const &>(ip_info),
@@ -1580,7 +1591,8 @@ private:
         }
     }
     
-    void sendIcmp4EchoReply (Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
+    void sendIcmp4EchoReply (
+        Icmp4RestType rest, IpBufRef data, Ip4Addr dst_addr, Iface *iface)
     {
         // Can only reply when we have an address assigned.
         if (AMBRO_UNLIKELY(!iface->m_have_addr)) {
@@ -1588,7 +1600,8 @@ private:
         }
         
         // Allocate memory for headers.
-        TxAllocHelper<Icmp4Header::Size, HeaderBeforeIp4Dgram> dgram_alloc(Icmp4Header::Size);
+        TxAllocHelper<Icmp4Header::Size, HeaderBeforeIp4Dgram>
+            dgram_alloc(Icmp4Header::Size);
         
         // Write the ICMP header.
         auto icmp4_header = Icmp4Header::MakeRef(dgram_alloc.getPtr());
@@ -1612,7 +1625,8 @@ private:
                      IpSendFlags());
     }
     
-    void handleIcmp4DestUnreach (uint8_t code, Icmp4RestType rest, IpBufRef icmp_data, Iface *iface)
+    void handleIcmp4DestUnreach (
+        uint8_t code, Icmp4RestType rest, IpBufRef icmp_data, Iface *iface)
     {
         // Check base IP header length.
         if (AMBRO_UNLIKELY(!icmp_data.hasHeader(Ip4Header::Size))) {
@@ -1635,7 +1649,9 @@ private:
         // Check header length.
         // We require the entire header to fit into the first buffer.
         uint8_t header_len = (version_ihl & Ip4IhlMask) * 4;
-        if (AMBRO_UNLIKELY(header_len < Ip4Header::Size || !icmp_data.hasHeader(header_len))) {
+        if (AMBRO_UNLIKELY(header_len < Ip4Header::Size ||
+                           !icmp_data.hasHeader(header_len)))
+        {
             return;
         }
         
@@ -1675,6 +1691,47 @@ private:
     APrinter::InstantiateVariadic<APrinter::ResourceTuple, ProtocolsList> m_protocols;
 };
 
+
+/**
+ * Options for @ref IpStackService.
+ */
+struct IpStackOptions {
+    /**
+     * Required space for headers before the IP header in outgoing packets.
+     * 
+     * This should be the maximum of the required space of any IP interface
+     * driver that may be used.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(HeaderBeforeIp, size_t, 14)
+    
+    /**
+     * TTL of outgoing ICMP packets.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(IcmpTTL, uint8_t, 64)
+    
+    /**
+     * Whether to respond to broadcast pings.
+     * 
+     * Broadcast pings are those with an all-ones or local-broadcast destination
+     * address.
+     */
+    AIPSTACK_OPTION_DECL_VALUE(AllowBroadcastPing, bool, false)
+    
+    /**
+     * Path MTU Discovery parameters/implementation.
+     * 
+     * This must be @ref IpPathMtuCacheService instantiated with the desired options.
+     */
+    AIPSTACK_OPTION_DECL_TYPE(PathMtuCacheService, void)
+    
+    /**
+     * IP Reassembly parameters/implementation.
+     * 
+     * This must be @ref IpReassemblyService instantiated with the desired options.
+     */
+    AIPSTACK_OPTION_DECL_TYPE(ReassemblyService, void)
+};
+
 /**
  * Service configuration class for @ref IpStack.
  * 
@@ -1686,48 +1743,48 @@ private:
  * using MyIpStackService = AIpStack::IpStackService<...>;
  * APRINTER_MAKE_INSTANCE(MyIpStack, (MyIpStackService::template Compose<
  *     PlatformImpl, ProtocolServicesList>))
- * MyIpStack ip_stack;
+ * MyIpStack ip_stack(...);
  * @endcode
  * 
- * @tparam Param_HeaderBeforeIp Required space for headers before the IP header
- *         in outgoing packets. This should be the maximum of the required space
- *         of any IP interface driver that may be used.
- * @tparam Param_IcmpTTL TTL of outgoing ICMP packets.
- * @tparam Param_AllowBroadcastPing Whether to respond to broadcast pings
- *         (to local-broadcast or all-ones address).
- * @tparam Param_PathMtuParams Path MTU Discovery parameters,
- *         see @ref IpPathMtuParams.
- * @tparam Param_ReassemblyService Implementation/configuration of IP reassembly.
- *         This should be @ref IpReassemblyService instantiated with the desired
- *         template parameters (reassembly configuration).
+ * The template parameters are assignments of options defined in @ref IpStackOptions,
+ * for example: AIpStack::IpStackOptions::IcmpTTL::Is\<16\>.
+ * 
+ * @tparam Options Assignments of options defined in @ref IpStackOptions.
  */
-APRINTER_ALIAS_STRUCT_EXT(IpStackService, (
-    APRINTER_AS_VALUE(size_t, HeaderBeforeIp),
-    APRINTER_AS_VALUE(uint8_t, IcmpTTL),
-    APRINTER_AS_VALUE(bool, AllowBroadcastPing),
-    APRINTER_AS_TYPE(PathMtuParams),
-    APRINTER_AS_TYPE(ReassemblyService)
-), (
+template <typename... Options>
+class IpStackService {
+    template <typename>
+    friend class IpStack;
+    
+    AIPSTACK_OPTION_CONFIG_VALUE(IpStackOptions, HeaderBeforeIp)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpStackOptions, IcmpTTL)
+    AIPSTACK_OPTION_CONFIG_VALUE(IpStackOptions, AllowBroadcastPing)
+    AIPSTACK_OPTION_CONFIG_TYPE(IpStackOptions, PathMtuCacheService)
+    AIPSTACK_OPTION_CONFIG_TYPE(IpStackOptions, ReassemblyService)
+    
+public:
     /**
-     * Template for use with @ref APRINTER_MAKE_INSTANCE to get the @ref IpStack type.
+     * Template for use with @ref APRINTER_MAKE_INSTANCE to get an @ref IpStack type.
      * 
-     * The template parameters of this class are "dependencies".
+     * See @ref IpStackService for an example of instantiating the @ref IpStack.
      * 
-     * @tparam Param_PlatformImpl Platform layer implementation, that is the PlatformImpl
+     * @tparam PlatformImpl_ Platform layer implementation, that is the PlatformImpl
      *         type to be used with @ref PlatformFacade.
-     * @tparam Param_ProtocolServicesList List of IP protocol handler services.
+     * @tparam ProtocolServicesList_ List of IP protocol handler services.
      *         For example, to support only TCP, use
      *         APrinter::MakeTypeList\<IpTcpProtoService\<...\>\> with appropriate
      *         parameters passed to IpTcpProtoService.
      */
-    APRINTER_ALIAS_STRUCT_EXT(Compose, (
-        APRINTER_AS_TYPE(PlatformImpl),
-        APRINTER_AS_TYPE(ProtocolServicesList)
-    ), (
+    template <typename PlatformImpl_, typename ProtocolServicesList_>
+    struct Compose {
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+        using PlatformImpl = PlatformImpl_;
+        using ProtocolServicesList = ProtocolServicesList_;
         using Params = IpStackService;
-        APRINTER_DEF_INSTANCE(Compose, IpStack)
-    ))
-))
+        APRINTER_DEF_INSTANCE(Compose, IpStack)        
+#endif
+    };
+};
 
 }
 

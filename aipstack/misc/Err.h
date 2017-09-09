@@ -29,20 +29,23 @@
 
 namespace AIpStack {
 
+/**
+ * Error code enumeration used in various places, e.g.\ for sending packets.
+ */
 enum class IpErr : uint8_t {
-    SUCCESS         = 0,
-    ARP_QUERY       = 1,
-    NO_HEADER_SPACE = 2,
-    BUFFER_FULL     = 3,
-    NO_HW_ROUTE     = 4,
-    NO_IP_ROUTE     = 5,
-    PKT_TOO_LARGE   = 6,
-    NO_PORT_AVAIL   = 7,
-    NO_PCB_AVAIL    = 8,
-    NO_IPMTU_AVAIL  = 9,
-    FRAG_NEEDED     = 10,
-    HW_ERROR        = 11,
-    LINK_DOWN       = 12,
+    SUCCESS         = 0, /**< The operation was successful. */
+    ARP_QUERY       = 1, /**< An ARP query is in progress and needs to complete. */
+    NO_HEADER_SPACE = 2, /**< Insufficient header space is available in the buffer. */
+    BUFFER_FULL     = 3, /**< The transmit buffer of the interface is full. */
+    NO_HW_ROUTE     = 4, /**< Could not determine the hardware address to send to. */
+    NO_IP_ROUTE     = 5, /**< Could not find an IP route for the packet. */
+    PKT_TOO_LARGE   = 6, /**< The packet exceeds the MTU of the interface. */
+    NO_PORT_AVAIL   = 7, /**< A local port could not be allocated. */
+    NO_PCB_AVAIL    = 8, /**< A TCP PCB structure could be allocated. */
+    NO_IPMTU_AVAIL  = 9, /**< An IP MTU reference could not be allocated. */
+    FRAG_NEEDED     = 10, /**< IP fragmentation is needed but not permitted. */
+    HW_ERROR        = 11, /**< An unexpected hardware problem has occured. */
+    LINK_DOWN       = 12, /**< The link is down for the network interface. */
 };
 
 }

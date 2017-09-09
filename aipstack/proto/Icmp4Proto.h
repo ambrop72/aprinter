@@ -35,6 +35,8 @@ namespace AIpStack {
 
 using Icmp4RestType = StructByteArray<4>;
 
+#ifndef DOXYGEN_SHOULD_SKIP_THIS
+
 APRINTER_TSTRUCT(Icmp4Header,
     (Type,         uint8_t)
     (Code,         uint8_t)
@@ -42,10 +44,15 @@ APRINTER_TSTRUCT(Icmp4Header,
     (Rest,         Icmp4RestType)
 )
 
+#endif
+
 static uint8_t const Icmp4TypeEchoReply   = 0;
 static uint8_t const Icmp4TypeEchoRequest = 8;
 static uint8_t const Icmp4TypeDestUnreach = 3;
 
+/**
+ * ICMP code "fragmentation needed" for "destination unreachable" type.
+ */
 static uint8_t const Icmp4CodeDestUnreachFragNeeded = 4;
 
 inline static uint16_t const Icmp4GetMtuFromRest (Icmp4RestType rest)
