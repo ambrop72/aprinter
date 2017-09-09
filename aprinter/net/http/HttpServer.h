@@ -49,11 +49,11 @@
 
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Err.h>
-#include <aipstack/common/WrapBuffer.h>
 #include <aipstack/common/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
+#include <aipstack/utils/WrapBuffer.h>
 
 namespace APrinter {
 

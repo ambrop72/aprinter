@@ -34,7 +34,7 @@
 #include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/common/MemRef.h>
-#include <aipstack/common/WrapBuffer.h>
+#include <aipstack/utils/WrapBuffer.h>
 
 namespace AIpStack {
 
