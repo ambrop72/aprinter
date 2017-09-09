@@ -32,15 +32,15 @@
 
 #include <limits>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/BinaryTools.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/BinaryTools.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -301,12 +301,12 @@ public:
         
         // This is our heuristic for the window increment.
         SeqType min_window =
-            APrinter::MaxValue(rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
+            MaxValue(rcv_ann_thres, Constants::MinAbandonRcvWndIncr);
         
         // Make sure it fits in size_t (relevant if size_t is 16-bit),
         // to ensure the invariant that rcv_ann_wnd always fits in size_t.
         if (std::numeric_limits<size_t>::max() < std::numeric_limits<uint32_t>::max()) {
-            min_window = APrinter::MinValueU(
+            min_window = MinValueU(
                 min_window, (size_t)std::numeric_limits<size_t>::max());
         }
         
@@ -315,7 +315,7 @@ public:
         min_window = (min_window + scale_mask) & ~scale_mask;
         
         // Make sure we do not set rcv_ann_wnd to more than can be announced.
-        min_window = APrinter::MinValue(min_window, max_rcv_wnd_ann(pcb));
+        min_window = MinValue(min_window, max_rcv_wnd_ann(pcb));
         
         // Announce more window if needed.
         if (pcb->rcv_ann_wnd < min_window) {
@@ -415,7 +415,7 @@ private:
             // NOTE: rcv_ann_wnd fits into size_t as required since m_initial_rcv_wnd
             // also does (TcpListener::setInitialReceiveWindow).
             AMBRO_ASSERT(lis->m_initial_rcv_wnd <= std::numeric_limits<size_t>::max())
-            SeqType rcv_wnd = APrinter::MinValueU(std::numeric_limits<uint16_t>::max(),
+            SeqType rcv_wnd = MinValueU(std::numeric_limits<uint16_t>::max(),
                                                   lis->m_initial_rcv_wnd);
             
             // Initialize most of the PCB.
@@ -445,7 +445,7 @@ private:
             if ((tcp->m_received_opts.options & OptionFlags::WND_SCALE) != 0) {
                 pcb->setFlag(PcbFlags::WND_SCALE);
                 pcb->snd_wnd_shift =
-                    APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
+                    MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
                 pcb->rcv_wnd_shift = Constants::RcvWndShift;
             }
             
@@ -605,8 +605,8 @@ private:
             SeqType rcv_wnd = pcb->rcv_ann_wnd;
             if (AMBRO_LIKELY(pcb->state != TcpState::SYN_RCVD && pcb->con != nullptr)) {
                 size_t rcv_buf_len = pcb->con->m_v.rcv_buf.tot_len;
-                SeqType avail_wnd = APrinter::MinValueU(rcv_buf_len, Constants::MaxWindow);
-                rcv_wnd = APrinter::MaxValue(rcv_wnd, avail_wnd);
+                SeqType avail_wnd = MinValueU(rcv_buf_len, Constants::MaxWindow);
+                rcv_wnd = MaxValue(rcv_wnd, avail_wnd);
             }
             
             // Store the sequence number relative to rcv_nxt and FIN flag. But these
@@ -866,7 +866,7 @@ private:
                 // pcb_decode_wnd_size while snd_wnd_shift was still zero, which
                 // is correct because the window size in a SYN-ACK is unscaled.
                 pcb->snd_wnd_shift =
-                    APrinter::MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
+                    MinValue((uint8_t)14, tcp->m_received_opts.wnd_scale);
             } else {
                 // Remote did not send the window scale option, which means we
                 // must not use any scaling, so set rcv_wnd_shift back to zero.
@@ -1368,7 +1368,7 @@ private:
         // Calculate the minimum of the available buffer space and the maximum
         // window that can be announced. There is no need to also clamp to
         // MaxWindow since max_ann will be less than MaxWindow.
-        SeqType bounded_wnd = APrinter::MinValueU(pcb->con->m_v.rcv_buf.tot_len, max_ann);
+        SeqType bounded_wnd = MinValueU(pcb->con->m_v.rcv_buf.tot_len, max_ann);
         
         // Clear the lowest order bits which cannot be sent with the current
         // window scale factor. The already calculated max_ann is suitable

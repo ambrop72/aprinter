@@ -333,7 +333,7 @@ private:
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                m_send_ring_buf.writeData(*this, MemRef(str, length));
+                m_send_ring_buf.writeData(*this, AIpStack::MemRef(str, length));
             }
         }
         

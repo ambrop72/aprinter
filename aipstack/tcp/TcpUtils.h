@@ -30,12 +30,12 @@
 
 #include <limits>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/OneOf.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/BinaryTools.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Tcp4Proto.h>
 
@@ -228,8 +228,8 @@ public:
                     char opt_data[2];
                     buf.takeBytes(opt_data_len, opt_data);
                     out_opts->options |= OptionFlags::MSS;
-                    out_opts->mss = APrinter::ReadBinaryInt<uint16_t,
-                                            APrinter::BinaryBigEndian>(opt_data);
+                    out_opts->mss = ReadBinaryInt<uint16_t,
+                                            BinaryBigEndian>(opt_data);
                 } break;
                 
                 // Window Scale
@@ -273,22 +273,22 @@ public:
     static inline void write_options (TcpOptions const &tcp_opts, char *out)
     {
         if ((tcp_opts.options & OptionFlags::MSS) != 0) {
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             TcpOptionMSS,       out + 0);
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             4,                  out + 1);
-            APrinter::WriteBinaryInt<uint16_t, APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint16_t, BinaryBigEndian>(
                                                             tcp_opts.mss,       out + 2);
             out += OptWriteLenMSS;
         }
         if ((tcp_opts.options & OptionFlags::WND_SCALE) != 0) {
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             TcpOptionNop     ,  out + 0);
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             TcpOptionWndScale,  out + 1);
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             3,                  out + 2);
-            APrinter::WriteBinaryInt<uint8_t,  APrinter::BinaryBigEndian>(
+            WriteBinaryInt<uint8_t,  BinaryBigEndian>(
                                                             tcp_opts.wnd_scale, out + 3);
             out += OptWriteLenWndScale;
         }
@@ -300,7 +300,7 @@ public:
     {
         uint16_t req_mss = ((tcp_opts.options & OptionFlags::MSS) != 0) ?
             tcp_opts.mss : 536;
-        uint16_t mss = APrinter::MinValue(iface_mss, req_mss);
+        uint16_t mss = MinValue(iface_mss, req_mss);
         if (mss < MinAllowedMss) {
             return false;
         }

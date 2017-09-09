@@ -34,8 +34,9 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/meta/EnumUtils.h>
-#include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/Preprocessor.h>
+
+#include <aipstack/misc/BinaryTools.h>
 
 namespace AIpStack {
 
@@ -455,7 +456,7 @@ APRINTER_TSTRUCT__FIELD_1
 template <typename Type>
 class StructBinaryTypeHandler {
     using IntType = APrinter::GetSameOrEnumBaseType<Type>;
-    using Endian = APrinter::BinaryBigEndian;
+    using Endian = BinaryBigEndian;
     
 public:
     static size_t const FieldSize = sizeof(IntType);
@@ -464,12 +465,12 @@ public:
     
     inline static ValType get (char const *data)
     {
-        return ValType(APrinter::ReadBinaryInt<IntType, Endian>(data));
+        return ValType(ReadBinaryInt<IntType, Endian>(data));
     }
     
     inline static void set (char *data, ValType value)
     {
-        APrinter::WriteBinaryInt<IntType, Endian>(IntType(value), data);
+        WriteBinaryInt<IntType, Endian>(IntType(value), data);
     }
 };
 
@@ -544,7 +545,7 @@ public:
         
         ResType result;
         for (size_t i = 0; i < Length; i++) {
-            result.StructIntArray::data[i] = APrinter::ReadBinaryInt<ElemType, APrinter::BinaryBigEndian>(bytes + i * ElemSize);
+            result.StructIntArray::data[i] = ReadBinaryInt<ElemType, BinaryBigEndian>(bytes + i * ElemSize);
         }
         return result;
     }
@@ -557,7 +558,7 @@ public:
     inline void encode (char *bytes) const
     {
         for (size_t i = 0; i < Length; i++) {
-            APrinter::WriteBinaryInt<ElemType, APrinter::BinaryBigEndian>(data[i], bytes + i * ElemSize);
+            WriteBinaryInt<ElemType, BinaryBigEndian>(data[i], bytes + i * ElemSize);
         }
     }
     

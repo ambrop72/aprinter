@@ -30,7 +30,6 @@
 
 #include <limits>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
@@ -40,6 +39,7 @@
 #include <aipstack/misc/Chksum.h>
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Err.h>
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
@@ -267,7 +267,7 @@ public:
             
             // Send no more than allowed by the receiver window but at
             // least one count. We can ignore the congestion window.
-            rem_wnd = APrinter::MaxValue((SeqType)1, con->m_v.snd_wnd);
+            rem_wnd = MaxValue((SeqType)1, con->m_v.snd_wnd);
             
             // Set the data_threshold to zero to not inhibit sending.
             data_threshold = 0;
@@ -288,7 +288,7 @@ public:
             
             // Calculate the miniumum of snd_wnd and cwnd which is how much
             // we can send relative to the start of the send buffer.
-            SeqType full_wnd = APrinter::MinValue(con->m_v.snd_wnd, con->m_v.cwnd);
+            SeqType full_wnd = MinValue(con->m_v.snd_wnd, con->m_v.cwnd);
             
             // Calculate the remaining window relative to snd_buf_cur.
             size_t snd_offset = con->m_v.snd_buf.tot_len - snd_buf_cur->tot_len;
@@ -303,7 +303,7 @@ public:
             // delay is only allowed if we have less than snd_mss data left and none
             // of this is being pushed via snd_psh_index.
             size_t psh_to_end = con->m_v.snd_buf.tot_len - con->m_v.snd_psh_index;
-            data_threshold = APrinter::MinValue(psh_to_end, (size_t)(pcb->snd_mss - 1));
+            data_threshold = MinValue(psh_to_end, (size_t)(pcb->snd_mss - 1));
             
             // Allow sending a FIN if it is queued.
             fin = pcb->hasFlag(PcbFlags::FIN_PENDING);
@@ -563,7 +563,7 @@ public:
         
         // Double the retransmission timeout and restart the timer.
         RttType doubled_rto = (pcb->rto > RttTypeMax / 2) ? RttTypeMax : (2 * pcb->rto);
-        pcb->rto = APrinter::MinValue(Constants::MaxRtxTime, doubled_rto);
+        pcb->rto = MinValue(Constants::MaxRtxTime, doubled_rto);
         pcb->tim(RtxTimer()).setAfter(pcb_rto_time(pcb));
         
         // In SYN_SENT and SYN_RCVD, only retransmit the SYN or SYN-ACK.
@@ -709,8 +709,8 @@ public:
                 // Note, cwnd>=snd_mss is respected because ssthresh>=snd_mss.
                 SeqType flight_size = seq_diff(pcb->snd_nxt, ack_num);
                 AMBRO_ASSERT(con->m_v.ssthresh >= pcb->snd_mss)
-                con->m_v.cwnd = APrinter::MinValue(con->m_v.ssthresh,
-                    seq_add(APrinter::MaxValue(flight_size, (SeqType)pcb->snd_mss),
+                con->m_v.cwnd = MinValue(con->m_v.ssthresh,
+                    seq_add(MaxValue(flight_size, (SeqType)pcb->snd_mss),
                             pcb->snd_mss));
                 
                 // Reset num_dupack to indicate end of fast recovery.
@@ -723,7 +723,7 @@ public:
                 // Be careful to not bring CWND below snd_mss.
                 AMBRO_ASSERT(con->m_v.cwnd >= pcb->snd_mss)
                 con->m_v.cwnd -=
-                    APrinter::MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
+                    MinValue(seq_diff(con->m_v.cwnd, pcb->snd_mss), acked);
                 
                 // If this ACK acknowledges at least snd_mss of data,
                 // add back snd_mss bytes to CWND.
@@ -814,7 +814,7 @@ public:
         
         // Calculate how much time has passed, also in RTT units.
         TimeType time_diff = pcb->platform().getTime() - pcb->rtt_test_time;
-        RttType this_rtt = APrinter::MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
+        RttType this_rtt = MinValueU(RttTypeMax, time_diff >> TcpProto::RttShift);
         
         TcpConnection *con = pcb->con;
         
@@ -824,7 +824,7 @@ public:
             con->m_v.rttvar = this_rtt/2;
             con->m_v.srtt = this_rtt;
         } else {
-            RttType rtt_diff = APrinter::AbsoluteDiff(con->m_v.srtt, this_rtt);
+            RttType rtt_diff = AbsoluteDiff(con->m_v.srtt, this_rtt);
             con->m_v.rttvar = ((RttNextType)3 * con->m_v.rttvar + rtt_diff) / 4;
             con->m_v.srtt = ((RttNextType)7 * con->m_v.srtt + this_rtt) / 8;
         }
@@ -833,11 +833,11 @@ public:
         int const k = 4;
         RttType k_rttvar = (con->m_v.rttvar > RttTypeMax / k) ?
             RttTypeMax : (k * con->m_v.rttvar);
-        RttType var_part = APrinter::MaxValue((RttType)1, k_rttvar);
+        RttType var_part = MaxValue((RttType)1, k_rttvar);
         RttType base_rto = (var_part > RttTypeMax - con->m_v.srtt) ?
             RttTypeMax : (con->m_v.srtt + var_part);
-        pcb->rto = APrinter::MaxValue(Constants::MinRtxTime,
-                                      APrinter::MinValue(Constants::MaxRtxTime, base_rto));
+        pcb->rto = MaxValue(Constants::MinRtxTime,
+                                      MinValue(Constants::MaxRtxTime, base_rto));
     }
     
     // This is called from the lower layers when sending failed but
@@ -867,7 +867,7 @@ public:
         
         // Calculate the snd_mss from the MTU, bound to no more than base_snd_mss.
         uint16_t mtu_mss = pmtu - Ip4TcpHeaderSize;
-        uint16_t snd_mss = APrinter::MinValue(pcb->base_snd_mss, mtu_mss);
+        uint16_t snd_mss = MinValue(pcb->base_snd_mss, mtu_mss);
         
         // This snd_mss cannot be less than MinAllowedMss:
         // - base_snd_mss was explicitly checked in TcpUtils::calc_snd_mss.
@@ -1081,8 +1081,8 @@ private:
         // - remaining data in the send buffer,
         // - remaining available window,
         // - maximum segment size.
-        data.tot_len = APrinter::MinValueU(rem_data_len,
-                                           APrinter::MinValueU(rem_wnd, pcb->snd_mss));
+        data.tot_len = MinValueU(rem_data_len,
+                                           MinValueU(rem_wnd, pcb->snd_mss));
         
         // We always send the ACK flag, others may be added below.
         FlagsType seg_flags = Tcp4FlagAck;
@@ -1160,7 +1160,7 @@ private:
         AMBRO_ASSERT(pcb->con != nullptr)
         
         // Increase cwnd by acked but no more than snd_mss.
-        SeqType cwnd_inc = APrinter::MinValueU(acked, pcb->snd_mss);
+        SeqType cwnd_inc = MinValueU(acked, pcb->snd_mss);
         pcb->con->m_v.cwnd = seq_add_sat(pcb->con->m_v.cwnd, cwnd_inc);
         
         // No longer have initial CWND.
@@ -1175,7 +1175,7 @@ private:
         
         SeqType half_flight_size = seq_diff(pcb->snd_nxt, pcb->snd_una) / 2;
         SeqType two_smss = 2 * (SeqType)pcb->snd_mss;
-        pcb->con->m_v.ssthresh = APrinter::MaxValue(half_flight_size, two_smss);
+        pcb->con->m_v.ssthresh = MaxValue(half_flight_size, two_smss);
     }
     
     static void pcb_start_rtt_measurement (TcpPcb *pcb, bool syn)

@@ -31,7 +31,6 @@
 #include <limits>
 
 #include <aprinter/meta/Instance.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
@@ -55,6 +54,7 @@
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Options.h>
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -927,7 +927,7 @@ public:
         Iface (IpStack *stack, IpIfaceInitInfo const &info) :
             m_stack(stack),
             m_hw_iface(info.hw_iface),
-            m_ip_mtu(APrinter::MinValueU(std::numeric_limits<uint16_t>::max(),
+            m_ip_mtu(MinValueU(std::numeric_limits<uint16_t>::max(),
                                          info.ip_mtu)),
             m_hw_type(info.hw_type),
             m_have_addr(false),
@@ -1667,7 +1667,7 @@ private:
         Ip4RxInfo ip_info = {src_addr, dst_addr, ttl_proto, iface};
         
         // Get the included IP data.
-        size_t data_len = APrinter::MinValueU(icmp_data.tot_len, total_len) - header_len;
+        size_t data_len = MinValueU(icmp_data.tot_len, total_len) - header_len;
         IpBufRef dgram_initial = icmp_data.hideHeader(header_len).subTo(data_len);
         
         // Dispatch based on the protocol.

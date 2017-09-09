@@ -25,7 +25,6 @@
 #ifndef APRINTER_LINKED_LIST_H
 #define APRINTER_LINKED_LIST_H
 
-#include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
@@ -47,11 +46,12 @@ private:
     Link prev;
 };
 
+template <typename LinkModel, bool WithLast>
+struct LinkedList__Extra_WithLast {};
+
 template <typename LinkModel>
-struct LinkedList__Extra {
-    APRINTER_STRUCT_IF_TEMPLATE(ExtraForWithLast) {
-        typename LinkModel::Link m_last;
-    };
+struct LinkedList__Extra_WithLast<LinkModel, true> {
+    typename LinkModel::Link m_last;
 };
 
 template <
@@ -60,7 +60,7 @@ template <
     bool WithLast_
 >
 class LinkedList :
-    private LinkedList__Extra<LinkModel>::template ExtraForWithLast<WithLast_>
+    private LinkedList__Extra_WithLast<LinkModel, WithLast_>
 {
     using Link = typename LinkModel::Link;
     

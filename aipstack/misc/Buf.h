@@ -28,9 +28,10 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
+
+#include <aipstack/misc/MinMax.h>
 
 namespace AIpStack {
 
@@ -127,7 +128,7 @@ struct IpBufRef {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(offset <= node->len)
         
-        return APrinter::MinValue(tot_len, (size_t)(node->len - offset));
+        return MinValue(tot_len, (size_t)(node->len - offset));
     }
     
     /**
@@ -143,7 +144,7 @@ struct IpBufRef {
         AMBRO_ASSERT(node != nullptr)
         AMBRO_ASSERT(offset <= node->len)
         
-        tot_len -= APrinter::MinValue(tot_len, (size_t)(node->len - offset));
+        tot_len -= MinValue(tot_len, (size_t)(node->len - offset));
         node = node->next;
         offset = 0;
         
@@ -407,7 +408,7 @@ struct IpBufRef {
                     return;
                 }
                 
-                size_t take = APrinter::MinValue(rem_in_buf, amount);
+                size_t take = MinValue(rem_in_buf, amount);
                 func(getChunkPtr(), take);
                 
                 tot_len -= take;

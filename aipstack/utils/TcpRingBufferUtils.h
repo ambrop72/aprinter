@@ -28,19 +28,18 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
-#include <aprinter/base/MemRef.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/MemRef.h>
+#include <aipstack/misc/WrapBuffer.h>
 
 namespace AIpStack {
 
 template <typename TcpProto>
 class TcpRingBufferUtils {
-    APRINTER_USE_TYPES2(APrinter, (WrapBuffer, MemRef))
     APRINTER_USE_TYPES2(AIpStack, (IpBufNode, IpBufRef))
     APRINTER_USE_TYPES1(TcpProto, (SeqType, TcpConnection))
     
@@ -113,8 +112,8 @@ public:
             
             m_buf_node = IpBufNode{buf, buf_size, &m_buf_node};
             
-            SeqType max_rx_window = APrinter::MinValueU(m_buf_node.len, TcpProto::MaxRcvWnd);
-            SeqType thres = APrinter::MaxValue((SeqType)1, max_rx_window / wnd_upd_div);
+            SeqType max_rx_window = MinValueU(m_buf_node.len, TcpProto::MaxRcvWnd);
+            SeqType thres = MaxValue((SeqType)1, max_rx_window / wnd_upd_div);
             con.setWindowUpdateThreshold(thres);
             
             IpBufRef recv_buf = IpBufRef{&m_buf_node, (size_t)0, m_buf_node.len};
@@ -176,13 +175,13 @@ public:
                     ::memcpy(
                         m_buf_node.ptr + m_buf_node.len + data_offset,
                         m_buf_node.ptr + data_offset,
-                        APrinter::MinValue(amount, mirror_size - data_offset));
+                        MinValue(amount, mirror_size - data_offset));
                 }
                 if (amount > m_buf_node.len - data_offset) {
                     ::memcpy(
                         m_buf_node.ptr + m_buf_node.len,
                         m_buf_node.ptr,
-                        APrinter::MinValue(amount - (m_buf_node.len - data_offset), mirror_size));
+                        MinValue(amount - (m_buf_node.len - data_offset), mirror_size));
                 }
             }
         }

@@ -31,7 +31,6 @@
 #include <limits>
 
 #include <aprinter/meta/Instance.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/NonCopyable.h>
@@ -39,6 +38,7 @@
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Options.h>
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -438,7 +438,7 @@ private:
         }
         
         // Set the expiration time.
-        uint8_t seconds = APrinter::MinValue(ttl, MaxReassTimeSeconds);
+        uint8_t seconds = MinValue(ttl, MaxReassTimeSeconds);
         result_reass->expiration_time = now + seconds * (TimeType)Platform::TimeFreq;
         
         return result_reass;

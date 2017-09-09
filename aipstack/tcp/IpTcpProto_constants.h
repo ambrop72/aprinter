@@ -29,10 +29,10 @@
 
 #include <limits>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/Preprocessor.h>
 
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
@@ -96,7 +96,7 @@ public:
     static RttType const MinRtxTime               = 0.25 * RttTimeFreq;
     
     // Maximum retransmission time (need care not to overflow RttType).
-    static RttType const MaxRtxTime = APrinter::MinValue(RttTypeMaxDbl, 60. * RttTimeFreq);
+    static RttType const MaxRtxTime = MinValue(RttTypeMaxDbl, 60. * RttTimeFreq);
     
     // Number of duplicate ACKs to trigger fast retransmit/recovery.
     static uint8_t const FastRtxDupAcks = 3;

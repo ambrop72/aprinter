@@ -32,7 +32,6 @@
 
 #include <aprinter/meta/Instance.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
@@ -44,6 +43,7 @@
 #include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Options.h>
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -219,12 +219,12 @@ public:
         // we assume the minimum PMTU that we allow. Generally we bump
         // up the reported next link MTU to be no less than our MinMTU.
         // This is what Linux does, it must be good enough for us too.
-        uint16_t bump_mtu = APrinter::MaxValue(MinMTU, mtu_info);
+        uint16_t bump_mtu = MaxValue(MinMTU, mtu_info);
         
         // Make sure the PMTU will not exceed the interface MTU.
         Ip4RouteInfo route_info;
         if (m_ip_stack->routeIp4(remote_addr, route_info)) {
-            bump_mtu = APrinter::MinValue(bump_mtu, route_info.iface->getMtu());
+            bump_mtu = MinValue(bump_mtu, route_info.iface->getMtu());
         }
         
         // If the PMTU would not have changed, don't do anything but let

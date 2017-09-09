@@ -28,9 +28,10 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/base/MemRef.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/StringTools.h>
+
+#include <aipstack/misc/MemRef.h>
 
 namespace APrinter {
 
@@ -45,7 +46,7 @@ public:
      * at the end. This is because the components of the path are percent-decoded and
      * null-terminated in-place.
      */
-    void parse (MemRef data)
+    void parse (AIpStack::MemRef data)
     {
         // First phase: split the request path into its components.
         // These are the "path" and a list of query parameters, each consisting
@@ -77,7 +78,7 @@ public:
                         // There is no equal sign, assume that the value is en empty string.
                         // We carefully point the value to the end of the parameter name,
                         // so that nothing bad will happen later in decode_value().
-                        m_params[m_num_params++] = QueryParam{data.subTo(param_len), MemRef(data.ptr + param_len, 0)};
+                        m_params[m_num_params++] = QueryParam{data.subTo(param_len), AIpStack::MemRef(data.ptr + param_len, 0)};
                     } else {
                         // There is an equal sign, so extract the name and the value.
                         // We explicitly ignore parameters with empty names, because
@@ -113,7 +114,7 @@ public:
         
     }
     
-    MemRef getPath () const
+    AIpStack::MemRef getPath () const
     {
         return m_path;
     }
@@ -123,7 +124,7 @@ public:
         return m_num_params;
     }
     
-    void getParam (int idx, MemRef *name, MemRef *value) const
+    void getParam (int idx, AIpStack::MemRef *name, AIpStack::MemRef *value) const
     {
         AMBRO_ASSERT(idx < m_num_params)
         
@@ -131,7 +132,7 @@ public:
         *value = m_params[idx].value;
     }
     
-    bool getParam (MemRef name, MemRef *value=nullptr) const
+    bool getParam (AIpStack::MemRef name, AIpStack::MemRef *value=nullptr) const
     {
         auto num_params = m_num_params;
         for (int i = 0; i < num_params; i++) {
@@ -146,7 +147,7 @@ public:
     }
     
 private:
-    static MemRef decode_and_terminate (MemRef data)
+    static AIpStack::MemRef decode_and_terminate (AIpStack::MemRef data)
     {
         char const *start_ptr = data.ptr;
         char *end_ptr = (char *)start_ptr;
@@ -170,15 +171,15 @@ private:
         
         *end_ptr = '\0';
         
-        return MemRef(start_ptr, end_ptr - start_ptr);
+        return AIpStack::MemRef(start_ptr, end_ptr - start_ptr);
     }
     
     struct QueryParam {
-        MemRef name;
-        MemRef value;
+        AIpStack::MemRef name;
+        AIpStack::MemRef value;
     };
     
-    MemRef m_path;
+    AIpStack::MemRef m_path;
     int m_num_params;
     QueryParam m_params[MaxQueryParams];
 };

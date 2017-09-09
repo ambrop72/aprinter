@@ -32,7 +32,6 @@
 #include <limits>
 
 #include <aprinter/meta/Instance.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ChooseInt.h>
@@ -52,6 +51,7 @@
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/Options.h>
+#include <aipstack/misc/MinMax.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
@@ -773,7 +773,7 @@ private:
         // at most 16-bit wide since SYN segments have unscaled window.
         // NOTE: rcv_ann_wnd after SYN-ACKSYN reception (-1) fits into size_t
         // as required since user_rcv_wnd is size_t.
-        SeqType rcv_wnd = 1 + APrinter::MinValueU(
+        SeqType rcv_wnd = 1 + MinValueU(
             (uint16_t)(std::numeric_limits<uint16_t>::max() - 1), user_rcv_wnd);
         
         // Initialize most of the PCB.

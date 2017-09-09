@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,52 +22,59 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_STRING_TOOLS_H
-#define APRINTER_STRING_TOOLS_H
+#ifndef AIPSTACK_WRAP_BUFFER_H
+#define AIPSTACK_WRAP_BUFFER_H
 
 #include <stddef.h>
 #include <string.h>
-#include <stdint.h>
 
-#include <aprinter/base/MemRef.h>
-#include <aprinter/base/Hints.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/MemRef.h>
 
-namespace APrinter {
+namespace AIpStack {
 
-static char AsciiToLower (char c)
-{
-    return (c >= 'A' && c <= 'Z') ? (c + 32) : c;
-}
-
-static bool AsciiCaseInsensStringEqualToMem (char const *str1, char const *str2, size_t str2_len)
-{
-    while (*str1 != '\0') {
-        if (str2_len == 0 || AsciiToLower(*str1) != AsciiToLower(*str2)) {
-            return false;
+struct WrapBuffer {
+    WrapBuffer () = default;
+    
+    inline WrapBuffer (size_t wrap_arg, char *ptr1_arg, char *ptr2_arg)
+    : wrap(wrap_arg), ptr1(ptr1_arg), ptr2(ptr2_arg)
+    {}
+    
+    inline WrapBuffer (char *ptr)
+    : wrap((size_t)-1), ptr1(ptr), ptr2(nullptr)
+    {}
+    
+    inline void copyIn (MemRef data) const
+    {
+        size_t first_length = MinValue(data.len, wrap);
+        memcpy(ptr1, data.ptr, first_length);
+        if (first_length < data.len) {
+            memcpy(ptr2, data.ptr + first_length, data.len - first_length);
         }
-        str1++;
-        str2++;
-        str2_len--;
     }
-    return (str2_len == 0);
-}
-
-static bool StringDecodeHexDigit (char c, int *out)
-{
-    if (c >= '0' && c <= '9') {
-        *out = c - '0';
+    
+    inline void copyOut (MemRef data) const
+    {
+        size_t first_length = MinValue(data.len, wrap);
+        memcpy((char *)data.ptr, ptr1, first_length);
+        if (first_length < data.len) {
+            memcpy((char *)data.ptr + first_length, ptr2, data.len - first_length);
+        }
     }
-    else if (c >= 'A' && c <= 'F') {
-        *out = 10 + (c - 'A');
+    
+    inline WrapBuffer subFrom (size_t offset) const
+    {
+        if (offset < wrap) {
+            return WrapBuffer(wrap - offset, ptr1 + offset, ptr2);
+        } else {
+            return WrapBuffer(ptr2 + (offset - wrap));
+        }
     }
-    else if (c >= 'a' && c <= 'f') {
-        *out = 10 + (c - 'a');
-    }
-    else {
-        return false;
-    }
-    return true;
-}
+    
+    size_t wrap;
+    char *ptr1;
+    char *ptr2;
+};
 
 }
 

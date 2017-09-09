@@ -52,6 +52,8 @@
 #include <aprinter/printer/utils/WebRequest.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
+#include <aipstack/misc/MemRef.h>
+
 #define APRINTER_ENABLE_HTTP_TEST 1
 
 namespace APrinter {
@@ -178,30 +180,40 @@ public:
     }
     
 private:
-    static char const * get_content_type (MemRef path)
+    static char const * get_content_type (AIpStack::MemRef path)
     {
-        if (AsciiCaseInsensEndsWith(path, ".htm") || AsciiCaseInsensEndsWith(path, ".html")) {
+        if (HttpAsciiCaseInsensEndsWith(path, ".htm") || HttpAsciiCaseInsensEndsWith(path, ".html")) {
             return "text/html";
         }
-        if (AsciiCaseInsensEndsWith(path, ".css")) {
+        if (HttpAsciiCaseInsensEndsWith(path, ".css")) {
             return "text/css";
         }
-        if (AsciiCaseInsensEndsWith(path, ".js")) {
+        if (HttpAsciiCaseInsensEndsWith(path, ".js")) {
             return "application/javascript";
         }
-        if (AsciiCaseInsensEndsWith(path, ".png")) {
+        if (HttpAsciiCaseInsensEndsWith(path, ".png")) {
             return "image/png";
         }
-        if (AsciiCaseInsensEndsWith(path, ".ico")) {
+        if (HttpAsciiCaseInsensEndsWith(path, ".ico")) {
             return "image/x-icon";
         }
         return "application/octet-stream";
     }
     
+    inline static MemRef memref_from_stack (AIpStack::MemRef mr)
+    {
+        return MemRef(mr.ptr, mr.len);
+    }
+    
+    inline static AIpStack::MemRef memref_to_stack (MemRef mr)
+    {
+        return AIpStack::MemRef(mr.ptr, mr.len);
+    }
+    
     static void http_request_handler (Context c, TheRequestInterface *request)
     {
         char const *method = request->getMethod(c);
-        MemRef path = request->getPath(c);
+        AIpStack::MemRef path = request->getPath(c);
         UserClientState *state = request->getUserState(c);
         
         if (!strcmp(method, "GET")) {
@@ -255,7 +267,7 @@ private:
             }
             
             if (path.equalTo("/rr_upload")) {
-                MemRef file_name;
+                AIpStack::MemRef file_name;
                 if (!request->getParam(c, "name", &file_name)) {
                     goto bad_params;
                 }
@@ -384,13 +396,13 @@ private:
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_WRITE, UploadBasePath());
         }
         
-        void acceptJsonResponseRequest (Context c, TheRequestInterface *request, MemRef req_type)
+        void acceptJsonResponseRequest (Context c, TheRequestInterface *request, AIpStack::MemRef req_type)
         {
             accept_request_common(c, request);
             
             // Start delayed response adoption to wait for sufficient space in the send buffer.
             m_state = State::JSONRESP_WAITBUF;
-            m_json_req.req_type = req_type;
+            m_json_req.req_type = memref_from_stack(req_type);
             m_json_req.resp_body_pending = true;
             m_request->adoptResponseBody(c, true);
             m_request->controlResponseBodyTimeout(c, true);
@@ -679,7 +691,7 @@ private:
             }
             
             if (length > 0) {
-                buf_st.data.copyIn(MemRef(o->json_buffer, length));
+                buf_st.data.copyIn(AIpStack::MemRef(o->json_buffer, length));
                 m_request->provideResponseBodyData(c, length);
             }
             
@@ -690,13 +702,20 @@ private:
         MemRef getPath (Context c) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::JSONRESP_CUSTOM_TRY, State::JSONRESP_CUSTOM))
-            return m_request->getPath(c);
+            return memref_from_stack(m_request->getPath(c));
         }
         
         bool getParam (Context c, MemRef name, MemRef *value=nullptr) override
         {
             AMBRO_ASSERT(m_state == OneOf(State::JSONRESP_CUSTOM_TRY, State::JSONRESP_CUSTOM))
-            return m_request->getParam(c, name, value);
+            AIpStack::MemRef value_ips;
+            if (!m_request->getParam(c, memref_to_stack(name), &value_ips)) {
+                return false;
+            }
+            if (value != nullptr) {
+                *value = memref_from_stack(value_ips);
+            }
+            return true;
         }
         
         void * doAcceptRequest (Context c, size_t state_size, size_t state_align) override
@@ -919,7 +938,7 @@ private:
                 }
                 
                 size_t to_copy = MinValue(GcodeParseChunkSize, MinValue(buf_st.length, (size_t)(MaxGcodeCommandSize - m_buffer_pos)));
-                buf_st.data.copyOut(MemRef(m_buffer + m_buffer_pos, to_copy));
+                buf_st.data.copyOut(AIpStack::MemRef(m_buffer + m_buffer_pos, to_copy));
                 m_buffer_pos += to_copy;
                 m_client->m_request->acceptRequestBodyData(c, to_copy);
             }
@@ -966,7 +985,7 @@ private:
                 if (buf_st.length - m_output_pos < length) {
                     return m_command_stream.raiseSendOverrun(c);
                 }
-                buf_st.data.subFrom(m_output_pos).copyIn(MemRef(str, length));
+                buf_st.data.subFrom(m_output_pos).copyIn(AIpStack::MemRef(str, length));
                 m_output_pos += length;
             }
         }

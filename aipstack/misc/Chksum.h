@@ -30,12 +30,13 @@
 
 #include <limits>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/Hints.h>
+
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/BinaryTools.h>
 
 // NOTE: IpChksumInverted (and IpChksum) accept size_t len
 // but the length must not exceed 65535. This is okay since
@@ -49,16 +50,18 @@ extern "C" uint16_t IpChksumInverted (char const *data, size_t len);
 APRINTER_NO_INLINE
 inline uint16_t IpChksumInverted (char const *data, size_t len)
 {
+    using namespace AIpStack;
+    
     char const *even_end = data + (len & (size_t)-2);
     uint32_t sum = 0;
     
     while (data < even_end) {
-        sum += APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>(data);
+        sum += ReadBinaryInt<uint16_t, BinaryBigEndian>(data);
         data += 2;
     }
     
     if ((len & 1) != 0) {
-        uint8_t byte = APrinter::ReadBinaryInt<uint8_t, APrinter::BinaryBigEndian>(data);
+        uint8_t byte = ReadBinaryInt<uint8_t, BinaryBigEndian>(data);
         sum += (uint16_t)byte << 8;
     }
     
@@ -130,7 +133,7 @@ public:
         
         char const *endptr = ptr + num_bytes;
         while (ptr < endptr) {
-            uint16_t word = APrinter::ReadBinaryInt<uint16_t, APrinter::BinaryBigEndian>(ptr);
+            uint16_t word = ReadBinaryInt<uint16_t, BinaryBigEndian>(ptr);
             ptr += 2;
             addWord(APrinter::WrapType<uint16_t>(), word);
         }

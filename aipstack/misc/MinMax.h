@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Ambroz Bizjak
+ * Copyright (c) 2017 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,41 +22,47 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_IPSTACK_ICMP4_PROTO_H
-#define APRINTER_IPSTACK_ICMP4_PROTO_H
+#ifndef AIPSTACK_MIN_MAX_H
+#define AIPSTACK_MIN_MAX_H
 
-#include <stdint.h>
-
-#include <aipstack/misc/Struct.h>
-#include <aipstack/misc/BinaryTools.h>
+#include <type_traits>
+#include <limits>
 
 namespace AIpStack {
 
-using Icmp4RestType = StructByteArray<4>;
-
-#ifndef DOXYGEN_SHOULD_SKIP_THIS
-
-APRINTER_TSTRUCT(Icmp4Header,
-    (Type,         uint8_t)
-    (Code,         uint8_t)
-    (Chksum,       uint16_t)
-    (Rest,         Icmp4RestType)
-)
-
-#endif
-
-static uint8_t const Icmp4TypeEchoReply   = 0;
-static uint8_t const Icmp4TypeEchoRequest = 8;
-static uint8_t const Icmp4TypeDestUnreach = 3;
-
-/**
- * ICMP code "fragmentation needed" for "destination unreachable" type.
- */
-static uint8_t const Icmp4CodeDestUnreachFragNeeded = 4;
-
-inline static uint16_t const Icmp4GetMtuFromRest (Icmp4RestType rest)
+template <typename T>
+constexpr T MinValue (T op1, T op2)
 {
-    return ReadBinaryInt<uint16_t, BinaryBigEndian>((char const *)rest.data + 2);
+    return (op1 < op2) ? op1 : op2;
+}
+
+template <typename T>
+constexpr T MaxValue (T op1, T op2)
+{
+    return (op1 > op2) ? op1 : op2;
+}
+
+template <typename T>
+constexpr T AbsoluteDiff (T op1, T op2)
+{
+    return (op1 > op2) ? (op1 - op2) : (op2 - op1);
+}
+
+template <typename T1, typename T2>
+using MinValueURetType = std::conditional_t<
+    (std::numeric_limits<T1>::digits < std::numeric_limits<T2>::digits), T1, T2>;
+
+template <typename T1, typename T2>
+constexpr MinValueURetType<T1, T2> MinValueU (T1 op1, T2 op2)
+{
+    static_assert(std::is_unsigned<T1>::value, "Only unsigned allowed");
+    static_assert(std::is_unsigned<T2>::value, "Only unsigned allowed");
+    
+    if (op1 < op2) {
+        return op1;
+    } else {
+        return op2;
+    }
 }
 
 }

@@ -38,18 +38,19 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/ManualRaii.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
+#include <aprinter/net/http/HttpStringTools.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
+#include <aipstack/misc/WrapBuffer.h>
+#include <aipstack/misc/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
@@ -689,7 +690,7 @@ private:
                     switch (m_recv_state) {
                         case RecvState::RECV_CHUNK_HEADER: {
                             // Look for presence of chunk extensions and check for overflowed line buffer.
-                            MemRef chunk_size_str = MemRef(m_header_line, length);
+                            AIpStack::MemRef chunk_size_str = AIpStack::MemRef(m_header_line, length);
                             char *semicolon = strchr(m_header_line, ';');
                             if (semicolon) {
                                 chunk_size_str = chunk_size_str.subTo(semicolon - m_header_line);
@@ -702,7 +703,7 @@ private:
                             
                             // Parse the chunk length.
                             uint64_t value;
-                            if (!StringParseHexadecimal(chunk_size_str, &value)) {
+                            if (!HttpStringParseHexadecimal(chunk_size_str, &value)) {
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
@@ -752,7 +753,7 @@ private:
         
         void handle_header (Context c, char const *header)
         {
-            if (StringRemoveHttpHeader(&header, "content-length")) {
+            if (HttpStringRemoveHeader(&header, "content-length")) {
                 char *endptr;
                 unsigned long long int value = strtoull(header, &endptr, 10);
                 if (endptr == header || *endptr != '\0' || m_have_content_length) {
@@ -762,25 +763,25 @@ private:
                     m_rem_req_body_length = value;
                 }
             }
-            else if (StringRemoveHttpHeader(&header, "transfer-encoding")) {
-                if (!MemEqualsCaseIns(header, "identity")) {
-                    if (!MemEqualsCaseIns(header, "chunked") || m_have_chunked) {
+            else if (HttpStringRemoveHeader(&header, "transfer-encoding")) {
+                if (!HttpMemEqualsCaseIns(header, "identity")) {
+                    if (!HttpMemEqualsCaseIns(header, "chunked") || m_have_chunked) {
                         m_bad_transfer_encoding = true;
                     } else {
                         m_have_chunked = true;
                     }
                 }
             }
-            else if (StringRemoveHttpHeader(&header, "expect")) {
-                if (!MemEqualsCaseIns(header, "100-continue")) {
+            else if (HttpStringRemoveHeader(&header, "expect")) {
+                if (!HttpMemEqualsCaseIns(header, "100-continue")) {
                     m_expectation_failed = true;
                 } else {
                     m_expect_100_continue = true;
                 }
             }
-            else if (StringRemoveHttpHeader(&header, "connection")) {
-                StringIterHttpTokens(header, [this](MemRef token) {
-                    if (MemEqualsCaseIns(token, "close")) {
+            else if (HttpStringRemoveHeader(&header, "connection")) {
+                HttpStringIterTokens(header, [this](AIpStack::MemRef token) {
+                    if (HttpMemEqualsCaseIns(token, "close")) {
                         m_close_connection = true;
                     }
                 });
@@ -827,7 +828,7 @@ private:
                 buf = second_space + 1;
                 
                 // Remove HTTP/ prefix from the version.
-                if (!StringRemovePrefix(&buf, "HTTP/")) {
+                if (!HttpStringRemovePrefix(&buf, "HTTP/")) {
                     status = HttpStatusCodes::HttpVersionNotSupported();
                     goto error;
                 }
@@ -1068,14 +1069,14 @@ private:
         
         void send_string (Context c, char const *str)
         {
-            m_send_ring_buf.writeData(*this, MemRef(str));
+            m_send_ring_buf.writeData(*this, AIpStack::MemRef(str));
         }
         
         template <size_t Size>
         void send_string_lit (Context c, char const (&str)[Size])
         {
             static_assert(Size > 0, "");
-            m_send_ring_buf.writeData(*this, MemRef(str, Size-1));
+            m_send_ring_buf.writeData(*this, AIpStack::MemRef(str, Size-1));
         }
         
         void abandon_response_body (Context c)
@@ -1122,13 +1123,13 @@ private:
         };
         
         struct RequestBodyBufferState {
-            WrapBuffer data;
+            AIpStack::WrapBuffer data;
             size_t length;
             bool eof;
         };
         
         struct ResponseBodyBufferState {
-            WrapBuffer data;
+            AIpStack::WrapBuffer data;
             size_t length;
         };
         
@@ -1144,7 +1145,7 @@ private:
             return m_request_method;
         }
         
-        MemRef getPath (Context c)
+        AIpStack::MemRef getPath (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
@@ -1158,14 +1159,14 @@ private:
             return m_path_parser.getNumParams();
         }
         
-        void getParam (Context c, int idx, MemRef *name, MemRef *value) 
+        void getParam (Context c, int idx, AIpStack::MemRef *name, AIpStack::MemRef *value) 
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
             return m_path_parser.getParam(idx, name, value);
         }
         
-        bool getParam (Context c, MemRef name, MemRef *value=nullptr)
+        bool getParam (Context c, AIpStack::MemRef name, AIpStack::MemRef *value=nullptr)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
@@ -1248,7 +1249,7 @@ private:
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(user_receiving_request_body(c))
             
-            WrapBuffer data = m_recv_ring_buf.getReadPtr(*this);
+            AIpStack::WrapBuffer data = m_recv_ring_buf.getReadPtr(*this);
             size_t data_len = get_request_body_avail(c);
             return RequestBodyBufferState{data, data_len, m_req_body_recevied};
         }
@@ -1364,12 +1365,15 @@ private:
             
             // Check for space for chunk header.
             if (con_space_avail <= TxChunkOverhead) {
-                return ResponseBodyBufferState{WrapBuffer(nullptr), 0};
+                return ResponseBodyBufferState{AIpStack::WrapBuffer(nullptr), 0};
             }
             
             // Return info about the available buffer space for data.
-            WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
-            return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkOverhead};
+            AIpStack::WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
+            return ResponseBodyBufferState{
+                con_space_buffer.subFrom(TxChunkHeaderSize),
+                con_space_avail - TxChunkOverhead
+            };
         }
         
         void provideResponseBodyData (Context c, size_t length)
@@ -1398,9 +1402,10 @@ private:
             }
             
             // Write the chunk header and footer.
-            WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
-            con_space_buffer.copyIn(MemRef(m_chunk_header, TxChunkHeaderSize));
-            con_space_buffer.subFrom(TxChunkHeaderSize + length).copyIn(MemRef(m_chunk_header+TxChunkHeaderDigits, 2));
+            AIpStack::WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
+            con_space_buffer.copyIn(AIpStack::MemRef(m_chunk_header, TxChunkHeaderSize));
+            con_space_buffer.subFrom(TxChunkHeaderSize + length)
+                .copyIn(AIpStack::MemRef(m_chunk_header+TxChunkHeaderDigits, 2));
             
             // Submit data to the connection and poke sending.
             m_send_ring_buf.provideData(*this, TxChunkOverhead + length);

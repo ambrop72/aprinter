@@ -29,15 +29,15 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/LoopUtils.h>
-#include <aprinter/base/MemRef.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Struct.h>
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/DhcpProto.h>
 
@@ -77,8 +77,6 @@ class IpDhcpClient_options
     static size_t const ParameterRequestListSize = 3;
     
 public:
-    using MemRef = APrinter::MemRef;
-    
     // Maximum size of options that we could possibly transmit.
     static size_t const MaxOptionsSendSize =
         // DHCP message type
@@ -471,7 +469,7 @@ private:
     static void write_memref_option (char *&opt_writeptr, DhcpOptionType opt_type,
                                      uint8_t max_len, MemRef val)
     {
-        uint8_t eff_len = APrinter::MinValueU(max_len, val.len);
+        uint8_t eff_len = MinValueU(max_len, val.len);
         
         write_option(opt_writeptr, opt_type, [&](char *opt_data) {
             ::memcpy(opt_data, val.ptr, eff_len);
