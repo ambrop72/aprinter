@@ -36,7 +36,7 @@
 
 namespace APrinter {
 
-#define APRINTER_LINKED_HEAP_VERIFY 1
+//#define APRINTER_LINKED_HEAP_VERIFY 1
 
 template <typename, typename, typename, typename>
 class LinkedHeap;
