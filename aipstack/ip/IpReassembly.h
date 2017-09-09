@@ -33,12 +33,12 @@
 #include <aprinter/meta/Instance.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Options.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -69,7 +69,7 @@ AIPSTACK_DECL_TIMERS_CLASS(IpReassemblyTimers, typename Arg::PlatformImpl, IpRea
 template <typename Arg>
 class IpReassembly :
     private IpReassemblyTimers<Arg>::Timers,
-    private APrinter::NonCopyable<IpReassembly<Arg>>
+    private NonCopyable<IpReassembly<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (MaxReassEntrys, MaxReassSize, MaxReassHoles,
                                     MaxReassTimeSeconds))

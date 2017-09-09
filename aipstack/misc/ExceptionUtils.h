@@ -22,25 +22,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_EXCEPTION_UTILS_H
-#define APRINTER_EXCEPTION_UTILS_H
+#ifndef AIPSTACK_EXCEPTION_UTILS_H
+#define AIPSTACK_EXCEPTION_UTILS_H
 
 #ifdef __GNUC__
     #if __EXCEPTIONS
-        #define APRINTER_HAS_EXCEPTIONS 1
+        #define AIPSTACK_HAS_EXCEPTIONS 1
     #else
-        #define APRINTER_HAS_EXCEPTIONS 0
+        #define AIPSTACK_HAS_EXCEPTIONS 0
     #endif
 #else
-    #define APRINTER_HAS_EXCEPTIONS 1
+    #define AIPSTACK_HAS_EXCEPTIONS 1
 #endif
 
-#if APRINTER_HAS_EXCEPTIONS
-#define APRINTER_TRY try
-#define APRINTER_CATCH(catch_exception, catch_block) catch (catch_exception) catch_block
+#if AIPSTACK_HAS_EXCEPTIONS
+#define AIPSTACK_TRY try
+#define AIPSTACK_CATCH(catch_exception, catch_block) catch (catch_exception) catch_block
 #else
-#define APRINTER_TRY
-#define APRINTER_CATCH(catch_exception, catch_block)
+#define AIPSTACK_TRY
+#define AIPSTACK_CATCH(catch_exception, catch_block)
 #endif
 
 #endif

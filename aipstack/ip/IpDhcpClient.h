@@ -36,7 +36,6 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/OneOf.h>
-#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Chksum.h>
@@ -45,6 +44,7 @@
 #include <aipstack/misc/Options.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/MemRef.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Udp4Proto.h>
@@ -197,7 +197,7 @@ class IpDhcpClient :
     private IpDhcpClientTimers<Arg>::Timers,
     private IpSendRetryRequest,
     private IpEthHw::ArpObserver,
-    private APrinter::NonCopyable<IpDhcpClient<Arg>>
+    private NonCopyable<IpDhcpClient<Arg>>
 {
     APRINTER_USE_TYPES1(Arg, (PlatformImpl, IpStack, Params))
     APRINTER_USE_TYPES1(IpEthHw, (ArpObserver))

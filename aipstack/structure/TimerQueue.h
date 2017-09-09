@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_TIMER_QUEUE_H
-#define APRINTER_TIMER_QUEUE_H
+#ifndef AIPSTACK_TIMER_QUEUE_H
+#define AIPSTACK_TIMER_QUEUE_H
 
 #include <type_traits>
 #include <limits>
@@ -34,7 +34,7 @@
 #include <aprinter/base/Hints.h>
 #include <aprinter/structure/TreeCompare.h>
 
-namespace APrinter {
+namespace AIpStack {
 
 template <typename, typename, typename, typename, typename>
 class TimerQueue;

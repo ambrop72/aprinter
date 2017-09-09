@@ -35,18 +35,12 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
-#include <aprinter/meta/InstantiateVariadic.h>
-#include <aprinter/meta/ResourceTuple.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/base/EnumBitfieldUtils.h>
-#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/ObserverNotification.h>
-#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Buf.h>
@@ -55,6 +49,12 @@
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Options.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/EnumBitfieldUtils.h>
+#include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/ObserverNotification.h>
+#include <aipstack/misc/InstantiateVariadic.h>
+#include <aipstack/misc/ResourceTuple.h>
+#include <aipstack/structure/StructureRaiiWrapper.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -79,13 +79,11 @@ namespace AIpStack {
  */
 template <typename Arg>
 class IpStack :
-    private APrinter::NonCopyable<IpStack<Arg>>
+    private NonCopyable<IpStack<Arg>>
 {
     APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, ProtocolServicesList))
     APRINTER_USE_VALS(Params, (HeaderBeforeIp, IcmpTTL, AllowBroadcastPing))
     APRINTER_USE_TYPES1(Params, (PathMtuCacheService, ReassemblyService))
-    
-    APRINTER_USE_VALS(APrinter, (EnumZero))
     
     using Platform = PlatformFacade<PlatformImpl>;
     APRINTER_USE_TYPE1(Platform, TimeType)
@@ -191,7 +189,7 @@ public:
         m_reassembly(platform),
         m_path_mtu_cache(platform, this),
         m_next_id(0),
-        m_protocols(APrinter::ResourceTupleInitSame(), ProtocolHandlerArgs{platform, this})
+        m_protocols(ResourceTupleInitSame(), ProtocolHandlerArgs{platform, this})
     {}
     
     /**
@@ -768,7 +766,7 @@ public:
      * handle is implemented that is usable for DHCP.
      */
     class IfaceListener :
-        private APrinter::NonCopyable<IfaceListener>
+        private NonCopyable<IfaceListener>
     {
         friend IpStack;
         
@@ -841,15 +839,15 @@ public:
      * This class can be used to receive a callback whenever the driver-reported
      * state may have changed.
      * 
-     * This class is based on @ref APrinter::Observer and the functionality of
+     * This class is based on @ref Observer and the functionality of
      * of that class is exposed. The specific @ref observe function is provided to
      * start observing an interface.
      */
     class IfaceStateObserver :
-        public APrinter::Observer<IfaceStateObserver>
+        public Observer<IfaceStateObserver>
     {
         friend IpStack;
-        friend APrinter::Observable<IfaceStateObserver>;
+        friend Observable<IfaceStateObserver>;
         
     public:
         /**
@@ -900,7 +898,7 @@ public:
      * and interface drivers. Such a system could be build on top if it is needed.
      */
     class Iface :
-        private APrinter::NonCopyable<Iface>
+        private NonCopyable<Iface>
     {
         friend IpStack;
         
@@ -1241,8 +1239,8 @@ public:
         
     private:
         APrinter::LinkedListNode<IfaceLinkModel> m_iface_list_node;
-        APrinter::StructureRaiiWrapper<IfaceListenerList> m_listeners_list;
-        APrinter::Observable<IfaceStateObserver> m_state_observable;
+        StructureRaiiWrapper<IfaceListenerList> m_listeners_list;
+        Observable<IfaceStateObserver> m_state_observable;
         IpStack *m_stack;
         void *m_hw_iface;
         uint16_t m_ip_mtu;
@@ -1686,9 +1684,9 @@ private:
 private:
     Reassembly m_reassembly;
     PathMtuCache m_path_mtu_cache;
-    APrinter::StructureRaiiWrapper<IfaceList> m_iface_list;
+    StructureRaiiWrapper<IfaceList> m_iface_list;
     uint16_t m_next_id;
-    APrinter::InstantiateVariadic<APrinter::ResourceTuple, ProtocolsList> m_protocols;
+    InstantiateVariadic<ResourceTuple, ProtocolsList> m_protocols;
 };
 
 

@@ -22,25 +22,49 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_INSTANTIATE_VARIADIC_H
-#define APRINTER_INSTANTIATE_VARIADIC_H
+#ifndef AIPSTACK_STRUCTURE_RAII_WRAPPER_H
+#define AIPSTACK_STRUCTURE_RAII_WRAPPER_H
 
-#include <aprinter/meta/TypeSequence.h>
-#include <aprinter/meta/TypeSequenceFromList.h>
+#include <type_traits>
 
-namespace APrinter {
+#include <aprinter/base/Assert.h>
 
-template <template<typename...> class Template, typename Sequence>
-struct InstantiateVariadicHelper;
+#include <aipstack/misc/NonCopyable.h>
 
-template <template<typename...> class Template, typename... Args>
-struct InstantiateVariadicHelper<Template, TypeSequence<Args...>> {
-    using Result = Template<Args...>;
+namespace AIpStack {
+
+enum class StructureDestructAction {None, AssertEmpty};
+
+template <
+    typename StructureType,
+    StructureDestructAction DestructAction = StructureDestructAction::None
+>
+class StructureRaiiWrapper :
+    public StructureType,
+    private NonCopyable<StructureRaiiWrapper<StructureType, DestructAction>>
+{
+    using ActionType = StructureDestructAction;
+    
+public:
+    inline StructureRaiiWrapper ()
+    {
+        StructureType::init();
+    }
+    
+    inline ~StructureRaiiWrapper ()
+    {
+        destructAction(std::integral_constant<ActionType, DestructAction>());
+    }
+    
+private:
+    inline void destructAction (std::integral_constant<ActionType, ActionType::None>)
+    {}
+    
+    inline void destructAction (std::integral_constant<ActionType, ActionType::AssertEmpty>)
+    {
+        AMBRO_ASSERT(StructureType::isEmpty())
+    }
 };
-
-template <template<typename...> class Template, typename List>
-using InstantiateVariadic = typename InstantiateVariadicHelper<
-    Template, TypeSequenceFromList<List>>::Result;
 
 }
 

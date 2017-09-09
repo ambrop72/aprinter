@@ -28,8 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/base/EnumBitfieldUtils.h>
-
+#include <aipstack/misc/EnumBitfieldUtils.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -136,7 +135,7 @@ struct IpIfaceDriverState {
  * Contains definitions of flags as accepted by @ref IpStack::sendIp4Dgram
  * and @ref IpStack::prepareSendIp4Dgram.
  * 
- * Operators provided by @ref APRINTER_ENUM_BITFIELD_OPS are available.
+ * Operators provided by @ref AIPSTACK_ENUM_BITFIELD_OPS are available.
  */
 enum class IpSendFlags : uint16_t {
     /**
@@ -152,7 +151,7 @@ enum class IpSendFlags : uint16_t {
      */
     AllFlags = DontFragmentFlag,
 };
-APRINTER_ENUM_BITFIELD_OPS(IpSendFlags)
+AIPSTACK_ENUM_BITFIELD_OPS(IpSendFlags)
 
 /**
  * Contains information about a received ICMP Destination Unreachable message.

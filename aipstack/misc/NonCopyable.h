@@ -22,47 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_STRUCTURE_RAII_WRAPPER_H
-#define APRINTER_STRUCTURE_RAII_WRAPPER_H
+#ifndef AIPSTACK_NONCOPYABLE_H
+#define AIPSTACK_NONCOPYABLE_H
 
-#include <type_traits>
+namespace AIpStack {
 
-#include <aprinter/base/Assert.h>
-#include <aprinter/base/NonCopyable.h>
-
-namespace APrinter {
-
-enum class StructureDestructAction {None, AssertEmpty};
-
-template <
-    typename StructureType,
-    StructureDestructAction DestructAction = StructureDestructAction::None
->
-class StructureRaiiWrapper :
-    public StructureType,
-    private NonCopyable<StructureRaiiWrapper<StructureType, DestructAction>>
-{
-    using ActionType = StructureDestructAction;
-    
+template <typename Derived = void>
+class NonCopyable {
 public:
-    inline StructureRaiiWrapper ()
-    {
-        StructureType::init();
-    }
-    
-    inline ~StructureRaiiWrapper ()
-    {
-        destructAction(std::integral_constant<ActionType, DestructAction>());
-    }
-    
-private:
-    inline void destructAction (std::integral_constant<ActionType, ActionType::None>)
-    {}
-    
-    inline void destructAction (std::integral_constant<ActionType, ActionType::AssertEmpty>)
-    {
-        AMBRO_ASSERT(StructureType::isEmpty())
-    }
+    NonCopyable () = default;
+    NonCopyable (NonCopyable const &) = delete;
+    NonCopyable & operator= (NonCopyable const &) = delete;
 };
 
 }

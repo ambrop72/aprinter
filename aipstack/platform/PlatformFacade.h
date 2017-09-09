@@ -30,7 +30,8 @@
 #include <limits>
 
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/base/NonCopyable.h>
+
+#include <aipstack/misc/NonCopyable.h>
 
 namespace AIpStack {
 
@@ -342,7 +343,7 @@ public:
      * associated macros can be used to work around such problems.
      */
     class Timer :
-        private APrinter::NonCopyable<Timer>,
+        private NonCopyable<Timer>,
         private Impl::Timer
     {
         using ImplTimer = typename Impl::Timer;

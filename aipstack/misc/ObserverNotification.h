@@ -22,13 +22,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_OBSERVER_NOTIFICATION_H
-#define APRINTER_OBSERVER_NOTIFICATION_H
+#ifndef AIPSTACK_OBSERVER_NOTIFICATION_H
+#define AIPSTACK_OBSERVER_NOTIFICATION_H
 
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/NonCopyable.h>
 
-namespace APrinter {
+#include <aipstack/misc/NonCopyable.h>
+
+namespace AIpStack {
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 

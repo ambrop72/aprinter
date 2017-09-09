@@ -33,25 +33,25 @@
 
 #include <aprinter/meta/Instance.h>
 #include <aprinter/meta/BitsInFloat.h>
-#include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/ResourceArray.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OneOf.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/LinkModel.h>
-#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/SendRetry.h>
 #include <aipstack/misc/Options.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/ResourceArray.h>
+#include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/PowerOfTwo.h>
+#include <aipstack/structure/StructureRaiiWrapper.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
@@ -73,7 +73,7 @@ namespace AIpStack {
  */
 template <typename Arg>
 class IpTcpProto :
-    private APrinter::NonCopyable<IpTcpProto<Arg>>
+    private NonCopyable<IpTcpProto<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (TcpTTL, NumTcpPcbs, NumOosSegs,
                                     EphemeralPortFirst, EphemeralPortLast,
@@ -157,7 +157,7 @@ private:
     static int const RttShift = APrinter::BitsInFloat(1e-3 * Platform::TimeFreq);
     static_assert(RttShift >= 0, "");
     static constexpr double RttTimeFreq =
-        Platform::TimeFreq / APrinter::PowerOfTwoFunc<double>(RttShift);
+        Platform::TimeFreq / PowerOfTwo<double>(RttShift);
     
     // We store such scaled times in 16-bit variables.
     // This gives us a range of at least 65 seconds.
@@ -388,7 +388,7 @@ public:
         m_stack(args.stack),
         m_current_pcb(nullptr),
         m_next_ephemeral_port(EphemeralPortFirst),
-        m_pcbs(APrinter::ResourceArrayInitSame(), args.platform, this)
+        m_pcbs(ResourceArrayInitSame(), args.platform, this)
     {
         AMBRO_ASSERT(args.stack != nullptr)
     }
@@ -909,15 +909,15 @@ private:
         APRINTER_MEMBER_ACCESSOR_TN(&TcpPcb::unrefed_list_node), PcbLinkModel, true>;
     
     TheIpStack *m_stack;
-    APrinter::StructureRaiiWrapper<ListenersList> m_listeners_list;
+    StructureRaiiWrapper<ListenersList> m_listeners_list;
     TcpPcb *m_current_pcb;
     IpBufRef m_received_opts_buf;
     TcpOptions m_received_opts;
     PortType m_next_ephemeral_port;
-    APrinter::StructureRaiiWrapper<UnrefedPcbsList> m_unrefed_pcbs_list;
-    APrinter::StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_active;
-    APrinter::StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_timewait;
-    APrinter::ResourceArray<TcpPcb, NumTcpPcbs> m_pcbs;
+    StructureRaiiWrapper<UnrefedPcbsList> m_unrefed_pcbs_list;
+    StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_active;
+    StructureRaiiWrapper<typename PcbIndex::Index> m_pcb_index_timewait;
+    ResourceArray<TcpPcb, NumTcpPcbs> m_pcbs;
     
     struct PcbArrayAccessor : public APRINTER_MEMBER_ACCESSOR(&IpTcpProto::m_pcbs) {};
 };

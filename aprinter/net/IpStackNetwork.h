@@ -37,13 +37,13 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/NonCopyable.h>
 #include <aprinter/base/ManualRaii.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>
@@ -109,7 +109,7 @@ public:
         class Timer :
             public PlatformRef,
             private TimedEventNew,
-            private NonCopyable<Timer>
+            private AIpStack::NonCopyable<Timer>
         {
         public:
             Timer (PlatformRef ref) :

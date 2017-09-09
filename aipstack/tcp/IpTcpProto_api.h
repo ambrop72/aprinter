@@ -34,12 +34,12 @@
 
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkedList.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/tcp/TcpUtils.h>
 
@@ -76,7 +76,7 @@ public:
      * Represents listening for connections on a specific address and port.
      */
     class TcpListener :
-        private APrinter::NonCopyable<TcpListener>
+        private NonCopyable<TcpListener>
     {
         template <typename> friend class IpTcpProto;
         template <typename> friend class IpTcpProto_input;
@@ -239,7 +239,7 @@ public:
      * - CLOSED: There was a connection but is no more.
      */
     class TcpConnection :
-        private APrinter::NonCopyable<TcpConnection>,
+        private NonCopyable<TcpConnection>,
         // MTU reference.
         // It is setup if and only if SYN_SENT or (PCB referenced and can_output_in_state).
         private MtuRef

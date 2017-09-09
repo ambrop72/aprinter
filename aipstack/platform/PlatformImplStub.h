@@ -27,8 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/base/NonCopyable.h>
-
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {
@@ -166,11 +165,11 @@ public:
      * structure.
      * 
      * The stack will never copy or move timers, so it is advised to disable such
-     * operations, perhaps by inheriting @ref APrinter::NonCopyable.
+     * operations, perhaps by inheriting @ref NonCopyable.
      */
     class Timer :
         private ThePlatformRef,
-        private APrinter::NonCopyable<Timer>
+        private NonCopyable<Timer>
     {
     private:
         bool m_is_set;

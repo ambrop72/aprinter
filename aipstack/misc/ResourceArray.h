@@ -22,17 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_RESOURCE_ARRAY_H
-#define APRINTER_RESOURCE_ARRAY_H
+#ifndef AIPSTACK_RESOURCE_ARRAY_H
+#define AIPSTACK_RESOURCE_ARRAY_H
 
 #include <stddef.h>
 
 #include <type_traits>
 #include <utility>
 
-#include <aprinter/base/ExceptionUtils.h>
+#include <aipstack/misc/ExceptionUtils.h>
 
-namespace APrinter {
+namespace AIpStack {
 
 struct ResourceArrayInitSame {};
 
@@ -127,12 +127,12 @@ namespace ResourceArrayPrivate {
         ArrayBase ()
         {
             size_t i;
-            APRINTER_TRY {
+            AIPSTACK_TRY {
                 for (i = 0; i < Size; i++) {
                     new(elem_ptr(i)) Elem();
                 }
             }
-            APRINTER_CATCH(..., {
+            AIPSTACK_CATCH(..., {
                 destruct_elems(i);
                 throw;
             })
@@ -141,12 +141,12 @@ namespace ResourceArrayPrivate {
         ArrayBase (ArrayBase const &other)
         {
             size_t i;
-            APRINTER_TRY {
+            AIPSTACK_TRY {
                 for (i = 0; i < Size; i++) {
                     new(elem_ptr(i)) Elem(*other.elem_ptr(i));
                 }
             }
-            APRINTER_CATCH(..., {
+            AIPSTACK_CATCH(..., {
                 destruct_elems(i);
                 throw;
             })
@@ -155,12 +155,12 @@ namespace ResourceArrayPrivate {
         ArrayBase (ArrayBase &&other)
         {
             size_t i;
-            APRINTER_TRY {
+            AIPSTACK_TRY {
                 for (i = 0; i < Size; i++) {
                     new(elem_ptr(i)) Elem(std::move(*other.elem_ptr(i)));
                 }
             }
-            APRINTER_CATCH(..., {
+            AIPSTACK_CATCH(..., {
                 destruct_elems(i);
                 throw;
             })
@@ -170,12 +170,12 @@ namespace ResourceArrayPrivate {
         ArrayBase (ResourceArrayInitSame, Args const & ... args)
         {
             size_t i;
-            APRINTER_TRY {
+            AIPSTACK_TRY {
                 for (i = 0; i < Size; i++) {
                     new(elem_ptr(i)) Elem(args...);
                 }
             }
-            APRINTER_CATCH(..., {
+            AIPSTACK_CATCH(..., {
                 destruct_elems(i);
                 throw;
             })

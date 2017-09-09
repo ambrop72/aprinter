@@ -29,9 +29,9 @@
 
 #include <aprinter/meta/Instance.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/platform/PlatformFacade.h>
 
@@ -84,7 +84,7 @@ namespace AIpStack {
  * The @ref IpStack only constructs and destructs protocol handlers, never
  * copies, moves, copy-assigns or move-assigns. Therefore the protocol handler
  * class can have such functions deleted, possibly by inheriting
- * @ref APrinter::NonCopyable.
+ * @ref NonCopyable.
  * 
  * @tparam Arg An instantiated Compose template in the service class for the
  *         protocol handler (e.g. @ref IpProtocolHandlerStubService::Compose)
@@ -93,7 +93,7 @@ namespace AIpStack {
  */
 template <typename Arg>
 class IpProtocolHandlerStub :
-    private APrinter::NonCopyable<IpProtocolHandlerStub<Arg>>
+    private NonCopyable<IpProtocolHandlerStub<Arg>>
 {
 public:
     /**

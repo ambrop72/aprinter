@@ -29,10 +29,10 @@
 
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/NonCopyable.h>
 
 #include <aipstack/misc/Buf.h>
 #include <aipstack/misc/Err.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/platform/PlatformFacade.h>
 #include <aipstack/platform/TimerWrapper.h>
 
@@ -168,7 +168,7 @@ public:
     class QueuedListener :
         private TcpListener,
         private QueuedListenerTimers,
-        private APrinter::NonCopyable<QueuedListener>
+        private NonCopyable<QueuedListener>
     {
         friend class ListenQueueEntry;
         

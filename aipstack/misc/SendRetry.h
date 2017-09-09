@@ -25,18 +25,18 @@
 #ifndef APRINTER_IPSTACK_SEND_RETRY_H
 #define APRINTER_IPSTACK_SEND_RETRY_H
 
-#include <aprinter/structure/ObserverNotification.h>
+#include <aipstack/misc/ObserverNotification.h>
 
 namespace AIpStack {
 
 class IpSendRetryList;
 
 class IpSendRetryRequest :
-    private APrinter::Observer<IpSendRetryRequest>
+    private Observer<IpSendRetryRequest>
 {
-    using BaseObserver = APrinter::Observer<IpSendRetryRequest>;
+    using BaseObserver = Observer<IpSendRetryRequest>;
     friend class IpSendRetryList;
-    friend APrinter::Observable<IpSendRetryRequest>;
+    friend Observable<IpSendRetryRequest>;
     
 public:
     inline bool isActive () const
@@ -54,9 +54,9 @@ protected:
 };
 
 class IpSendRetryList :
-    private APrinter::Observable<IpSendRetryRequest>
+    private Observable<IpSendRetryRequest>
 {
-    using BaseObservable = APrinter::Observable<IpSendRetryRequest>;
+    using BaseObservable = Observable<IpSendRetryRequest>;
     
 public:
     inline void reset ()

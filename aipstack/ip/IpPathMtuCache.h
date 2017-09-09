@@ -36,14 +36,14 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
 #include <aprinter/base/OneOf.h>
-#include <aprinter/base/NonCopyable.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
-#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Options.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/NonCopyable.h>
+#include <aipstack/structure/StructureRaiiWrapper.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -74,7 +74,7 @@ AIPSTACK_DECL_TIMERS_CLASS(IpPathMtuCacheTimers, typename Arg::PlatformImpl,
 template <typename Arg>
 class IpPathMtuCache :
     private IpPathMtuCacheTimers<Arg>::Timers,
-    private APrinter::NonCopyable<IpPathMtuCache<Arg>>
+    private NonCopyable<IpPathMtuCache<Arg>>
 {
     APRINTER_USE_TYPES1(Arg, (Params, PlatformImpl, IpStack))
     APRINTER_USE_VALS(Params, (NumMtuEntries, MtuTimeoutMinutes))
@@ -183,8 +183,8 @@ private:
     
 private:
     IpStack *m_ip_stack;
-    APrinter::StructureRaiiWrapper<typename MtuIndex::Index> m_mtu_index;
-    APrinter::StructureRaiiWrapper<MtuFreeList> m_mtu_free_list;
+    StructureRaiiWrapper<typename MtuIndex::Index> m_mtu_index;
+    StructureRaiiWrapper<MtuFreeList> m_mtu_free_list;
     MtuEntry m_mtu_entries[NumMtuEntries];
     
     // Accessor for the m_mtu_entries array.
@@ -248,7 +248,7 @@ public:
     class MtuRef :
         private PrevLink,
         private NextLink,
-        private APrinter::NonCopyable<MtuRef>
+        private NonCopyable<MtuRef>
     {
         friend IpPathMtuCache;
         

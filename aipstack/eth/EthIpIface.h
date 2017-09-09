@@ -38,12 +38,8 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/base/NonCopyable.h>
-#include <aprinter/structure/ObserverNotification.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
-#include <aprinter/structure/TimerQueue.h>
-#include <aprinter/structure/StructureRaiiWrapper.h>
 
 #include <aipstack/misc/Struct.h>
 #include <aipstack/misc/Buf.h>
@@ -51,6 +47,10 @@
 #include <aipstack/misc/TxAllocHelper.h>
 #include <aipstack/misc/Err.h>
 #include <aipstack/misc/Options.h>
+#include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/ObserverNotification.h>
+#include <aipstack/structure/StructureRaiiWrapper.h>
+#include <aipstack/structure/TimerQueue.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/ArpProto.h>
@@ -79,7 +79,7 @@ class EthIpIface :
     public Arg::Iface,
     private EthIpIfaceTimers<Arg>::Timers,
     private IpEthHw::HwIface,
-    private APrinter::NonCopyable<EthIpIface<Arg>>
+    private NonCopyable<EthIpIface<Arg>>
 {
     APRINTER_USE_VALS(Arg::Params, (NumArpEntries, ArpProtectCount, HeaderBeforeEth))
     APRINTER_USE_TYPES1(Arg::Params, (TimersStructureService))
@@ -126,7 +126,7 @@ class EthIpIface :
     struct ArpEntriesAccessor;
     
     // Get the TimerQueueService type.
-    using TheTimerQueueService = APrinter::TimerQueueService<TimersStructureService>;
+    using TheTimerQueueService = TimerQueueService<TimersStructureService>;
     
     // Link model for ARP entry data structures.
     //struct ArpEntriesLinkModel = APrinter::PointerLinkModel<ArpEntry> {};
@@ -813,9 +813,9 @@ private:
 private:
     IpEthHw::ArpObservable m_arp_observable;
     MacAddr const *m_mac_addr;
-    APrinter::StructureRaiiWrapper<ArpEntryList> m_used_entries_list;
-    APrinter::StructureRaiiWrapper<ArpEntryList> m_free_entries_list;
-    APrinter::StructureRaiiWrapper<ArpEntryTimerQueue> m_timer_queue;
+    StructureRaiiWrapper<ArpEntryList> m_used_entries_list;
+    StructureRaiiWrapper<ArpEntryList> m_free_entries_list;
+    StructureRaiiWrapper<ArpEntryTimerQueue> m_timer_queue;
     TimeType m_timers_ref_time;
     EthHeader::Ref m_rx_eth_header;
     ArpEntry m_arp_entries[NumArpEntries];

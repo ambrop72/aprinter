@@ -27,9 +27,9 @@
 
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/structure/ObserverNotification.h>
 
 #include <aipstack/misc/Err.h>
+#include <aipstack/misc/ObserverNotification.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/IpAddr.h>
 
@@ -53,7 +53,7 @@ public:
     /**
      * Observable type for ARP updates, see @ref HwIface::getArpObservable.
      */
-    using ArpObservable = APrinter::Observable<ArpObserver>;
+    using ArpObservable = Observable<ArpObserver>;
     
     /**
      * Interface provided through IpStack::Iface::getHwIface.
@@ -98,7 +98,7 @@ public:
          * received ARP updates.
          * 
          * To notify observers, the implementation should use
-         * @ref APrinter::Observable::notifyKeepObservers and use
+         * @ref Observable::notifyKeepObservers and use
          * @ref notifyArpObserver in its notify callback.
          * 
          * @return A reference to the observable.
@@ -125,12 +125,12 @@ public:
      * Allows receiving notifications about ARP updates received on an Ethernet
      * interface.
      * 
-     * This class is based on @ref APrinter::Observer and the functionality of
+     * This class is based on @ref Observer and the functionality of
      * of that class is exposed. The specific @ref observe function is provided to
      * start observing.
      */
     class ArpObserver :
-        public APrinter::Observer<ArpObserver>
+        public Observer<ArpObserver>
     {
         friend IpEthHw;
         friend ArpObservable;

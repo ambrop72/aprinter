@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_RESOURCE_TUPLE_H
-#define APRINTER_RESOURCE_TUPLE_H
+#ifndef AIPSTACK_RESOURCE_TUPLE_H
+#define AIPSTACK_RESOURCE_TUPLE_H
 
 #include <stddef.h>
 
@@ -31,7 +31,7 @@
 #include <utility>
 #include <tuple>
 
-namespace APrinter {
+namespace AIpStack {
 
 struct ResourceTupleInitSame {};
 

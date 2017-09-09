@@ -33,10 +33,10 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/BasicMetaUtils.h>
-#include <aprinter/meta/EnumUtils.h>
 #include <aprinter/base/Preprocessor.h>
 
 #include <aipstack/misc/BinaryTools.h>
+#include <aipstack/misc/EnumUtils.h>
 
 namespace AIpStack {
 
@@ -455,7 +455,7 @@ APRINTER_TSTRUCT__FIELD_1
  */
 template <typename Type>
 class StructBinaryTypeHandler {
-    using IntType = APrinter::GetSameOrEnumBaseType<Type>;
+    using IntType = GetSameOrEnumBaseType<Type>;
     using Endian = BinaryBigEndian;
     
 public:
@@ -476,7 +476,7 @@ public:
 
 #define APRINTER_STRUCT_REGISTER_BINARY_TYPE(IntType) \
 template <typename Type> \
-struct StructTypeHandler<Type, std::enable_if_t<APrinter::IsSameOrEnumWithBaseType<Type, IntType>()>> { \
+struct StructTypeHandler<Type, std::enable_if_t<IsSameOrEnumWithBaseType<Type, IntType>()>> { \
     using Handler = StructBinaryTypeHandler<Type>; \
 };
 

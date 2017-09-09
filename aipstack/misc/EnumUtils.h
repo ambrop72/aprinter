@@ -22,14 +22,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_ENUM_UTILS_H
-#define APRINTER_ENUM_UTILS_H
+#ifndef AIPSTACK_ENUM_UTILS_H
+#define AIPSTACK_ENUM_UTILS_H
 
 #include <type_traits>
 
-#include <aprinter/meta/BasicMetaUtils.h>
-
-namespace APrinter {
+namespace AIpStack {
 
 template <typename EnumType>
 constexpr inline auto ToUnderlyingType (EnumType e)
@@ -38,7 +36,7 @@ constexpr inline auto ToUnderlyingType (EnumType e)
     return std::underlying_type_t<EnumType>(e);
 }
 
-namespace Private {
+namespace EnumUtilsPrivate {
     template <bool IsEnum, typename Type, typename BaseType>
     struct EnumWithBaseTypeHelper {
         static bool const IsEnumWithBaseType = false;
@@ -64,7 +62,7 @@ namespace Private {
 template <typename Type, typename BaseType>
 constexpr bool IsEnumWithBaseType ()
 {
-    return Private::EnumWithBaseTypeHelper<std::is_enum<Type>::value, Type, BaseType>::IsEnumWithBaseType;
+    return EnumUtilsPrivate::EnumWithBaseTypeHelper<std::is_enum<Type>::value, Type, BaseType>::IsEnumWithBaseType;
 }
 
 template <typename Type, typename BaseType>
@@ -74,7 +72,7 @@ constexpr bool IsSameOrEnumWithBaseType ()
 }
 
 template <typename Type>
-using GetSameOrEnumBaseType = typename Private::GetSameOrBaseTypeHelper<std::is_enum<Type>::value, Type>::ResultType;
+using GetSameOrEnumBaseType = typename EnumUtilsPrivate::GetSameOrBaseTypeHelper<std::is_enum<Type>::value, Type>::ResultType;
 
 }
 

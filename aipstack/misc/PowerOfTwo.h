@@ -22,19 +22,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_NONCOPYABLE_H
-#define APRINTER_NONCOPYABLE_H
+#ifndef AIPSTACK_POWER_OF_TWO_H
+#define AIPSTACK_POWER_OF_TWO_H
 
-namespace APrinter {
+namespace AIpStack {
 
-template <typename Derived = void>
-class NonCopyable {
-public:
-    NonCopyable () = default;
-    NonCopyable (NonCopyable const &) = delete;
-    NonCopyable & operator= (NonCopyable const &) = delete;
-};
+template <typename T>
+constexpr T PowerOfTwo (int e)
+{
+    return (e == 0) ? 1 : 2 * PowerOfTwo<T>(e - 1);
+}
 
 }
 
 #endif
+

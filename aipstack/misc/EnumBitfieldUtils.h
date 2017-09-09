@@ -22,14 +22,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_ENUM_BITFIELD_UTILS_H
-#define APRINTER_ENUM_BITFIELD_UTILS_H
+#ifndef AIPSTACK_ENUM_BITFIELD_UTILS_H
+#define AIPSTACK_ENUM_BITFIELD_UTILS_H
 
 #include <type_traits>
 
-#include <aprinter/meta/EnumUtils.h>
+#include <aipstack/misc/EnumUtils.h>
 
-namespace APrinter {
+namespace AIpStack {
 
 /**
  * Dummy type used with == and != operators for checking if a bitfield enum is zero.
@@ -43,33 +43,33 @@ class EnumZeroType {};
  */
 constexpr EnumZeroType EnumZero = EnumZeroType();
 
-#define APRINTER_ENUM_UN_OP(EnumType, Op) \
+#define AIPSTACK_ENUM_UN_OP(EnumType, Op) \
 inline constexpr EnumType operator Op (EnumType arg1) \
 { \
-    return (EnumType)(Op APrinter::ToUnderlyingType(arg1)); \
+    return (EnumType)(Op ToUnderlyingType(arg1)); \
 }
 
-#define APRINTER_ENUM_BIN_OP(EnumType, Op) \
+#define AIPSTACK_ENUM_BIN_OP(EnumType, Op) \
 inline constexpr EnumType operator Op (EnumType arg1, EnumType arg2) \
 { \
-    return (EnumType)(APrinter::ToUnderlyingType(arg1) Op APrinter::ToUnderlyingType(arg2)); \
+    return (EnumType)(ToUnderlyingType(arg1) Op ToUnderlyingType(arg2)); \
 }
 
-#define APRINTER_ENUM_COMPOUND_OP(EnumType, Op) \
+#define AIPSTACK_ENUM_COMPOUND_OP(EnumType, Op) \
 inline constexpr EnumType & operator Op##= (EnumType &arg1, EnumType arg2) \
 { \
-    arg1 = (EnumType)(APrinter::ToUnderlyingType(arg1) Op APrinter::ToUnderlyingType(arg2)); \
+    arg1 = (EnumType)(ToUnderlyingType(arg1) Op ToUnderlyingType(arg2)); \
     return arg1; \
 }
 
-#define APRINTER_ENUM_ZERO_OPS(EnumType) \
-inline constexpr bool operator== (EnumType arg1, APrinter::EnumZeroType) \
+#define AIPSTACK_ENUM_ZERO_OPS(EnumType) \
+inline constexpr bool operator== (EnumType arg1, AIpStack::EnumZeroType) \
 { \
-    return APrinter::ToUnderlyingType(arg1) == 0; \
+    return ToUnderlyingType(arg1) == 0; \
 } \
-inline constexpr bool operator!= (EnumType arg1, APrinter::EnumZeroType) \
+inline constexpr bool operator!= (EnumType arg1, AIpStack::EnumZeroType) \
 { \
-    return APrinter::ToUnderlyingType(arg1) != 0; \
+    return ToUnderlyingType(arg1) != 0; \
 }
 
 /**
@@ -85,15 +85,15 @@ inline constexpr bool operator!= (EnumType arg1, APrinter::EnumZeroType) \
  * respectively. These are intended to be used with @ref EnumZero as follows:
  * e == EnumZero, e != EnumZero.
  */
-#define APRINTER_ENUM_BITFIELD_OPS(EnumType) \
-APRINTER_ENUM_UN_OP(EnumType, ~) \
-APRINTER_ENUM_BIN_OP(EnumType, |) \
-APRINTER_ENUM_BIN_OP(EnumType, &) \
-APRINTER_ENUM_BIN_OP(EnumType, ^) \
-APRINTER_ENUM_COMPOUND_OP(EnumType, |) \
-APRINTER_ENUM_COMPOUND_OP(EnumType, &) \
-APRINTER_ENUM_COMPOUND_OP(EnumType, ^) \
-APRINTER_ENUM_ZERO_OPS(EnumType)
+#define AIPSTACK_ENUM_BITFIELD_OPS(EnumType) \
+AIPSTACK_ENUM_UN_OP(EnumType, ~) \
+AIPSTACK_ENUM_BIN_OP(EnumType, |) \
+AIPSTACK_ENUM_BIN_OP(EnumType, &) \
+AIPSTACK_ENUM_BIN_OP(EnumType, ^) \
+AIPSTACK_ENUM_COMPOUND_OP(EnumType, |) \
+AIPSTACK_ENUM_COMPOUND_OP(EnumType, &) \
+AIPSTACK_ENUM_COMPOUND_OP(EnumType, ^) \
+AIPSTACK_ENUM_ZERO_OPS(EnumType)
 
 }
 
