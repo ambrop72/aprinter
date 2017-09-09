@@ -35,7 +35,7 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 
-#include <aipstack/misc/Options.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/tcp/TcpUtils.h>
 
 namespace AIpStack {

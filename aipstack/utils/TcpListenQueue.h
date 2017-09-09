@@ -30,8 +30,8 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Err.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Err.h>
 #include <aipstack/misc/NonCopyable.h>
 #include <aipstack/platform/PlatformFacade.h>
 #include <aipstack/platform/TimerWrapper.h>

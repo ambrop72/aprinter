@@ -38,7 +38,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 
-#include <aipstack/misc/Err.h>
+#include <aipstack/common/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
 #ifdef APRINTER_DEBUG_MII

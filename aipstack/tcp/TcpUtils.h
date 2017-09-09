@@ -31,19 +31,17 @@
 #include <limits>
 
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/OneOf.h>
 
-#include <aipstack/misc/Buf.h>
+#include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/BinaryTools.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Tcp4Proto.h>
 
 namespace AIpStack {
 
 class TcpUtils {
-    APRINTER_USE_ONEOF
-    
 public:
     using FlagsType = uint16_t;
     using SeqType = uint32_t;

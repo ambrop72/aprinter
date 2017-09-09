@@ -36,8 +36,8 @@
 #include <aprinter/misc/IpAddrUtils.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Struct.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
 namespace APrinter {

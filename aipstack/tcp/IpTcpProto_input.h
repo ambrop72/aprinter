@@ -34,13 +34,13 @@
 
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/OneOf.h>
 #include <aprinter/base/Hints.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Chksum.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Chksum.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/BinaryTools.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>
@@ -61,7 +61,6 @@ class IpTcpProto_input
                                    Output, Constants, AbrtTimer, RtxTimer, OutputTimer,
                                    TheIpStack))
     APRINTER_USE_VALS(TcpProto, (pcb_aborted_in_callback))
-    APRINTER_USE_ONEOF
     
 public:
     static void recvIp4Dgram (TcpProto *tcp, Ip4RxInfo const &ip_info, IpBufRef dgram)

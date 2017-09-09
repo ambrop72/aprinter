@@ -34,9 +34,9 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 
-#include <aipstack/misc/Struct.h>
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Options.h>
+#include <aipstack/common/Struct.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>

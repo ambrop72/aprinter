@@ -35,14 +35,14 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Accessor.h>
-#include <aprinter/base/OneOf.h>
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 #include <aprinter/structure/OperatorKeyCompare.h>
 
-#include <aipstack/misc/Options.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/structure/StructureRaiiWrapper.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
@@ -85,7 +85,6 @@ class IpPathMtuCache :
     
     APRINTER_USE_TYPES1(IpStack, (Iface, Ip4RouteInfo))
     APRINTER_USE_VALS(IpStack, (MinMTU))
-    APRINTER_USE_ONEOF
     
     static_assert(NumMtuEntries > 0, "");
     static_assert(MtuTimeoutMinutes > 0, "");

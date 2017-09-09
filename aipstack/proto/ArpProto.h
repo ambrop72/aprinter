@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aipstack/misc/Struct.h>
+#include <aipstack/common/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/EthernetProto.h>
 

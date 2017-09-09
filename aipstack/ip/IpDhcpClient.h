@@ -35,16 +35,16 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/OneOf.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Chksum.h>
-#include <aipstack/misc/TxAllocHelper.h>
-#include <aipstack/misc/SendRetry.h>
-#include <aipstack/misc/Options.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Chksum.h>
+#include <aipstack/common/TxAllocHelper.h>
+#include <aipstack/common/SendRetry.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/misc/MinMax.h>
-#include <aipstack/misc/MemRef.h>
+#include <aipstack/common/MemRef.h>
 #include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Udp4Proto.h>
@@ -205,7 +205,6 @@ class IpDhcpClient :
     APRINTER_USE_TYPES1(Platform, (TimeType))
     APRINTER_USE_TYPES1(IpStack, (Ip4RxInfo, Iface, IfaceListener, IfaceStateObserver))
     APRINTER_USE_VALS(IpStack, (HeaderBeforeIp4Dgram))
-    APRINTER_USE_ONEOF
     AIPSTACK_USE_TIMERS_CLASS(IpDhcpClientTimers<Arg>, (DhcpTimer)) 
     using IpDhcpClientTimers<Arg>::Timers::platform;
     

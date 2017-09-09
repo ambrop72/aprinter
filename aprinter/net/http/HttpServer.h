@@ -47,10 +47,10 @@
 #include <aprinter/net/http/HttpPathParser.h>
 #include <aprinter/net/http/HttpStringTools.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Err.h>
-#include <aipstack/misc/WrapBuffer.h>
-#include <aipstack/misc/MemRef.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Err.h>
+#include <aipstack/common/WrapBuffer.h>
+#include <aipstack/common/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>

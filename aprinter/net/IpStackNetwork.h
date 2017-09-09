@@ -41,9 +41,9 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 
-#include <aipstack/misc/Struct.h>
-#include <aipstack/misc/Buf.h>
 #include <aipstack/misc/NonCopyable.h>
+#include <aipstack/common/Struct.h>
+#include <aipstack/common/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>

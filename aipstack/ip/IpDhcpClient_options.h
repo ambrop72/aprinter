@@ -30,14 +30,14 @@
 #include <string.h>
 
 #include <aprinter/base/LoopUtils.h>
-#include <aprinter/base/OneOf.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Struct.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Struct.h>
 #include <aipstack/misc/MinMax.h>
-#include <aipstack/misc/MemRef.h>
+#include <aipstack/common/MemRef.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/DhcpProto.h>
 
@@ -54,8 +54,6 @@ template <
 >
 class IpDhcpClient_options
 {
-    APRINTER_USE_ONEOF
-    
     // Calculates option size for given option data size.
     static constexpr size_t OptSize (size_t data_size)
     {

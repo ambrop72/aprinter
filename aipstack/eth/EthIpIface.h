@@ -33,7 +33,6 @@
 #include <aprinter/meta/Instance.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/OneOf.h>
 #include <aprinter/base/LoopUtils.h>
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Hints.h>
@@ -41,14 +40,15 @@
 #include <aprinter/structure/LinkModel.h>
 #include <aprinter/structure/LinkedList.h>
 
-#include <aipstack/misc/Struct.h>
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/SendRetry.h>
-#include <aipstack/misc/TxAllocHelper.h>
-#include <aipstack/misc/Err.h>
-#include <aipstack/misc/Options.h>
+#include <aipstack/common/Struct.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/SendRetry.h>
+#include <aipstack/common/TxAllocHelper.h>
+#include <aipstack/common/Err.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/misc/NonCopyable.h>
-#include <aipstack/misc/ObserverNotification.h>
+#include <aipstack/common/ObserverNotification.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/structure/StructureRaiiWrapper.h>
 #include <aipstack/structure/TimerQueue.h>
 #include <aipstack/proto/IpAddr.h>
@@ -85,7 +85,6 @@ class EthIpIface :
     APRINTER_USE_TYPES1(Arg::Params, (TimersStructureService))
     APRINTER_USE_TYPES1(Arg, (PlatformImpl, Iface))
     
-    APRINTER_USE_ONEOF
     using Platform = PlatformFacade<PlatformImpl>;
     APRINTER_USE_TYPES1(Platform, (TimeType))
     AIPSTACK_USE_TIMERS_CLASS(EthIpIfaceTimers<Arg>, (ArpTimer))

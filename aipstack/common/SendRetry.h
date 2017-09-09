@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Ambroz Bizjak
+ * Copyright (c) 2016 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,58 +22,67 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AIPSTACK_WRAP_BUFFER_H
-#define AIPSTACK_WRAP_BUFFER_H
+#ifndef APRINTER_IPSTACK_SEND_RETRY_H
+#define APRINTER_IPSTACK_SEND_RETRY_H
 
-#include <stddef.h>
-#include <string.h>
-
-#include <aipstack/misc/MinMax.h>
-#include <aipstack/misc/MemRef.h>
+#include <aipstack/common/ObserverNotification.h>
 
 namespace AIpStack {
 
-struct WrapBuffer {
-    WrapBuffer () = default;
+class IpSendRetryList;
+
+class IpSendRetryRequest :
+    private Observer<IpSendRetryRequest>
+{
+    using BaseObserver = Observer<IpSendRetryRequest>;
+    friend class IpSendRetryList;
+    friend Observable<IpSendRetryRequest>;
     
-    inline WrapBuffer (size_t wrap_arg, char *ptr1_arg, char *ptr2_arg)
-    : wrap(wrap_arg), ptr1(ptr1_arg), ptr2(ptr2_arg)
-    {}
-    
-    inline WrapBuffer (char *ptr)
-    : wrap((size_t)-1), ptr1(ptr), ptr2(nullptr)
-    {}
-    
-    inline void copyIn (MemRef data) const
+public:
+    inline bool isActive () const
     {
-        size_t first_length = MinValue(data.len, wrap);
-        memcpy(ptr1, data.ptr, first_length);
-        if (first_length < data.len) {
-            memcpy(ptr2, data.ptr + first_length, data.len - first_length);
+        return BaseObserver::isActive();
+    }
+    
+    inline void reset ()
+    {
+        BaseObserver::reset();
+    }
+    
+protected:
+    virtual void retrySending () = 0;
+};
+
+class IpSendRetryList :
+    private Observable<IpSendRetryRequest>
+{
+    using BaseObservable = Observable<IpSendRetryRequest>;
+    
+public:
+    inline void reset ()
+    {
+        BaseObservable::reset();
+    }
+    
+    inline bool hasRequests () const
+    {
+        return BaseObservable::hasObservers();
+    }
+    
+    void addRequest (IpSendRetryRequest *req)
+    {
+        if (req != nullptr) {
+            req->BaseObserver::reset();
+            BaseObservable::addObserver(*req);
         }
     }
     
-    inline void copyOut (MemRef data) const
+    void dispatchRequests ()
     {
-        size_t first_length = MinValue(data.len, wrap);
-        memcpy((char *)data.ptr, ptr1, first_length);
-        if (first_length < data.len) {
-            memcpy((char *)data.ptr + first_length, ptr2, data.len - first_length);
-        }
+        BaseObservable::notifyRemoveObservers([&](IpSendRetryRequest &request) {
+            request.retrySending();
+        });
     }
-    
-    inline WrapBuffer subFrom (size_t offset) const
-    {
-        if (offset < wrap) {
-            return WrapBuffer(wrap - offset, ptr1 + offset, ptr2);
-        } else {
-            return WrapBuffer(ptr2 + (offset - wrap));
-        }
-    }
-    
-    size_t wrap;
-    char *ptr1;
-    char *ptr2;
 };
 
 }

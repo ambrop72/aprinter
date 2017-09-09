@@ -29,7 +29,7 @@
 
 #include <aprinter/base/Assert.h>
 
-#include <aipstack/misc/Buf.h>
+#include <aipstack/common/Buf.h>
 
 namespace AIpStack {
 

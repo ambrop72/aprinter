@@ -30,7 +30,7 @@
 #include <aprinter/meta/Instance.h>
 #include <aprinter/meta/BasicMetaUtils.h>
 
-#include <aipstack/misc/Buf.h>
+#include <aipstack/common/Buf.h>
 #include <aipstack/misc/NonCopyable.h>
 #include <aipstack/ip/IpStackHelperTypes.h>
 #include <aipstack/platform/PlatformFacade.h>

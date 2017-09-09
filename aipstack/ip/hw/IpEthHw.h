@@ -28,8 +28,8 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 
-#include <aipstack/misc/Err.h>
-#include <aipstack/misc/ObserverNotification.h>
+#include <aipstack/common/Err.h>
+#include <aipstack/common/ObserverNotification.h>
 #include <aipstack/proto/EthernetProto.h>
 #include <aipstack/proto/IpAddr.h>
 

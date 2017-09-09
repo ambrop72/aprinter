@@ -33,13 +33,13 @@
 #include <aprinter/base/Preprocessor.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Hints.h>
-#include <aprinter/base/OneOf.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Chksum.h>
-#include <aipstack/misc/TxAllocHelper.h>
-#include <aipstack/misc/Err.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Chksum.h>
+#include <aipstack/common/TxAllocHelper.h>
+#include <aipstack/common/Err.h>
 #include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>
@@ -58,7 +58,6 @@ class IpTcpProto_output
                                    TheIpStack, MtuRef, TcpConnection, PcbKey))
     APRINTER_USE_VALS(TcpProto, (RttTypeMax))
     APRINTER_USE_VALS(TheIpStack, (HeaderBeforeIp4Dgram))
-    APRINTER_USE_ONEOF
     
 public:
     // Check if our FIN has been ACKed.

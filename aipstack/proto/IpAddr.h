@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/BasicMetaUtils.h>
 #include <aprinter/base/Assert.h>
-#include <aipstack/misc/Struct.h>
+#include <aipstack/common/Struct.h>
 
 namespace AIpStack {
 

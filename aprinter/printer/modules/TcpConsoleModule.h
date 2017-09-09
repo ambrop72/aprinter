@@ -40,8 +40,8 @@
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aipstack/misc/Buf.h>
-#include <aipstack/misc/Err.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
