@@ -96,8 +96,9 @@ public:
      * is important for the implementation of @ref Timer.
      * 
      * In practice the stack will not set a @ref Timer to expire more than
-     * 7/16*ClockPeriodTicks in the future or in the past. This tolerance of
-     * 1/16*ClockPeriodTicks is to account for event processing latencies.
+     * 7/16*ClockPeriodTicks in the future or in the past (the tolerance of
+     * 1/16*ClockPeriodTicks is to account for event processing latencies). This can
+     * be even further restriced by defining @ref WorkingTimeLimit to a non-zero value.
      */
     using TimeType = uint64_t;
     
@@ -114,6 +115,23 @@ public:
      * where ClockPeriodTicks is the maximum value representable in @ref TimeType.
      */
     static constexpr double TimeFreq = 1000.0;
+    
+    /**
+     * Defines an optional relative time limit for timers.
+     * 
+     * If this is set to a non-zero value, the stack will avoid setting any timer to
+     * expire more than this many ticks in the future or in the past. This limit
+     * can only reduce the default limit described in @ref TimeType
+     * (7/16*ClockPeriodTicks). Note that no tolerance is applied to this limit, any
+     * needed tolerance to account for latencies must be included.
+     * 
+     * This is useful when implementing @ref TimeType on top of a clock which is not
+     * supposed to wrap, because in those cases the default relative time limit may
+     * be too large. This is especially relevant if the original type representing
+     * time is signed and its values are being converted to unsigned as required for
+     * @ref TimeType.
+     */
+    static constexpr TimeType WorkingTimeLimit = 0;
     
     /**
      * Get the current time in ticks.

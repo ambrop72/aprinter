@@ -27,7 +27,7 @@
 
 #include <aipstack/meta/FunctionIf.h>
 #include <aipstack/misc/Assert.h>
-#include <aipstack/misc/Accessor.h>
+#include <aipstack/structure/Accessor.h>
 
 namespace AIpStack {
 

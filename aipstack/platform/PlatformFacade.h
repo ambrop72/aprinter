@@ -30,7 +30,6 @@
 #include <limits>
 
 #include <aipstack/meta/BasicMetaUtils.h>
-
 #include <aipstack/misc/NonCopyable.h>
 
 namespace AIpStack {

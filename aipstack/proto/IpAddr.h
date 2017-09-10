@@ -27,7 +27,6 @@
 
 #include <stdint.h>
 
-#include <aipstack/meta/BasicMetaUtils.h>
 #include <aipstack/misc/Assert.h>
 #include <aipstack/common/Struct.h>
 

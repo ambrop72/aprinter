@@ -25,7 +25,7 @@
 #ifndef AIPSTACK_FUNCTION_IF_H
 #define AIPSTACK_FUNCTION_IF_H
 
-#include <aipstack/meta/BasicMetaUtils.h>
+#include <type_traits>
 
 namespace AIpStack {
 
@@ -39,15 +39,15 @@ AIPSTACK_FUNCTION_IF_OR_EMPTY_EXT(condition, , return_type, remaining_declaratio
 AIPSTACK_FUNCTION_IF_ELSE_EXT(condition, , return_type, remaining_declaration, if_code, else_code)
 
 #define AIPSTACK_FUNCTION_IF_EXT(condition, qualifiers, return_type, remaining_declaration) \
-template <typename FunctionIfReturnType=return_type> qualifiers AIpStack::template EnableIf<(condition), FunctionIfReturnType> remaining_declaration
+template <typename FunctionIfReturnType=return_type> qualifiers std::template enable_if_t<(condition), FunctionIfReturnType> remaining_declaration
 
 #define AIPSTACK_FUNCTION_IF_OR_EMPTY_EXT(condition, qualifiers, return_type, remaining_declaration) \
-template <typename FunctionIfReturnType=return_type> qualifiers AIpStack::template EnableIf<!(condition), FunctionIfReturnType> remaining_declaration {} \
-template <typename FunctionIfReturnType=return_type> qualifiers AIpStack::template EnableIf<(condition), FunctionIfReturnType> remaining_declaration
+template <typename FunctionIfReturnType=return_type> qualifiers std::template enable_if_t<!(condition), FunctionIfReturnType> remaining_declaration {} \
+template <typename FunctionIfReturnType=return_type> qualifiers std::template enable_if_t<(condition), FunctionIfReturnType> remaining_declaration
 
 #define AIPSTACK_FUNCTION_IF_ELSE_EXT(condition, qualifiers, return_type, remaining_declaration, if_code, else_code) \
-template <typename FunctionIfReturnType=return_type> qualifiers AIpStack::template EnableIf<(condition), FunctionIfReturnType> remaining_declaration if_code \
-template <typename FunctionIfReturnType=return_type> qualifiers AIpStack::template EnableIf<!(condition), FunctionIfReturnType> remaining_declaration else_code
+template <typename FunctionIfReturnType=return_type> qualifiers std::template enable_if_t<(condition), FunctionIfReturnType> remaining_declaration if_code \
+template <typename FunctionIfReturnType=return_type> qualifiers std::template enable_if_t<!(condition), FunctionIfReturnType> remaining_declaration else_code
 
 }
 

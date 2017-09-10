@@ -26,9 +26,9 @@
 #define AIPSTACK_MRU_LIST_INDEX_H
 
 #include <aipstack/meta/Instance.h>
-#include <aipstack/misc/Accessor.h>
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/structure/LinkedList.h>
+#include <aipstack/structure/Accessor.h>
 
 namespace AIpStack {
 

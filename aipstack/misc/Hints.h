@@ -32,7 +32,6 @@
 #define AIPSTACK_ALWAYS_INLINE __attribute__((always_inline)) inline
 #define AIPSTACK_NO_INLINE __attribute__((noinline))
 #define AIPSTACK_NO_RETURN __attribute__((noreturn))
-#define AIPSTACK_RESTRICT __restrict__
 
 #ifndef __clang__
 #define AIPSTACK_UNROLL_LOOPS __attribute__((optimize("unroll-loops")))
@@ -49,7 +48,6 @@
 #define AIPSTACK_ALWAYS_INLINE
 #define AIPSTACK_NO_INLINE
 #define AIPSTACK_NO_RETURN
-#define AIPSTACK_RESTRICT
 #define AIPSTACK_UNROLL_LOOPS
 #define AIPSTACK_OPTIMIZE_SIZE
 

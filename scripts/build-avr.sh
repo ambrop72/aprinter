@@ -48,6 +48,7 @@ configure_avr() {
         -fno-access-control \
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
         -DAMBROLIB_AVR -I"${ROOT}" -I"$BUILD" -Wfatal-errors
+        "${EXTRA_COMPILE_FLAGS[@]}" "${EXTRA_LINK_FLAGS[@]}"
         ${CXXFLAGS} ${CCXXLDFLAGS}
     )
     

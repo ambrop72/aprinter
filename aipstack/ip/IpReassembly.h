@@ -33,12 +33,11 @@
 #include <aipstack/meta/Instance.h>
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Assert.h>
-
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/common/Struct.h>
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Options.h>
-#include <aipstack/misc/MinMax.h>
-#include <aipstack/misc/NonCopyable.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>
@@ -358,7 +357,7 @@ public:
             // aborted if there was any existing data buffered beyond data_length or if
             // we later received a fragment with data beyond that.
             AIPSTACK_ASSERT(reass->first_hole_offset == reass->data_length)
-#ifdef AMBROLIB_ASSERTIONS
+#if AIPSTACK_ASSERTIONS
             auto hole = HoleDescriptor::MakeRef(reass->data + reass->first_hole_offset);
             uint16_t hole_size        = hole.get(typename HoleDescriptor::HoleSize());
             uint16_t next_hole_offset = hole.get(typename HoleDescriptor::NextHoleOffset());

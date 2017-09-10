@@ -30,7 +30,6 @@
 #include <aipstack/meta/ListForEach.h>
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Assert.h>
-
 #include <aipstack/platform/PlatformFacade.h>
 
 namespace AIpStack {

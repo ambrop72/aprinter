@@ -35,12 +35,11 @@
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Assert.h>
 #include <aipstack/misc/Hints.h>
-
-#include <aipstack/common/Buf.h>
-#include <aipstack/common/Chksum.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/BinaryTools.h>
 #include <aipstack/misc/OneOf.h>
+#include <aipstack/common/Buf.h>
+#include <aipstack/common/Chksum.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/proto/Icmp4Proto.h>

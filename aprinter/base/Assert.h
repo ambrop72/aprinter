@@ -50,6 +50,9 @@
         if (!(e)) AMBRO_ASSERT_ABORT(msg " at " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)); \
     }
 
+#define APRINTER_AIPSTACK_ASSERT_HANDLER(msg) \
+    AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) " " msg)
+
 #ifdef AMBROLIB_ASSERTIONS
 #define AMBRO_ASSERT(e) AMBRO_ASSERT_FORCE(e)
 #else

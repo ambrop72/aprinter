@@ -27,107 +27,6 @@
 
 namespace AIpStack {
 
-// DedummyIndexTemplate
-
-template <template<int, typename> class Template>
-struct DedummyIndexTemplate {
-    template <int Index>
-    using Result = Template<Index, void>;
-};
-
-// EnableIf
-
-template <bool Cond, typename T>
-struct EnableIfHelper {};
-
-template <typename T>
-struct EnableIfHelper<true, T> {
-    using Type = T;
-};
-
-template <bool Cond, typename T>
-using EnableIf = typename EnableIfHelper<Cond, T>::Type;
-
-// If
-
-template <bool Cond, typename T1, typename T2>
-struct IfHelper;
-
-template <typename T1, typename T2>
-struct IfHelper<true, T1, T2> {
-    typedef T1 Type;
-};
-
-template <typename T1, typename T2>
-struct IfHelper<false, T1, T2> {
-    typedef T2 Type;
-};
-
-template <bool Cond, typename T1, typename T2>
-using If = typename IfHelper<Cond, T1, T2>::Type;
-
-// RemoveConst
-
-template <typename T>
-struct RemoveConstHelper {
-    using Type = T;
-};
-
-template <typename T>
-struct RemoveConstHelper<T const> {
-    using Type = T;
-};
-
-template <typename T>
-using RemoveConst = typename RemoveConstHelper<T>::Type;
-
-// InheritConst
-
-template <typename InheritFromType, typename TargetType>
-struct InheritConstHelper {
-    using Result = RemoveConst<TargetType>;
-};
-
-template <typename InheritFromType, typename TargetType>
-struct InheritConstHelper<InheritFromType const, TargetType> {
-    using Result = TargetType const;
-};
-
-template <typename InheritFromType, typename TargetType>
-using InheritConst = typename InheritConstHelper<InheritFromType, TargetType>::Result;
-
-// RemoveReference
-
-template <typename T>
-struct RemoveReferenceHelper {
-    using Type = T;
-};
-
-template <typename T>
-struct RemoveReferenceHelper<T &> {
-    using Type = T;
-};
-
-template <typename T>
-struct RemoveReferenceHelper<T &&> {
-    using Type = T;
-};
-
-template <typename T>
-using RemoveReference = typename RemoveReferenceHelper<T>::Type;
-
-// TypesAreEqual
-
-template <typename T1, typename T2>
-struct TypesAreEqual {
-    static const bool Value = false;
-};
-
-template <typename T>
-struct TypesAreEqual<T, T> {
-    static const bool Value = true;
-};
-
 // WrapType
 
 template <typename TType>
@@ -149,10 +48,6 @@ using WrapBool = WrapValue<bool, Value>;
 
 template <int Value>
 using WrapInt = WrapValue<int, Value>;
-
-#define AIPSTACK_WRAP_COMPLEX_VALUE(Type, Value) struct { static constexpr Type value () { return (Value); } }
-
-#define AIPSTACK_WRAP_DOUBLE(Value) AIPSTACK_WRAP_COMPLEX_VALUE(double, (Value))
 
 // GetReturnType
 

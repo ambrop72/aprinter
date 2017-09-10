@@ -33,10 +33,9 @@
 #include <aipstack/meta/BasicMetaUtils.h>
 #include <aipstack/misc/Assert.h>
 #include <aipstack/misc/Hints.h>
-
-#include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/BinaryTools.h>
+#include <aipstack/common/Buf.h>
 
 // NOTE: IpChksumInverted (and IpChksum) accept size_t len
 // but the length must not exceed 65535. This is okay since

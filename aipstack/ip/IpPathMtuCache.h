@@ -34,16 +34,15 @@
 #include <aipstack/meta/ChooseInt.h>
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Assert.h>
-#include <aipstack/misc/Accessor.h>
-#include <aipstack/structure/LinkModel.h>
-#include <aipstack/structure/LinkedList.h>
-#include <aipstack/structure/OperatorKeyCompare.h>
-
-#include <aipstack/common/Options.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/NonCopyable.h>
 #include <aipstack/misc/OneOf.h>
+#include <aipstack/structure/LinkModel.h>
+#include <aipstack/structure/LinkedList.h>
+#include <aipstack/structure/OperatorKeyCompare.h>
 #include <aipstack/structure/StructureRaiiWrapper.h>
+#include <aipstack/structure/Accessor.h>
+#include <aipstack/common/Options.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Ip4Proto.h>
 #include <aipstack/platform/PlatformFacade.h>

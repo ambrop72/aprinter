@@ -30,7 +30,6 @@
 
 #include <aipstack/misc/Assert.h>
 #include <aipstack/misc/Hints.h>
-
 #include <aipstack/misc/MinMax.h>
 
 namespace AIpStack {

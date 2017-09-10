@@ -25,60 +25,58 @@
 #ifndef AIPSTACK_ASSERT_H
 #define AIPSTACK_ASSERT_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef AMBROLIB_AVR
-#include <avr/pgmspace.h>
-#endif
-
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Hints.h>
-#include <aipstack/misc/ProgramMemory.h>
+
+#ifdef AIPSTACK_CONFIG_ASSERT_INCLUDE
+#include AIPSTACK_CONFIG_ASSERT_INCLUDE
+#endif
+
+#ifdef AIPSTACK_CONFIG_ASSERT_HANDLER
+#define AIPSTACK_HAS_EXTERNAL_ASSERT_HANDLER 1
+#define AIPSTACK_ASSERT_HANDLER AIPSTACK_CONFIG_ASSERT_HANDLER
+#else
+#define AIPSTACK_HAS_EXTERNAL_ASSERT_HANDLER 0
+#define AIPSTACK_ASSERT_HANDLER(msg) \
+    AIpStack_AssertAbort(__FILE__, __LINE__, msg)
+#endif
 
 #define AIPSTACK_ASSERT_ABORT(msg) \
-    do { \
-        AIpStack_AssertAbort(AIPSTACK_PSTR(msg)); \
-    } while (0)
+    do { AIPSTACK_ASSERT_HANDLER(msg); } while (0)
 
 #define AIPSTACK_ASSERT_FORCE(e) \
     { \
-        if (!(e)) AIPSTACK_ASSERT_ABORT("BUG " __FILE__ ":" AIPSTACK_STRINGIFY(__LINE__)); \
+        if (e) {} else AIPSTACK_ASSERT_ABORT(#e); \
     }
 
 #define AIPSTACK_ASSERT_FORCE_MSG(e, msg) \
     { \
-        if (!(e)) AIPSTACK_ASSERT_ABORT(msg " at " __FILE__ ":" AIPSTACK_STRINGIFY(__LINE__)); \
+        if (e) {} else AIPSTACK_ASSERT_ABORT(msg); \
     }
 
-#ifdef AMBROLIB_ASSERTIONS
+#ifdef AIPSTACK_CONFIG_ENABLE_ASSERTIONS
+#define AIPSTACK_ASSERTIONS 1
 #define AIPSTACK_ASSERT(e) AIPSTACK_ASSERT_FORCE(e)
 #else
+#define AIPSTACK_ASSERTIONS 0
 #define AIPSTACK_ASSERT(e) {}
 #endif
+
+#if !AIPSTACK_HAS_EXTERNAL_ASSERT_HANDLER
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C"
 #endif
 AIPSTACK_NO_INLINE AIPSTACK_NO_RETURN
-inline void AIpStack_AssertAbort (char const *msg)
+inline void AIpStack_AssertAbort (char const *file, unsigned int line, char const *msg)
 {
-#ifdef AMBROLIB_EMERGENCY_ACTION
-    AMBROLIB_EMERGENCY_ACTION
-#endif
-    
-#if !defined(AMBROLIB_NO_PRINT)
-#ifdef AMBROLIB_AVR
-    puts_P(msg);
-#else
-    puts(msg);
-#endif
-#endif
-    
-#ifdef AMBROLIB_ABORT_ACTION
-    AMBROLIB_ABORT_ACTION
-#else
+    fprintf(stderr, "AIpStack %s:%u: Assertion `%s' failed.\n", file, line, msg);
     abort();
-#endif
 }
+
+#endif
 
 #endif

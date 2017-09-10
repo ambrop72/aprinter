@@ -210,7 +210,7 @@ class GenState(object):
     def set_have_hw_millisecond_clock (self):
         self._have_hw_millisecond_clock = True
     
-    def add_define (self, name, value):
+    def add_define (self, name, value=''):
         self._defines.append({'name': name, 'value': str(value)})
     
     def add_linker_symbol (self, name, value):
@@ -1333,7 +1333,7 @@ class NetworkConfigState(object):
     def add_resource_counts(self, connections=0):
         self._num_connections += connections
 
-def setup_network(gen, config, key):
+def setup_network(gen, config, key, assertions_enabled):
     network_sel = selection.Selection()
     
     @network_sel.option('NoNetwork')
@@ -1390,6 +1390,12 @@ def setup_network(gen, config, key):
         if checksum_src_file is not None:
             gen.add_extra_source(checksum_src_file)
             gen.add_define('AIPSTACK_EXTERNAL_CHKSUM', 1)
+        
+        gen.add_define('AIPSTACK_CONFIG_ASSERT_INCLUDE', '<aprinter/base/Assert.h>')
+        gen.add_define('AIPSTACK_CONFIG_ASSERT_HANDLER', 'APRINTER_AIPSTACK_ASSERT_HANDLER')
+        
+        if assertions_enabled:
+            gen.add_define('AIPSTACK_CONFIG_ENABLE_ASSERTIONS')
         
         service_expr = TemplateExpr('IpStackNetworkService', [
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
@@ -1562,6 +1568,15 @@ def generate(config_root_data, cfg_name, main_template):
                     verbose_build = development.get_bool('VerboseBuild')
                     debug_symbols = development.get_bool('DebugSymbols')
                     
+                    if assertions_enabled:
+                        gen.add_define('AMBROLIB_ASSERTIONS')
+                    
+                    if event_loop_benchmark_enabled:
+                        gen.add_define('EVENTLOOP_BENCHMARK')
+                    
+                    if detect_overload_enabled:
+                        gen.add_define('AXISDRIVER_DETECT_OVERLOAD')
+                    
                     if development.get_bool('EnableBulkOutputTest'):
                         gen.add_aprinter_include('printer/modules/BulkOutputTestModule.h')
                         bulk_output_test_module = gen.add_module()
@@ -1702,7 +1717,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 
-                have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
+                have_network = setup_network(gen, board_data.get_config('network_config'), 'network', assertions_enabled)
                 if have_network:
                     network = gen.get_singleton_object('network')
                     
@@ -2557,9 +2572,6 @@ def generate(config_root_data, cfg_name, main_template):
         'output_types': output_types,
         'optimize_for_size': optimize_for_size,
         'optimize_libc_for_size': optimize_libc_for_size,
-        'assertions_enabled': assertions_enabled,
-        'event_loop_benchmark_enabled': event_loop_benchmark_enabled,
-        'detect_overload_enabled': detect_overload_enabled,
         'build_with_clang': build_with_clang,
         'verbose_build': verbose_build,
         'debug_symbols': debug_symbols,
@@ -2599,7 +2611,6 @@ def main():
         'with ((import (builtins.toPath {})) {{ pkgs = import <nixpkgs> {{ {} }}; }}); aprinterFunc {{\n'
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
         '    optimizeLibcForSize = {};\n'
-        '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
         '    extraSources = {}; extraIncludes = {}; defines = {}; linkerSymbols = {};\n'
         '    mainText = {};\n'
@@ -2611,9 +2622,6 @@ def main():
         nix_utils.convert_for_nix(result['output_types']),
         nix_utils.convert_bool_for_nix(result['optimize_for_size']),
         nix_utils.convert_bool_for_nix(result['optimize_libc_for_size']),
-        nix_utils.convert_bool_for_nix(result['assertions_enabled']),
-        nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
-        nix_utils.convert_bool_for_nix(result['detect_overload_enabled']),
         nix_utils.convert_bool_for_nix(result['build_with_clang']),
         nix_utils.convert_bool_for_nix(result['verbose_build']),
         nix_utils.convert_bool_for_nix(result['debug_symbols']),

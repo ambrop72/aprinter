@@ -25,10 +25,41 @@
 #ifndef AIPSTACK_TYPE_SEQUENCE_H
 #define AIPSTACK_TYPE_SEQUENCE_H
 
+#include <aipstack/meta/BasicMetaUtils.h>
+
 namespace AIpStack {
 
 template <typename... Types>
 struct TypeSequence {};
+
+template <typename, typename>
+struct TypeSequenceMakeIntConcatHelper;
+
+template <typename... Ints1, typename... Ints2>
+struct TypeSequenceMakeIntConcatHelper<TypeSequence<Ints1...>, TypeSequence<Ints2...>> {
+    using Result = TypeSequence<Ints1..., WrapInt<sizeof...(Ints1) + Ints2::Value>...>;
+};
+
+template <int N>
+struct TypeSequenceMakeIntHelper {
+    using Result = typename TypeSequenceMakeIntConcatHelper<
+        typename TypeSequenceMakeIntHelper<(N / 2)>::Result,
+        typename TypeSequenceMakeIntHelper<(N - (N / 2))>::Result
+    >::Result;
+};
+
+template <>
+struct TypeSequenceMakeIntHelper<0> {
+    using Result = TypeSequence<>;
+};
+
+template <>
+struct TypeSequenceMakeIntHelper<1> {
+    using Result = TypeSequence<WrapInt<0>>;
+};
+
+template <int N>
+using TypeSequenceMakeInt = typename TypeSequenceMakeIntHelper<N>::Result;
 
 }
 

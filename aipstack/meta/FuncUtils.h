@@ -25,35 +25,10 @@
 #ifndef AIPSTACK_FUNC_UTILS_H
 #define AIPSTACK_FUNC_UTILS_H
 
-#include <aipstack/meta/BasicMetaUtils.h>
-
 namespace AIpStack {
 
 template <typename Func, typename Arg>
 using FuncCall = typename Func::template Call<Arg>::Type;
-
-template <typename CondFunc, typename TrueFunc, typename FalseFunc>
-struct IfFunc {
-    template <typename X>
-    struct Call {
-        using Type = FuncCall<If<FuncCall<CondFunc, X>::Value, TrueFunc, FalseFunc>, X>;
-    };
-};
-
-template <typename T>
-struct IsEqualFunc {
-    template <typename U>
-    struct Call {
-        typedef WrapBool<TypesAreEqual<U, T>::Value> Type;
-    };
-};
-
-struct NotFunc {
-    template <typename X>
-    struct Call {
-        typedef WrapBool<(!X::Value)> Type;
-    };
-};
 
 template <template<typename> class Template>
 struct TemplateFunc {
@@ -68,22 +43,6 @@ struct ValueTemplateFunc {
     template <typename U>
     struct Call {
         typedef Template<U::Value> Type;
-    };
-};
-
-template <typename Value>
-struct ConstantFunc {
-    template <typename X>
-    struct Call {
-        using Type = Value;
-    };
-};
-
-template <typename Func1, typename Func2>
-struct ComposeFunctions {
-    template <typename X>
-    struct Call {
-        using Type = FuncCall<Func1, FuncCall<Func2, X>>;
     };
 };
 

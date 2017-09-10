@@ -31,11 +31,10 @@
 #include <limits>
 
 #include <aipstack/misc/Assert.h>
-
-#include <aipstack/common/Buf.h>
 #include <aipstack/misc/MinMax.h>
 #include <aipstack/misc/BinaryTools.h>
 #include <aipstack/misc/OneOf.h>
+#include <aipstack/common/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/proto/Tcp4Proto.h>
 

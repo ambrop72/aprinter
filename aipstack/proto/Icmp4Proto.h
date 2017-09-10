@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#include <aipstack/common/Struct.h>
 #include <aipstack/misc/BinaryTools.h>
+#include <aipstack/common/Struct.h>
 
 namespace AIpStack {
 

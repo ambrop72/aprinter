@@ -27,10 +27,10 @@
 
 #include <aipstack/meta/Instance.h>
 #include <aipstack/misc/Preprocessor.h>
-#include <aipstack/misc/Accessor.h>
 #include <aipstack/misc/Assert.h>
 #include <aipstack/structure/AvlTree.h>
 #include <aipstack/structure/TreeCompare.h>
+#include <aipstack/structure/Accessor.h>
 
 namespace AIpStack {
 

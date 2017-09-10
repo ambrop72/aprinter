@@ -28,9 +28,6 @@
 , extraIncludes, defines, linkerSymbols
 , mainText, boardName, buildName, desiredOutputs
 , optimizeForSize ? false
-, assertionsEnabled ? false
-, eventLoopBenchmarkEnabled ? false
-, detectOverloadEnabled ? false
 , buildWithClang ? false
 , verboseBuild ? false
 , debugSymbols ? false
@@ -55,7 +52,9 @@ let
         EXTRA_C_SOURCES = collectSources ".c";
         EXTRA_CXX_SOURCES = collectSources ".cpp";
         EXTRA_ASM_SOURCES = collectSources ".S";
-        EXTRA_COMPILE_FLAGS = (map (f: "-I" + f) extraIncludes) ++ (map (define: "-D${define.name}=${define.value}") defines);
+        EXTRA_COMPILE_FLAGS = 
+            (map (f: "-I" + f) extraIncludes) ++
+            (map (define: "-D${define.name}" + (if define.value=="" then "" else "=${define.value}")) defines);
         EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
     };
     
@@ -95,12 +94,6 @@ let
     
     mainFile = writeText "aprinter-main.cpp" mainText;
     
-    compileFlags = stdenv.lib.concatStringsSep " " [
-        (stdenv.lib.optionalString assertionsEnabled "-DAMBROLIB_ASSERTIONS")
-        (stdenv.lib.optionalString eventLoopBenchmarkEnabled "-DEVENTLOOP_BENCHMARK")
-        (stdenv.lib.optionalString detectOverloadEnabled "-DAXISDRIVER_DETECT_OVERLOAD")
-    ];
-    
     ccxxldFlags = stdenv.lib.concatStringsSep " " [
         (stdenv.lib.optionalString debugSymbols "-g")
     ];
@@ -131,8 +124,6 @@ stdenv.mkDerivation rec {
     '';
     
     buildPhase = ''
-        CFLAGS="${compileFlags}" \
-        CXXFLAGS="${compileFlags}" \
         CCXXLDFLAGS="${ccxxldFlags}" \
         ${bash}/bin/bash ${aprinterSource}/build.sh ${targetFile} ${mainFile} ${if verboseBuild then "-v" else ""}
     '';

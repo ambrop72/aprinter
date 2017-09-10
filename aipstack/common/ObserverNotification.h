@@ -26,7 +26,6 @@
 #define AIPSTACK_OBSERVER_NOTIFICATION_H
 
 #include <aipstack/misc/Assert.h>
-
 #include <aipstack/misc/NonCopyable.h>
 
 namespace AIpStack {

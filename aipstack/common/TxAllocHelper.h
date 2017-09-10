@@ -28,7 +28,6 @@
 #include <stddef.h>
 
 #include <aipstack/misc/Assert.h>
-
 #include <aipstack/common/Buf.h>
 
 namespace AIpStack {
@@ -43,7 +42,7 @@ public:
     inline TxAllocHelper (TxAllocHelperUninitialized)
     {
         m_node.ptr = m_data;
-#ifdef AMBROLIB_ASSERTIONS
+#if AIPSTACK_ASSERTIONS
         m_initialized = false;
 #endif
     }
@@ -62,7 +61,7 @@ public:
         m_node.len = HeaderBefore + size;
         m_node.next = nullptr;
         m_tot_len = size;
-#ifdef AMBROLIB_ASSERTIONS
+#if AIPSTACK_ASSERTIONS
         m_initialized = true;
 #endif
     }
@@ -104,7 +103,7 @@ private:
     IpBufNode m_node;
     size_t m_tot_len;
     char m_data[TotalMaxSize];
-#ifdef AMBROLIB_ASSERTIONS
+#if AIPSTACK_ASSERTIONS
     bool m_initialized;
 #endif
 };

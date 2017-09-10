@@ -27,7 +27,8 @@
 
 #include <stdint.h>
 
-#include <aipstack/meta/BasicMetaUtils.h>
+#include <type_traits>
+
 #include <aipstack/meta/BitsInInt.h>
 
 namespace AIpStack {
@@ -40,14 +41,14 @@ public:
     static_assert((!!Signed || NumBits <= 64), "Too many bits (unsigned).");
     
     using Result =
-        If<(Signed && NumBits < 8), int8_t,
-        If<(Signed && NumBits < 16), int16_t,
-        If<(Signed && NumBits < 32), int32_t,
-        If<(Signed && NumBits < 64), int64_t,
-        If<(!Signed && NumBits <= 8), uint8_t,
-        If<(!Signed && NumBits <= 16), uint16_t,
-        If<(!Signed && NumBits <= 32), uint32_t,
-        If<(!Signed && NumBits <= 64), uint64_t,
+        std::conditional_t<(Signed && NumBits < 8), int8_t,
+        std::conditional_t<(Signed && NumBits < 16), int16_t,
+        std::conditional_t<(Signed && NumBits < 32), int32_t,
+        std::conditional_t<(Signed && NumBits < 64), int64_t,
+        std::conditional_t<(!Signed && NumBits <= 8), uint8_t,
+        std::conditional_t<(!Signed && NumBits <= 16), uint16_t,
+        std::conditional_t<(!Signed && NumBits <= 32), uint32_t,
+        std::conditional_t<(!Signed && NumBits <= 64), uint64_t,
         void>>>>>>>>;
 };
 

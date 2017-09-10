@@ -45,25 +45,12 @@ struct ListForEach<ConsTypeList<Head, Tail>> {
     }
     
     template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static void call_reverse (Func func, Args... args)
-    {
-        ListForEach<Tail>::call_reverse(func, args...);
-        func(WrapType<Head>(), args...);
-    }
-    
-    template <typename Func, typename... Args>
     AIPSTACK_ALWAYS_INLINE static bool call_forward_interruptible (Func func, Args... args)
     {
         if (!func(WrapType<Head>(), args...)) {
             return false;
         }
         return ListForEach<Tail>::call_forward_interruptible(func, args...);
-    }
-    
-    template <typename AccRes, typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static auto call_forward_accres (AccRes acc_res, Func func, Args... args) -> decltype(ListForEach<Tail>::call_forward_accres(func(WrapType<Head>(), acc_res, args...), func, args...))
-    {
-        return ListForEach<Tail>::call_forward_accres(func(WrapType<Head>(), acc_res, args...), func, args...);
     }
 };
 
@@ -75,60 +62,9 @@ struct ListForEach<EmptyTypeList> {
     }
     
     template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static void call_reverse (Func func, Args... args)
-    {
-    }
-    
-    template <typename Func, typename... Args>
     AIPSTACK_ALWAYS_INLINE static bool call_forward_interruptible (Func func, Args... args)
     {
         return true;
-    }
-    
-    template <typename AccRes, typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static auto call_forward_accres (AccRes acc_res, Func func, Args... args) -> decltype(acc_res)
-    {
-        return acc_res;
-    }
-};
-
-template <typename List, int Offset, typename Ret, typename IndexType>
-struct ListForOneHelper;
-
-template <typename Head, typename Tail, int Offset, typename Ret, typename IndexType>
-struct ListForOneHelper<ConsTypeList<Head, Tail>, Offset, Ret, IndexType> {
-    template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static Ret call (IndexType index, Func func, Args... args)
-    {
-        if (index == Offset) {
-            return func(WrapType<Head>(), args...);
-        }
-        return ListForOneHelper<Tail, Offset + 1, Ret, IndexType>::call(index, func, args...);
-    }
-    
-    template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static bool call_bool (IndexType index, Func func, Args... args)
-    {
-        if (index == Offset) {
-            func(WrapType<Head>(), args...);
-            return true;
-        }
-        return ListForOneHelper<Tail, Offset + 1, Ret, IndexType>::call_bool(index, func, args...);
-    }
-};
-
-template <int Offset, typename Ret, typename IndexType>
-struct ListForOneHelper<EmptyTypeList, Offset, Ret, IndexType> {
-    template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static Ret call (IndexType index, Func func, Args... args)
-    {
-        __builtin_unreachable();
-    }
-    
-    template <typename Func, typename... Args>
-    AIPSTACK_ALWAYS_INLINE static bool call_bool (IndexType index, Func func, Args... args)
-    {
-        return false;
     }
 };
 
@@ -139,33 +75,9 @@ AIPSTACK_ALWAYS_INLINE void ListFor (Func func, Args... args)
 }
 
 template <typename List, typename Func, typename... Args>
-AIPSTACK_ALWAYS_INLINE void ListForReverse (Func func, Args... args)
-{
-    return ListForEach<List>::call_reverse(func, args...);
-}
-
-template <typename List, typename Func, typename... Args>
 AIPSTACK_ALWAYS_INLINE bool ListForBreak (Func func, Args... args)
 {
     return ListForEach<List>::call_forward_interruptible(func, args...);
-}
-
-template <typename List, typename InitialAccRes, typename Func, typename... Args>
-AIPSTACK_ALWAYS_INLINE auto ListForFold (InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(ListForEach<List>::call_forward_accres(initial_acc_res, func, args...))
-{
-    return ListForEach<List>::call_forward_accres(initial_acc_res, func, args...);
-}
-
-template <typename List, int Offset = 0, typename Ret = void, typename IndexType, typename Func, typename... Args>
-AIPSTACK_ALWAYS_INLINE Ret ListForOne (IndexType index, Func func, Args... args)
-{
-    return ListForOneHelper<List, Offset, Ret, IndexType>::call(index, func, args...);
-}
-
-template <typename List, int Offset = 0, typename IndexType, typename Func, typename... Args>
-AIPSTACK_ALWAYS_INLINE bool ListForOneBool (IndexType index, Func func, Args... args)
-{
-    return ListForOneHelper<List, Offset, void, IndexType>::call_bool(index, func, args...);
 }
 
 #define AIPSTACK_TL(TypeAlias, code) (auto aipstack__type_lambda_arg) { using TypeAlias = typename decltype(aipstack__type_lambda_arg)::Type; code; }

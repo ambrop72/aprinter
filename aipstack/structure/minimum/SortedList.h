@@ -26,7 +26,7 @@
 #define AIPSTACK_SORTED_LIST_H
 
 #include <aipstack/misc/Assert.h>
-#include <aipstack/misc/Accessor.h>
+#include <aipstack/structure/Accessor.h>
 #include <aipstack/structure/LinkedList.h>
 
 namespace AIpStack {

@@ -28,7 +28,6 @@
 #include <type_traits>
 
 #include <aipstack/misc/Assert.h>
-
 #include <aipstack/misc/NonCopyable.h>
 
 namespace AIpStack {

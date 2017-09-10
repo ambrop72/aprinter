@@ -33,13 +33,12 @@
 #include <aipstack/misc/Preprocessor.h>
 #include <aipstack/misc/Assert.h>
 #include <aipstack/misc/Hints.h>
-
+#include <aipstack/misc/MinMax.h>
+#include <aipstack/misc/OneOf.h>
 #include <aipstack/common/Buf.h>
 #include <aipstack/common/Chksum.h>
 #include <aipstack/common/TxAllocHelper.h>
 #include <aipstack/common/Err.h>
-#include <aipstack/misc/MinMax.h>
-#include <aipstack/misc/OneOf.h>
 #include <aipstack/proto/Tcp4Proto.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpUtils.h>

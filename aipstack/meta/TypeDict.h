@@ -25,8 +25,9 @@
 #ifndef AIPSTACK_TYPE_DICT_H
 #define AIPSTACK_TYPE_DICT_H
 
+#include <type_traits>
+
 #include <aipstack/meta/TypeList.h>
-#include <aipstack/meta/BasicMetaUtils.h>
 
 namespace AIpStack {
 
@@ -72,7 +73,7 @@ namespace Private {
     template <typename Current, typename Key, typename Value, typename Tail>
     struct TypeDictRemoveDuplicatesHelper<Current, ConsTypeList<TypeDictEntry<Key, Value>, Tail>> {
         using Result = typename TypeDictRemoveDuplicatesHelper<
-            If<
+            std::conditional_t<
                 decltype(TypeDictGetHelper<Key>(TypeDictHelper<Current>()))::Found,
                 Current,
                 ConsTypeList<TypeDictEntry<Key, Value>, Current>

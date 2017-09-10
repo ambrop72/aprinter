@@ -26,7 +26,6 @@
 #define AIPSTACK_TYPE_SEQUENCE_FROM_LIST_H
 
 #include <aipstack/meta/TypeSequence.h>
-#include <aipstack/meta/TypeSequenceMakeInt.h>
 #include <aipstack/meta/TypeListUtils.h>
 
 namespace AIpStack {
