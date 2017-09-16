@@ -25,7 +25,7 @@
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
 , clang, asf, stm32cubef4, teensyCores
 , aprinterSource, buildVars, extraSources
-, extraIncludes, defines, linkerSymbols
+, extraIncludePaths, defines, linkerSymbols
 , mainText, boardName, buildName, desiredOutputs
 , optimizeForSize ? false
 , buildWithClang ? false
@@ -53,7 +53,7 @@ let
         EXTRA_CXX_SOURCES = collectSources ".cpp";
         EXTRA_ASM_SOURCES = collectSources ".S";
         EXTRA_COMPILE_FLAGS = 
-            (map (f: "-I" + f) extraIncludes) ++
+            (map (f: "-I${aprinterSource}/${f}") extraIncludePaths) ++
             (map (define: "-D${define.name}" + (if define.value=="" then "" else "=${define.value}")) defines);
         EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
     };
@@ -118,7 +118,6 @@ stdenv.mkDerivation rec {
     unpackPhase = "true";
     
     configurePhase = ''
-        echo configure
         mkdir build
         cd build
     '';

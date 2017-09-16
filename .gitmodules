@@ -1,0 +1,3 @@
+[submodule "aipstack"]
+	path = aipstack
+	url = https://github.com/ambrop72/aipstack.git

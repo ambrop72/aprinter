@@ -55,7 +55,7 @@ class GenState(object):
         self._modules_exprs = []
         self._build_vars = {}
         self._extra_sources = []
-        self._extra_includes = []
+        self._extra_include_paths = []
         self._need_millisecond_clock = False
         self._have_hw_millisecond_clock = False
         self._defines = []
@@ -201,8 +201,8 @@ class GenState(object):
     def add_extra_source (self, path):
         self._extra_sources.append(path)
     
-    def add_extra_include (self, path):
-        self._extra_includes.append(path)
+    def add_extra_include_path (self, path):
+        self._extra_include_paths.append(path)
     
     def set_need_millisecond_clock (self):
         self._need_millisecond_clock = True
@@ -1342,6 +1342,7 @@ def setup_network(gen, config, key, assertions_enabled):
     
     @network_sel.option('Network')
     def option(network_config):
+        gen.add_extra_include_path('aipstack/src')
         gen.add_aprinter_include('net/IpStackNetwork.h')
         gen.add_include('aipstack/ip/IpReassembly.h')
         gen.add_include('aipstack/ip/IpPathMtuCache.h')
@@ -2577,7 +2578,7 @@ def generate(config_root_data, cfg_name, main_template):
         'debug_symbols': debug_symbols,
         'build_vars': gen._build_vars,
         'extra_sources': gen._extra_sources,
-        'extra_includes': gen._extra_includes,
+        'extra_include_paths': gen._extra_include_paths,
         'defines': gen._defines,
         'linker_symbols': gen._linker_symbols,
     }
@@ -2612,7 +2613,7 @@ def main():
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
         '    optimizeLibcForSize = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
-        '    extraSources = {}; extraIncludes = {}; defines = {}; linkerSymbols = {};\n'
+        '    extraSources = {}; extraIncludePaths = {}; defines = {}; linkerSymbols = {};\n'
         '    mainText = {};\n'
         '}}\n'
     ).format(
@@ -2627,7 +2628,7 @@ def main():
         nix_utils.convert_bool_for_nix(result['debug_symbols']),
         nix_utils.convert_for_nix(result['build_vars']),
         nix_utils.convert_for_nix(result['extra_sources']),
-        nix_utils.convert_for_nix(result['extra_includes']),
+        nix_utils.convert_for_nix(result['extra_include_paths']),
         nix_utils.convert_for_nix(result['defines']),
         nix_utils.convert_for_nix(result['linker_symbols']),
         nix_utils.escape_string_for_nix(result['main_source'])

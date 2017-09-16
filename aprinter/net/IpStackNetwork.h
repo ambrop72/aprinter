@@ -97,6 +97,8 @@ public:
         
         static constexpr double TimeFreq = Clock::time_freq;
         
+        static constexpr TimeType RelativeTimeLimit = (TimeType)-1;
+        
         static TimeType getTime ()
         {
             return Clock::getTime(Context());
