@@ -52,7 +52,7 @@
 #include <aprinter/printer/utils/WebRequest.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aipstack/common/MemRef.h>
+#include <aipstack/infra/MemRef.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 

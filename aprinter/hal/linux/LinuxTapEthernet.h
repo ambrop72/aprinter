@@ -49,7 +49,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Preprocessor.h>
 
-#include <aipstack/common/Err.h>
+#include <aipstack/infra/Err.h>
 #include <aipstack/proto/EthernetProto.h>
 
 namespace APrinter {

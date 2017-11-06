@@ -42,7 +42,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
-#include <aipstack/common/Err.h>
+#include <aipstack/infra/Err.h>
 
 namespace APrinter {
 

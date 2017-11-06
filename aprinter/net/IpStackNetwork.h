@@ -43,8 +43,8 @@
 
 #include <aipstack/meta/TypeListUtils.h>
 #include <aipstack/misc/NonCopyable.h>
-#include <aipstack/common/Struct.h>
-#include <aipstack/common/Buf.h>
+#include <aipstack/infra/Struct.h>
+#include <aipstack/infra/Buf.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>

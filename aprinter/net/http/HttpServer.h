@@ -47,9 +47,9 @@
 #include <aprinter/net/http/HttpPathParser.h>
 #include <aprinter/net/http/HttpStringTools.h>
 
-#include <aipstack/common/Buf.h>
-#include <aipstack/common/Err.h>
-#include <aipstack/common/MemRef.h>
+#include <aipstack/infra/Buf.h>
+#include <aipstack/infra/Err.h>
+#include <aipstack/infra/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
@@ -74,11 +74,11 @@ public:
 private:
     class Client;
     
-    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr))
+    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr, TcpListenParams))
     APRINTER_USE_TYPE1(Context::Clock, TimeType)
     APRINTER_USE_TYPE1(Context, Network)
     APRINTER_USE_TYPES1(Network, (TcpProto, PlatformImpl))
-    APRINTER_USE_TYPES1(TcpProto, (TcpConnection, TcpListenParams))
+    using TcpConnection = typename TcpProto::Connection;
     
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))

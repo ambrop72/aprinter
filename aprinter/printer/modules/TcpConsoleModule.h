@@ -40,8 +40,8 @@
 #include <aprinter/printer/utils/ConvenientCommandStream.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aipstack/common/Buf.h>
-#include <aipstack/common/Err.h>
+#include <aipstack/infra/Buf.h>
+#include <aipstack/infra/Err.h>
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
@@ -55,11 +55,12 @@ public:
     struct Object;
     
 private:
-    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr))
+    APRINTER_USE_TYPES2(AIpStack, (Ip4Addr, TcpListenParams))
     using TimeType = typename Context::Clock::TimeType;
     using Network = typename Context::Network;
     APRINTER_USE_TYPES1(Network, (TcpProto))
-    APRINTER_USE_TYPES1(TcpProto, (TcpListenParams, TcpListener, TcpConnection))
+    using TcpListener = typename TcpProto::Listener;
+    using TcpConnection = typename TcpProto::Connection;
     
     using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
     APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))

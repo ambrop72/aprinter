@@ -36,8 +36,8 @@
 #include <aprinter/misc/IpAddrUtils.h>
 #include <aprinter/printer/utils/ModuleUtils.h>
 
-#include <aipstack/common/Buf.h>
-#include <aipstack/common/Struct.h>
+#include <aipstack/infra/Buf.h>
+#include <aipstack/infra/Struct.h>
 #include <aipstack/proto/IpAddr.h>
 
 namespace APrinter {
@@ -50,7 +50,8 @@ class NetworkTestModule {
     
     using Network = typename Context::Network;
     APRINTER_USE_TYPES1(Network, (TcpProto))
-    APRINTER_USE_TYPES1(TcpProto, (TcpConnection, SeqType))
+    APRINTER_USE_TYPES1(TcpProto, (SeqType))
+    using TcpConnection = typename TcpProto::Connection;
     
 public:
     struct Object;
