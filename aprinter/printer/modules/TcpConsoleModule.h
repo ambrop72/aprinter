@@ -62,8 +62,8 @@ private:
     using TcpListener = typename TcpProto::Listener;
     using TcpConnection = typename TcpProto::Connection;
     
-    using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
-    APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
+    using SendRingBuffer = AIpStack::SendRingBuffer<TcpProto>;
+    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpProto>;
     
     using TheConvenientStream = ConvenientCommandStream<Context, ThePrinterMain>;
     
@@ -243,7 +243,7 @@ private:
             Context c;
             AMBRO_ASSERT(m_state == OneOf(State::CONNECTED, State::SENDING_END))
             
-            m_recv_ring_buf.updateMirrorAfterDataReceived(*this, RecvMirrorSize, amount);
+            m_recv_ring_buf.updateMirrorAfterReceived(*this, RecvMirrorSize, amount);
             
             if (m_state == State::CONNECTED) {
                 m_command_stream.setNextEventIfNoCommand(c);
@@ -282,11 +282,12 @@ private:
                 return disconnect(c);
             }
             
-            size_t avail = MinValue(MaxCommandSize, m_recv_ring_buf.getUsedLen(*this));
+            AIpStack::IpBufRef read_range = m_recv_ring_buf.getReadRange(*this);
+            size_t avail = MinValue(MaxCommandSize, read_range.tot_len);
             bool line_buffer_exhausted = (avail == MaxCommandSize);
             
             if (!m_gcode_parser.haveCommand(c)) {
-                m_gcode_parser.startCommand(c, m_recv_ring_buf.getReadPtr(*this).ptr1, 0);
+                m_gcode_parser.startCommand(c, read_range.getChunkPtr(), 0);
             }
             
             if (m_gcode_parser.extendCommand(c, avail, line_buffer_exhausted)) {
@@ -329,12 +330,13 @@ private:
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
             if (m_state == State::CONNECTED && !m_command_stream.isSendOverrunBeingRaised(c)) {
-                size_t avail = m_send_ring_buf.getFreeLen(*this);
-                if (avail < length) {
+                AIpStack::IpBufRef write_range = m_send_ring_buf.getWriteRange(*this);
+                if (write_range.tot_len < length) {
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                m_send_ring_buf.writeData(*this, AIpStack::MemRef(str, length));
+                write_range.giveBytes(length, str);
+                m_send_ring_buf.provideData(*this, length);
             }
         }
         
@@ -342,7 +344,8 @@ private:
         {
             AMBRO_ASSERT(state_not_disconnected(m_state))
             
-            return (m_state != State::CONNECTED) ? (size_t)-1 : m_send_ring_buf.getFreeLen(*this);
+            return (m_state != State::CONNECTED) ? (size_t)-1 :
+                m_send_ring_buf.getWriteRange(*this).tot_len;
         }
         
         void commandStreamError (Context c, typename TheConvenientStream::Error error) override

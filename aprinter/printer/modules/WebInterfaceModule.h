@@ -451,14 +451,15 @@ private:
         {
             switch (m_state) {
                 case State::WRITE_WAIT: {
-                    auto buf_st = m_request->getRequestBodyBufferState(c);
-                    if (buf_st.length > 0) {
-                        m_cur_chunk_size = MinValue(buf_st.data.wrap, buf_st.length);
-                        m_buffered_file.startWriteData(c, buf_st.data.ptr1, m_cur_chunk_size);
+                    AIpStack::IpBufRef req_buf = m_request->getRequestBodyBuffer(c);
+                    if (req_buf.tot_len > 0) {
+                        m_cur_chunk_size = req_buf.getChunkLength();
+                        m_buffered_file.startWriteData(c, req_buf.getChunkPtr(),
+                                                       m_cur_chunk_size);
                         m_state = State::WRITE_WRITE;
                         m_request->controlRequestBodyTimeout(c, false);
                     }
-                    else if (buf_st.eof) {
+                    else if (m_request->isRequestBodyComplete(c)) {
                         m_buffered_file.startWriteEof(c);
                         m_state = State::WRITE_EOF;
                         m_request->controlRequestBodyTimeout(c, false);
@@ -474,12 +475,12 @@ private:
                 
 #if APRINTER_ENABLE_HTTP_TEST
                 case State::UL_TEST: {
-                    auto buf_st = m_request->getRequestBodyBufferState(c);
-                    if (buf_st.length > 0) {
-                        m_request->acceptRequestBodyData(c, buf_st.length);
+                    AIpStack::IpBufRef req_buf = m_request->getRequestBodyBuffer(c);
+                    if (req_buf.tot_len > 0) {
+                        m_request->acceptRequestBodyData(c, req_buf.tot_len);
                         m_request->controlRequestBodyTimeout(c, true);
                     }
-                    else if (buf_st.eof) {
+                    else if (m_request->isRequestBodyComplete(c)) {
                         return complete_request(c);
                     }
                 } break;
@@ -494,11 +495,13 @@ private:
         {
             switch (m_state) {
                 case State::READ_WAIT: {
-                    auto buf_st = m_request->getResponseBodyBufferState(c);
-                    size_t allowed_length = MinValue(GetSdChunkSize, buf_st.length);
-                    if (m_cur_chunk_size < allowed_length) {
-                        auto dest_buf = buf_st.data.subFrom(m_cur_chunk_size);
-                        m_buffered_file.startReadData(c, dest_buf.ptr1, MinValue(dest_buf.wrap, (size_t)(allowed_length - m_cur_chunk_size)));
+                    AIpStack::IpBufRef resp_buf = m_request->getResponseBodyBuffer(c);
+                    size_t allowed_length = MinValue(GetSdChunkSize, resp_buf.tot_len);
+                    if (allowed_length > m_cur_chunk_size) {
+                        size_t avail_len = allowed_length - m_cur_chunk_size;
+                        resp_buf.skipBytes(m_cur_chunk_size);
+                        m_buffered_file.startReadData(c, resp_buf.getChunkPtr(),
+                            MinValue(resp_buf.getChunkLength(), avail_len));
                         m_state = State::READ_READ;
                         m_request->controlResponseBodyTimeout(c, false);
                     }
@@ -553,7 +556,9 @@ private:
                 
                 case State::JSONRESP_CUSTOM: {
                     if (m_json_req.custom_waiting) {
-                        size_t avail = m_json_req.resp_body_pending ? m_request->getResponseBodyBufferAvailBeforeHeadSent(c) : m_request->getResponseBodyBufferState(c).length;
+                        size_t avail = m_json_req.resp_body_pending ?
+                            m_request->getResponseBodyBufferAvailBeforeHeadSent(c) :
+                            m_request->getResponseBodyBuffer(c).tot_len;
                         if (avail >= JsonBufferSize) {
                             m_json_req.custom_waiting = false;
                             m_request->controlResponseBodyTimeout(c, false);
@@ -568,15 +573,11 @@ private:
 #if APRINTER_ENABLE_HTTP_TEST
                 case State::DL_TEST: {
                     while (true) {
-                        auto buf_st = m_request->getResponseBodyBufferState(c);
-                        if (buf_st.length < GetSdChunkSize) {
+                        AIpStack::IpBufRef resp_buf = m_request->getResponseBodyBuffer(c);
+                        if (resp_buf.tot_len < GetSdChunkSize) {
                             break;
                         }
-                        size_t len1 = MinValue(GetSdChunkSize, buf_st.data.wrap);
-                        memset(buf_st.data.ptr1, 'X', len1);
-                        if (len1 < GetSdChunkSize) {
-                            memset(buf_st.data.ptr2, 'X', GetSdChunkSize-len1);
-                        }
+                        resp_buf.giveSameBytes('X', GetSdChunkSize);
                         m_request->provideResponseBodyData(c, GetSdChunkSize);
                         m_request->controlResponseBodyTimeout(c, true);
                     }
@@ -684,14 +685,14 @@ private:
                 m_request->adoptResponseBody(c);
             }
             
-            auto buf_st = m_request->getResponseBodyBufferState(c);
-            if (buf_st.length < length) {
+            AIpStack::IpBufRef resp_buf = m_request->getResponseBodyBuffer(c);
+            if (resp_buf.tot_len < length) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpJsonTxOverrun\n"));
                 return false;
             }
             
             if (length > 0) {
-                buf_st.data.copyIn(AIpStack::MemRef(o->json_buffer, length));
+                resp_buf.giveBytes(length, o->json_buffer);
                 m_request->provideResponseBodyData(c, length);
             }
             
@@ -929,16 +930,17 @@ private:
                     return m_client->complete_request(c);
                 }
                 
-                auto buf_st = m_client->m_request->getRequestBodyBufferState(c);
-                if (buf_st.length == 0) {
-                    if (buf_st.eof) {
+                AIpStack::IpBufRef req_buf = m_client->m_request->getRequestBodyBuffer(c);
+                if (req_buf.tot_len == 0) {
+                    if (m_client->m_request->isRequestBodyComplete(c)) {
                         return m_client->complete_request(c);
                     }
                     break;
                 }
                 
-                size_t to_copy = MinValue(GcodeParseChunkSize, MinValue(buf_st.length, (size_t)(MaxGcodeCommandSize - m_buffer_pos)));
-                buf_st.data.copyOut(AIpStack::MemRef(m_buffer + m_buffer_pos, to_copy));
+                size_t to_copy = MinValue(GcodeParseChunkSize, MinValue(
+                    req_buf.tot_len, (size_t)(MaxGcodeCommandSize - m_buffer_pos)));
+                req_buf.takeBytes(to_copy, m_buffer + m_buffer_pos);
                 m_buffer_pos += to_copy;
                 m_client->m_request->acceptRequestBodyData(c, to_copy);
             }
@@ -980,12 +982,13 @@ private:
             AMBRO_ASSERT(m_state == OneOf(State::ATTACHED, State::FINISHING))
             
             if (m_state == State::ATTACHED && !m_command_stream.isSendOverrunBeingRaised(c) && length > 0) {
-                auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
-                AMBRO_ASSERT(buf_st.length >= m_output_pos)
-                if (buf_st.length - m_output_pos < length) {
+                AIpStack::IpBufRef resp_buf = m_client->m_request->getResponseBodyBuffer(c);
+                AMBRO_ASSERT(resp_buf.tot_len >= m_output_pos)
+                if (resp_buf.tot_len - m_output_pos < length) {
                     return m_command_stream.raiseSendOverrun(c);
                 }
-                buf_st.data.subFrom(m_output_pos).copyIn(AIpStack::MemRef(str, length));
+                resp_buf.skipBytes(m_output_pos);
+                resp_buf.giveBytes(length, str);
                 m_output_pos += length;
             }
         }
@@ -997,9 +1000,9 @@ private:
             if (m_state != State::ATTACHED) {
                 return (size_t)-1;
             }
-            auto buf_st = m_client->m_request->getResponseBodyBufferState(c);
-            AMBRO_ASSERT(buf_st.length >= m_output_pos)
-            return buf_st.length - m_output_pos;
+            AIpStack::IpBufRef resp_buf = m_client->m_request->getResponseBodyBuffer(c);
+            AMBRO_ASSERT(resp_buf.tot_len >= m_output_pos)
+            return resp_buf.tot_len - m_output_pos;
         }
         
         void commandStreamError (Context c, typename TheConvenientStream::Error error) override

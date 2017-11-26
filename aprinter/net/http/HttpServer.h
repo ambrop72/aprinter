@@ -53,7 +53,6 @@
 #include <aipstack/proto/IpAddr.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
-#include <aipstack/utils/WrapBuffer.h>
 
 namespace APrinter {
 
@@ -80,8 +79,8 @@ private:
     APRINTER_USE_TYPES1(Network, (TcpProto, PlatformImpl))
     using TcpConnection = typename TcpProto::Connection;
     
-    using RingBufferUtils = AIpStack::TcpRingBufferUtils<TcpProto>;
-    APRINTER_USE_TYPES1(RingBufferUtils, (SendRingBuffer, RecvRingBuffer))
+    using SendRingBuffer = AIpStack::SendRingBuffer<TcpProto>;
+    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpProto>;
     
     using ListenQueue = AIpStack::TcpListenQueue<PlatformImpl, TcpProto, Params::Net::QueueRecvBufferSize>;
     APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams, QueuedListener))
@@ -403,7 +402,9 @@ private:
             switch (m_state) {
                 case State::WAIT_SEND_BUF_FOR_REQUEST: {
                     // When we have sufficient space in the send buffer, start receiving a request.
-                    if (m_send_ring_buf.getFreeLen(*this) >= Params::ExpectedResponseLength) {
+                    if (m_send_ring_buf.getWriteRange(*this).tot_len >=
+                        Params::ExpectedResponseLength)
+                    {
                         m_send_timeout_event.unset(c);
                         prepare_for_request(c);
                     } else {
@@ -424,7 +425,9 @@ private:
                         
                         case SendState::SEND_LAST_CHUNK: {
                             // Not enough space in the send buffer yet?
-                            if (m_send_ring_buf.getFreeLen(*this) < TxLastChunkSize) {
+                            if (m_send_ring_buf.getWriteRange(*this).tot_len <
+                                TxLastChunkSize)
+                            {
                                 m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                                 return;
                             }
@@ -484,7 +487,9 @@ private:
                         case RecvState::RECV_CHUNK_DATA: {
                             // Detect premature EOF from the client.
                             // We don't bother passing any remaining data to the user, this is easier.
-                            if (TcpConnection::wasEndReceived() && m_recv_ring_buf.getUsedLen(*this) < m_rem_req_body_length) {
+                            if (TcpConnection::wasEndReceived() &&
+                                m_recv_ring_buf.getReadRange(*this).tot_len < m_rem_req_body_length)
+                            {
                                 HTTP_SERVER_DEBUG("HttpClientEofInData");
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
@@ -567,42 +572,50 @@ private:
         
         void recv_line (Context c, char *line_buf, size_t line_buf_size)
         {
-            // Examine the received data, looking for a newline and copying
-            // characters into line_buf.
+            AMBRO_ASSERT(m_line_length <= line_buf_size)
             
-            size_t pos = 0;
-            bool end_of_line = false;
-            char *data = m_recv_ring_buf.getReadPtr(*this).ptr1;
-            size_t data_length = m_recv_ring_buf.getUsedLen(*this);
+            // Get the range of unprocessed received data, remember its original length.
+            AIpStack::IpBufRef read_range = m_recv_ring_buf.getReadRange(*this);
+            size_t orig_read_len = read_range.tot_len;
             
-            while (pos < data_length) {
-                if (AMBRO_UNLIKELY(data == m_rx_buf + RxBufferSize)) {
-                    data = m_rx_buf;
-                }
-                
-                char ch = *data++;
-                pos++;
-                
-                if (AMBRO_UNLIKELY(m_line_length >= line_buf_size)) {
-                    m_line_overflow = true;
-                } else {
-                    line_buf[m_line_length++] = ch;
-                }
-                
-                if (ch == '\n') {
-                    end_of_line = true;
-                    break;
-                }
-            }
+            // Process the received data by looking for a newline and copying bytes into
+            // the line_buf.
+            bool end_of_line = read_range.processBytesInterruptible(size_t(-1),
+                [&](char *data, size_t &len) {
+                    // Look for a newline. If it is found, adjust len to indicate that
+                    // only data up to and including the newline has been processed.
+                    void *newline = memchr(data, '\n', len);
+                    if (newline != nullptr) {
+                        len = ((char *)newline - data) + 1;
+                    }
+                    
+                    // Copy the processed data (possibly including the newline) into the
+                    // line_buf, limited to the available space.
+                    size_t copy_len = MinValue(len, size_t(line_buf_size - m_line_length));
+                    memcpy(line_buf + m_line_length, data, copy_len);
+                    
+                    // Increment the line length by the amount of copied data and if there
+                    // was insufficient space remember that.
+                    m_line_length += copy_len;
+                    if (copy_len < len) {
+                        m_line_overflow = true;
+                    }
+                    
+                    // Indicate whether to stop processing (iff a newline was found).
+                    return newline != nullptr;
+                });
+            
+            // Determine the number of bytes processed.
+            size_t read_bytes = orig_read_len - read_range.tot_len;
             
             // Adjust the RX buffer, accepting all the data we have looked at.
-            m_recv_ring_buf.consumeData(*this, pos);
+            m_recv_ring_buf.consumeData(*this, read_bytes);
             
             // Detect too long request bodies / lines.
-            if (pos > m_rem_allowed_length) {
+            if (read_bytes > m_rem_allowed_length) {
                 return line_allowed_length_exceeded(c);
             }
-            m_rem_allowed_length -= pos;
+            m_rem_allowed_length -= read_bytes;
             
             // No newline yet?
             if (!end_of_line) {
@@ -949,22 +962,27 @@ private:
             m_recv_event.prependNow(c);
         }
         
-        size_t get_request_body_avail (Context c)
+        size_t get_request_body_avail (Context c, size_t recv_len)
         {
             AMBRO_ASSERT(receiving_request_body(c))
             
             if (m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA)) {
-                return MinValueU(m_recv_ring_buf.getUsedLen(*this), m_rem_req_body_length);
+                return MinValueU(recv_len, m_rem_req_body_length);
             } else {
                 return 0;
             }
+        }
+        
+        size_t get_request_body_avail (Context c)
+        {
+            return get_request_body_avail(c, m_recv_ring_buf.getReadRange(*this).tot_len);
         }
         
         void consume_request_body (Context c, size_t amount)
         {
             AMBRO_ASSERT(m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA))
             AMBRO_ASSERT(amount > 0)
-            AMBRO_ASSERT(amount <= m_recv_ring_buf.getUsedLen(*this))
+            AMBRO_ASSERT(amount <= m_recv_ring_buf.getReadRange(*this).tot_len)
             AMBRO_ASSERT(amount <= m_rem_req_body_length)
             AMBRO_ASSERT(!m_req_body_recevied)
             
@@ -1069,14 +1087,18 @@ private:
         
         void send_string (Context c, char const *str)
         {
-            m_send_ring_buf.writeData(*this, AIpStack::MemRef(str));
+            size_t len = strlen(str);
+            m_send_ring_buf.getWriteRange(*this).giveBytes(len, str);
+            m_send_ring_buf.provideData(*this, len);
         }
         
         template <size_t Size>
         void send_string_lit (Context c, char const (&str)[Size])
         {
             static_assert(Size > 0, "");
-            m_send_ring_buf.writeData(*this, AIpStack::MemRef(str, Size-1));
+            size_t len = Size - 1;
+            m_send_ring_buf.getWriteRange(*this).giveBytes(len, str);
+            m_send_ring_buf.provideData(*this, len);
         }
         
         void abandon_response_body (Context c)
@@ -1120,17 +1142,6 @@ private:
             virtual void requestTerminated (Context c) = 0;
             virtual void requestBufferEvent (Context c) {};
             virtual void responseBufferEvent (Context c) {};
-        };
-        
-        struct RequestBodyBufferState {
-            AIpStack::WrapBuffer data;
-            size_t length;
-            bool eof;
-        };
-        
-        struct ResponseBodyBufferState {
-            AIpStack::WrapBuffer data;
-            size_t length;
         };
         
         UserClientState * getUserState (Context c)
@@ -1244,14 +1255,22 @@ private:
             abandon_request_body(c);
         }
         
-        RequestBodyBufferState getRequestBodyBufferState (Context c)
+        AIpStack::IpBufRef getRequestBodyBuffer (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(user_receiving_request_body(c))
             
-            AIpStack::WrapBuffer data = m_recv_ring_buf.getReadPtr(*this);
-            size_t data_len = get_request_body_avail(c);
-            return RequestBodyBufferState{data, data_len, m_req_body_recevied};
+            AIpStack::IpBufRef read_range = m_recv_ring_buf.getReadRange(*this);
+            size_t req_body_avail = get_request_body_avail(c, read_range.tot_len);
+            return read_range.subTo(req_body_avail);
+        }
+        
+        bool isRequestBodyComplete (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(user_receiving_request_body(c))
+            
+            return m_req_body_recevied;
         }
         
         void acceptRequestBodyData (Context c, size_t length)
@@ -1350,30 +1369,28 @@ private:
             
             // We want to give a worst case value for how much buffer will be available
             // for data if the head is sent right now.
-            size_t con_space_avail = m_send_ring_buf.getFreeLen(*this);
+            size_t con_space_avail = m_send_ring_buf.getWriteRange(*this).tot_len;
             con_space_avail -= MinValue(con_space_avail, (size_t)(Params::ExpectedResponseLength+TxChunkOverhead));
             return con_space_avail;
         }
         
-        ResponseBodyBufferState getResponseBodyBufferState (Context c)
+        AIpStack::IpBufRef getResponseBodyBuffer (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
             
-            size_t con_space_avail = m_send_ring_buf.getFreeLen(*this);
+            // Get the available write range for the connection.
+            AIpStack::IpBufRef write_range = m_send_ring_buf.getWriteRange(*this);
             
             // Check for space for chunk header.
-            if (con_space_avail <= TxChunkOverhead) {
-                return ResponseBodyBufferState{AIpStack::WrapBuffer(nullptr), 0};
+            if (write_range.tot_len <= TxChunkOverhead) {
+                return AIpStack::IpBufRef{};
             }
             
             // Return info about the available buffer space for data.
-            AIpStack::WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
-            return ResponseBodyBufferState{
-                con_space_buffer.subFrom(TxChunkHeaderSize),
-                con_space_avail - TxChunkOverhead
-            };
+            return write_range.subFromTo(
+                TxChunkHeaderSize, write_range.tot_len - TxChunkOverhead);
         }
         
         void provideResponseBodyData (Context c, size_t length)
@@ -1383,12 +1400,12 @@ private:
             AMBRO_ASSERT(m_user)
             AMBRO_ASSERT(length > 0)
             
-            // Get the send buffer reference and sanity check the length / space.
-#ifdef AMBROLIB_ASSERTIONS
-            size_t con_space_avail = m_send_ring_buf.getFreeLen(*this);
-#endif
-            AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
-            AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
+            // Get the available write range for the connection.
+            AIpStack::IpBufRef write_range = m_send_ring_buf.getWriteRange(*this);
+            
+            // Sanity check the length / space.
+            AMBRO_ASSERT(write_range.tot_len >= TxChunkOverhead)
+            AMBRO_ASSERT(length <= write_range.tot_len - TxChunkOverhead)
             
             // Prepare the chunk header, with speed.
             if (AMBRO_UNLIKELY(length != m_last_chunk_length)) {
@@ -1402,10 +1419,9 @@ private:
             }
             
             // Write the chunk header and footer.
-            AIpStack::WrapBuffer con_space_buffer = m_send_ring_buf.getWritePtr(*this);
-            con_space_buffer.copyIn(AIpStack::MemRef(m_chunk_header, TxChunkHeaderSize));
-            con_space_buffer.subFrom(TxChunkHeaderSize + length)
-                .copyIn(AIpStack::MemRef(m_chunk_header+TxChunkHeaderDigits, 2));
+            write_range.giveBytes(TxChunkHeaderSize, m_chunk_header);
+            write_range.skipBytes(length);
+            write_range.giveBytes(TxChunkFooterSize, m_chunk_header + TxChunkHeaderDigits);
             
             // Submit data to the connection and poke sending.
             m_send_ring_buf.provideData(*this, TxChunkOverhead + length);
