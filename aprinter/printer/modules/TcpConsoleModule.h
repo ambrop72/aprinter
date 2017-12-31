@@ -43,6 +43,9 @@
 #include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Err.h>
 #include <aipstack/proto/IpAddr.h>
+#include <aipstack/tcp/TcpApi.h>
+#include <aipstack/tcp/TcpListener.h>
+#include <aipstack/tcp/TcpConnection.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 
 namespace APrinter {
@@ -58,12 +61,12 @@ private:
     APRINTER_USE_TYPES2(AIpStack, (Ip4Addr, TcpListenParams))
     using TimeType = typename Context::Clock::TimeType;
     using Network = typename Context::Network;
-    APRINTER_USE_TYPES1(Network, (TcpProto))
-    using TcpListener = typename TcpProto::Listener;
-    using TcpConnection = typename TcpProto::Connection;
-    
-    using SendRingBuffer = AIpStack::SendRingBuffer<TcpProto>;
-    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpProto>;
+    APRINTER_USE_TYPES1(Network, (TcpArg))
+
+    using TcpListener = AIpStack::TcpListener<TcpArg>;
+    using TcpConnection = AIpStack::TcpConnection<TcpArg>;
+    using SendRingBuffer = AIpStack::SendRingBuffer<TcpArg>;
+    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpArg>;
     
     using TheConvenientStream = ConvenientCommandStream<Context, ThePrinterMain>;
     
@@ -100,7 +103,7 @@ public:
         params.port = Params::Port;
         params.max_pcbs = Params::MaxPcbs;
         
-        if (!o->listener.startListening(Network::getTcpProto(c), params)) {
+        if (!o->listener.startListening(Network::getTcp(c), params)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         } else {
             o->listener.setInitialReceiveWindow(RecvBufferSize);
@@ -172,7 +175,7 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            if (TcpConnection::acceptConnection(&o->listener) != AIpStack::IpErr::SUCCESS) {
+            if (TcpConnection::acceptConnection(o->listener) != AIpStack::IpErr::SUCCESS) {
                 return;
             }
             
@@ -335,7 +338,7 @@ private:
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                write_range.giveBytes(length, str);
+                write_range.giveBytes({str, length});
                 m_send_ring_buf.provideData(*this, length);
             }
         }

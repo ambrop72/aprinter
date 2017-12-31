@@ -51,6 +51,10 @@
 #include <aipstack/infra/Err.h>
 #include <aipstack/infra/MemRef.h>
 #include <aipstack/proto/IpAddr.h>
+#include <aipstack/ip/IpStack.h>
+#include <aipstack/tcp/TcpApi.h>
+#include <aipstack/tcp/TcpListener.h>
+#include <aipstack/tcp/TcpConnection.h>
 #include <aipstack/utils/TcpRingBufferUtils.h>
 #include <aipstack/utils/TcpListenQueue.h>
 
@@ -76,13 +80,14 @@ private:
     APRINTER_USE_TYPES2(AIpStack, (Ip4Addr, TcpListenParams))
     APRINTER_USE_TYPE1(Context::Clock, TimeType)
     APRINTER_USE_TYPE1(Context, Network)
-    APRINTER_USE_TYPES1(Network, (TcpProto, PlatformImpl))
-    using TcpConnection = typename TcpProto::Connection;
+    APRINTER_USE_TYPES1(Network, (PlatformImpl, TcpArg))
+
+    using TcpListener = AIpStack::TcpListener<TcpArg>;
+    using TcpConnection = AIpStack::TcpConnection<TcpArg>;
+    using SendRingBuffer = AIpStack::SendRingBuffer<TcpArg>;
+    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpArg>;
     
-    using SendRingBuffer = AIpStack::SendRingBuffer<TcpProto>;
-    using RecvRingBuffer = AIpStack::RecvRingBuffer<TcpProto>;
-    
-    using ListenQueue = AIpStack::TcpListenQueue<PlatformImpl, TcpProto, Params::Net::QueueRecvBufferSize>;
+    using ListenQueue = AIpStack::TcpListenQueue<PlatformImpl, TcpArg, Params::Net::QueueRecvBufferSize>;
     APRINTER_USE_TYPES1(ListenQueue, (ListenQueueEntry, ListenQueueParams, QueuedListener))
     
     // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
@@ -145,7 +150,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.construct();
+        o->listener.construct(Network::getPlatform(c));
         
         auto listen_params = TcpListenParams{};
         listen_params.addr = Ip4Addr::ZeroAddr();
@@ -158,7 +163,7 @@ public:
         queue_params.queue_timeout = QueueTimeoutTicks;
         queue_params.queue_entries = o->queue;
         
-        if (!o->listener->startListening(Network::getTcpProto(c), listen_params, queue_params)) {
+        if (!o->listener->startListening(Network::getTcp(c), listen_params, queue_params)) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         
@@ -182,8 +187,8 @@ private:
     struct Listener :
         public QueuedListener
     {
-        Listener () :
-            QueuedListener(Network::getTcpProto(Context())->platform())
+        Listener (AIpStack::PlatformFacade<PlatformImpl> platform) :
+            QueuedListener(platform)
         {}
         
         void queuedListenerConnectionEstablished () override final
@@ -1088,7 +1093,7 @@ private:
         void send_string (Context c, char const *str)
         {
             size_t len = strlen(str);
-            m_send_ring_buf.getWriteRange(*this).giveBytes(len, str);
+            m_send_ring_buf.getWriteRange(*this).giveBytes({str, len});
             m_send_ring_buf.provideData(*this, len);
         }
         
@@ -1097,7 +1102,7 @@ private:
         {
             static_assert(Size > 0, "");
             size_t len = Size - 1;
-            m_send_ring_buf.getWriteRange(*this).giveBytes(len, str);
+            m_send_ring_buf.getWriteRange(*this).giveBytes({str, len});
             m_send_ring_buf.provideData(*this, len);
         }
         
@@ -1419,9 +1424,9 @@ private:
             }
             
             // Write the chunk header and footer.
-            write_range.giveBytes(TxChunkHeaderSize, m_chunk_header);
+            write_range.giveBytes({m_chunk_header, TxChunkHeaderSize});
             write_range.skipBytes(length);
-            write_range.giveBytes(TxChunkFooterSize, m_chunk_header + TxChunkHeaderDigits);
+            write_range.giveBytes({m_chunk_header + TxChunkHeaderDigits, TxChunkFooterSize});
             
             // Submit data to the connection and poke sending.
             m_send_ring_buf.provideData(*this, TxChunkOverhead + length);

@@ -49,8 +49,10 @@
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>
 #include <aipstack/tcp/IpTcpProto.h>
+#include <aipstack/udp/IpUdpProto.h>
 #include <aipstack/eth/EthIpIface.h>
 #include <aipstack/platform/PlatformFacade.h>
+#include <aipstack/structure/index/MruListIndex.h>
 
 namespace APrinter {
 
@@ -167,8 +169,13 @@ private:
         AIpStack::IpTcpProtoOptions::PcbIndexService::Is<PcbIndexService>,
         AIpStack::IpTcpProtoOptions::LinkWithArrayIndices::Is<LinkWithArrayIndices>
     >;
+
+    using TheIpUdpProtoService = AIpStack::IpUdpProtoService<
+        AIpStack::IpUdpProtoOptions::UdpTTL::Is<IpTTL>,
+        AIpStack::IpUdpProtoOptions::UdpIndexService::Is<AIpStack::MruListIndexService>
+    >;
     
-    using ProtocolServicesList = AIpStack::MakeTypeList<TheIpTcpProtoService>;
+    using ProtocolServicesList = AIpStack::MakeTypeList<TheIpTcpProtoService, TheIpUdpProtoService>;
     
     using TheIpStackService = AIpStack::IpStackService<
         AIpStack::IpStackOptions::HeaderBeforeIp::Is<EthHeader::Size>,
@@ -177,10 +184,13 @@ private:
         AIpStack::IpStackOptions::PathMtuCacheService::Is<typename Arg::Params::PathMtuCacheService>,
         AIpStack::IpStackOptions::ReassemblyService::Is<typename Arg::Params::ReassemblyService>
     >;
-    APRINTER_MAKE_INSTANCE(TheIpStack, (TheIpStackService::template Compose<
-        PlatformImpl, ProtocolServicesList>))
+
+public:
+    class StackArg : public TheIpStackService::template Compose<
+        PlatformImpl, ProtocolServicesList> {};
     
-    using Iface = typename TheIpStack::Iface;
+private:
+    using TheIpStack = AIpStack::IpStack<StackArg>;
     
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
@@ -194,13 +204,17 @@ private:
         AIpStack::EthIpIfaceOptions::HeaderBeforeEth::Is<0>,
         AIpStack::EthIpIfaceOptions::TimersStructureService::Is<ArpTableTimersStructureService>
     >;
-    APRINTER_MAKE_INSTANCE(TheEthIpIface, (TheEthIpIfaceService::template Compose<PlatformImpl, Iface>))
+    class EthIpIfaceArg : public TheEthIpIfaceService::template Compose<PlatformImpl, StackArg> {};
+    using TheEthIpIface = AIpStack::EthIpIface<EthIpIfaceArg>;
     
     using TheIpDhcpClientService = AIpStack::IpDhcpClientService<>; // default config
-    APRINTER_MAKE_INSTANCE(TheIpDhcpClient, (TheIpDhcpClientService::template Compose<PlatformImpl, TheIpStack>))
+    class DhcpClientArg : public TheIpDhcpClientService::template Compose<PlatformImpl, StackArg> {};
+    using TheIpDhcpClient = AIpStack::IpDhcpClient<DhcpClientArg>;
     
 public:
-    using TcpProto = typename TheIpStack::template GetProtocolType<AIpStack::Ip4ProtocolTcp>;
+    using TcpArg = typename TheIpStack::template GetProtoArg<AIpStack::TcpApi>;
+
+    using UdpArg = typename TheIpStack::template GetProtoArg<AIpStack::UdpApi>;
     
     enum EthActivateState {NOT_ACTIVATED, ACTIVATING, ACTIVATE_FAILED, ACTIVATED};
     
@@ -263,11 +277,26 @@ public:
         return o->activation_state != NOT_ACTIVATED;
     }
     
-    static TcpProto * getTcpProto (Context c)
+    static AIpStack::PlatformFacade<PlatformImpl> getPlatform (Context)
+    {
+        return Platform();
+    }
+
+    static AIpStack::IpStack<StackArg> & getStack (Context c)
     {
         auto *o = Object::self(c);
         
-        return o->ip_stack->template getProtocol<TcpProto>();
+        return *o->ip_stack;
+    }
+
+    static AIpStack::TcpApi<TcpArg> & getTcp (Context c)
+    {
+        return getStack(c).template getProtoApi<AIpStack::TcpApi>();
+    }
+    
+    static AIpStack::UdpApi<UdpArg> & getUdp (Context c)
+    {
+        return getStack(c).template getProtoApi<AIpStack::UdpApi>();
     }
     
     static NetworkParams getConfig (Context c)
@@ -452,10 +481,10 @@ private:
                 Ip4Addr gateway = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
                 
                 if (addr != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface->setIp4Addr(AIpStack::IpIfaceIp4AddrSetting{true, (uint8_t)netmask.countLeadingOnes(), addr});
+                    o->ip_iface->setIp4Addr(AIpStack::IpIfaceIp4AddrSetting((uint8_t)netmask.countLeadingOnes(), addr));
                 }
                 if (gateway != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface->setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting{true, gateway});
+                    o->ip_iface->setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting(gateway));
                 }
             }
         }

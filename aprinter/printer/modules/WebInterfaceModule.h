@@ -692,7 +692,7 @@ private:
             }
             
             if (length > 0) {
-                resp_buf.giveBytes(length, o->json_buffer);
+                resp_buf.giveBytes({o->json_buffer, length});
                 m_request->provideResponseBodyData(c, length);
             }
             
@@ -988,7 +988,7 @@ private:
                     return m_command_stream.raiseSendOverrun(c);
                 }
                 resp_buf.skipBytes(m_output_pos);
-                resp_buf.giveBytes(length, str);
+                resp_buf.giveBytes({str, length});
                 m_output_pos += length;
             }
         }

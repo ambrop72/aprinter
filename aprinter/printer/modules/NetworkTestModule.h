@@ -39,6 +39,8 @@
 #include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Struct.h>
 #include <aipstack/proto/IpAddr.h>
+#include <aipstack/tcp/TcpApi.h>
+#include <aipstack/tcp/TcpConnection.h>
 
 namespace APrinter {
 
@@ -49,9 +51,9 @@ class NetworkTestModule {
     APRINTER_USE_TYPES2(AIpStack, (Ip4Addr, IpErr, IpBufNode, IpBufRef))
     
     using Network = typename Context::Network;
-    APRINTER_USE_TYPES1(Network, (TcpProto))
-    APRINTER_USE_TYPES1(TcpProto, (SeqType))
-    using TcpConnection = typename TcpProto::Connection;
+    APRINTER_USE_TYPES1(Network, (TcpArg))
+    APRINTER_USE_TYPES1(AIpStack::TcpApi<TcpArg>, (SeqType))
+    using TcpConnection = AIpStack::TcpConnection<TcpArg>;
     
 public:
     struct Object;
@@ -144,8 +146,13 @@ private:
                 cmd->reportError(c, AMBRO_PSTR("ConnectionAlreadyActive"));
                 return false;
             }
+
+            AIpStack::TcpStartConnectionArgs<TcpArg> con_args;
+            con_args.addr = addr;
+            con_args.port = port;
+            con_args.rcv_wnd = BufferSize;
             
-            IpErr res = TcpConnection::startConnection(Network::getTcpProto(c), addr, port, BufferSize);
+            IpErr res = TcpConnection::startConnection(Network::getTcp(c), con_args);
             if (res != IpErr::SUCCESS) {
                 cmd->reportError(c, AMBRO_PSTR("FailedToStartConnection"));
                 return false;
@@ -153,7 +160,7 @@ private:
             
             m_buf_node = IpBufNode{m_buffer, BufferSize, &m_buf_node};
             
-            SeqType max_rx_window = MinValueU(BufferSize, TcpProto::MaxRcvWnd);
+            SeqType max_rx_window = MinValueU(BufferSize, AIpStack::TcpApi<TcpArg>::MaxRcvWnd);
             SeqType thres = MaxValue((SeqType)1, max_rx_window / Network::TcpWndUpdThrDiv);
             TcpConnection::setWindowUpdateThreshold(thres);
             
