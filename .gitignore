@@ -5,3 +5,4 @@ aprinter.kdev4
 depends
 .DS_Store
 /Debug/
+.vscode
