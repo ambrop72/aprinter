@@ -38,7 +38,7 @@
 
 #include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Struct.h>
-#include <aipstack/proto/IpAddr.h>
+#include <aipstack/ip/IpAddr.h>
 #include <aipstack/tcp/TcpApi.h>
 #include <aipstack/tcp/TcpConnection.h>
 
@@ -52,7 +52,6 @@ class NetworkTestModule {
     
     using Network = typename Context::Network;
     APRINTER_USE_TYPES1(Network, (TcpArg))
-    APRINTER_USE_TYPES1(AIpStack::TcpApi<TcpArg>, (SeqType))
     using TcpConnection = AIpStack::TcpConnection<TcpArg>;
     
 public:
@@ -160,9 +159,7 @@ private:
             
             m_buf_node = IpBufNode{m_buffer, BufferSize, &m_buf_node};
             
-            SeqType max_rx_window = MinValueU(BufferSize, AIpStack::TcpApi<TcpArg>::MaxRcvWnd);
-            SeqType thres = MaxValue((SeqType)1, max_rx_window / Network::TcpWndUpdThrDiv);
-            TcpConnection::setWindowUpdateThreshold(thres);
+            TcpConnection::setProportionalWindowUpdateThreshold(BufferSize, Network::TcpWndUpdThrDiv);
             
             TcpConnection::setSendBuf(IpBufRef{&m_buf_node, 0, 0});
             TcpConnection::setRecvBuf(IpBufRef{&m_buf_node, 0, BufferSize});

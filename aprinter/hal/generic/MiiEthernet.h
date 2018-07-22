@@ -39,7 +39,7 @@
 #include <aprinter/hal/common/MiiCommon.h>
 
 #include <aipstack/infra/Err.h>
-#include <aipstack/proto/EthernetProto.h>
+#include <aipstack/eth/MacAddr.h>
 
 #ifdef APRINTER_DEBUG_MII
 #include <aprinter/base/ProgramMemory.h>
@@ -108,7 +108,7 @@ public:
         
         o->init_state = InitState::INITING;
         o->mac_addr = mac_addr;
-        TheMii::activate(c, o->mac_addr.data);
+        TheMii::activate(c, o->mac_addr.dataPtr());
     }
     
     static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)

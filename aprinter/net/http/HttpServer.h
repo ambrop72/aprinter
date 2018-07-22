@@ -49,8 +49,8 @@
 
 #include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Err.h>
-#include <aipstack/infra/MemRef.h>
-#include <aipstack/proto/IpAddr.h>
+#include <aipstack/misc/MemRef.h>
+#include <aipstack/ip/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpApi.h>
 #include <aipstack/tcp/TcpListener.h>
@@ -150,7 +150,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->listener.construct(Network::getPlatform(c));
+        o->listener.construct(Network::getPlatform(c), &HttpServer::listener_connection_established);
         
         auto listen_params = TcpListenParams{};
         listen_params.addr = Ip4Addr::ZeroAddr();
@@ -184,25 +184,17 @@ public:
     }
     
 private:
-    struct Listener :
-        public QueuedListener
+    static void listener_connection_established ()
     {
-        Listener (AIpStack::PlatformFacade<PlatformImpl> platform) :
-            QueuedListener(platform)
-        {}
+        Context c;
+        auto *o = Object::self(c);
         
-        void queuedListenerConnectionEstablished () override final
-        {
-            Context c;
-            auto *o = Object::self(c);
-            
-            for (Client &client : o->clients) {
-                if (client.m_state == Client::State::NOT_CONNECTED) {
-                    return client.accept_connection(c, *o->listener);
-                }
+        for (Client &client : o->clients) {
+            if (client.m_state == Client::State::NOT_CONNECTED) {
+                return client.accept_connection(c, *o->listener);
             }
         }
-    };
+    }
     
     class Client :
         private TcpConnection
@@ -1505,7 +1497,7 @@ private:
     
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
-        ManualRaii<Listener> listener;
+        ManualRaii<QueuedListener> listener;
         ListenQueueEntry queue[Params::Net::QueueSize];
         Client clients[Params::Net::MaxClients];
     };

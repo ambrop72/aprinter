@@ -50,7 +50,7 @@
 #include <aprinter/base/Preprocessor.h>
 
 #include <aipstack/infra/Err.h>
-#include <aipstack/proto/EthernetProto.h>
+#include <aipstack/eth/MacAddr.h>
 
 namespace APrinter {
 

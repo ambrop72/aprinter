@@ -31,7 +31,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/StringTools.h>
 
-#include <aipstack/infra/MemRef.h>
+#include <aipstack/misc/MemRef.h>
 
 namespace APrinter {
 

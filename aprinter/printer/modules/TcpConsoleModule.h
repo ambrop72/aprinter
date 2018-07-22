@@ -42,7 +42,7 @@
 
 #include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Err.h>
-#include <aipstack/proto/IpAddr.h>
+#include <aipstack/ip/IpAddr.h>
 #include <aipstack/tcp/TcpApi.h>
 #include <aipstack/tcp/TcpListener.h>
 #include <aipstack/tcp/TcpConnection.h>
@@ -126,23 +126,19 @@ public:
     }
     
 private:
-    struct Listener :
-        public TcpListener
+    static void connectionEstablished ()
     {
-        void connectionEstablished () override final
-        {
-            Context c;
-            auto *o = Object::self(c);
-            
-            for (Client &client : o->clients) {
-                if (client.m_state == Client::State::NOT_CONNECTED) {
-                    return client.accept_connection(c);
-                }
+        Context c;
+        auto *o = Object::self(c);
+        
+        for (Client &client : o->clients) {
+            if (client.m_state == Client::State::NOT_CONNECTED) {
+                return client.accept_connection(c);
             }
-            
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
         }
-    };
+        
+        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
+    }
     
     struct Client :
         private TheConvenientStream::UserCallback,
@@ -391,8 +387,12 @@ private:
     
 public:
     struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
-        Listener listener;
+        TcpListener listener;
         Client clients[MaxClients];
+
+        Object () :
+            listener(&TcpConsoleModule::connectionEstablished)
+        {}
     };
 };
 

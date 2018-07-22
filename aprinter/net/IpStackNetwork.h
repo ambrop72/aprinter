@@ -43,9 +43,10 @@
 
 #include <aipstack/meta/TypeListUtils.h>
 #include <aipstack/misc/NonCopyable.h>
+#include <aipstack/misc/Function.h>
 #include <aipstack/infra/Struct.h>
 #include <aipstack/infra/Buf.h>
-#include <aipstack/proto/IpAddr.h>
+#include <aipstack/ip/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/ip/IpDhcpClient.h>
 #include <aipstack/tcp/IpTcpProto.h>
@@ -116,9 +117,15 @@ public:
             private TimedEventNew,
             private AIpStack::NonCopyable<Timer>
         {
+            using TimerHandler = AIpStack::Function<void()>;
+
+        private:
+            TimerHandler m_handler;
+
         public:
-            Timer (PlatformRef ref) :
-                PlatformRef(ref)
+            Timer (PlatformRef ref, TimerHandler handler) :
+                PlatformRef(ref),
+                m_handler(handler)
             {
                 TimedEventNew::init(Context());
             }
@@ -148,13 +155,10 @@ public:
                 return TimedEventNew::appendAt(Context(), abs_time);
             }
             
-        protected:
-            virtual void handleTimerExpired () = 0;
-            
         private:
             void handleTimerExpired (Context) override final
             {
-                return handleTimerExpired();
+                return m_handler();
             }
         };
     };
@@ -316,17 +320,17 @@ public:
         status.activation_state = o->activation_state;
         
         if (o->activation_state == ACTIVATED) {
-            memcpy(status.mac_addr, TheEthernet::getMacAddr(c)->data, 6);
+            memcpy(status.mac_addr, TheEthernet::getMacAddr(c)->dataPtr(), 6);
             status.link_up = TheEthernet::getLinkUp(c);
             status.dhcp_enabled = o->dhcp_enabled;
             
-            auto addr_setting = o->ip_iface->getIp4Addr();
+            auto addr_setting = o->iface->iface().getIp4Addr();
             if (addr_setting.present) {
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_addr, addr_setting.addr);
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_netmask, Ip4Addr::PrefixMask(addr_setting.prefix));
             }
             
-            auto gw_setting = o->ip_iface->getIp4Gateway();
+            auto gw_setting = o->iface->iface().getIp4Gateway();
             if (gw_setting.present) {
                 AIpStack::WriteSingleField<Ip4Addr>((char *)status.ip_gateway, gw_setting.addr);
             }
@@ -420,43 +424,27 @@ private:
             if (o->dhcp_enabled) {
                 o->dhcp_client.destruct();
             }
-            o->ip_iface.destruct();
+            o->iface.destruct();
         }
     }
     
-    class MyIface :
-        public TheEthIpIface
+    static IpErr driverSendFrame (IpBufRef frame)
     {
-        friend IpStackNetwork;
+        auto *o = Object::self(Context());
+        AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-    public:
-        MyIface (TheIpStack *stack) :
-            TheEthIpIface(Platform(), stack, {
-                /*eth_mtu=*/ EthMTU,
-                /*mac_addr=*/ TheEthernet::getMacAddr(Context())
-            })
-        {
-        }
+        return TheEthernet::sendFrame(Context(), &frame);
+    }
+    
+    static EthIfaceState driverGetEthState ()
+    {
+        auto *o = Object::self(Context());
+        AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-    private:
-        IpErr driverSendFrame (IpBufRef frame) override final
-        {
-            auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->activation_state == ACTIVATED)
-            
-            return TheEthernet::sendFrame(Context(), &frame);
-        }
-        
-        EthIfaceState driverGetEthState () override final
-        {
-            auto *o = Object::self(Context());
-            AMBRO_ASSERT(o->activation_state == ACTIVATED)
-            
-            EthIfaceState state = {};
-            state.link_up = TheEthernet::getLinkUp(Context());
-            return state;
-        }
-    };
+        EthIfaceState state = {};
+        state.link_up = TheEthernet::getLinkUp(Context());
+        return state;
+    }
     
     static void ethernet_activate_handler (Context c, bool error)
     {
@@ -469,22 +457,28 @@ private:
             o->activation_state = ACTIVATED;
             o->dhcp_enabled = false;
             
-            o->ip_iface.construct(&*o->ip_stack);
+            o->iface.construct(Platform(), &*o->ip_stack, AIpStack::EthIfaceDriverParams{
+                /*eth_mtu=*/ EthMTU,
+                /*mac_addr=*/ TheEthernet::getMacAddr(c),
+                &IpStackNetwork::driverSendFrame,
+                &IpStackNetwork::driverGetEthState,
+            });
             
             if (o->config.dhcp_enabled) {
                 o->dhcp_enabled = true;
-                AIpStack::IpDhcpClientInitOptions dhcp_opts;
-                o->dhcp_client.construct(Platform(), &*o->ip_stack, &*o->ip_iface, dhcp_opts, &o->dhcp_client_callback);
+                AIpStack::IpDhcpClientInitOptions dhcp_opts{};
+                o->dhcp_client.construct(Platform(), &*o->ip_stack,
+                    &o->iface->iface(), dhcp_opts, &IpStackNetwork::dhcpClientEvent);
             } else {
                 Ip4Addr addr    = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_addr);
                 Ip4Addr netmask = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_netmask);
                 Ip4Addr gateway = AIpStack::ReadSingleField<Ip4Addr>((char const *)o->config.ip_gateway);
                 
                 if (addr != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface->setIp4Addr(AIpStack::IpIfaceIp4AddrSetting((uint8_t)netmask.countLeadingOnes(), addr));
+                    o->iface->iface().setIp4Addr(AIpStack::IpIfaceIp4AddrSetting((uint8_t)netmask.countLeadingOnes(), addr));
                 }
                 if (gateway != Ip4Addr::ZeroAddr()) {
-                    o->ip_iface->setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting(gateway));
+                    o->iface->iface().setIp4Gateway(AIpStack::IpIfaceIp4GatewaySetting(gateway));
                 }
             }
         }
@@ -500,7 +494,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-        o->ip_iface->ethStateChangedFromDriver();
+        o->iface->ethStateChanged();
         
         NetworkEvent event{NetworkEventType::LINK};
         event.link.up = link_status;
@@ -522,7 +516,7 @@ private:
         IpBufNode node1 = {data1, size1, &node2};        
         IpBufRef frame = {&node1, 0, (size_t)(size1 + size2)};
         
-        o->ip_iface->recvFrameFromDriver(frame);
+        o->iface->recvFrame(frame);
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&IpStackNetwork::ethernet_receive_handler) {};
     
@@ -539,20 +533,17 @@ private:
         }
     }
     
-    class DhcpClientCallback : public AIpStack::IpDhcpClientCallback
+    static void dhcpClientEvent (IpDhcpClientEvent event_type)
     {
-        void dhcpClientEvent (IpDhcpClientEvent event_type) override final
-        {
-            Context c;
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->activation_state == ACTIVATED)
-            AMBRO_ASSERT(o->dhcp_enabled)
-            
-            NetworkEvent event{NetworkEventType::DHCP};
-            event.dhcp.event = event_type;
-            raise_network_event(c, event);
-        }
-    };
+        Context c;
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->activation_state == ACTIVATED)
+        AMBRO_ASSERT(o->dhcp_enabled)
+        
+        NetworkEvent event{NetworkEventType::DHCP};
+        event.dhcp.event = event_type;
+        raise_network_event(c, event);
+    }
     
 public:
     using GetEthernet = TheEthernet;
@@ -565,8 +556,7 @@ public:
         EthActivateState activation_state;
         bool dhcp_enabled;
         APrinter::ManualRaii<TheIpDhcpClient> dhcp_client;
-        DhcpClientCallback dhcp_client_callback;
-        APrinter::ManualRaii<MyIface> ip_iface;
+        APrinter::ManualRaii<TheEthIpIface> iface;
         NetworkParams config;
     };
 };
