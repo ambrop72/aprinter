@@ -1,8 +1,8 @@
 { stdenv, fetchurl, pkgconfig, texinfo, perl, ncurses
 , readline, gmp, mpfr, expat, zlib, python, guile }:
 let
-    version = "7.12.1";
-    sha256 = "4607680b973d3ec92c30ad029f1b7dbde3876869e6b3a117d8a7e90081113186";
+    version = "8.1";
+    sha256 = "0d2bpqk58fqlx21rbnk8mbcjlggzc9kb5sjirrfrrrjq70ka0qdg";
     target = "arm-none-eabi";
 in
 stdenv.mkDerivation {
@@ -31,4 +31,3 @@ stdenv.mkDerivation {
     
     doCheck = false;
 }
-
