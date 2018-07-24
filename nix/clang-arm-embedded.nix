@@ -39,6 +39,9 @@ stdenv.mkDerivation {
         
         # Move clang code to the right place.
         mv ../cfe-${version}.src tools/clang
+
+        # Patch for Clang bug https://bugs.llvm.org/show_bug.cgi?id=38257
+        ( cd tools/clang && patch -p1 < ${ ../patches/clang-pointer-to-member-no-adl.diff } )
         
         # Hardcode paths which clang can't figure out on its own.
         ( cd tools/clang && patch -p1 < ${ ../patches/clang-paths.patch } )

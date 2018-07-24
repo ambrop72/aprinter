@@ -1,0 +1,95 @@
+diff --git a/include/clang/Sema/Sema.h b/include/clang/Sema/Sema.h
+index 0aa1fc42c6a..ab934223b8f 100644
+--- a/include/clang/Sema/Sema.h
++++ b/include/clang/Sema/Sema.h
+@@ -4262,6 +4262,7 @@ class Sema {
+   ExprResult ActOnUnaryOp(Scope *S, SourceLocation OpLoc,
+                           tok::TokenKind Op, Expr *Input);
+ 
++  bool isQualifiedMemberAccess(Expr *E);
+   QualType CheckAddressOfOperand(ExprResult &Operand, SourceLocation OpLoc);
+ 
+   ExprResult CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
+diff --git a/lib/Sema/SemaExpr.cpp b/lib/Sema/SemaExpr.cpp
+index e350517946e..fc70c882c22 100644
+--- a/lib/Sema/SemaExpr.cpp
++++ b/lib/Sema/SemaExpr.cpp
+@@ -12809,7 +12809,7 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
+ /// Determine whether the given expression is a qualified member
+ /// access expression, of a form that could be turned into a pointer to member
+ /// with the address-of operator.
+-static bool isQualifiedMemberAccess(Expr *E) {
++bool Sema::isQualifiedMemberAccess(Expr *E) {
+   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+     if (!DRE->getQualifier())
+       return false;
+diff --git a/lib/Sema/TreeTransform.h b/lib/Sema/TreeTransform.h
+index 5ed92aea32c..19567397112 100644
+--- a/lib/Sema/TreeTransform.h
++++ b/lib/Sema/TreeTransform.h
+@@ -12658,9 +12658,11 @@ TreeTransform<Derived>::RebuildCXXOperatorCallExpr(OverloadedOperatorKind Op,
+     // -> is never a builtin operation.
+     return SemaRef.BuildOverloadedArrowExpr(nullptr, First, OpLoc);
+   } else if (Second == nullptr || isPostIncDec) {
+-    if (!First->getType()->isOverloadableType()) {
+-      // The argument is not of overloadable type, so try to create a
+-      // built-in unary operation.
++    if (!First->getType()->isOverloadableType() ||
++        (Op == OO_Amp && getSema().isQualifiedMemberAccess(First))) {
++      // The argument is not of overloadable type, or this is an expression
++      // of the form &Class::member, so try to create a built-in unary
++      // operation.
+       UnaryOperatorKind Opc
+         = UnaryOperator::getOverloadedOpcode(Op, isPostIncDec);
+ 
+diff --git a/test/SemaTemplate/argument-dependent-lookup.cpp b/test/SemaTemplate/argument-dependent-lookup.cpp
+new file mode 100644
+index 00000000000..d1603d56b96
+--- /dev/null
++++ b/test/SemaTemplate/argument-dependent-lookup.cpp
+@@ -0,0 +1,45 @@
++// RUN: %clang_cc1 -verify %s
++// RUN: %clang_cc1 -verify %s -DHAVE_UNQUALIFIED_LOOKUP_RESULTS
++// expected-no-diagnostics
++
++namespace address_of {
++#ifdef HAVE_UNQUALIFIED_LOOKUP_RESULTS
++  struct Q {};
++  void operator&(Q);
++#endif
++
++  template<typename T> struct A {
++    static constexpr auto x = &T::value;
++  };
++
++  template<typename T> struct B {
++    constexpr int operator&() { return 123; }
++  };
++
++  template<typename T> struct C {
++    static_assert(sizeof(T) == 123, "");
++  };
++
++  struct X1 {
++    static B<X1> value;
++  };
++  struct X2 : B<X2> {
++    enum E { value };
++    friend constexpr int operator&(E) { return 123; }
++  };
++
++  struct Y1 {
++    C<int> *value;
++  };
++  struct Y2 {
++    C<int> value();
++  };
++
++  // ok, uses ADL to find operator&:
++  static_assert(A<X1>::x == 123, "");
++  static_assert(A<X2>::x == 123, "");
++
++  // ok, does not use ADL so does not instantiate C<T>:
++  static_assert(A<Y1>::x == &Y1::value, "");
++  static_assert(A<Y2>::x == &Y2::value, "");
++}
