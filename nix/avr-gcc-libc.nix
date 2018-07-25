@@ -9,8 +9,8 @@ stdenv.mkDerivation {
         sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
     })
     (fetchurl {
-        url = "mirror://gcc/releases/gcc-6.3.0/gcc-6.3.0.tar.bz2";
-        sha256 = "f06ae7f3f790fbf0f018f6d40e844451e6bc3b7bc96e128e63b09825c1f8b29f";
+        url = "mirror://gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.bz2";
+        sha256 = "0p71bij6bfhzyrs8676a8jmpjsfz392s2rg862sdnsk30jpacb43";
     })
     (fetchurl {
         url = "http://download.savannah.gnu.org/releases/avr-libc/avr-libc-2.0.0.tar.bz2";
@@ -28,11 +28,6 @@ stdenv.mkDerivation {
   
   # Make sure we don't strip the libraries in lib/gcc/avr.
   stripDebugList= [ "bin" "avr/bin" "libexec" ];
-  
-  # Fix for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60040
-  patchPhase = ''
-    patch -d gcc* -p1 < ${ ../patches/gcc-avr-bug60040.patch }
-  '';
   
   installPhase = ''
     # Make sure gcc finds the binutils.
@@ -52,11 +47,14 @@ stdenv.mkDerivation {
     make install
     popd
 
-    # We don't want avr-libc to use the native compiler.
-    export BUILD_CC=$CC
-    export BUILD_CXX=$CXX
-    unset CC
-    unset CXX
+    # Rename environment variables to prevent using native tools as if they were
+    # cross-compile tools.
+    for varname in LD AS AR CC CXX RANLIB STRIP; do
+      if [[ -n ''${!varname} ]]; then
+        export BUILD_''${varname}="''${!varname}"
+        unset ''${varname}
+      fi
+    done
 
     pushd avr-libc*
     ./configure --prefix="$out" --build=`./config.guess` --host=avr
