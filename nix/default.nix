@@ -32,22 +32,22 @@ rec {
     avrgcclibc = pkgs.callPackage ./avr-gcc-libc.nix {};
     
     /* ARM microcontrollers toolchain, build from source. */
-    gcc-arm-embedded-fromsrc = pkgs.callPackage ./gcc-arm-embedded-fromsrc.nix {};
+    gcc-arm-embedded = pkgs.callPackage ./gcc-arm-embedded.nix {};
     
     /* Clang compiler for ARM microcontrollers. */
     clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {
-        gcc-arm-embedded = gcc-arm-embedded-fromsrc;
+        inherit gcc-arm-embedded;
     };
     
     /* ARM toolchain but with newlib optimized for size. */
-    gcc-arm-embedded-fromsrc-optsize = gcc-arm-embedded-fromsrc.override { optimizeForSize = true; };
+    gcc-arm-embedded-optsize = gcc-arm-embedded.override { optimizeForSize = true; };
     
     /* GDB for ARM. */
     gdb-arm = pkgs.callPackage ./gdb-arm.nix {};
     
     /* Clang with newlib optimized for size. */
     clang-arm-embedded-optize = clang-arm-embedded.override {
-        gcc-arm-embedded = gcc-arm-embedded-fromsrc-optsize;
+        gcc-arm-embedded = gcc-arm-embedded-optsize;
     };
     
     /* Atmel Software Framework (chip support for Atmel ARM chips). */
@@ -64,7 +64,7 @@ rec {
     aprinterFunc = aprinterConfig@{ optimizeLibcForSize, ... }: pkgs.callPackage ./aprinter.nix (
         {
             inherit aprinterSource avrgcclibc asf stm32cubef4 teensyCores;
-            gcc-arm-embedded = if optimizeLibcForSize then gcc-arm-embedded-fromsrc-optsize else gcc-arm-embedded-fromsrc;
+            gcc-arm-embedded = if optimizeLibcForSize then gcc-arm-embedded-optsize else gcc-arm-embedded;
             clang-arm-embedded = if optimizeLibcForSize then clang-arm-embedded-optize else clang-arm-embedded;
         } // (removeAttrs aprinterConfig ["optimizeLibcForSize"])
     );
@@ -92,13 +92,13 @@ rec {
     /* This is used by the service deployment expression to ensure that the
      * build dependencies are already in the Nix store. */
     buildDepsArmCommon = [
-        gcc-arm-embedded-fromsrc
+        gcc-arm-embedded
         asf
     ];
     buildDepsArmUncommon = [
         stm32cubef4
         teensyCores
-        gcc-arm-embedded-fromsrc-optsize
+        gcc-arm-embedded-optsize
         clang-arm-embedded
         clang-arm-embedded-optize
     ];

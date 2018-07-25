@@ -7,7 +7,7 @@
 }:
 let
     gcc_version = "7.3.0";
-    binutils_version = "2.28";
+    binutils_version = "2.31.1";
     newlib_version = "2.5.0.20170421";
     
     target = "arm-none-eabi";
@@ -98,12 +98,12 @@ let
 
 in
 stdenv.mkDerivation {
-    name = "gcc-arm-embedded-fromsrc-${gcc_version}";
+    name = "gcc-arm-embedded-${gcc_version}";
     
     srcs = [
         (fetchurl {
             url = "mirror://gnu/binutils/binutils-${binutils_version}.tar.bz2";
-            sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
+            sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.xz";

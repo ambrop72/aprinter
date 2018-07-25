@@ -31,7 +31,7 @@
  * there are problems with the order of registers used with the "ldmia" instructions.
  * 
  * The following command can be used to recompile this:
- * $(nix-build nix/ -A gcc-arm-embedded-fromsrc --no-out-link)/bin/arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -O1 -std=c99 -c aprinter/net/inet_chksum_arm.c -S -o aprinter/net/inet_chksum_arm.S
+ * $(nix-build nix/ -A gcc-arm-embedded --no-out-link)/bin/arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -O1 -std=c99 -c aprinter/net/inet_chksum_arm.c -S -o aprinter/net/inet_chksum_arm.S
  */
 
 /*
