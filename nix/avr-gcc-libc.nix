@@ -5,8 +5,8 @@ stdenv.mkDerivation {
 
   srcs = [
     (fetchurl {
-        url = "mirror://gnu/binutils/binutils-2.28.tar.bz2";
-        sha256 = "6297433ee120b11b4b0a1c8f3512d7d73501753142ab9e2daa13c5a3edd32a72";
+        url = "mirror://gnu/binutils/binutils-2.31.1.tar.bz2";
+        sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
     })
     (fetchurl {
         url = "mirror://gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.bz2";
