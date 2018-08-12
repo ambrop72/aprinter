@@ -2237,6 +2237,20 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('SCARAYOffset', transform.get_float('YOffset')),
                     ]), 'SCARA'
                 
+                @transform_type_sel.option('DualSCARA')
+                def option():
+                    gen.add_aprinter_include('printer/transform/DualSCARATransform.h')
+                    return TemplateExpr('DualSCARATransformService', [
+                        gen.add_float_config('SCARAArm1ShoulderXCoord', transform.get_float('Arm1ShoulderXCoord')),
+                        gen.add_float_config('SCARAArm2ShoulderXCoord', transform.get_float('Arm2ShoulderXCoord')),
+                        gen.add_float_config('SCARAArm1ProximalSideLength', transform.get_float('Arm1ProximalSideLength')),
+                        gen.add_float_config('SCARAArm2ProximalSideLength', transform.get_float('Arm2ProximalSideLength')),
+                        gen.add_float_config('SCARAArm1DistalSideLength', transform.get_float('Arm1DistalSideLength')),
+                        gen.add_float_config('SCARAArm2DistalSideLength', transform.get_float('Arm2DistalSideLength')),
+                        gen.add_float_config('SCARAXOffset', transform.get_float('XOffset')),
+                        gen.add_float_config('SCARAYOffset', transform.get_float('YOffset')),
+                    ]), 'SCARA'
+                
                 transform_type_expr, transform_prefix = transform_type_sel.run(transform_type)
                 
                 splitter_sel = selection.Selection()
