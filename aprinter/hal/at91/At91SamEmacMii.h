@@ -143,10 +143,10 @@ public:
                 Context::EventLoop::template triggerFastEvent<FastEvent>(c);
                 write_start_res = emac_dev_write_start(&o->emac_dev, total_length, &dev_buffer);
                 if (write_start_res == EMAC_TX_BUSY) {
-                    return AIpStack::IpErr::BUFFER_FULL;
+                    return AIpStack::IpErr::OutputBufferFull;
                 }
             }
-            return AIpStack::IpErr::HW_ERROR;
+            return AIpStack::IpErr::HardwareError;
         }
         
         size_t buf_pos = 0;
@@ -160,7 +160,7 @@ public:
         
         emac_dev_write_end(&o->emac_dev, total_length);
         
-        return AIpStack::IpErr::SUCCESS;
+        return AIpStack::IpErr::Success;
     }
     
     static void startPhyMaintenance (Context c, MiiPhyMaintCommand command)

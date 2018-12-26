@@ -128,12 +128,12 @@ public:
         auto *o = Object::self(c);
         
         if (o->init_state != InitState::RUNNING || !o->working) {
-            return AIpStack::IpErr::LINK_DOWN;
+            return AIpStack::IpErr::LinkDown;
         }
         
         size_t len = send_buffer->tot_len;
         if (len > o->eth_mtu) {
-            return AIpStack::IpErr::PKT_TOO_LARGE;
+            return AIpStack::IpErr::PacketTooLarge;
         }
         
         send_buffer->takeBytes(len, o->write_buffer);
@@ -142,12 +142,12 @@ public:
         if (write_res < 0 || write_res != len) {
             int error = errno;
             if (error == EAGAIN || error == EWOULDBLOCK) {
-                return AIpStack::IpErr::BUFFER_FULL;
+                return AIpStack::IpErr::OutputBufferFull;
             }
-            return AIpStack::IpErr::HW_ERROR;
+            return AIpStack::IpErr::HardwareError;
         }
         
-        return AIpStack::IpErr::SUCCESS;
+        return AIpStack::IpErr::Success;
     }
     
     static bool getLinkUp (Context c)

@@ -171,7 +171,7 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            if (TcpConnection::acceptConnection(o->listener) != AIpStack::IpErr::SUCCESS) {
+            if (TcpConnection::acceptConnection(o->listener) != AIpStack::IpErr::Success) {
                 return;
             }
             

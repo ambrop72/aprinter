@@ -116,7 +116,7 @@ public:
         auto *o = Object::self(c);
         
         if (AMBRO_UNLIKELY(o->init_state != InitState::RUNNING || !o->link_up)) {
-            return AIpStack::IpErr::LINK_DOWN;
+            return AIpStack::IpErr::LinkDown;
         }
         return TheMii::sendFrame(c, send_buffer);
     }

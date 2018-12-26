@@ -152,7 +152,7 @@ private:
             con_args.rcv_wnd = BufferSize;
             
             IpErr res = TcpConnection::startConnection(Network::getTcp(c), con_args);
-            if (res != IpErr::SUCCESS) {
+            if (res != IpErr::Success) {
                 cmd->reportError(c, AMBRO_PSTR("FailedToStartConnection"));
                 return false;
             }

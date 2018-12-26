@@ -253,7 +253,7 @@ private:
             
             // Accept the connection.
             AIpStack::IpBufRef initial_rx_data;
-            if (listener.acceptConnection(*this, initial_rx_data) != AIpStack::IpErr::SUCCESS) {
+            if (listener.acceptConnection(*this, initial_rx_data) != AIpStack::IpErr::Success) {
                 return;
             }
             
