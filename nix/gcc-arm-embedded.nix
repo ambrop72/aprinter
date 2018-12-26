@@ -6,9 +6,9 @@
 , optimizeForSize ? false
 }:
 let
-    gcc_version = "7.3.0";
+    gcc_version = "7.4.0";
     binutils_version = "2.31.1";
-    newlib_version = "2.5.0.20170421";
+    newlib_version = "3.0.0.20180831";
     
     target = "arm-none-eabi";
     
@@ -107,11 +107,11 @@ stdenv.mkDerivation {
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.xz";
-            sha256 = "0p71bij6bfhzyrs8676a8jmpjsfz392s2rg862sdnsk30jpacb43";
+            sha256 = "eddde28d04f334aec1604456e536416549e9b1aa137fc69204e65eb0c009fe51";
         })
         (fetchurl {
             url = "ftp://sourceware.org/pub/newlib/newlib-${newlib_version}.tar.gz";
-            sha256 = "714599a373c4e60da628533cc0cb281446d2e3baf75fabceb14c5919c5809618";
+            sha256 = "3ad3664f227357df15ff34e954bfd9f501009a647667cd307bf0658aefd6eb5b";
         })
     ];
     
