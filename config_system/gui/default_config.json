@@ -358,15 +358,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "RADDS",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "DuePin37",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -375,9 +386,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "DuePin37",
+      "name": "RADDS",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -385,30 +395,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 16,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
         "LookaheadBufferSize": 48,
-        "EventChannelBufferSize": 64,
+        "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -912,15 +912,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "RAMPS-FD",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "DuePin13",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -929,9 +940,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "DuePin13",
+      "name": "RAMPS-FD",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -939,30 +949,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 16,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
         "LookaheadBufferSize": 48,
-        "EventChannelBufferSize": 64,
+        "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -1351,52 +1351,12 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "4pi",
-      "development": {
-        "EnableStubCommandModule": true,
-        "AssertionsEnabled": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "_compoundName": "board",
-      "laser_ports": [],
-      "LedPin": "At91SamPin<At91SamPioC,22>",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "LookaheadCommitCount": 6,
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 24,
-        "EventChannelBufferSize": 36,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": true,
-        "OptimizeLibcForSize": true,
-        "StepperSegmentBufferSize": 36,
-        "_compoundName": "performance"
-      },
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC0A"
       },
+      "LedPin": "At91SamPin<At91SamPioC,22>",
+      "_compoundName": "board",
       "current_config": {
         "_compoundName": "CurrentConfig",
         "current": {
@@ -1410,6 +1370,46 @@
             "_compoundName": "Ad5206Current"
           }
         }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "laser_ports": [],
+      "name": "4pi",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 36,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 24,
+        "LookaheadCommitCount": 6,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": true,
+        "OptimizeLibcForSize": true,
+        "StepperSegmentBufferSize": 36,
+        "_compoundName": "performance"
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -1758,15 +1758,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "Teensy 3",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "FTM0_0"
+      },
+      "LedPin": "TeensyPin13",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -1775,9 +1786,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "TeensyPin13",
+      "name": "Teensy 3",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -1785,30 +1795,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "float",
         "LookaheadBufferSize": 28,
-        "EventChannelBufferSize": 32,
+        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "FTM0_0"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -2185,15 +2185,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "RAMPS 1.3",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC5_C"
+      },
+      "LedPin": "MegaPin13",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -2202,9 +2213,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "MegaPin13",
+      "name": "RAMPS 1.3",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -2212,30 +2222,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 5,
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 64,
         "ExtraSendBufClearance": 64,
         "FpType": "double",
         "LookaheadBufferSize": 10,
-        "EventChannelBufferSize": 24,
+        "LookaheadCommitCount": 5,
         "MaxMsgSize": 50,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 24,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC5_C"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -2558,15 +2558,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "Melzi",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC2_A"
+      },
+      "LedPin": "AvrPin<AvrPortA,4>",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -2575,9 +2586,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "AvrPin<AvrPortA,4>",
+      "name": "Melzi",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -2585,30 +2595,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 32,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 128,
         "FpType": "double",
         "LookaheadBufferSize": 16,
-        "EventChannelBufferSize": 32,
+        "LookaheadCommitCount": 8,
         "MaxMsgSize": 64,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": true,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC2_A"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -2848,7 +2848,7 @@
           },
           "fast_clock": {
             "_compoundName": "Stm32f4Clock",
-            "prescaler": 4,
+            "prescaler": 5,
             "primary_timer": "TIM5"
           },
           "pins": {
@@ -2970,15 +2970,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "STM32F429I-Discovery",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "LedPin": "DiscoveryPinLedGreen",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -2987,9 +2998,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "DiscoveryPinLedGreen",
+      "name": "STM32F429I-Discovery",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -2997,30 +3007,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
         "LookaheadBufferSize": 28,
-        "EventChannelBufferSize": 32,
+        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TIM2_1"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -3230,7 +3230,7 @@
           },
           "fast_clock": {
             "_compoundName": "Stm32f4Clock",
-            "prescaler": 4,
+            "prescaler": 5,
             "primary_timer": "TIM5"
           },
           "pins": {
@@ -3339,15 +3339,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "STM32F407-Discovery",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "LedPin": "DiscoveryPinLedGreen",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -3356,9 +3367,8 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "DiscoveryPinLedGreen",
+      "name": "STM32F407-Discovery",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
@@ -3366,30 +3376,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
         "LookaheadBufferSize": 28,
-        "EventChannelBufferSize": 32,
+        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TIM2_1"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -3716,15 +3716,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "Duet v0.6",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "At91SamPin<At91SamPioB,24>",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": false,
+        "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": false,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "_compoundName": "Disabled"
@@ -3733,14 +3744,13 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "At91SamPin<At91SamPioB,24>",
+      "name": "Duet v0.6",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MaxReassTimeSeconds": 60,
           "ArpProtectCount": 8,
+          "ArpTableTimersStructureService": "LinkedHeap",
           "DhcpEnabled": true,
           "EthernetDriver": {
             "MiiDriver": {
@@ -3763,7 +3773,7 @@
           "MaxReassHoles": 10,
           "MaxReassPackets": 1,
           "MaxReassSize": 1480,
-          "ArpTableTimersStructureService": "LinkedHeap",
+          "MaxReassTimeSeconds": 60,
           "MtuIndexService": "MruListIndex",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
@@ -3786,15 +3796,15 @@
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "MaxPcbs": 100,
             "AllowPersistent": false,
+            "EnableDebug": false,
             "GcodeSendBufTimeout": 5,
             "InactivityTimeout": 10,
             "JsonBufferSize": 512,
             "MaxClients": 2,
             "MaxGcodeCommandSize": 128,
             "MaxGcodeParts": 10,
-            "EnableDebug": false,
+            "MaxPcbs": 100,
             "NumGcodeSlots": 1,
             "Port": 80,
             "QueueRecvBufferSize": 410,
@@ -3807,30 +3817,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 24,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
         "LookaheadBufferSize": 32,
-        "EventChannelBufferSize": 24,
+        "LookaheadCommitCount": 8,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 48,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -4071,15 +4071,26 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "name": "Linux Test",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "0"
+      },
+      "LedPin": "StubPin",
+      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "development": {
-        "EnableStubCommandModule": true,
         "AssertionsEnabled": true,
+        "BuildWithClang": false,
         "DebugSymbols": true,
         "DetectOverloadEnabled": false,
         "EnableBasicTestModule": true,
         "EnableBulkOutputTest": true,
-        "BuildWithClang": false,
+        "EnableStubCommandModule": true,
         "EventLoopBenchmarkEnabled": false,
         "NetworkTestModule": {
           "BufferSize": 50000,
@@ -4089,14 +4100,13 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
-      "_compoundName": "board",
       "laser_ports": [],
-      "LedPin": "StubPin",
+      "name": "Linux Test",
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MaxReassTimeSeconds": 60,
           "ArpProtectCount": 16,
+          "ArpTableTimersStructureService": "LinkedHeap",
           "DhcpEnabled": true,
           "EthernetDriver": {
             "_compoundName": "LinuxTapEthernet"
@@ -4109,7 +4119,7 @@
           "MaxReassHoles": 10,
           "MaxReassPackets": 2,
           "MaxReassSize": 10000,
-          "ArpTableTimersStructureService": "LinkedHeap",
+          "MaxReassTimeSeconds": 60,
           "MtuIndexService": "MruListIndex",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
@@ -4132,15 +4142,15 @@
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "MaxPcbs": 64,
             "AllowPersistent": false,
+            "EnableDebug": false,
             "GcodeSendBufTimeout": 10,
             "InactivityTimeout": 10,
             "JsonBufferSize": 512,
             "MaxClients": 32,
             "MaxGcodeCommandSize": 256,
             "MaxGcodeParts": 16,
-            "EnableDebug": false,
+            "MaxPcbs": 64,
             "NumGcodeSlots": 8,
             "Port": 80,
             "QueueRecvBufferSize": 410,
@@ -4153,30 +4163,20 @@
         }
       },
       "performance": {
-        "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 512,
         "FpType": "double",
         "LookaheadBufferSize": 32,
-        "EventChannelBufferSize": 64,
+        "LookaheadCommitCount": 8,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 100000,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
-      },
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "0"
-      },
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
       },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
@@ -4277,14 +4277,6 @@
   "configurations": [
     {
       "board": "RADDS",
-      "WaitReportPeriod": 1,
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
       "InactiveTime": 480,
       "Moves": {
         "Moves": [
@@ -4315,6 +4307,14 @@
         ],
         "_compoundName": "Moves"
       },
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
       "fans": [
         {
           "Name": "T0",
@@ -4333,12 +4333,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -4373,12 +4373,12 @@
           "pwm_output": "FET6 (extruder 1)"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T4",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -4409,12 +4409,12 @@
           "pwm_output": "FET1 (bed)"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "U"
@@ -4454,14 +4454,14 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
-          "ProbePin": "Z-MAX",
           "FastSpeed": 2,
+          "GeneralZOffset": -4.55,
           "InvertInput": false,
           "LowHeight": 2,
           "MoveSpeed": 120,
           "OffsetX": -18,
           "OffsetY": -31,
-          "GeneralZOffset": -4.55,
+          "ProbePin": "Z-MAX",
           "ProbePoints": [
             {
               "Enabled": true,
@@ -4541,14 +4541,14 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": -53,
           "Name": "A",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -4560,12 +4560,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4583,14 +4583,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "B",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -4602,12 +4602,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4625,14 +4625,14 @@
           ]
         },
         {
-          "MinPos": -1,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 110,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": -1,
           "Name": "C",
           "PreloadCommands": false,
           "StepsPerUnit": 8000,
@@ -4644,12 +4644,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 2,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 2,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -4667,14 +4667,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 1856,
@@ -4699,14 +4699,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "U",
           "PreloadCommands": false,
           "StepsPerUnit": 1320,
@@ -4774,6 +4774,10 @@
     },
     {
       "board": "RAMPS-FD",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -4781,10 +4785,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -4804,12 +4804,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -4844,12 +4844,12 @@
           "pwm_output": "FET2/D9 (extruder 1)"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -4880,12 +4880,12 @@
           "pwm_output": "FET1/D8 (bed)"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "U"
@@ -4930,14 +4930,14 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": -53,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -4949,12 +4949,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4972,14 +4972,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -4991,12 +4991,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5014,14 +5014,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 8000,
@@ -5033,12 +5033,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -5056,14 +5056,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 1856,
@@ -5088,14 +5088,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "U",
           "PreloadCommands": false,
           "StepsPerUnit": 1320,
@@ -5126,6 +5126,10 @@
     },
     {
       "board": "4pi",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -5134,19 +5138,15 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
-      },
       "fans": [],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -5181,12 +5181,12 @@
           "pwm_output": "Hot End 1"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "U"
@@ -5221,12 +5221,12 @@
           "pwm_output": "Hot End 2"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -5262,14 +5262,14 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
-          "ProbePin": "Z-MAX",
           "FastSpeed": 2,
+          "GeneralZOffset": 0,
           "InvertInput": false,
           "LowHeight": 2,
           "MoveSpeed": 120,
           "OffsetX": -18,
           "OffsetY": -31,
-          "GeneralZOffset": 0,
+          "ProbePin": "Z-MAX",
           "ProbePoints": [
             {
               "Enabled": true,
@@ -5312,14 +5312,14 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": -53,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5328,12 +5328,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5351,14 +5351,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5367,12 +5367,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5390,14 +5390,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 8000,
@@ -5406,12 +5406,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -5429,14 +5429,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 1856,
@@ -5458,14 +5458,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "U",
           "PreloadCommands": false,
           "StepsPerUnit": 1856,
@@ -5493,6 +5493,10 @@
     },
     {
       "board": "Teensy 3",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -5500,10 +5504,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -5516,12 +5516,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -5566,14 +5566,14 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5582,12 +5582,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-min",
             "HomeFastMaxDist": 5,
             "HomeFastSpeed": 50,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5605,14 +5605,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5621,12 +5621,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-min",
             "HomeFastMaxDist": 5,
             "HomeFastSpeed": 50,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5644,14 +5644,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 8000,
@@ -5660,12 +5660,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-min",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 1,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.5,
@@ -5683,14 +5683,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 40,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 1856,
@@ -5718,6 +5718,10 @@
     },
     {
       "board": "RAMPS 1.3",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -5725,10 +5729,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -5741,12 +5741,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -5777,12 +5777,12 @@
           "pwm_output": "D8 (bed)"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -5827,14 +5827,14 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": -53,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5843,12 +5843,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5866,14 +5866,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 155,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
@@ -5882,12 +5882,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5905,14 +5905,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 4000,
@@ -5921,12 +5921,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -5944,14 +5944,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 928,
@@ -5979,6 +5979,10 @@
     },
     {
       "board": "Melzi",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -5986,10 +5990,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -6002,12 +6002,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "etemp",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -6042,12 +6042,12 @@
           "pwm_output": "hot end"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "btemp",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -6088,14 +6088,14 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6104,12 +6104,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-stop",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6127,14 +6127,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6143,12 +6143,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-stop",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6166,14 +6166,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 4000,
@@ -6182,12 +6182,12 @@
             "_compoundName": "NoDelay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-stop",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -6205,14 +6205,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 928,
@@ -6240,6 +6240,10 @@
     },
     {
       "board": "STM32F429I-Discovery",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -6248,19 +6252,15 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
-      },
       "fans": [],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "PF6",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -6291,12 +6291,12 @@
           "pwm_output": "PG14"
         },
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 130,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "PC3",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -6337,14 +6337,14 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6356,12 +6356,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "PG9",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6379,14 +6379,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Y",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6398,12 +6398,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "PB4",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6421,14 +6421,14 @@
           ]
         },
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "Z",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6440,12 +6440,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "PB7",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6463,14 +6463,14 @@
           ]
         },
         {
-          "MinPos": -40000,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "MinPos": -40000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 2000,
@@ -6501,6 +6501,10 @@
     },
     {
       "board": "STM32F407-Discovery",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -6508,10 +6512,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -6524,12 +6524,12 @@
       ],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "PA2",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
           },
@@ -6570,14 +6570,14 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
@@ -6589,12 +6589,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "ButtonUser",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -6618,6 +6618,10 @@
     },
     {
       "board": "RADDS",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -6625,10 +6629,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [],
       "heaters": [],
@@ -6642,14 +6642,14 @@
       },
       "steppers": [
         {
-          "MinPos": -30,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
           "MaxSpeed": 220,
-          "DistanceFactor": 1,
+          "MinPos": -30,
           "Name": "A",
           "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
@@ -6661,12 +6661,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -6684,14 +6684,14 @@
           ]
         },
         {
-          "MinPos": -30,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
           "MaxSpeed": 220,
-          "DistanceFactor": 1,
+          "MinPos": -30,
           "Name": "B",
           "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
@@ -6703,12 +6703,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -6726,14 +6726,14 @@
           ]
         },
         {
-          "MinPos": -30,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
           "MaxSpeed": 220,
-          "DistanceFactor": 1,
+          "MinPos": -30,
           "Name": "C",
           "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
@@ -6745,12 +6745,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": false,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -6769,8 +6769,8 @@
         }
       ],
       "transform": {
-        "IdentityAxes": [],
         "ArmLength": 80,
+        "BaseLength": 40,
         "CartesianAxes": {
           "VirtualAxis0": {
             "MaxPos": 1000,
@@ -6806,7 +6806,7 @@
         },
         "DimensionCount": 3,
         "EndEffectorLength": 30,
-        "BaseLength": 40,
+        "IdentityAxes": [],
         "RodLength": 130,
         "Splitter": {
           "MaxSplitLength": 4,
@@ -6835,14 +6835,6 @@
     },
     {
       "board": "Duet v0.6",
-      "WaitReportPeriod": 1,
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
       "InactiveTime": 480,
       "Moves": {
         "Moves": [
@@ -6897,15 +6889,23 @@
         ],
         "_compoundName": "Moves"
       },
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
       "fans": [],
       "heaters": [
         {
-          "_compoundName": "heater",
           "MaxSafeTemp": 260,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "E0_THERMISTOR",
-          "MinSafeTemp": 10,
+          "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
               "E"
@@ -6945,14 +6945,14 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
-          "ProbePin": "E0_STOP",
           "FastSpeed": 15,
+          "GeneralZOffset": 0.23,
           "InvertInput": false,
           "LowHeight": -5,
           "MoveSpeed": 150,
           "OffsetX": 0,
           "OffsetY": 0,
-          "GeneralZOffset": 0.23,
+          "ProbePin": "E0_STOP",
           "ProbePoints": [
             {
               "Enabled": true,
@@ -7074,14 +7074,14 @@
       },
       "steppers": [
         {
-          "MinPos": 30,
           "CorneringDistance": 20,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
           "MaxSpeed": 250,
-          "DistanceFactor": 1,
+          "MinPos": 30,
           "Name": "A",
           "PreloadCommands": false,
           "StepsPerUnit": 87.489,
@@ -7093,12 +7093,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": true,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "X_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -7116,14 +7116,14 @@
           ]
         },
         {
-          "MinPos": 30,
           "CorneringDistance": 20,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
           "MaxSpeed": 250,
-          "DistanceFactor": 1,
+          "MinPos": 30,
           "Name": "B",
           "PreloadCommands": false,
           "StepsPerUnit": 87.489,
@@ -7135,12 +7135,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": true,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Y_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -7158,14 +7158,14 @@
           ]
         },
         {
-          "MinPos": 30,
           "CorneringDistance": 20,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
           "MaxSpeed": 250,
-          "DistanceFactor": 1,
+          "MinPos": 30,
           "Name": "C",
           "PreloadCommands": false,
           "StepsPerUnit": 87.489,
@@ -7177,12 +7177,12 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
             "HomeDir": true,
+            "HomeEndInvert": false,
             "HomeEndstopInput": "Z_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
-            "HomeEndInvert": false,
+            "HomeOffset": 0,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -7200,14 +7200,14 @@
           ]
         },
         {
-          "MinPos": -100000,
           "CorneringDistance": 20,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "IsExtruder": true,
           "MaxAccel": 4000,
           "MaxPos": 100000,
           "MaxSpeed": 60,
-          "DistanceFactor": 1,
+          "MinPos": -100000,
           "Name": "E",
           "PreloadCommands": false,
           "StepsPerUnit": 127,
@@ -7233,11 +7233,7 @@
         }
       ],
       "transform": {
-        "IdentityAxes": [],
         "CarriageOffset": 0,
-        "DiagnalRod": 160,
-        "DimensionCount": 3,
-        "EffectorOffset": 0,
         "CartesianAxes": {
           "VirtualAxis0": {
             "MaxPos": 100,
@@ -7266,12 +7262,12 @@
             "Name": "Z",
             "_compoundName": "VirtualAxisParams",
             "homing": {
-              "HomeFastSpeed": 15,
               "ByDefault": false,
+              "HomeDir": false,
               "HomeEndInvert": false,
               "HomeEndstopInput": "E0_STOP",
               "HomeFastExtraDist": 0,
-              "HomeDir": false,
+              "HomeFastSpeed": 15,
               "HomeRetractDist": 0.5,
               "HomeRetractSpeed": 150,
               "HomeSlowExtraDist": 1,
@@ -7281,6 +7277,10 @@
           },
           "_compoundName": "CartesianAxes"
         },
+        "DiagnalRod": 160,
+        "DimensionCount": 3,
+        "EffectorOffset": 0,
+        "IdentityAxes": [],
         "LimitRadius": 75.1,
         "SmoothRodOffset": 81,
         "Splitter": {
@@ -7309,6 +7309,10 @@
     },
     {
       "board": "Linux Test",
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
@@ -7316,10 +7320,6 @@
         "ForceTimeout": 0.1,
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "Moves": {
-        "_compoundName": "NoMoves"
       },
       "fans": [
         {
@@ -7341,14 +7341,14 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "MinPos": 0,
           "Name": "X",
           "PreloadCommands": false,
           "StepsPerUnit": 80,
