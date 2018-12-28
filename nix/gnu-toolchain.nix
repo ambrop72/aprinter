@@ -1,62 +1,71 @@
 # This was written partly based on https://github.com/EliasOenal/TNT,
 # and the patches were also taken from there.
 
-{ stdenv, fetchurl, gmp, mpfr, libmpc, isl
+{ stdenv, lib, fetchurl, gmp, mpfr, libmpc, isl
 , zlib, libelf, texinfo, bison, flex
-, optimizeForSize ? false
+, target, optimizeForSize ? false
 }:
 let
-    gcc_version = "7.4.0";
+    # Software versions and source hashes.
+    gcc_version = "8.2.0";
+    gcc_sha256 = "196c3c04ba2613f893283977e6011b2345d1cd1af9abeac58e916b1aab3e0080";
     binutils_version = "2.31.1";
+    binutils_sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
     newlib_version = "3.0.0.20180831";
+    newlib_sha256 = "3ad3664f227357df15ff34e954bfd9f501009a647667cd307bf0658aefd6eb5b";
+
+    isArmNoneEabi = (target == "arm-none-eabi");
     
-    target = "arm-none-eabi";
-    
+    # Configure flags common for all components.
     common_flags = ''
         --target=${target} \
         --prefix=$out \
         --with-sysroot=$out/${target} \
-        --enable-interwork \
+        --with-build-time-tools=$out/${target}/bin \
+        --with-system-zlib \
+        --enable-lto \
+        --enable-multilib \
+        --enable-gold \
+        --disable-nls \
+        --disable-libquadmath \
+        --disable-libssp \
     '';
     
+    # Configure flags for binutils.
     binutils_flags = common_flags + ''
-        --disable-nls \
-        --enable-gold \
         --enable-plugins \
-        --enable-lto \
         --disable-werror \
-        --enable-multilib \
         --disable-debug \
         --disable-dependency-tracking \
     '';
     
+    # Configure flags for GCC, both stages.
     gcc_common_flags = common_flags + ''
-        --disable-nls \
-        --with-build-time-tools=$out/${target}/bin \
-        --enable-poison-system-directories \
-        --enable-lto \
-        --enable-gold \
+        --with-newlib \
+        --with-gnu-as \
+        --with-gnu-ld \
+        ${lib.optionalString isArmNoneEabi "--with-multilib-list=rmprofile"} \
+        --enable-checking=release \
         --disable-decimal-float \
         --disable-libffi \
         --disable-libgomp \
-        --disable-libquadmath \
-        --disable-libssp \
         --disable-libstdcxx-pch \
         --disable-threads \
         --disable-shared \
         --disable-tls \
-        --with-newlib \
         --disable-libunwind-exceptions \
-        --enable-checking=release \
     '';
     
+    # Configure flags for GCC, stage 1.
     gcc_stage1_flags = gcc_common_flags + ''
         --without-headers \
         --enable-languages=c \
     '';
     
+    # Configure flags for GCC, stage 2.
     gcc_stage2_flags = gcc_common_flags + ''
         --enable-languages=c,c++ \
+        --enable-plugins \
     '';
     
     # We intentionally do not pass --enable-newlib-nano-formatted-io and do
@@ -65,53 +74,47 @@ let
     # See: https://www.sourceware.org/ml/newlib/2016/msg00000.html
     # Also we want the zu (size_t) format to work.
     newlib_flags = common_flags + ''
-        --with-build-time-tools=$out/${target}/bin \
-        --disable-shared \
-        --enable-multilib \
-        --enable-lto \
-        --disable-newlib-supplied-syscalls \
         --enable-newlib-reent-small \
-        --disable-newlib-fvwrite-in-streamio \
-        --disable-newlib-fseek-optimization \
-        --disable-newlib-wide-orient \
         --enable-newlib-nano-malloc \
-        --disable-newlib-unbuf-stream-opt \
         --enable-lite-exit \
         --enable-newlib-global-atexit \
         --enable-newlib-io-c99-formats \
         --enable-newlib-io-long-long \
-    '' + stdenv.lib.optionalString optimizeForSize ''
-        --enable-target-optspace \
+        --enable-newlib-retargetable-locking \
+        --enable-newlib-global-stdio-streams \
+        ${lib.optionalString optimizeForSize "--enable-target-optspace"} \
+        --disable-shared \
+        --disable-newlib-supplied-syscalls \
+        --disable-newlib-fvwrite-in-streamio \
+        --disable-newlib-fseek-optimization \
+        --disable-newlib-wide-orient \
+        --disable-newlib-unbuf-stream-opt \
     '';
-    
+
     # Optimization flags when building the toolchain libraries.
     # Note that we must not have newlines in here.
-    target_opt_cflags =
-        # This allows the linker to remove unused code and data.
-        "-ffunction-sections -fdata-sections"
-        # We don't rely on FP operations setting errno and FP traps (we even assume FP does not trap).
-        # But don't use the full -ffast-math, because we rely on certain IEEE semantics.
-     +  " -fno-math-errno -fno-trapping-math";
-    
-    # Use the same flags in the linking steps.
-    target_opt_ldflags = target_opt_cflags;
+    targetBaseFlags = "-ffunction-sections -fdata-sections" +
+        " -fno-math-errno -fno-trapping-math -fno-exceptions";
+    targetCflags = targetBaseFlags;
+    targetCxxflags = targetBaseFlags;
+    targetLdflags = targetBaseFlags;
 
 in
 stdenv.mkDerivation {
-    name = "gcc-arm-embedded-${gcc_version}";
+    name = "gnu-toolchain-${target}-${gcc_version}";
     
     srcs = [
         (fetchurl {
             url = "mirror://gnu/binutils/binutils-${binutils_version}.tar.bz2";
-            sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
+            sha256 = binutils_sha256;
         })
         (fetchurl {
             url = "mirror://gnu/gcc/gcc-${gcc_version}/gcc-${gcc_version}.tar.xz";
-            sha256 = "eddde28d04f334aec1604456e536416549e9b1aa137fc69204e65eb0c009fe51";
+            sha256 = gcc_sha256;
         })
         (fetchurl {
             url = "ftp://sourceware.org/pub/newlib/newlib-${newlib_version}.tar.gz";
-            sha256 = "3ad3664f227357df15ff34e954bfd9f501009a647667cd307bf0658aefd6eb5b";
+            sha256 = newlib_sha256;
         })
     ];
     
@@ -128,12 +131,7 @@ stdenv.mkDerivation {
     
     enableParallelBuilding = true;
     
-    patchPhase = ''
-        # This patch configures multilib for the different ARM microcontroller
-        # architectures. So, different sets of libraries (libgcc, libc) will be
-        # build for different combinations of compiler options (e.g. march, fpu).
-        patch -N gcc-*/gcc/config/arm/t-arm-elf ${ ../patches/gcc-multilib.patch }
-        
+    patchPhase = lib.optionalString isArmNoneEabi ''
         # I'm not sure why/if this is needed. Maybe it just fixes the build.
         patch -N newlib*/libgloss/arm/linux-crt0.c ${ ../patches/newlib-optimize.patch }
     '';
@@ -151,40 +149,36 @@ stdenv.mkDerivation {
         mkdir binutils-build
         pushd binutils-build
         ../"$binutils_src"/configure ${binutils_flags}
-        make $MAKE_FLAGS all
+        make $MAKE_FLAGS
         make install
         popd
-        
         rm -rf binutils-build "$binutils_src"
         
         # GCC stage 1
         mkdir gcc-build-stage1
         pushd gcc-build-stage1
         ../"$gcc_src"/configure ${gcc_stage1_flags}
-        make $MAKE_FLAGS all-gcc all-target-libgcc CFLAGS_FOR_TARGET="${target_opt_cflags}" LDFLAGS_FOR_TARGET="${target_opt_ldflags}"
-        make install-gcc install-target-libgcc 
+        make $MAKE_FLAGS all-gcc CFLAGS_FOR_TARGET="${targetCflags}" LDFLAGS_FOR_TARGET="${targetLdflags}"
+        make install-gcc
         popd
-        
         rm -rf gcc-build-stage1
         
         # Newlib
         mkdir newlib-build
         pushd newlib-build
         ../"$newlib_src"/configure ${newlib_flags}
-        make $MAKE_FLAGS all CFLAGS_FOR_TARGET="${target_opt_cflags}" LDFLAGS_FOR_TARGET="${target_opt_ldflags}"
+        make $MAKE_FLAGS CFLAGS_FOR_TARGET="${targetCflags}" LDFLAGS_FOR_TARGET="${targetLdflags}"
         make install
         popd
-        
         rm -rf newlib-build "$newlib_src"
         
         # GCC stage 2
         mkdir gcc-build-stage2
         pushd gcc-build-stage2
         ../"$gcc_src"/configure ${gcc_stage2_flags}
-        make $MAKE_FLAGS all CFLAGS_FOR_TARGET="${target_opt_cflags}" LDFLAGS_FOR_TARGET="${target_opt_ldflags}"
+        make $MAKE_FLAGS CFLAGS_FOR_TARGET="${targetCflags}" CXXFLAGS_FOR_TARGET="${targetCxxflags}" LDFLAGS_FOR_TARGET="${targetLdflags}"
         make install
         popd
-        
         rm -rf gcc-build-stage2 "$gcc_src"
     '';
 }

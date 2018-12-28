@@ -1,11 +1,11 @@
-{ stdenv, fetchurl, gcc-arm-embedded, python27Packages, cmake }:
+{ stdenv, fetchurl, gnu-toolchain, python27Packages, cmake }:
 let
     version = "4.0.0";
     target = "arm-none-eabi";
     targetClangFix = "arm-none--eabi";
 in
 stdenv.mkDerivation {
-    name = "clang-arm-embedded-${version}";
+    name = "clang-${target}-${version}";
     
     srcs = [
         (fetchurl {
@@ -20,22 +20,22 @@ stdenv.mkDerivation {
     
     sourceRoot = "llvm-${version}.src";
     
-    buildInputs = [ gcc-arm-embedded python27Packages.python cmake ];
+    buildInputs = [ gnu-toolchain python27Packages.python cmake ];
     
     configurePhase = ''
         # Create tool symlinks for clang to find, due to an issue where
         # it will look for e.g. arm-none--eabi instead of arm-none-eabi.
         mkdir -p $out/bin
         (
-            cd ${gcc-arm-embedded}/bin
+            cd ${gnu-toolchain}/bin
             for targetTool in ${target}-*; do
                 linkTargetTool=''${targetTool#${target}-}
-                ln -s "${gcc-arm-embedded}/bin/$targetTool" "$out/bin/${targetClangFix}-$linkTargetTool"
+                ln -s "${gnu-toolchain}/bin/$targetTool" "$out/bin/${targetClangFix}-$linkTargetTool"
             done
         )
         
         # Figure out the GCC version in the folder name
-        gccVersion=$(cd ${gcc-arm-embedded}/lib/gcc/${target} && echo *)
+        gccVersion=$(cd ${gnu-toolchain}/lib/gcc/${target} && echo *)
         
         # Move clang code to the right place.
         mv ../cfe-${version}.src tools/clang
@@ -45,8 +45,8 @@ stdenv.mkDerivation {
         
         # Hardcode paths which clang can't figure out on its own.
         ( cd tools/clang && patch -p1 < ${ ../patches/clang-paths.patch } )
-        sedReplace="s|<GCC_PROGRAM_PATH>|${gcc-arm-embedded}/bin|"
-        libcxxInclude=${gcc-arm-embedded}/${target}/include/c++/$gccVersion
+        sedReplace="s|<GCC_PROGRAM_PATH>|${gnu-toolchain}/bin|"
+        libcxxInclude=${gnu-toolchain}/${target}/include/c++/$gccVersion
         sedReplace+=";s|<LIBCXX_INCLUDE_PATH>|$libcxxInclude|"
         sedReplace+=";s|<LIBCXX_INCLUDE_PATH_TARGET>|$libcxxInclude/${target}|"
         sed -i "$sedReplace" tools/clang/lib/Driver/ToolChains.cpp
@@ -62,8 +62,8 @@ stdenv.mkDerivation {
             -DLLVM_INCLUDE_EXAMPLES=OFF \
             -DLLVM_INCLUDE_TESTS=OFF \
             -DLLVM_INCLUDE_DOCS=OFF \
-            -DGCC_INSTALL_PREFIX=${gcc-arm-embedded}/lib/gcc/${target}/$gccVersion \
-            -DC_INCLUDE_DIRS=${gcc-arm-embedded}/${target}/include \
+            -DGCC_INSTALL_PREFIX=${gnu-toolchain}/lib/gcc/${target}/$gccVersion \
+            -DC_INCLUDE_DIRS=${gnu-toolchain}/${target}/include \
             -DCLANG_DEFAULT_CXX_STDLIB=libstdc++
     '';
     

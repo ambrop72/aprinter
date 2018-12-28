@@ -22,7 +22,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-{ stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
+{ stdenv, writeText, bash, toolchain-arm, clang-arm, toolchain-avr
 , clang, asf, stm32cubef4, teensyCores
 , aprinterSource, buildVars, extraSources
 , extraIncludePaths, defines, linkerSymbols
@@ -79,10 +79,10 @@ let
     needTeensyCores = board.platform == "teensy";
     
     targetFile = writeText "aprinter-nixbuild.sh" ''
-        ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${avrgcclibc}/bin/avr-"}
-        ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${gcc-arm-embedded}/bin/arm-none-eabi-"}
+        ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${toolchain-avr}/bin/avr-"}
+        ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${toolchain-arm}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
-        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/"}
+        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm}/bin/"}
         ${stdenv.lib.optionalString needAsf "ASF_DIR=${asf}"}
         ${stdenv.lib.optionalString needStm32CubeF4 "STM32CUBEF4_DIR=${stm32cubef4}"}
         ${stdenv.lib.optionalString needTeensyCores "TEENSY_CORES=${teensyCores}"}
@@ -99,10 +99,10 @@ let
     ];
 in
 
-assert isAvr -> avrgcclibc != null;
-assert isArm -> gcc-arm-embedded != null;
+assert isAvr -> toolchain-avr != null;
+assert isArm -> toolchain-arm != null;
 assert buildWithClang -> isArm || isLinux;
-assert buildWithClang && isArm -> clang-arm-embedded != null;
+assert buildWithClang && isArm -> clang-arm != null;
 assert buildWithClang && isLinux -> clang != null;
 assert needAsf -> asf != null;
 assert needStm32CubeF4 -> stm32cubef4 != null;

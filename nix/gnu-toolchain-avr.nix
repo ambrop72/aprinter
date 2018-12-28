@@ -1,7 +1,7 @@
 { stdenv, fetchurl, texinfo, gmp, mpfr, libmpc, zlib }:
 
 stdenv.mkDerivation {
-  name = "avr-gcc-libc";
+  name = "gnu-toolchain-avr";
 
   srcs = [
     (fetchurl {

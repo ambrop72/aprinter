@@ -25,85 +25,67 @@
 { pkgs ? (import <nixpkgs> {}) }:
 with pkgs;
 rec {
-    /* This is where the APrinter source is taken from. */
+    # This is where the APrinter source is taken from.
     aprinterSource = stdenv.lib.cleanSource ./..;
     
-    /* AVR toolchain, built from source. */
-    avrgcclibc = pkgs.callPackage ./avr-gcc-libc.nix {};
+    # GNU toolchains.
+    toolchain-avr = pkgs.callPackage ./gnu-toolchain-avr.nix {};
+    toolchain-arm = pkgs.callPackage ./gnu-toolchain.nix { target = "arm-none-eabi"; };
+    toolchain-arm-optsize = toolchain-arm.override { optimizeForSize = true; };
+
+    # Clang compilers.
+    clang-arm = pkgs.callPackage ./clang-arm.nix { gnu-toolchain = toolchain-arm; };
+    clang-arm-optsize = clang-arm.override { gnu-toolchain = toolchain-arm-optsize; };
     
-    /* ARM microcontrollers toolchain, build from source. */
-    gcc-arm-embedded = pkgs.callPackage ./gcc-arm-embedded.nix {};
+    # GDB (for manual use).
+    gdb-arm = pkgs.callPackage ./gdb.nix { target = "arm-none-eabi"; };
     
-    /* Clang compiler for ARM microcontrollers. */
-    clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {
-        inherit gcc-arm-embedded;
-    };
-    
-    /* ARM toolchain but with newlib optimized for size. */
-    gcc-arm-embedded-optsize = gcc-arm-embedded.override { optimizeForSize = true; };
-    
-    /* GDB for ARM. */
-    gdb-arm = pkgs.callPackage ./gdb-arm.nix {};
-    
-    /* Clang with newlib optimized for size. */
-    clang-arm-embedded-optize = clang-arm-embedded.override {
-        gcc-arm-embedded = gcc-arm-embedded-optsize;
-    };
-    
-    /* Atmel Software Framework (chip support for Atmel ARM chips). */
+    # Microcontroller support packages.
     asf = pkgs.callPackage ./asf.nix {};
-    
-    /* STM32CubeF4 (chip support for STM32F4). */
     stm32cubef4 = pkgs.callPackage ./stm32cubef4.nix {};
-    /* stm32cubef4 = stdenv.lib.cleanSource /home/ambro/cube/STM32Cube_FW_F4_V1.5.0; */
-    
-    /* Teensy-cores (chip support for Teensy 3). */
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};
     
-    /* The primary APrinter build function. */    
-    aprinterFunc = aprinterConfig@{ optimizeLibcForSize, ... }: pkgs.callPackage ./aprinter.nix (
-        {
-            inherit aprinterSource avrgcclibc asf stm32cubef4 teensyCores;
-            gcc-arm-embedded = if optimizeLibcForSize then gcc-arm-embedded-optsize else gcc-arm-embedded;
-            clang-arm-embedded = if optimizeLibcForSize then clang-arm-embedded-optize else clang-arm-embedded;
-        } // (removeAttrs aprinterConfig ["optimizeLibcForSize"])
-    );
+    # Primary APrinter build function.
+    aprinterFunc = aprinterConfig@{ optimizeLibcForSize, ... }:
+        # Call the aprinter package with dependencies.
+        pkgs.callPackage ./aprinter.nix ({
+            # Pass these as-is.
+            inherit aprinterSource toolchain-avr asf stm32cubef4 teensyCores;
+
+            # Choose normal or size-optimized toolchain based on optimizeLibcForSize.
+            toolchain-arm = if optimizeLibcForSize then toolchain-arm-optsize else toolchain-arm;
+            clang-arm = if optimizeLibcForSize then clang-arm-optsize else clang-arm;
+        } //
+            # Do not pass through optimizeLibcForSize which was handled here.
+            (removeAttrs aprinterConfig ["optimizeLibcForSize"]));
     
-    /* We need a specific version of NCD for the service. */
+    # We need a specific version of NCD for the service.
     ncd = pkgs.callPackage ./ncd.nix {};
     
-    /*
-        The configuration/compilation web service.
-        This default package is suitable for local use from command line.
-        If you want to deploy the service, use service-deployment.nix.
-    */
+    # The configuration/compilation web service.
+    # aprinterService is for local use, while aprinterServiceExprs provided access to
+    # specific components to be used for deployment via nixops. If you want to deploy
+    # the service, use service-deployment.nix.
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
-    /* TypeScript compiler. */
+    # TypeScript compiler.
     typescript = pkgs.callPackage ./typescript.nix {};
     
-    /* Builds the web interface. */
+    # Builds the web interface.
     aprinterWebif = pkgs.callPackage ./webif.nix { inherit aprinterSource typescript; };
     
-    /* Hosts the web interface locally while proxying API requests to a device. */
+    # Hosts the web interface locally while proxying API requests to a device.
     aprinterWebifTest = pkgs.callPackage ./webif-test.nix { inherit aprinterWebif ncd; };
     
-    /* This is used by the service deployment expression to ensure that the
-     * build dependencies are already in the Nix store. */
-    buildDepsArmCommon = [
-        gcc-arm-embedded
-        asf
-    ];
-    buildDepsArmUncommon = [
-        stm32cubef4
-        teensyCores
-        gcc-arm-embedded-optsize
-        clang-arm-embedded
-        clang-arm-embedded-optize
-    ];
-    buildDepsAvr = [
-        avrgcclibc
-    ];
-    buildDeps = buildDepsArmCommon ++ buildDepsArmUncommon ++ buildDepsAvr;
+    # Various build dependencies split into groups for easy building.
+    buildDepsAvr = [ toolchain-avr ];
+    buildDepsArmCommon = [ toolchain-arm asf ];
+    buildDepsArmOther = [ toolchain-arm-optsize clang-arm
+        clang-arm-optsize stm32cubef4 teensyCores ];
+    
+    # Build dependencies above joined. This can be used from service deployment
+    # to ensure that they are already in the Nix store and will not need to be
+    # build at the time a build needs them.
+    buildDeps = buildDepsAvr ++ buildDepsArmCommon ++ buildDepsArmOther;
 }
