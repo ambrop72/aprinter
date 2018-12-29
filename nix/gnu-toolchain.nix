@@ -45,6 +45,7 @@ let
         --with-gnu-as \
         --with-gnu-ld \
         ${lib.optionalString isArmNoneEabi "--with-multilib-list=rmprofile"} \
+        ${lib.optionalString optimizeForSize "--enable-target-optspace"} \
         --enable-checking=release \
         --disable-decimal-float \
         --disable-libffi \
