@@ -94,8 +94,8 @@ let
 
     # Optimization flags when building the toolchain libraries.
     # Note that we must not have newlines in here.
-    targetBaseFlags = "-ffunction-sections -fdata-sections" +
-        " -fno-math-errno -fno-trapping-math -fno-exceptions";
+    # These are NOT used when building GCC to prevent breakage.
+    targetBaseFlags = "-ffunction-sections -fdata-sections -fno-exceptions";
     targetCflags = targetBaseFlags;
     targetCxxflags = targetBaseFlags;
     targetLdflags = targetBaseFlags;
