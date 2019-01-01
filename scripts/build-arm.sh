@@ -59,7 +59,7 @@ configure_arm() {
         -std=c99
     )
     FLAGS_CXX=(
-        -std=c++14 -fno-access-control -ftemplate-depth=1024
+        -std=c++17 -fno-access-control -ftemplate-depth=1024 -Wno-register
     )
     FLAGS_C_CXX=(
         -DNDEBUG
