@@ -3,18 +3,18 @@
 nix-build nix/ -A aprinterService -o ~/aprinter-service && ~/aprinter-service/bin/aprinter-service
 
 # Build firmware.
-python -B config_system/generator/generate.py --config ~/Downloads/aprinter_config.json | nix-build - -o ~/aprinter-build
+python2.7 -B config_system/generator/generate.py --config ~/Downloads/aprinter_config.json | nix-build - -o ~/aprinter-build
 
 # Build web interface (for copying to SD-card).
 nix-build nix/ -A aprinterWebif -o ~/aprinter-webif
 
 # Flash various boards.
-python -B flash.py -f ~/aprinter-build/aprinter.bin -t duet
-python -B flash.py -f ~/aprinter-build/aprinter.bin -t arduino_due
-python -B flash.py -f ~/aprinter-build/aprinter.hex -t arduino_mega
-python -B flash.py -f ~/aprinter-build/aprinter.elf -t stm32f4
-python -B flash.py -f ~/aprinter-build/aprinter.hex -t teensy3
-python -B flash.py -f ~/aprinter-build/aprinter.hex -t melzi_programmer
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.bin -t duet
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.bin -t arduino_due
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.hex -t arduino_mega
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.elf -t stm32f4
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.hex -t teensy3
+python2.7 -B tools/flash.py -f ~/aprinter-build/aprinter.hex -t melzi_programmer
 
 # OpenOCD
 # Note, if using SWO, need to actually read it.
@@ -47,13 +47,13 @@ arm-none-eabi-nm --print-size --size-sort -td ~/aprinter-build/aprinter.elf |egr
 curl http://192.168.111.110/downloadTest >/dev/null
 
 # Upload network speed test.
-python -B upload.py -s 512 -l 100000000 | pv | nc 192.168.111.110 80
+python2.7 -B tools/http_upload.py -s 512 -l 100000000 | pv | nc 192.168.111.110 80
 
 # Download file from SD card.
 time curl http://192.168.111.110/dino.gcode >/dev/null
 
 # Upload file to SD card.
-time python -B upload.py -s 512 -l 100000000 -p /rr_upload?name=a.gcode | pv | nc 192.168.111.110 80
+time python2.7 -B tools/http_upload.py -s 512 -l 100000000 -p /rr_upload?name=a.gcode | pv | nc 192.168.111.110 80
 
 # Test writing file to SD card.
 M935 F0.txt S10000000 D1111111111111122222222222222222333333

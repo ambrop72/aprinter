@@ -92,7 +92,7 @@ Again, the prerequisite for building is the [Nix package manager](http://nixos.o
 If you're not familiar with Nix, please use the installer, not distribution packages.
 
 ```
-python -B config_system/generator/generate.py --config path_to_config.json | nix-build - -o ~/aprinter-build
+python2.7 -B config_system/generator/generate.py --config path_to_config.json | nix-build - -o ~/aprinter-build
 ```
 
 ## Uploading
@@ -106,7 +106,7 @@ There is a Python program included in the root of the source that will do the up
 It is generally used like this:
 
 ```
-python -B flash.py -t <board-type> -f <file-to-flash> [-p <port>]
+python2.7 -B tools/flash.py -t <board-type> -f <file-to-flash> [-p <port>]
 ```
 
 Below, the specific command used to flash manually are also shown.
@@ -341,7 +341,7 @@ This distinction is required for the implementation of the feedrate parameter (`
 
 The recommented naming for extruder axes is E, U, V in order.
 
-The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
+The included `tools/DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
 
 ### Multiple steppers per axis
 
@@ -518,7 +518,7 @@ with the start and end of segments.
 
 ## The DeTool g-code postprocessor
 
-The `DeTool.py` script can either be called from command line, or used as a plugin from `Cura`.
+The `tools/DeTool.py` script can either be called from command line, or used as a plugin from `Cura`.
 In the latter case, you can install it by copying (or linking) it into `Cura/plugins` in the Cura installation folder.
 
 To run the script, you will need to provide it with a list of physical extruders, which includes the names of their axes,
@@ -527,7 +527,7 @@ Futher, you will need to define a mapping from tool indices to physical extruder
 The command line syntax of the script is as follows.
 
 ```
-usage: DeTool.py [-h] --input InputFile --output OutputFile
+python2.7 -B tools/DeTool.py [-h] --input InputFile --output OutputFile
                  --tool-travel-speed Speedmm/s --physical AxisName OffsetX
                  OffsetY OffsetZ --tool ToolIndex PhysicalIndexFrom0
                  [--fan FanSpeedCmd PhysicalIndexFrom0 SpeedMultiplier]
