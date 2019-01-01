@@ -1,0 +1,14 @@
+diff -urN gcc-8.2.0.orig/libgcc/Makefile.in gcc-8.2.0/libgcc/Makefile.in
+--- gcc-8.2.0.orig/libgcc/Makefile.in	2018-12-31 00:23:10.189802806 +0100
++++ gcc-8.2.0/libgcc/Makefile.in	2018-12-31 00:24:01.951802608 +0100
+@@ -296,8 +296,8 @@
+ CRTSTUFF_CFLAGS = -O2 $(GCC_CFLAGS) $(INCLUDES) $(MULTILIB_CFLAGS) -g0 \
+   $(NO_PIE_CFLAGS) -finhibit-size-directive -fno-inline -fno-exceptions \
+   -fno-zero-initialized-in-bss -fno-toplevel-reorder -fno-tree-vectorize \
+-  -fbuilding-libgcc -fno-stack-protector $(FORCE_EXPLICIT_EH_REGISTRY) \
+-  $(INHIBIT_LIBC_CFLAGS)
++  -fbuilding-libgcc -fno-stack-protector -fno-function-sections \
++  -fno-data-sections $(FORCE_EXPLICIT_EH_REGISTRY) $(INHIBIT_LIBC_CFLAGS)
+ 
+ # Extra flags to use when compiling crt{begin,end}.o.
+ CRTSTUFF_T_CFLAGS =

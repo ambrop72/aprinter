@@ -132,9 +132,12 @@ stdenv.mkDerivation {
     
     enableParallelBuilding = true;
     
-    patchPhase = lib.optionalString isArmNoneEabi ''
+    patchPhase = ''
         # I'm not sure why/if this is needed. Maybe it just fixes the build.
         patch -N newlib*/libgloss/arm/linux-crt0.c ${ ../patches/newlib-optimize.patch }
+
+        # Fix GCC bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=88641
+        patch -d gcc* -p1 < ${ ../patches/gcc-crtstuff-sections.patch }
     '';
     
     installPhase = ''
