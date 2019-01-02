@@ -24,8 +24,6 @@
 
 /*
  * $${GENERATED_WARNING}
- * 
- * Board for build: $${BoardForBuild}
  */
 
 #include <stdint.h>

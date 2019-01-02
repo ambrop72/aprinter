@@ -188,6 +188,60 @@ function fixup_config(config) {
                 };
                 delete platform_config["output_type"];
             }
+            if (JSONEditor_utils.has(platform_config, "platform")) {
+                var platform = platform_config["platform"];
+                if (JSONEditor_utils.has(platform_config, "board_for_build")) {
+                    var boardForBuild = platform_config["board_for_build"];
+                    if (!JSONEditor_utils.has(platform, "CpuFreq")) {
+                        var cpuFreq = null;
+                        if (boardForBuild == "melzi" || boardForBuild == "ramps13" || boardForBuild == "megatronics3") {
+                            cpuFreq = 16000000;
+                        }
+                        else if (boardForBuild == "teensy3") {
+                            cpuFreq = 96000000;
+                        }
+                        if (cpuFreq !== null) {
+                            platform["CpuFreq"] = cpuFreq;
+                        }
+                    }
+                    if (!JSONEditor_utils.has(platform, "AsfBoardNum")) {
+                        var asfBoardNum = null;
+                        if (boardForBuild == "arduino_due") {
+                            asfBoardNum = 43;
+                        }
+                        else if (boardForBuild == "4pi") {
+                            asfBoardNum = 33;
+                        }
+                        if (asfBoardNum !== null) {
+                            platform["AsfBoardNum"] = asfBoardNum;
+                        }
+                    }
+                    if (platform["_compoundName"] == "Stm32f4") {
+                        if (boardForBuild == "stm32f429" || boardForBuild == "stm32f407") {
+                            platform["_compoundName"] = boardForBuild;
+                            platform["HSE_VALUE"] = 8000000;
+                            platform["PLL_N_VALUE"] = 336;
+                            platform["PLL_M_VALUE"] = 8;
+                            platform["PLL_P_DIV_VALUE"] = 2;
+                            platform["PLL_Q_DIV_VALUE"] = 7;
+                            platform["APB1_PRESC_DIV"] = 4;
+                            platform["APB2_PRESC_DIV"] = 2;
+                            platform["UsbMode"] = (boardForBuild == "stm32f429") ? "HS-in-FS" : "FS";
+                        }
+                        else if (boardForBuild == "stm32f411") {
+                            platform["_compoundName"] = boardForBuild;
+                            platform["HSE_VALUE"] = 8000000;
+                            platform["PLL_N_VALUE"] = 192;
+                            platform["PLL_M_VALUE"] = 4;
+                            platform["PLL_P_DIV_VALUE"] = 4;
+                            platform["PLL_Q_DIV_VALUE"] = 8;
+                            platform["APB1_PRESC_DIV"] = 4;
+                            platform["APB2_PRESC_DIV"] = 1;
+                            platform["UsbMode"] = "FS";
+                        }
+                    }
+                }
+            }
         }
     });
     each_in(config, "configurations", function(i, configuration) {

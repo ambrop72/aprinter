@@ -127,7 +127,9 @@ def pins_at91sam():
 
 def at91sam_common():
     return [
+        ce.Integer(key='AsfBoardNum', title='ASF board number (common/boards/board.h)'),
         ce.Integer(key='StackSize', title='Stack size', default=8192),
+        ce.Integer(key='HeapSize', title='Heap size', default=16384),
     ]
 
 def platform_At91Sam3x8e():
@@ -235,6 +237,7 @@ def platform_Avr(variant):
         assert False
     
     return ce.Compound('AVR {}'.format(variant), attrs=[
+        ce.Integer(key='CpuFreq', title='CPU frequency [Hz]'),
         ce.Compound('AvrClock', key='clock', title='Clock', collapsable=True, attrs=[
             ce.Integer(key='PrescaleDivide', title='Prescaler (as division factor)'),
             ce.String(key='primary_timer', title='Primary timer'),
@@ -270,8 +273,17 @@ def platform_Avr(variant):
         ]),
     ])
 
-def platform_Stm32f4():
-    return ce.Compound('Stm32f4', attrs=[
+def platform_stm32f4_generic(platform_name):
+    return ce.Compound(platform_name, attrs=[
+        ce.Integer(key='HeapSize', title='Heap size', default=16384),
+        ce.Integer(key='HSE_VALUE'),
+        ce.Integer(key='PLL_N_VALUE'),
+        ce.Integer(key='PLL_M_VALUE'),
+        ce.Integer(key='PLL_P_DIV_VALUE'),
+        ce.Integer(key='PLL_Q_DIV_VALUE'),
+        ce.Integer(key='APB1_PRESC_DIV'),
+        ce.Integer(key='APB2_PRESC_DIV'),
+        ce.String(key='UsbMode', title='USB mode (if using USB serial)', enum=['None', 'FS', 'HS', 'HS-in-FS']),
         ce.Compound('Stm32f4Clock', key='clock', title='Clock', collapsable=True, attrs=[
             ce.Integer(key='prescaler', title='Prescaler'),
             ce.String(key='primary_timer', title='Primary timer'),
@@ -725,7 +737,6 @@ def editor():
         ce.Array(key='boards', title='Boards', processing_order=-2, copy_name_key='name', elem=ce.Compound('board', title='Board', title_key='name', collapsable=True, ident='id_board', attrs=[
             ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),
             ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsable=True, processing_order=-10, attrs=[
-                ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
                 ce.Compound('output_types', key='output_types', title='Binary outputs types', attrs=[
                     ce.Boolean(key='output_elf', title='.elf'),
                     ce.Boolean(key='output_bin', title='.bin'),
@@ -738,7 +749,9 @@ def editor():
                     platform_Teensy3(),
                     platform_Avr('ATmega2560'),
                     platform_Avr('ATmega1284p'),
-                    platform_Stm32f4(),
+                    platform_stm32f4_generic('stm32f407'),
+                    platform_stm32f4_generic('stm32f411'),
+                    platform_stm32f4_generic('stm32f429'),
                     platform_Linux(),
                 ]),
                 ce.OneOf(key='debug_interface', title='Debug interface', choices=[

@@ -37,9 +37,8 @@ class Selection (object):
     def options (self, names):
         def wrap (func):
             for name in names:
-                def wrapped_func (*args, **kwargs):
-                    return func(name, *args, **kwargs)
-                self._options[name] = wrapped_func
+                self._options[name] = \
+                    (lambda n=name: lambda *args, **kwargs: func(n, *args, **kwargs))()
             return func
         return wrap
     

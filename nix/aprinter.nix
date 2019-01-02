@@ -22,117 +22,343 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-{ stdenv, writeText, bash, toolchain-arm, clang-arm, toolchain-avr
-, clang, asf, stm32cubef4, teensyCores
-, aprinterSource, buildVars, extraSources
-, extraIncludePaths, defines, linkerSymbols
-, mainText, boardName, buildName, desiredOutputs
-, optimizeForSize ? false
-, buildWithClang ? false
-, verboseBuild ? false
-, debugSymbols ? false
-}:
+{ stdenv, lib, callPackage, clangNative, aprinterSource, toolchain-avr,
+  toolchain-arm, toolchain-arm-optsize, toolchain-microblaze, clang-arm,
+  clang-arm-optsize, asf, stm32cubef4, teensyCores, aprinterConfigFile,
+  aprinterConfigName }:
 
 let
-    boardDefinitions = import ./boards.nix;
-    
-    board = builtins.getAttr boardName boardDefinitions;
-    
-    collectSources = suffix:
-        (stdenv.lib.concatStringsSep " " (map
-            (src: if (stdenv.lib.hasPrefix "$" src) then src else "\${ROOT}/${src}")
-            (stdenv.lib.filter (stdenv.lib.hasSuffix suffix) extraSources)));
-    
-    targetVars = {
-        PLATFORM = board.platform;
-        OPTIMIZE_FOR_SIZE = if optimizeForSize then "1" else "0";
-    } // (if board.platform == "sam3x" then {
-        USE_USB_SERIAL = "1";
-    } else {}) // board.targetVars // buildVars // {
-        EXTRA_C_SOURCES = collectSources ".c";
-        EXTRA_CXX_SOURCES = collectSources ".cpp";
-        EXTRA_ASM_SOURCES = collectSources ".S";
-        EXTRA_COMPILE_FLAGS = 
-            (map (f: "-I${aprinterSource}/${f}") extraIncludePaths) ++
-            (map (define: "-D${define.name}" + (if define.value=="" then "" else "=${define.value}")) defines);
-        EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
+    ## Configuration file handling.
+
+    # Get the parsed output of the generate.py script (attrset at the top).
+    cfg = (callPackage ./generate_aprinter_config.nix {}) {
+        inherit aprinterSource aprinterConfigFile aprinterConfigName;
     };
+
+    ## Toolchain and tools handling.
+
+    # Embedded GNU toolchain package for the platform (null means use native tools).
+    toolchain = {
+        avr = toolchain-avr;
+        arm = if cfg.toolchainOptSize then toolchain-arm-optsize else toolchain-arm;
+        microblaze = toolchain-microblaze;
+        linux = null;
+    }.${cfg.platformType};
+
+    # Clang compiler package (null means none).
+    clangPackage = if !cfg.buildWithClang then null else
+        {
+            avr = throw "Clang is not supported for AVR.";
+            arm = if cfg.toolchainOptSize then clang-arm-optsize else clang-arm;
+            microblaze = throw "Clang is not supported for MicroBlaze.";
+            linux = clangNative;
+        }.${cfg.platformType};
+
+    # Prefix of tools, based on the target name.
+    toolPrefix = {
+        avr = "avr-";
+        arm = "arm-none-eabi-";
+        microblaze = "microblaze-xilinx-elf-";
+        linux = "";
+    }.${cfg.platformType};
+
+    # Get the command for a specific tool.
+    getTool = toolName: toolPrefix + toolName;
+
+    # Specific tools used for the build.
+    buildToolDefault = getTool (if cfg.buildWithClang then "clang" else "gcc");
+    buildToolGcc = getTool "gcc";
+    sizeTool = getTool "size";
+    objCopyTool = getTool "objcopy";
+
+    ## Dependency handling.
+
+    # Listing of all possible depenencies. The key represents the dependency name
+    # and the valus is an attrset with keys "dirName" (name of symlink in the
+    # build directory) and "package" (the actual package for the depenency).
+    allDependencies = {
+        asf = { dirName = "asf"; package = asf; };
+        stm32cubef4 = { dirName = "stm32cubef4"; package = stm32cubef4; };
+        teensyCores = { dirName = "teensyCores"; package = teensyCores; };
+    };
+
+    # List of only the needed dependencies.
+    neededDependencies =
+        let # IMPORTANT: allPaths must be updated so it contains all paths that
+            # are used for the build (via resolvePath).
+            allPaths =
+                cfg.includeDirs ++
+                (lib.optional (cfg.linkerScript != null) cfg.linkerScript) ++
+                allSources;
+            
+            # A dependency is needed if any element of allPaths refers to it
+            # in the "base" attribute.
+            isDependencyNeeded = depName:
+                lib.any (path: path.base == depName) allPaths;
+        in
+            # Take only the needed dependencies.
+            lib.filterAttrs (depName: depSpec: isDependencyNeeded depName) allDependencies;
     
-    targetVarEncoding = value: if builtins.isList value then (
-        "( " + (stdenv.lib.concatStringsSep " " (map (elem: stdenv.lib.escapeShellArg elem) value)) + " )"
-    ) else (stdenv.lib.escapeShellArg value);
+    ## Path specification handling.
+
+    # Get the path where a specific item is found, identified by a name.
+    # This works such that appending a relative path results in a relative path
+    # for use from within the build directory. The name can be:
+    # - A dependency name (key in allDependencies above); it will resolve to the
+    #   corresponding directory symlink in the build directory (e.g. "asf/").
+    # - "aprinter" for APrinter source code; it will resolve to "" since the
+    #   relevant source code subdirectories are symlinked into the build
+    #   directory.
+    # - "" for paths that are already relative to the build directory; this will
+    #   resolve to "".
+    resolvePathBase = name:
+        if allDependencies ? ${name} then "${allDependencies.${name}.dirName}/"
+        else if name == "aprinter" then ""
+        else if name == "" then ""
+        else throw "Invalid path base name (${name}).";
     
-    targetVarsText = stdenv.lib.concatStrings (
-        stdenv.lib.mapAttrsToList (name: value: "    ${name}=${targetVarEncoding value}\n") targetVars
-    );
+    # Resolve a path specification (attrset with keys "base" and "path").
+    resolvePath = path: (resolvePathBase path.base) + path.path;
     
-    isAvr = board.platform == "avr";
+    ## Definition of flags for use with various tools.
+
+    # Common flags used compiling, linking and assembling.
+    flagsCommon =
+        (if cfg.optimizeForSize then ["-Os"] else ["-O2"]) ++
+        (lib.optional cfg.enableDebugSymbols "-g") ++
+        ["-fno-math-errno" "-fno-trapping-math"] ++
+        ["-ffunction-sections" "-fdata-sections"] ++
+        cfg.platformFlags;
     
-    isArm = builtins.elem board.platform [ "sam3x" "teensy" "stm32f4" ];
+    # Common flags for compiling C++ and C.
+    flagsCompileCommon = flagsCommon ++
+        ["-I."] ++
+        (map (include: "-I${resolvePath include}") cfg.includeDirs) ++
+        ["-DNDEBUG"] ++
+        ["-D__STDC_LIMIT_MACROS" "-D__STDC_FORMAT_MACROS" "-D__STDC_CONSTANT_MACROS"] ++
+        (map (define: "-D${define.name}" +
+            lib.optionalString (define.value != "") "=${define.value}") cfg.defines);
     
-    isLinux = board.platform == "linux";
+    # Flags for compiling C++.
+    flagsCompileCXX = flagsCompileCommon ++
+        ["-std=c++17" "-fno-rtti" "-fno-exceptions"] ++
+        ["-fno-access-control" "-ftemplate-depth=1024"] ++
+        cfg.platformFlagsCXX;
     
-    needAsf = board.platform == "sam3x";
+    # Flags for compiling C.
+    flagsCompileC = flagsCompileCommon ++
+        ["-std=c99"];
     
-    needStm32CubeF4 = board.platform == "stm32f4";
+    # Flags for assembling.
+    flagsAssemble = flagsCommon;
+
+    # Flags for linking.
+    flagsLink = flagsCommon ++
+        (lib.optional (cfg.linkerScript != null) "-T${resolvePath cfg.linkerScript}") ++
+        (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") cfg.linkerSymbols) ++
+        ["-Wl,--gc-sections"] ++
+        cfg.extraLinkFlags;
     
-    needTeensyCores = board.platform == "teensy";
+    ## Source language handling.
+
+    # Helper to check if a string has any of the given suffixes.
+    hasSuffixes = suffixes: str:
+        lib.any (suffix: lib.hasSuffix suffix str) suffixes;
+
+    # Get the source language based on the file extension, for use with the -x
+    # (language) argument of the compiler.
+    getSourceLanguage = source:
+        if hasSuffixes [".cpp" ".cxx" ".c++"] source.path then "c++"
+        else if hasSuffixes [".c"] source.path then "c"
+        else if hasSuffixes [".asm" ".S" ".s"] source.path then "assembler"
+        else throw "Cannot determine source file language (${source.path}).";
     
-    targetFile = writeText "aprinter-nixbuild.sh" ''
-        ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${toolchain-avr}/bin/avr-"}
-        ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${toolchain-arm}/bin/arm-none-eabi-"}
-        ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
-        ${stdenv.lib.optionalString (buildWithClang && isArm) "CLANG_ARM_EMBEDDED=${clang-arm}/bin/"}
-        ${stdenv.lib.optionalString needAsf "ASF_DIR=${asf}"}
-        ${stdenv.lib.optionalString needStm32CubeF4 "STM32CUBEF4_DIR=${stm32cubef4}"}
-        ${stdenv.lib.optionalString needTeensyCores "TEENSY_CORES=${teensyCores}"}
-        
-        TARGETS+=( "nixbuild" )
-        target_nixbuild() {
-        ${targetVarsText}}
+    # Get a build action description for a specific source file, for printing.
+    getSourceBuildActionDesc = source:
+        {
+            "c++" = "Compile C++: ${source.path}";
+            "c" = "Compile C: ${source.path}";
+            "assembler" = "Assemble: ${source.path}";
+        }.${getSourceLanguage source};
+    
+    ## Commands for building sources and linking.
+
+    # Get the name of the object file for a specific source file.
+    getSourceObjPath = source:
+        (lib.replaceStrings ["/"] ["_"] source.path) + ".o";
+
+    # Get the flags for building a specific source file.
+    getSourceFlags = source:
+        {
+            "c++" = flagsCompileCXX;
+            "c" = flagsCompileC;
+            "assembler" = flagsAssemble;
+        }.${getSourceLanguage source};
+    
+    # Get the build tool to be used for a specific source file.
+    # Use the selected buildToolDefault unless GCC is specifically requested.
+    getSourceBuildTool = source:
+        if source ? useGcc && source.useGcc then buildToolGcc else buildToolDefault;
+    
+    # Get the command for building a specific source file.
+    getCompileCommandForSource = source: ''
+        ${getSourceBuildTool source} -x ${getSourceLanguage source} \
+            -c ${lib.escapeShellArg (resolvePath source)} \
+            -o ${lib.escapeShellArg (getSourceObjPath source)} \
+            ${lib.escapeShellArgs (getSourceFlags source)}
     '';
+
+    # Get the command for linking object files resulting from specific source
+    # files into the specified output executable.
+    getLinkCommand = sources: outputExec: ''
+        ${buildToolDefault} \
+            ${lib.escapeShellArgs (map getSourceObjPath sources)} \
+            -o ${lib.escapeShellArg outputExec} \
+            ${lib.escapeShellArgs flagsLink}
+    '';
+
+    # Wraps a command to print what is being done. The command can also be
+    # multiple commands (separated with newlines).
+    wrapBuildCommand = message: command: ''
+        (
+            echo ${lib.escapeShellArg ("  " + message)}
+            ${lib.optionalString cfg.verboseBuild "set -x"}
+            ${command}
+        )
+    '';
+
+    ## Definition for objcopy.
+
+    # Get the --output-target value for a specific output type.
+    getObjcopyTarget = outputType:
+        {
+            bin = "binary";
+            hex = "ihex";
+        }.${outputType};
     
-    mainFile = writeText "aprinter-main.cpp" mainText;
-    
-    ccxxldFlags = stdenv.lib.concatStringsSep " " [
-        (stdenv.lib.optionalString debugSymbols "-g")
-    ];
+    # Get the command for objcopy.
+    getObjCopyCommand = inputFile: outputFile: outputType: ''
+        ${objCopyTool} \
+            -O ${getObjcopyTarget outputType} \
+            ${lib.escapeShellArgs cfg.extraObjCopyFlags} \
+            ${lib.escapeShellArg inputFile} \
+            ${lib.escapeShellArg outputFile}
+    '';
+
+    ## Register address extraction for AVR.
+
+    # These commands perform the required address extraction.
+    extractAvrRegAddrsCommands =
+        let ppHeaderPath = "aprinter/platform/avr/avr_reg_addr_preprocess.h";
+            ppHeaderOut = "avr_reg_addr_preprocess.i";
+            genScript = "aprinter/platform/avr/avr_reg_addr_gen.sh";
+            genOut = "aprinter_avr_reg_addrs.h";
+        in
+            # Preprocess avr_reg_addr_helper.h (-P to get no line number comments).
+            ''${buildToolDefault} -x c++ -E \
+                  ${lib.escapeShellArg ppHeaderPath} -o ${lib.escapeShellArg ppHeaderOut} \
+                  ${lib.escapeShellArgs flagsCompileCXX} -P
+            '' +
+            # Generate the header using another script.
+            ''bash ${lib.escapeShellArg genScript} \
+                  ${lib.escapeShellArg ppHeaderOut} ${lib.escapeShellArg genOut}
+            '';
+
+    ## Definition of sources and outputs.
+
+    # Source file entry representing the main file.
+    mainSource = {
+        base = "";
+        path = "aprinter_main.cpp";
+    };
+
+    # All source files (the main file plus extra sources).
+    allSources = [mainSource] ++ cfg.extraSourceFiles;
+
+    # Program name used as the base for file name.
+    programName = "aprinter";
+
+    # File name for a specific output type.
+    fileNameForType = outputType: "${programName}.${outputType}";
+
+    # Name of the program as an ELF executable.
+    execFileName = fileNameForType "elf";
+
 in
-
-assert isAvr -> toolchain-avr != null;
-assert isArm -> toolchain-arm != null;
-assert buildWithClang -> isArm || isLinux;
-assert buildWithClang && isArm -> clang-arm != null;
-assert buildWithClang && isLinux -> clang != null;
-assert needAsf -> asf != null;
-assert needStm32CubeF4 -> stm32cubef4 != null;
-assert needTeensyCores -> teensyCores != null;
-
 stdenv.mkDerivation rec {
-    aprinterBuildName = buildName;
-    
-    name = "aprinter-${buildName}";
-    
-    buildInputs = stdenv.lib.optional (buildWithClang && isLinux) clang;
-    
+    # Package name, appearing in the store path.
+    name = "aprinter-build";
+
+    # Build input definitions for dependencies to be available in PATH etc.
+    nativeBuildInputs =
+        lib.optional (toolchain != null) toolchain ++
+        lib.optional (clangPackage != null) clangPackage;
+
+    # Do not unpack anything (we refer to aprinterSource directly).
     unpackPhase = "true";
+
+    # Pass the main file source code as a file. This will make Nix set an
+    # environment variable "mainSourceCodePath" to the path where the file
+    # is located.
+    passAsFile = ["mainSourceCode"];
+    mainSourceCode = cfg.mainSourceCode;
+
+    # In the configure phase, we prepare the build directory for building.
+    configurePhase = wrapBuildCommand "Prepare build directory" (
+        # Create symlinks to source code for APrinter and AIpStack. Since the build
+        # directory is in the include path, this directly resolves includes like 
+        # <aprinter/...> and <aipstack/...>.
+        ''ln -s ${aprinterSource}/aprinter aprinter
+          ln -s ${aprinterSource}/aipstack/src/aipstack aipstack
+        '' +
+        # Create symlinks to dependencies.
+        lib.concatStrings (lib.mapAttrsToList (depName: depSpec:
+            ''ln -s ${depSpec.package} ${lib.escapeShellArg depSpec.dirName}
+            ''
+        ) neededDependencies) +
+        # Create a symlink pointing to the main source file.
+        ''ln -s "$mainSourceCodePath" ${lib.escapeShellArg mainSource.path}
+        '' +
+        # Create the output directory (where the executable will be written) and
+        # also create a symlink to that in the build directory.
+        ''mkdir "$out"
+          ln -s "$out" out
+        '');
+
+    # In the build phase we compile, link, print information and produce the
+    # desired output formats.
+    buildPhase =
+        # For AVR, extract register addresses before compiling.
+        lib.optionalString (cfg.platformType == "avr") (wrapBuildCommand
+            "Extract AVR register addresses" extractAvrRegAddrsCommands) +
+        # Compile source files.
+        lib.concatMapStrings (source: wrapBuildCommand
+            (getSourceBuildActionDesc source)
+            (getCompileCommandForSource source)) allSources +
+        # Link the executable.
+        wrapBuildCommand "Link: ${execFileName}"
+            (getLinkCommand allSources "out/${execFileName}") +
+        # Print the program size information.
+        wrapBuildCommand "Program size:"
+          ''${sizeTool} out/${lib.escapeShellArg execFileName} | sed 's/^/    /'
+          '' +
+        # Generate additional output types using objcopy.
+        lib.concatMapStrings (outputType:
+            let fileName = fileNameForType outputType;
+            in wrapBuildCommand "Generate ${fileName}"
+                (getObjCopyCommand "out/${execFileName}" "out/${fileName}" outputType)
+            ) (lib.filter (outputType: outputType != "elf") cfg.desiredOutputs) +
+        # If the elf output is not desired, delete it.
+        lib.optionalString (!(lib.any (t: t == "elf") cfg.desiredOutputs))
+            (wrapBuildCommand "Remove ${execFileName}"
+                ''rm out/${lib.escapeShellArg execFileName}
+                '');
     
-    configurePhase = ''
-        mkdir build
-        cd build
-    '';
+    # Nothing needs to be done in the install phase, outputs were written
+    # directly to the output directory.
+    installPhase = "true";
     
-    buildPhase = ''
-        CCXXLDFLAGS="${ccxxldFlags}" \
-        ${bash}/bin/bash ${aprinterSource}/build.sh ${targetFile} ${mainFile} ${if verboseBuild then "-v" else ""}
-    '';
-    
-    installPhase = ''
-        mkdir -p $out
-    '' + stdenv.lib.concatStrings (map (outputType: ''
-        [ -e aprinter.${outputType} ] && cp aprinter.${outputType} $out/
-    '') desiredOutputs);
-    
+    # Prevent the stdenv packaging code from damaging the outputs.
     dontStrip = true;
     dontPatchELF = true;
     dontPatchShebangs = true;

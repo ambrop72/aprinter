@@ -90,7 +90,7 @@ lib.foldl lib.recursiveUpdate {} [
                     inst.path
                 );
                 pathEmptyIfRoot = if path != "/" then path else "";
-                aprinterExprs = (import (builtins.toPath ((toString inst.src) + "/nix"))) { inherit pkgs; };
+                aprinterExprs = (import (builtins.toPath (inst.src))) { inherit pkgs; };
                 backendPort = 4001 + inst_index;
                 aprinterServicePkg = aprinterExprs.aprinterServiceExprs.override {
                     withHttpServer = false;

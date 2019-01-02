@@ -34,7 +34,6 @@ import function_defined
 import assign_func
 import rich_template
 import file_utils
-import nix_utils
 
 IDENTIFIER_REGEX = '\\A[A-Za-z][A-Za-z0-9_]{0,127}\\Z'
 
@@ -53,13 +52,11 @@ class GenState(object):
         self._final_init_calls = []
         self._global_resources = []
         self._modules_exprs = []
-        self._build_vars = {}
         self._extra_sources = []
-        self._extra_include_paths = []
         self._need_millisecond_clock = False
         self._have_hw_millisecond_clock = False
         self._defines = []
-        self._linker_symbols = []
+        self._include_dirs = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -194,15 +191,8 @@ class GenState(object):
         self._modules_exprs.append(None)
         return GenPrinterModule(self, index)
     
-    def add_build_var (self, name, value):
-        assert name not in self._build_vars
-        self._build_vars[name] = value
-    
-    def add_extra_source (self, path):
-        self._extra_sources.append(path)
-    
-    def add_extra_include_path (self, path):
-        self._extra_include_paths.append(path)
+    def add_extra_source (self, base, path):
+        self._extra_sources.append({'base': base, 'path': path})
     
     def set_need_millisecond_clock (self):
         self._need_millisecond_clock = True
@@ -213,8 +203,8 @@ class GenState(object):
     def add_define (self, name, value=''):
         self._defines.append({'name': name, 'value': str(value)})
     
-    def add_linker_symbol (self, name, value):
-        self._linker_symbols.append({'name': name, 'value': str(value)})
+    def add_include_dir (self, base, path):
+        self._include_dirs.append({'base': base, 'path': path})
     
     def finalize (self):
         for action in reversed(self._finalize_actions):
@@ -410,41 +400,249 @@ def setup_event_loop(gen):
     gen.add_final_init_call(100, 'MyLoop::run(c);')
 
 def setup_platform(gen, config, key):
+    platformType = [None]
+    platformFlags = []
+    platformFlagsCXX = []
+    linkerScript = [None]
+    extraLinkFlags = []
+    linkerSymbols = []
+    extraObjCopyFlags = []
+    
     platform_sel = selection.Selection()
     
-    arm_checksum_src_file = 'aprinter/net/inet_chksum_arm.S'
-    
+    arm_checksum_src_file = ('aprinter', 'aprinter/net/inet_chksum_arm.S')
+
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
+        if platform_name == 'At91Sam3x8e':
+            arch1 = 'sam3x'
+            arch2 = '8'
+            arch3 = 'e'
+            usb_device = 'uotghs'
+        elif platform_name == 'At91Sam3u4e':
+            arch1 = 'sam3u'
+            arch2 = '4'
+            arch3 = 'e'
+            usb_device = 'udphs'
+        else:
+            assert False
+        
+        platformType[0] = 'arm'
+        platformFlags.extend(['-mcpu=cortex-m3', '-mthumb', '-Wno-psabi'])
+        platformFlagsCXX.extend(['-Wno-register'])
+        linkerScript[0] = {'base': 'asf', 'path':
+            'sam/utils/linker_scripts/{0:}/{0:}{1:}/gcc/flash.ld'.format(arch1, arch2)}
+        extraLinkFlags.extend(['-nostartfiles', '-lm'])
+        
+        archDefineName = '__{}__'.format('{}{}{}'.format(arch1, arch2, arch3).upper())
+        gen.add_define(archDefineName, '')
+
         stack_size = platform.get_int('StackSize')
         if not 512 <= stack_size <= 32768:
             platform.key_path('StackSize').error('Value out of range.')
+        linkerSymbols.extend([{'name': '__stack_size__', 'value': str(stack_size)}])
         
+        heap_size = platform.get_int('HeapSize')
+        if not 1024 <= heap_size <= 131072:
+            platform.key_path('HeapSize').error('Value out of range.')
+        gen.add_define('HEAP_SIZE', heap_size)
+        
+        gen.add_define('BOARD', platform.get_int('AsfBoardNum'))
+
+        cmsis_dir = 'sam/utils/cmsis/{}'.format(arch1)
+        templates_dir = cmsis_dir+'/source/templates'
+        
+        asf_includes = [
+            cmsis_dir+'/include',
+            templates_dir,
+            "",
+            "sam/utils",
+            "sam/utils/preprocessor",
+            "sam/utils/header_files",
+            "sam/boards",
+            "sam/drivers/pmc",
+            "sam/drivers/pio",
+            "sam/drivers/dmac",
+            "sam/drivers/emac",
+            "sam/drivers/rstc",
+            "common/utils",
+            "common/services/usb",
+            "common/services/usb/udc",
+            "common/services/clock",
+            "common/services/sleepmgr",
+            "common/services/ioport",
+            "common/services/usb/class/cdc",
+            "common/services/usb/class/cdc/device",
+            "common/boards",
+            "thirdparty/CMSIS/Include",
+        ]
+        asf_sources = [
+            templates_dir+'/exceptions.c',
+            templates_dir+'/system_{}.c'.format(arch1),
+            templates_dir+'/gcc/startup_{}.c'.format(arch1),
+            'sam/drivers/pmc/pmc.c',
+            'sam/drivers/pmc/sleep.c',
+            'sam/drivers/dmac/dmac.c',
+            'sam/drivers/rstc/rstc.c',
+            'common/services/clock/{}/sysclk.c'.format(arch1),
+            'common/utils/interrupt/interrupt_sam_nvic.c',
+        ]
+
+        for include in asf_includes:
+            gen.add_include_dir('asf', include)
+        for source in asf_sources:
+            gen.add_extra_source('asf', source)
+
+        gen.add_extra_source('aprinter', 'aprinter/platform/newlib_common.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/at91sam/at91sam_support.cpp')
+        gen.add_include_dir('aprinter', 'aprinter/platform/at91sam')
+
+        gen.register_singleton_object('asf_usb_device', usb_device)
         gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
-        gen.add_linker_symbol('__stack_size__', stack_size)
     
     @platform_sel.option('Teensy3')
     def option(platform):
+        platformType[0] = 'arm'
+        platformFlags.extend(['-mcpu=cortex-m4', '-mthumb', '-msoft-float'])
+        linkerScript[0] = {'base': 'teensyCores', 'path': 'teensy3/mk20dx256.ld'}
+        extraLinkFlags.extend(['-nostartfiles', '-lm'])
+
+        gen.add_define('__MK20DX256__', '')
+        gen.add_define('F_CPU', 96000000)
+        gen.add_define('USB_SERIAL', '')
+        gen.add_define('APRINTER_NO_SBRK', '')
+
+        teensy_includes = [
+            'teensy3',
+        ]
+        teensy_sources = [
+            'teensy3/mk20dx128.c',
+            'teensy3/nonstd.c',
+            'teensy3/usb_dev.c',
+            'teensy3/usb_desc.c',
+            'teensy3/usb_mem.c',
+            'teensy3/usb_serial.c',
+        ]
+
+        for include in teensy_includes:
+            gen.add_include_dir('teensyCores', include)
+        for source in teensy_sources:
+            gen.add_extra_source('teensyCores', source)
+
+        gen.add_extra_source('aprinter', 'aprinter/platform/teensy3/aprinter_teensy_eeprom.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/newlib_common.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/teensy3/teensy3_support.cpp')
+
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
         gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
     
     @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
     def option(platform_name, platform):
+        if platform_name == 'AVR ATmega2560':
+            mcu = 'atmega2560'
+        elif platform_name == 'AVR ATmega1284p':
+            mcu = 'atmega1284p'
+        else:
+            assert False
+        
+        platformType[0] = 'avr'
+        platformFlags.extend(['-mmcu={}'.format(mcu)])
+        extraLinkFlags.extend(['-Wl,-u,vfprintf', '-lprintf_flt'])
+        extraObjCopyFlags.extend(['-j', '.text',  '-j', '.data'])
+
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
+        gen.add_define('F_CPU', platform.get_int('CpuFreq'))
+        gen.add_define('AMBROLIB_AVR', '')
     
-    @platform_sel.option('Stm32f4')
-    def option(platform):
+    @platform_sel.options(['stm32f407', 'stm32f411', 'stm32f429'])
+    def option(platform_name, platform):
+        if platform_name == 'stm32f407':
+            chip_flag = 'STM32F407xx'
+            startup_file = 'startup_stm32f407xx.s'
+        elif platform_name == 'stm32f411':
+            chip_flag = 'STM32F411xE'
+            startup_file = 'startup_stm32f411xe.s'
+        elif platform_name == 'stm32f429':
+            chip_flag = 'STM32F429xx'
+            startup_file = 'startup_stm32f429xx.s'
+        else:
+            assert False
+        
+        platformType[0] = 'arm'
+        platformFlags.extend(['-mcpu=cortex-m4', '-mthumb', '-mfpu=fpv4-sp-d16', '-mfloat-abi=hard'])
+        platformFlagsCXX.extend(['-Wno-register'])
+        linkerScript[0] = {'base': 'aprinter', 'path': 'aprinter/platform/stm32f4/{}.ld'.format(platform_name)}
+        extraLinkFlags.extend(['-nostartfiles', '-lm'])
+
+        gen.add_define(chip_flag, '')
+        gen.add_define('USE_HAL_DRIVER', '')
+        
+        gen.add_define('HSE_VALUE', platform.get_int('HSE_VALUE'))
+        gen.add_define('PLL_N_VALUE', platform.get_int('PLL_N_VALUE'))
+        gen.add_define('PLL_M_VALUE', platform.get_int('PLL_M_VALUE'))
+        gen.add_define('PLL_P_DIV_VALUE', platform.get_int('PLL_P_DIV_VALUE'))
+        gen.add_define('PLL_Q_DIV_VALUE', platform.get_int('PLL_Q_DIV_VALUE'))
+        gen.add_define('APB1_PRESC_DIV', platform.get_int('APB1_PRESC_DIV'))
+        gen.add_define('APB2_PRESC_DIV', platform.get_int('APB2_PRESC_DIV'))
+
+        heap_size = platform.get_int('HeapSize')
+        if not 1024 <= heap_size <= 262144:
+            platform.key_path('HeapSize').error('Value out of range.')
+        gen.add_define('HEAP_SIZE', heap_size)
+
+        cmsis_dir = 'Drivers/CMSIS/Device/ST/STM32F4xx'
+        templates_dir = cmsis_dir+'/Source/Templates'
+        hal_dir = 'Drivers/STM32F4xx_HAL_Driver'
+        usb_dir = 'Middlewares/ST/STM32_USB_Device_Library'
+
+        stm32cubef4_includes = [
+            cmsis_dir+'/Include',
+            'Drivers/CMSIS/Include',
+            hal_dir+'/Inc',
+            usb_dir+'/Core/Inc',
+            usb_dir+'/Class/CDC/Inc',
+        ]
+        stm32cubef4_sources = [
+            templates_dir+'/system_stm32f4xx.c',
+            templates_dir+'/gcc/{}'.format(startup_file),
+            hal_dir+'/Src/stm32f4xx_hal.c',
+            hal_dir+'/Src/stm32f4xx_hal_cortex.c',
+            hal_dir+'/Src/stm32f4xx_hal_rcc.c',
+            hal_dir+'/Src/stm32f4xx_hal_iwdg.c',
+            hal_dir+'/Src/stm32f4xx_hal_gpio.c',
+            hal_dir+'/Src/stm32f4xx_hal_dma.c',
+        ]
+
+        for include in stm32cubef4_includes:
+            gen.add_include_dir('stm32cubef4', include)
+        for source in stm32cubef4_sources:
+            gen.add_extra_source('stm32cubef4', source)
+
+        gen.add_include_dir('aprinter', 'aprinter/platform/stm32f4')
+        gen.add_extra_source('aprinter', 'aprinter/platform/newlib_common.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/stm32f4/stm32f4_support.cpp')
+
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
         gen.register_singleton_object('checksum_src_file', arm_checksum_src_file)
+
+        usb_mode = platform.get_string('UsbMode')
+        if usb_mode not in ('None', 'FS', 'HS', 'HS-in-FS'):
+            platform.key_path('UsbMode').error('Invalid UsbMode.')
+        gen.register_singleton_object('stm32f4_usb_mode', usb_mode)
     
     @platform_sel.option('Linux')
     def option(platform):
+        platformType[0] = 'linux'
+        extraLinkFlags.extend(['-lpthread', '-lrt', '-lm', '-lstdc++'])
+
+        gen.add_extra_source('aprinter', 'aprinter/platform/linux/linux_support.cpp')
+
         timers_structure = get_heap_structure(gen, platform, 'TimersStructure')
         
         gen.add_platform_include('aprinter/platform/linux/linux_support.h')
@@ -455,6 +653,16 @@ def setup_platform(gen, config, key):
         })
     
     config.do_selection(key, platform_sel)
+
+    return {
+        'platformType': platformType[0],
+        'platformFlags': platformFlags,
+        'platformFlagsCXX': platformFlagsCXX,
+        'linkerScript': linkerScript[0],
+        'extraLinkFlags': extraLinkFlags,
+        'linkerSymbols': linkerSymbols,
+        'extraObjCopyFlags': extraObjCopyFlags,
+    }
 
 def setup_debug_interface(gen, config, key):
     debug_sel = selection.Selection()
@@ -1049,6 +1257,10 @@ def use_sdio (gen, config, key, user):
     
     @sdio_sel.option('Stm32f4Sdio')
     def option(sdio_config):
+        hal_dir = 'Drivers/STM32F4xx_HAL_Driver'
+        gen.add_extra_source('stm32cubef4', hal_dir+'/Src/stm32f4xx_hal_sd.c')
+        gen.add_extra_source('stm32cubef4', hal_dir+'/Src/stm32f4xx_ll_sdmmc.c')
+
         gen.add_aprinter_include('hal/stm32/Stm32f4Sdio.h')
         gen.add_isr('APRINTER_STM32F4_SDIO_GLOBAL({}, Context())'.format(user))
         return TemplateExpr('Stm32f4SdioService', [
@@ -1138,6 +1350,11 @@ def use_serial(gen, config, key, user):
     
     @serial_sel.option('AsfUsbSerial')
     def option(serial_service):
+        usb_device = gen.get_singleton_object('asf_usb_device')
+        gen.add_extra_source('asf', 'sam/drivers/{0:}/{0:}_device.c'.format(usb_device))
+        gen.add_extra_source('asf', 'common/services/usb/udc/udc.c')
+        gen.add_extra_source('asf', 'common/services/usb/class/cdc/device/udi_cdc.c')
+        gen.add_extra_source('asf', 'common/services/usb/class/cdc/device/udi_cdc_desc.c')
         gen.add_aprinter_include('hal/at91/AsfUsbSerial.h')
         gen.add_init_call(0, 'udc_start();')
         return 'AsfUsbSerialService'
@@ -1169,6 +1386,33 @@ def use_serial(gen, config, key, user):
     
     @serial_sel.option('Stm32f4UsbSerial')
     def option(serial_service):
+        hal_dir = 'Drivers/STM32F4xx_HAL_Driver'
+        usb_dir = 'Middlewares/ST/STM32_USB_Device_Library'
+        gen.add_extra_source('stm32cubef4', hal_dir+'/Src/stm32f4xx_hal_pcd.c')
+        gen.add_extra_source('stm32cubef4', hal_dir+'/Src/stm32f4xx_hal_pcd_ex.c')
+        gen.add_extra_source('stm32cubef4', hal_dir+'/Src/stm32f4xx_ll_usb.c')
+        gen.add_extra_source('stm32cubef4', usb_dir+'/Core/Src/usbd_core.c')
+        gen.add_extra_source('stm32cubef4', usb_dir+'/Core/Src/usbd_ctlreq.c')
+        gen.add_extra_source('stm32cubef4', usb_dir+'/Core/Src/usbd_ioreq.c')
+        gen.add_extra_source('stm32cubef4', usb_dir+'/Class/CDC/Src/usbd_cdc.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/stm32f4/usbd_conf.c')
+        gen.add_extra_source('aprinter', 'aprinter/platform/stm32f4/usbd_desc.c')
+
+        gen.add_define('APRINTER_ENABLE_USB', '')
+
+        usb_mode = gen.get_singleton_object('stm32f4_usb_mode')
+        if usb_mode == 'None':
+            serial_service.path().error('USB mode in plaform configuration must not be None.')
+        elif usb_mode == 'FS':
+            gen.add_define('USE_USB_FS', '')
+        elif usb_mode == 'HS':
+            gen.add_define('USE_USB_HS', '')
+        elif usb_mode == 'HS-in-FS':
+            gen.add_define('USE_USB_HS', '')
+            gen.add_define('USE_USB_HS_IN_FS', '')
+        else:
+            assert False
+
         gen.add_aprinter_include('hal/stm32/Stm32f4UsbSerial.h')
         return 'Stm32f4UsbSerialService'
     
@@ -1342,7 +1586,6 @@ def setup_network(gen, config, key, assertions_enabled):
     
     @network_sel.option('Network')
     def option(network_config):
-        gen.add_extra_include_path('aipstack/src')
         gen.add_aprinter_include('net/IpStackNetwork.h')
         gen.add_include('aipstack/ip/IpReassembly.h')
         gen.add_include('aipstack/ip/IpPathMtuCache.h')
@@ -1389,7 +1632,7 @@ def setup_network(gen, config, key, assertions_enabled):
         
         checksum_src_file = gen.get_singleton_object('checksum_src_file', allow_none=True)
         if checksum_src_file is not None:
-            gen.add_extra_source(checksum_src_file)
+            gen.add_extra_source(*checksum_src_file)
             gen.add_define('AIPSTACK_EXTERNAL_CHKSUM', 1)
         
         gen.add_define('AIPSTACK_CONFIG_ASSERT_INCLUDE', '<aprinter/base/Assert.h>')
@@ -1474,7 +1717,7 @@ def use_mii(gen, config, key, user):
             mii_config.key_path('NumTxBufers').error('Value out of range.')
         
         gen.add_aprinter_include('hal/at91/At91SamEmacMii.h')
-        gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
+        gen.add_extra_source('asf', 'sam/drivers/emac/emac.c')
         gen.add_isr('APRINTER_AT91SAM_EMAC_MII_GLOBAL({}, Context())'.format(user))
         gen.add_define('APRINTER_AT91SAM_EMAC_NUM_RX_BUFFERS', num_rx_buffers)
         gen.add_define('APRINTER_AT91SAM_EMAC_NUM_TX_BUFFERS', num_tx_buffers)
@@ -1510,11 +1753,6 @@ def generate(config_root_data, cfg_name, main_template):
             
             for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
                 for platform_config in board_data.enter_config('platform_config'):
-                    board_for_build = platform_config.get_string('board_for_build')
-                    if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', board_for_build):
-                        platform_config.key_path('board_for_build').error('Incorrect format.')
-                    gen.add_subst('BoardForBuild', board_for_build)
-                    
                     output_types = []
                     for output_types_config in platform_config.enter_config('output_types'):
                         if output_types_config.get_bool('output_elf'):
@@ -1524,7 +1762,7 @@ def generate(config_root_data, cfg_name, main_template):
                         if output_types_config.get_bool('output_hex'):
                             output_types.append('hex')
                     
-                    setup_platform(gen, platform_config, 'platform')
+                    platformInfo = setup_platform(gen, platform_config, 'platform')
                     
                     for platform in platform_config.enter_config('platform'):
                         setup_clock(gen, platform, 'clock', clock_name='Clock', priority=-10, allow_disabled=False)
@@ -2580,76 +2818,50 @@ def generate(config_root_data, cfg_name, main_template):
             setup_event_loop(gen)
     
     gen.finalize()
-    
-    return {
-        'main_source': rich_template.RichTemplate(main_template).substitute(gen.get_subst()),
-        'board_for_build': board_for_build,
-        'output_types': output_types,
-        'optimize_for_size': optimize_for_size,
-        'optimize_libc_for_size': optimize_libc_for_size,
-        'build_with_clang': build_with_clang,
-        'verbose_build': verbose_build,
-        'debug_symbols': debug_symbols,
-        'build_vars': gen._build_vars,
-        'extra_sources': gen._extra_sources,
-        'extra_include_paths': gen._extra_include_paths,
+
+    outputConfig = {
+        'desiredOutputs': output_types,
+        'optimizeForSize': optimize_for_size,
+        'toolchainOptSize': optimize_libc_for_size,
+        'buildWithClang': build_with_clang,
+        'verboseBuild': verbose_build,
+        'enableDebugSymbols': debug_symbols,
         'defines': gen._defines,
-        'linker_symbols': gen._linker_symbols,
+        'includeDirs': gen._include_dirs,
+        'extraSourceFiles': gen._extra_sources,
+        'mainSourceCode': rich_template.RichTemplate(main_template).substitute(gen.get_subst()),
     }
+    outputConfig.update(platformInfo)
+    return outputConfig
 
 def main():
     # Parse arguments.
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--config', help='JSON configuration file to use.')
-    parser.add_argument('--cfg-name', help='Build this configuration instead of the one specified in the configuration file.')
-    parser.add_argument('--output', default='-', help='File to write the output to (C++ code or Nix expression).')
-    parser.add_argument('--system', help='Pass system to nixpkgs (build on that platform).')
+    parser.add_argument('--config', required=True,
+        help='JSON configuration file to use.')
+    parser.add_argument('--cfg-name',
+        help='Build this configuration instead of the one specified in the configuration file.')
     args = parser.parse_args()
     
     # Determine directories.
-    src_dir = file_utils.file_dir(__file__)
-    nix_dir = os.path.join(src_dir, '..', '..', 'nix')
+    generator_src_dir = file_utils.file_dir(__file__)
+    aprinter_src_dir = os.path.join(generator_src_dir, '..', '..')
     
     # Read the configuration.
-    config = args.config if args.config is not None else os.path.join(src_dir, '..', 'gui', 'default_config.json')
-    with file_utils.use_input_file(config) as config_f:
+    with file_utils.use_input_file(args.config) as config_f:
         config_data = json.load(config_f)
     
+    # Determine the configuration name (turn empty string to None).
+    cfg_name = args.cfg_name if args.cfg_name != "" else None
+
     # Read main template file.
-    main_template = file_utils.read_file(os.path.join(src_dir, 'main_template.cpp'))
+    main_template = file_utils.read_file(os.path.join(generator_src_dir, 'main_template.cpp'))
     
     # Call the generate function.
-    result = generate(config_data, args.cfg_name, main_template)
+    genCfg = generate(config_data, cfg_name, main_template)
     
-    # Build the Nix expression.
-    nix_expr = (
-        'with ((import (builtins.toPath {})) {{ pkgs = import <nixpkgs> {{ {} }}; }}); aprinterFunc {{\n'
-        '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
-        '    optimizeLibcForSize = {};\n'
-        '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
-        '    extraSources = {}; extraIncludePaths = {}; defines = {}; linkerSymbols = {};\n'
-        '    mainText = {};\n'
-        '}}\n'
-    ).format(
-        nix_utils.escape_string_for_nix(nix_dir),
-        '' if args.system is None else 'system = {};'.format(nix_utils.escape_string_for_nix(args.system)),
-        nix_utils.escape_string_for_nix(result['board_for_build']),
-        nix_utils.convert_for_nix(result['output_types']),
-        nix_utils.convert_bool_for_nix(result['optimize_for_size']),
-        nix_utils.convert_bool_for_nix(result['optimize_libc_for_size']),
-        nix_utils.convert_bool_for_nix(result['build_with_clang']),
-        nix_utils.convert_bool_for_nix(result['verbose_build']),
-        nix_utils.convert_bool_for_nix(result['debug_symbols']),
-        nix_utils.convert_for_nix(result['build_vars']),
-        nix_utils.convert_for_nix(result['extra_sources']),
-        nix_utils.convert_for_nix(result['extra_include_paths']),
-        nix_utils.convert_for_nix(result['defines']),
-        nix_utils.convert_for_nix(result['linker_symbols']),
-        nix_utils.escape_string_for_nix(result['main_source'])
-    )
-    
-    # Write output.
-    with file_utils.use_output_file(args.output) as output_f:
-        output_f.write(nix_expr)
+    # Print the generated configuration to stdout.
+    print(json.dumps(genCfg))
 
-main()
+if __name__ == '__main__':
+    main()

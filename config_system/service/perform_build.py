@@ -84,26 +84,22 @@ def main():
     response_data = None
 
     try:
-        # Run the generate script.
-        generate_path = os.path.join(args.aprinter_src_dir, 'config_system/generator/generate.py')
-        cmd = [args.python, '-B', generate_path, '--config', '-', '--output', '-']
-        nix_expr = run_process_limited(args, cmd, request, 'Failed to interpret the configuration.')
-        
-        # Do the build...
-        result_path = os.path.join(args.temp_dir, 'result')
-        nixbuild_cmd = [args.nix_build, '-', '-o', result_path]
-        run_process_limited(args, nixbuild_cmd, nix_expr, 'Failed to compile the source code.')
-        
         # Create a subfolder which we will archive.
         build_path = os.path.join(args.temp_dir, 'aprinter-build')
         run_process_limited(args, [args.mkdir, build_path], '', 'The mkdir failed!?')
         
+        # Write the configuration to the build folder.
+        config_path = os.path.join(build_path, 'config.json')
+        file_utils.write_file(config_path, request)
+        
+        # Do the build.
+        result_path = os.path.join(args.temp_dir, 'result')
+        nixbuild_cmd = [args.nix_build, args.aprinter_src_dir, '-A', 'aprinterBuild',
+            '-o', result_path, '--argstr', 'aprinterConfigFile', config_path]
+        run_process_limited(args, nixbuild_cmd, '', 'Failed to build APrinter.')
+        
         # Copy the build to the build_path.
         run_process_limited(args, [args.rsync, '-rL', '--chmod=ugo=rwX', '{}/'.format(result_path), '{}/'.format(build_path)], '', 'The rsync failed!?')
-        
-        # Add the configuration to the build folder.
-        with open(os.path.join(build_path, 'config.json'), 'wb') as output_stream:
-            output_stream.write(request)
         
         # Produce the archive.
         archive_filename = 'aprinter-build.zip'
@@ -112,8 +108,7 @@ def main():
         run_process_limited(args, archive_cmd, '', 'The p7za failed!?')
         
         # Read the archive contents.
-        with open(archive_path, 'rb') as input_stream:
-            archive_contents = input_stream.read()
+        archive_contents = file_utils.read_file(archive_path)
         
         response_success = True
         response_message = 'Compilation successful.'
