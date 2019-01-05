@@ -38,6 +38,7 @@ rec {
     # Clang compilers.
     clang-arm = pkgs.callPackage nix/clang-arm.nix { gnu-toolchain = toolchain-arm; };
     clang-arm-optsize = clang-arm.override { gnu-toolchain = toolchain-arm-optsize; };
+    clangNative = pkgs.llvmPackages_7.clang;
     
     # GDB (for manual use).
     gdb-arm = pkgs.callPackage nix/gdb.nix { target = "arm-none-eabi"; };
@@ -53,9 +54,8 @@ rec {
     aprinterBuild = { aprinterConfigFile, aprinterConfigName ? null }:
         pkgs.callPackage nix/aprinter.nix {
             inherit aprinterSource toolchain-avr toolchain-arm toolchain-arm-optsize
-                toolchain-microblaze clang-arm clang-arm-optsize asf stm32cubef4
-                teensyCores aprinterConfigFile aprinterConfigName;
-            clangNative = pkgs.llvmPackages_7.clang;
+                toolchain-microblaze clang-arm clang-arm-optsize clangNative asf
+                stm32cubef4 teensyCores aprinterConfigFile aprinterConfigName;
         };
     
     # We need a specific version of NCD for the service.
@@ -82,9 +82,10 @@ rec {
     buildDepsArmCommon = [ toolchain-arm asf ];
     buildDepsArmOther = [ toolchain-arm-optsize /*clang-arm*/
         /*clang-arm-optsize*/ stm32cubef4 teensyCores ];
+    buildDepsLinux = [ clangNative ];
     
     # Build dependencies above joined. This can be used from service deployment
     # to ensure that they are already in the Nix store and will not need to be
     # build at the time a build needs them.
-    buildDeps = buildDepsAvr ++ buildDepsArmCommon ++ buildDepsArmOther;
+    buildDeps = buildDepsAvr ++ buildDepsArmCommon ++ buildDepsArmOther ++ buildDepsLinux;
 }
