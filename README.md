@@ -63,7 +63,7 @@ If you're not familiar with Nix, please use the installer, not distribution pack
 After you perform the commands below, the service will be available at `http://127.0.0.1:4000/`.
 
 ```
-nix-build nix/ -A aprinterService -o ~/aprinter-service
+nix-build -A aprinterService -o ~/aprinter-service
 mkdir ~/aprinter-service-temp
 ~/aprinter-service/bin/aprinter-service
 ```
@@ -92,7 +92,7 @@ Again, the prerequisite for building is the [Nix package manager](http://nixos.o
 If you're not familiar with Nix, please use the installer, not distribution packages.
 
 ```
-python2.7 -B config_system/generator/generate.py --config path_to_config.json | nix-build - -o ~/aprinter-build
+./tools/build.py -c path_to_config.json -o ~/aprinter-build
 ```
 
 ## Uploading
@@ -100,13 +100,13 @@ python2.7 -B config_system/generator/generate.py --config path_to_config.json | 
 Before you can upload, you need to install the uploading program, which depends on the type of microcontroller:
 - AVR: avrdude (install with `nix-env -i avrdude`).
 - Atmel ARM: BOSSA (intall with `nix-env -i bossa`).
-- Teensy 3: teensy-loader (install with `nix-env -i teensy-loader`).
+- Teensy 3: teensy-loader-cli (install with `nix-env -i teensy-loader-cli`).
 
 There is a Python program included in the root of the source that will do the upload using the appropriate tool.
 It is generally used like this:
 
 ```
-python2.7 -B tools/flash.py -t <board-type> -f <file-to-flash> [-p <port>]
+./tools/flash.py -t <board-type> -f <file-to-flash> [-p <port>]
 ```
 
 Below, the specific command used to flash manually are also shown.
@@ -157,7 +157,7 @@ bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter.bin -R
 You need to press the button on the board before trying to upload, to put the board into bootloader mode.
 
 ```
-teensy_loader_cli -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter.hex"
+teensy-loader-cli -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter.hex"
 ```
 
 ## Feature documentation
@@ -527,10 +527,11 @@ Futher, you will need to define a mapping from tool indices to physical extruder
 The command line syntax of the script is as follows.
 
 ```
-python2.7 -B tools/DeTool.py [-h] --input InputFile --output OutputFile
+./tools/DeTool.py [-h] --input InputFile --output OutputFile
                  --tool-travel-speed Speedmm/s --physical AxisName OffsetX
                  OffsetY OffsetZ --tool ToolIndex PhysicalIndexFrom0
                  [--fan FanSpeedCmd PhysicalIndexFrom0 SpeedMultiplier]
+                 [--sdcard]
 ```
 
 For example, if you have two extruder axes, E and U, the U nozzle being offset 10mm to the right, and you want to map the T0 tool to U, and T1 to E,
