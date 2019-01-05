@@ -54,7 +54,7 @@ class DuetType(object):
             report_error('port must start with {}'.format(port_prefix))
         bare_port = port[len(port_prefix):]
         return [
-            ['bossac', '-p', bare_port, '-i', '-e', '-w', '-v', '-b', opts['image_file'], '-R'],
+            ['bossac', '-p', bare_port, '-i', '-e', '-w', '-v', '-b', opts['image_file']],
         ]
 
 class Teensy3Type(object):
