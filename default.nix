@@ -80,8 +80,8 @@ rec {
     # Various build dependencies split into groups for easy building.
     buildDepsAvr = [ toolchain-avr ];
     buildDepsArmCommon = [ toolchain-arm asf ];
-    buildDepsArmOther = [ toolchain-arm-optsize clang-arm
-        clang-arm-optsize stm32cubef4 teensyCores ];
+    buildDepsArmOther = [ toolchain-arm-optsize /*clang-arm*/
+        /*clang-arm-optsize*/ stm32cubef4 teensyCores ];
     
     # Build dependencies above joined. This can be used from service deployment
     # to ensure that they are already in the Nix store and will not need to be

@@ -49,7 +49,8 @@ let
     clangPackage = if !cfg.buildWithClang then null else
         {
             avr = throw "Clang is not supported for AVR.";
-            arm = if cfg.toolchainOptSize then clang-arm-optsize else clang-arm;
+            # arm = if cfg.toolchainOptSize then clang-arm-optsize else clang-arm;
+            arm = throw "Clang is not currently supported for ARM (to be fixed).";
             microblaze = throw "Clang is not supported for MicroBlaze.";
             linux = clangNative;
         }.${cfg.platformType};
