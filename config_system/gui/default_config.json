@@ -1,8 +1,174 @@
 {
+  "_compoundName": "editor",
   "boards": [
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "DuePin37",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "DuePinA0",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA1",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA3",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T3",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA4",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T4",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "X-MIN",
+          "Pin": "DuePin28",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Y-MIN",
+          "Pin": "DuePin30",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Z-MIN",
+          "Pin": "DuePin32",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "X-MAX",
+          "Pin": "DuePin34",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Y-MAX",
+          "Pin": "DuePin36",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Z-MAX",
+          "Pin": "DuePin38",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "RADDS",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 64,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 64,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "arduino_due_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        },
         "platform": {
+          "AsfBoardNum": 43,
+          "HeapSize": 16384,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -126,120 +292,8 @@
             "Wdv": 260,
             "_compoundName": "At91SamWatchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "arduino_due",
-        "board_helper_includes": [
-          "arduino_due_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": false,
-          "output_hex": false
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "X-MIN",
-          "Pin": "DuePin28",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Y-MIN",
-          "Pin": "DuePin30",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Z-MIN",
-          "Pin": "DuePin32",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "X-MAX",
-          "Pin": "DuePin34",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Y-MAX",
-          "Pin": "DuePin36",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Z-MAX",
-          "Pin": "DuePin38",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "DuePinA0",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA1",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA2",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA3",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T3",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA4",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T4",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -358,58 +412,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "LedPin": "DuePin37",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "RADDS",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 64,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 48,
-        "LookaheadCommitCount": 16,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 64,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -595,8 +597,165 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "DuePin13",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "DuePinA0",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA1",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "DuePinA3",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T3",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "X-MIN",
+          "Pin": "DuePin22",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Y-MIN",
+          "Pin": "DuePin24",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Z-MIN",
+          "Pin": "DuePin26",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "X-MAX",
+          "Pin": "DuePin30",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Y-MAX",
+          "Pin": "DuePin38",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Z-MAX",
+          "Pin": "DuePin34",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "RAMPS-FD",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 64,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 64,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "arduino_due_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        },
         "platform": {
+          "AsfBoardNum": 43,
+          "HeapSize": 16384,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -720,112 +879,8 @@
             "Wdv": 260,
             "_compoundName": "At91SamWatchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "arduino_due",
-        "board_helper_includes": [
-          "arduino_due_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": false,
-          "output_hex": false
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "X-MIN",
-          "Pin": "DuePin22",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Y-MIN",
-          "Pin": "DuePin24",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Z-MIN",
-          "Pin": "DuePin26",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "X-MAX",
-          "Pin": "DuePin30",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Y-MAX",
-          "Pin": "DuePin38",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Z-MAX",
-          "Pin": "DuePin34",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "DuePinA0",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA1",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA2",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "DuePinA3",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T3",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -912,58 +967,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "LedPin": "DuePin13",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "RAMPS-FD",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 64,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 48,
-        "LookaheadCommitCount": 16,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 64,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1149,73 +1152,75 @@
       ]
     },
     {
-      "platform_config": {
-        "platform": {
-          "StackSize": 4096,
-          "_compoundName": "At91Sam3u4e",
-          "adc": {
-            "_compoundName": "At91Sam3uAdc",
-            "avg_interval": 0.0025,
-            "freq": 1000000,
-            "shtim": 15,
-            "smoothing": 0.95,
-            "startup": 255
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "At91SamPin<At91SamPioC,22>",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioC,16>",
+            "_compoundName": "AdcAnalogInput"
           },
-          "clock": {
-            "_compoundName": "At91Sam3uClock",
-            "avail_oc_units": [
-              {
-                "value": "TC0A"
-              },
-              {
-                "value": "TC0B"
-              },
-              {
-                "value": "TC0C"
-              },
-              {
-                "value": "TC1A"
-              },
-              {
-                "value": "TC1B"
-              },
-              {
-                "value": "TC1C"
-              },
-              {
-                "value": "TC2A"
-              },
-              {
-                "value": "TC2B"
-              },
-              {
-                "value": "TC2C"
-              }
-            ],
-            "prescaler": 3,
-            "primary_timer": "TC0"
-          },
-          "pins": {
-            "_compoundName": "At91SamPins",
-            "input_mode_type": "At91SamPinInputMode"
-          },
-          "watchdog": {
-            "Wdv": 260,
-            "_compoundName": "At91SamWatchdog"
-          }
+          "Name": "T0",
+          "_compoundName": "analog_input"
         },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "4pi",
-        "board_helper_includes": [],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioB,4>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T1",
+          "_compoundName": "analog_input"
         },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": false,
-          "output_hex": false
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,30>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioB,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T3",
+          "_compoundName": "analog_input"
         }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "Current",
+          "current_driver": {
+            "SpiService": {
+              "Device": "At91Sam3uSpiDevice",
+              "_compoundName": "At91SamSpi"
+            },
+            "SsPin": "At91SamPin<At91SamPioA,16>",
+            "_compoundName": "Ad5206Current"
+          }
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
       },
       "digital_inputs": [
         {
@@ -1273,40 +1278,99 @@
           "_compoundName": "digital_input"
         }
       ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioC,16>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioB,4>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioA,30>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioB,3>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T3",
-          "_compoundName": "analog_input"
+      "laser_ports": [],
+      "name": "4pi",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
         }
-      ],
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 36,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 24,
+        "LookaheadCommitCount": 6,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": true,
+        "OptimizeLibcForSize": true,
+        "StepperSegmentBufferSize": 36,
+        "_compoundName": "performance"
+      },
+      "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        },
+        "platform": {
+          "AsfBoardNum": 33,
+          "HeapSize": 16384,
+          "StackSize": 4096,
+          "_compoundName": "At91Sam3u4e",
+          "adc": {
+            "_compoundName": "At91Sam3uAdc",
+            "avg_interval": 0.0025,
+            "freq": 1000000,
+            "shtim": 15,
+            "smoothing": 0.95,
+            "startup": 255
+          },
+          "clock": {
+            "_compoundName": "At91Sam3uClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0A"
+              },
+              {
+                "value": "TC0B"
+              },
+              {
+                "value": "TC0C"
+              },
+              {
+                "value": "TC1A"
+              },
+              {
+                "value": "TC1B"
+              },
+              {
+                "value": "TC1C"
+              },
+              {
+                "value": "TC2A"
+              },
+              {
+                "value": "TC2B"
+              },
+              {
+                "value": "TC2C"
+              }
+            ],
+            "prescaler": 3,
+            "primary_timer": "TC0"
+          },
+          "pins": {
+            "_compoundName": "At91SamPins",
+            "input_mode_type": "At91SamPinInputMode"
+          },
+          "watchdog": {
+            "Wdv": 260,
+            "_compoundName": "At91SamWatchdog"
+          }
+        }
+      },
       "pwm_outputs": [
         {
           "Backend": {
@@ -1351,66 +1415,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "LedPin": "At91SamPin<At91SamPioC,22>",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "Current",
-          "current_driver": {
-            "SpiService": {
-              "Device": "At91Sam3uSpiDevice",
-              "_compoundName": "At91SamSpi"
-            },
-            "SsPin": "At91SamPin<At91SamPioA,16>",
-            "_compoundName": "Ad5206Current"
-          }
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "4pi",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 36,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 24,
-        "LookaheadCommitCount": 6,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": true,
-        "OptimizeLibcForSize": true,
-        "StepperSegmentBufferSize": 36,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1617,7 +1621,111 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "FTM0_0"
+      },
+      "LedPin": "TeensyPin13",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "TeensyPinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
+          "Name": "X-min",
+          "Pin": "TeensyPin12",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
+          "Name": "Y-min",
+          "Pin": "TeensyPin14",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
+          "Name": "Z-min",
+          "Pin": "TeensyPin15",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "Teensy 3",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "float",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "teensy3_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        },
         "platform": {
           "_compoundName": "Teensy3",
           "adc": {
@@ -1673,61 +1781,8 @@
             "Toval": 2000,
             "_compoundName": "Mk20Watchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "teensy3",
-        "board_helper_includes": [
-          "teensy3_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": false,
-          "output_elf": false,
-          "output_hex": true
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Mk20PinInputMode"
-          },
-          "Name": "X-min",
-          "Pin": "TeensyPin12",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Mk20PinInputMode"
-          },
-          "Name": "Y-min",
-          "Pin": "TeensyPin14",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Mk20PinInputMode"
-          },
-          "Name": "Z-min",
-          "Pin": "TeensyPin15",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "TeensyPinA2",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -1758,58 +1813,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "FTM0_0"
-      },
-      "LedPin": "TeensyPin13",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "Teensy 3",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "float",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1924,8 +1927,156 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC5_C"
+      },
+      "LedPin": "MegaPin13",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "MegaPinA13",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "MegaPinA14",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "MegaPinA15",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "T2",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "X-",
+          "Pin": "MegaPin3",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "X+",
+          "Pin": "MegaPin2",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Y-",
+          "Pin": "MegaPin14",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Y+",
+          "Pin": "MegaPin15",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Z-",
+          "Pin": "MegaPin18",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Z+",
+          "Pin": "MegaPin19",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "RAMPS 1.3",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 64,
+        "ExtraSendBufClearance": 64,
+        "FpType": "double",
+        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
+        "MaxMsgSize": 50,
+        "MaxStepsPerCycle": 0.00137,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 24,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "arduino_mega_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        },
         "platform": {
+          "CpuFreq": 16000000,
           "_compoundName": "AVR ATmega2560",
           "adc": {
             "OverSamplingBits": 2,
@@ -2023,104 +2174,8 @@
             "Timeout": "WDTO_2S",
             "_compoundName": "AvrWatchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "ramps13",
-        "board_helper_includes": [
-          "arduino_mega_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": false,
-          "output_elf": false,
-          "output_hex": true
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "X-",
-          "Pin": "MegaPin3",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "X+",
-          "Pin": "MegaPin2",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Y-",
-          "Pin": "MegaPin14",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Y+",
-          "Pin": "MegaPin15",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Z-",
-          "Pin": "MegaPin18",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Z+",
-          "Pin": "MegaPin19",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "MegaPinA13",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "MegaPinA14",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "MegaPinA15",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "T2",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -2185,58 +2240,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC5_C"
-      },
-      "LedPin": "MegaPin13",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "RAMPS 1.3",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 64,
-        "ExtraSendBufClearance": 64,
-        "FpType": "double",
-        "LookaheadBufferSize": 10,
-        "LookaheadCommitCount": 5,
-        "MaxMsgSize": 50,
-        "MaxStepsPerCycle": 0.00137,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 24,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -2398,8 +2401,119 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC2_A"
+      },
+      "LedPin": "AvrPin<AvrPortA,4>",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "AvrPin<AvrPortA,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "btemp",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "AvrPin<AvrPortA,7>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "etemp",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": false,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "X-stop",
+          "Pin": "AvrPin<AvrPortC,2>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Y-stop",
+          "Pin": "AvrPin<AvrPortC,3>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
+          "Name": "Z-stop",
+          "Pin": "AvrPin<AvrPortC,4>",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "Melzi",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 128,
+        "FpType": "double",
+        "LookaheadBufferSize": 16,
+        "LookaheadCommitCount": 8,
+        "MaxMsgSize": 64,
+        "MaxStepsPerCycle": 0.00137,
+        "OptimizeForSize": true,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        },
         "platform": {
+          "CpuFreq": 16000000,
           "_compoundName": "AVR ATmega1284p",
           "adc": {
             "OverSamplingBits": 2,
@@ -2457,67 +2571,8 @@
             "Timeout": "WDTO_2S",
             "_compoundName": "AvrWatchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "melzi",
-        "board_helper_includes": [],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": false,
-          "output_elf": false,
-          "output_hex": true
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "X-stop",
-          "Pin": "AvrPin<AvrPortC,2>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Y-stop",
-          "Pin": "AvrPin<AvrPortC,3>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "AvrPinInputMode"
-          },
-          "Name": "Z-stop",
-          "Pin": "AvrPin<AvrPortC,4>",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "AvrPin<AvrPortA,6>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "btemp",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "AvrPin<AvrPortA,7>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "etemp",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -2558,58 +2613,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC2_A"
-      },
-      "LedPin": "AvrPin<AvrPortA,4>",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": false,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "Melzi",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 128,
-        "FpType": "double",
-        "LookaheadBufferSize": 16,
-        "LookaheadCommitCount": 8,
-        "MaxMsgSize": 64,
-        "MaxStepsPerCycle": 0.00137,
-        "OptimizeForSize": true,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -2747,9 +2750,147 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "LedPin": "DiscoveryPinLedGreen",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortF,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PF6",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortC,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PC3",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,5>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PA5",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "ButtonUser",
+          "Pin": "DiscoveryPinButtonUser",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PG9",
+          "Pin": "Stm32f4Pin<Stm32f4PortG,9>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PB4",
+          "Pin": "Stm32f4Pin<Stm32f4PortB,4>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PB7",
+          "Pin": "Stm32f4Pin<Stm32f4PortB,7>",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "STM32F429I-Discovery",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "stm32f429i_discovery_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": true,
+          "output_hex": false
+        },
         "platform": {
-          "_compoundName": "Stm32f4",
+          "APB1_PRESC_DIV": 4,
+          "APB2_PRESC_DIV": 2,
+          "HSE_VALUE": 8000000,
+          "HeapSize": 16384,
+          "PLL_M_VALUE": 8,
+          "PLL_N_VALUE": 336,
+          "PLL_P_DIV_VALUE": 2,
+          "PLL_Q_DIV_VALUE": 7,
+          "UsbMode": "HS-in-FS",
+          "_compoundName": "stm32f429",
           "adc": {
             "ClockDivider": 8,
             "SampleTimeSelection": 7,
@@ -2860,86 +3001,8 @@
             "Reload": 4095,
             "_compoundName": "Stm32f4Watchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "stm32f429",
-        "board_helper_includes": [
-          "stm32f429i_discovery_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": true,
-          "output_hex": false
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Stm32f4PinInputMode"
-          },
-          "Name": "ButtonUser",
-          "Pin": "DiscoveryPinButtonUser",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Stm32f4PinInputMode"
-          },
-          "Name": "PG9",
-          "Pin": "Stm32f4Pin<Stm32f4PortG,9>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Stm32f4PinInputMode"
-          },
-          "Name": "PB4",
-          "Pin": "Stm32f4Pin<Stm32f4PortB,4>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "Stm32f4PinInputMode"
-          },
-          "Name": "PB7",
-          "Pin": "Stm32f4Pin<Stm32f4PortB,7>",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortF,6>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PF6",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortC,3>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PC3",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortA,5>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PA5",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -2970,58 +3033,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TIM2_1"
-      },
-      "LedPin": "DiscoveryPinLedGreen",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": true,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "STM32F429I-Discovery",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -3129,9 +3140,120 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "LedPin": "DiscoveryPinLedGreen",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,2>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PA2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PA3",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortB,0>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "PB0",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Normal",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "ButtonUser",
+          "Pin": "DiscoveryPinButtonUser",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "STM32F407-Discovery",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [
+          "stm32f4discovery_pins"
+        ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": true,
+          "output_hex": false
+        },
         "platform": {
-          "_compoundName": "Stm32f4",
+          "APB1_PRESC_DIV": 4,
+          "APB2_PRESC_DIV": 2,
+          "HSE_VALUE": 8000000,
+          "HeapSize": 16384,
+          "PLL_M_VALUE": 8,
+          "PLL_N_VALUE": 336,
+          "PLL_P_DIV_VALUE": 2,
+          "PLL_Q_DIV_VALUE": 7,
+          "UsbMode": "FS",
+          "_compoundName": "stm32f407",
           "adc": {
             "ClockDivider": 8,
             "SampleTimeSelection": 7,
@@ -3242,59 +3364,8 @@
             "Reload": 4095,
             "_compoundName": "Stm32f4Watchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "stm32f407",
-        "board_helper_includes": [
-          "stm32f4discovery_pins"
-        ],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": true,
-          "output_hex": false
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Normal",
-            "_compoundName": "Stm32f4PinInputMode"
-          },
-          "Name": "ButtonUser",
-          "Pin": "DiscoveryPinButtonUser",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortA,2>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PA2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortA,3>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PA3",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "Stm32f4Pin<Stm32f4PortB,0>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "PB0",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -3339,58 +3410,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TIM2_1"
-      },
-      "LedPin": "DiscoveryPinLedGreen",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": true,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "STM32F407-Discovery",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "_compoundName": "NoNetwork"
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -3471,8 +3490,193 @@
       ]
     },
     {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "LedPin": "At91SamPin<At91SamPioB,24>",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "E0_THERMISTOR",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,4>",
+            "_compoundName": "AdcAnalogInput"
+          },
+          "Name": "BED_THERMISTOR",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "development": {
+        "AssertionsEnabled": false,
+        "BuildWithClang": false,
+        "DebugSymbols": false,
+        "DetectOverloadEnabled": false,
+        "EnableBasicTestModule": true,
+        "EnableBulkOutputTest": false,
+        "EnableStubCommandModule": true,
+        "EventLoopBenchmarkEnabled": false,
+        "NetworkTestModule": {
+          "_compoundName": "Disabled"
+        },
+        "VerboseBuild": true,
+        "WatchdogDebugMode": false,
+        "_compoundName": "development"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "X_STOP",
+          "Pin": "At91SamPin<At91SamPioD,7>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Y_STOP",
+          "Pin": "At91SamPin<At91SamPioD,3>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "Z_STOP",
+          "Pin": "At91SamPin<At91SamPioA,3>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
+          "Name": "E0_STOP",
+          "Pin": "At91SamPin<At91SamPioA,7>",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "laser_ports": [],
+      "name": "Duet v0.6",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "ArpProtectCount": 8,
+          "ArpTableTimersStructureService": "LinkedHeap",
+          "DhcpEnabled": true,
+          "EthernetDriver": {
+            "MiiDriver": {
+              "NumRxBufers": 60,
+              "NumTxBufers": 5,
+              "_compoundName": "At91SamEmacMii"
+            },
+            "PhyDriver": {
+              "PhyAddr": 2,
+              "Rmii": true,
+              "_compoundName": "GenericPhy"
+            },
+            "_compoundName": "MiiEthernet"
+          },
+          "IpAddress": "192.168.111.63",
+          "IpGateway": "192.168.111.1",
+          "IpNetmask": "255.255.255.0",
+          "LinkWithArrayIndices": true,
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "MaxReassHoles": 10,
+          "MaxReassPackets": 1,
+          "MaxReassSize": 1480,
+          "MaxReassTimeSeconds": 60,
+          "MtuIndexService": "MruListIndex",
+          "MtuTimeoutMinutes": 10,
+          "NetEnabled": true,
+          "NumArpEntries": 16,
+          "NumOosSegs": 2,
+          "NumTcpPcbs": 25,
+          "PcbIndexService": "MruListIndex",
+          "TcpWndUpdThrDiv": 5,
+          "_compoundName": "Network",
+          "tcpconsole": {
+            "MaxClients": 1,
+            "MaxCommandSize": 128,
+            "MaxParts": 10,
+            "MaxPcbs": 100,
+            "Port": 23,
+            "RecvBufferSize": 2920,
+            "SendBufTimeout": 5,
+            "SendBufferSize": 2920,
+            "SendEndTimeout": 10,
+            "_compoundName": "TcpConsole"
+          },
+          "webinterface": {
+            "AllowPersistent": false,
+            "EnableDebug": false,
+            "GcodeSendBufTimeout": 5,
+            "InactivityTimeout": 10,
+            "JsonBufferSize": 512,
+            "MaxClients": 2,
+            "MaxGcodeCommandSize": 128,
+            "MaxGcodeParts": 10,
+            "MaxPcbs": 100,
+            "NumGcodeSlots": 1,
+            "Port": 80,
+            "QueueRecvBufferSize": 410,
+            "QueueSize": 8,
+            "QueueTimeout": 10,
+            "RecvBufferSize": 2920,
+            "SendBufferSize": 4380,
+            "_compoundName": "WebInterface"
+          }
+        }
+      },
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "LookaheadBufferSize": 32,
+        "LookaheadCommitCount": 8,
+        "MaxMsgSize": 128,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
+        "StepperSegmentBufferSize": 48,
+        "_compoundName": "performance"
+      },
       "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        },
         "platform": {
+          "AsfBoardNum": 43,
+          "HeapSize": 16384,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -3596,76 +3800,8 @@
             "Wdv": 260,
             "_compoundName": "At91SamWatchdog"
           }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "arduino_due",
-        "board_helper_includes": [],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": true,
-          "output_elf": false,
-          "output_hex": false
         }
       },
-      "digital_inputs": [
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "X_STOP",
-          "Pin": "At91SamPin<At91SamPioD,7>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Y_STOP",
-          "Pin": "At91SamPin<At91SamPioD,3>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "Z_STOP",
-          "Pin": "At91SamPin<At91SamPioA,3>",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": {
-            "PullMode": "Pull-up",
-            "_compoundName": "At91SamPinInputMode"
-          },
-          "Name": "E0_STOP",
-          "Pin": "At91SamPin<At91SamPioA,7>",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "analog_inputs": [
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioA,6>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "E0_THERMISTOR",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Driver": {
-            "Pin": "At91SamPin<At91SamPioA,4>",
-            "_compoundName": "AdcAnalogInput"
-          },
-          "Name": "BED_THERMISTOR",
-          "_compoundName": "analog_input"
-        }
-      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -3716,122 +3852,6 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "LedPin": "At91SamPin<At91SamPioB,24>",
-      "_compoundName": "board",
-      "current_config": {
-        "_compoundName": "CurrentConfig",
-        "current": {
-          "_compoundName": "NoCurrent"
-        }
-      },
-      "development": {
-        "AssertionsEnabled": false,
-        "BuildWithClang": false,
-        "DebugSymbols": false,
-        "DetectOverloadEnabled": false,
-        "EnableBasicTestModule": true,
-        "EnableBulkOutputTest": false,
-        "EnableStubCommandModule": true,
-        "EventLoopBenchmarkEnabled": false,
-        "NetworkTestModule": {
-          "_compoundName": "Disabled"
-        },
-        "VerboseBuild": true,
-        "WatchdogDebugMode": false,
-        "_compoundName": "development"
-      },
-      "laser_ports": [],
-      "name": "Duet v0.6",
-      "network_config": {
-        "_compoundName": "NetworkConfig",
-        "network": {
-          "ArpProtectCount": 8,
-          "ArpTableTimersStructureService": "LinkedHeap",
-          "DhcpEnabled": true,
-          "EthernetDriver": {
-            "MiiDriver": {
-              "NumRxBufers": 60,
-              "NumTxBufers": 5,
-              "_compoundName": "At91SamEmacMii"
-            },
-            "PhyDriver": {
-              "PhyAddr": 2,
-              "Rmii": true,
-              "_compoundName": "GenericPhy"
-            },
-            "_compoundName": "MiiEthernet"
-          },
-          "IpAddress": "192.168.111.63",
-          "IpGateway": "192.168.111.1",
-          "IpNetmask": "255.255.255.0",
-          "LinkWithArrayIndices": true,
-          "MacAddress": "BE:EF:DE:AD:FE:ED",
-          "MaxReassHoles": 10,
-          "MaxReassPackets": 1,
-          "MaxReassSize": 1480,
-          "MaxReassTimeSeconds": 60,
-          "MtuIndexService": "MruListIndex",
-          "MtuTimeoutMinutes": 10,
-          "NetEnabled": true,
-          "NumArpEntries": 16,
-          "NumOosSegs": 2,
-          "NumTcpPcbs": 25,
-          "PcbIndexService": "MruListIndex",
-          "TcpWndUpdThrDiv": 5,
-          "_compoundName": "Network",
-          "tcpconsole": {
-            "MaxClients": 1,
-            "MaxCommandSize": 128,
-            "MaxParts": 10,
-            "MaxPcbs": 100,
-            "Port": 23,
-            "RecvBufferSize": 2920,
-            "SendBufTimeout": 5,
-            "SendBufferSize": 2920,
-            "SendEndTimeout": 10,
-            "_compoundName": "TcpConsole"
-          },
-          "webinterface": {
-            "AllowPersistent": false,
-            "EnableDebug": false,
-            "GcodeSendBufTimeout": 5,
-            "InactivityTimeout": 10,
-            "JsonBufferSize": 512,
-            "MaxClients": 2,
-            "MaxGcodeCommandSize": 128,
-            "MaxGcodeParts": 10,
-            "MaxPcbs": 100,
-            "NumGcodeSlots": 1,
-            "Port": 80,
-            "QueueRecvBufferSize": 410,
-            "QueueSize": 8,
-            "QueueTimeout": 10,
-            "RecvBufferSize": 2920,
-            "SendBufferSize": 4380,
-            "_compoundName": "WebInterface"
-          }
-        }
-      },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "ExpectedResponseLength": 128,
-        "ExtraSendBufClearance": 256,
-        "FpType": "double",
-        "LookaheadBufferSize": 32,
-        "LookaheadCommitCount": 8,
-        "MaxMsgSize": 128,
-        "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": false,
-        "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 48,
-        "_compoundName": "performance"
-      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -3969,114 +3989,13 @@
       ]
     },
     {
-      "platform_config": {
-        "platform": {
-          "TimersStructure": "LinkedHeap",
-          "_compoundName": "Linux",
-          "adc": {
-            "_compoundName": "NoAdc"
-          },
-          "clock": {
-            "MaxTimers": 4,
-            "SubSecondBits": 20,
-            "_compoundName": "LinuxClock",
-            "avail_oc_units": [
-              {
-                "value": "0"
-              },
-              {
-                "value": "1"
-              },
-              {
-                "value": "2"
-              },
-              {
-                "value": "3"
-              },
-              {
-                "value": "4"
-              },
-              {
-                "value": "5"
-              },
-              {
-                "value": "6"
-              },
-              {
-                "value": "7"
-              },
-              {
-                "value": "8"
-              },
-              {
-                "value": "9"
-              },
-              {
-                "value": "10"
-              },
-              {
-                "value": "11"
-              },
-              {
-                "value": "12"
-              },
-              {
-                "value": "13"
-              },
-              {
-                "value": "14"
-              },
-              {
-                "value": "15"
-              }
-            ],
-            "primary_timer": ""
-          },
-          "pins": {
-            "_compoundName": "StubPins",
-            "input_mode_type": "StubPinInputMode"
-          },
-          "watchdog": {
-            "_compoundName": "NullWatchdog"
-          }
-        },
-        "_compoundName": "PlatformConfig",
-        "board_for_build": "linuxtest",
-        "board_helper_includes": [],
-        "debug_interface": {
-          "_compoundName": "NoDebug"
-        },
-        "output_types": {
-          "_compoundName": "output_types",
-          "output_bin": false,
-          "output_elf": true,
-          "output_hex": false
-        }
-      },
-      "digital_inputs": [],
-      "analog_inputs": [],
-      "pwm_outputs": [
-        {
-          "Backend": {
-            "OutputInvert": false,
-            "OutputPin": "StubPin",
-            "PulseInterval": 0.1,
-            "Timer": {
-              "_compoundName": "interrupt_timer",
-              "oc_unit": "3"
-            },
-            "_compoundName": "SoftPwm"
-          },
-          "Name": "SoftPwmTest",
-          "_compoundName": "pwm_output"
-        }
-      ],
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "0"
       },
       "LedPin": "StubPin",
       "_compoundName": "board",
+      "analog_inputs": [],
       "current_config": {
         "_compoundName": "CurrentConfig",
         "current": {
@@ -4100,6 +4019,7 @@
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
+      "digital_inputs": [],
       "laser_ports": [],
       "name": "Linux Test",
       "network_config": {
@@ -4178,6 +4098,105 @@
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
+      "platform_config": {
+        "_compoundName": "PlatformConfig",
+        "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": true,
+          "output_hex": false
+        },
+        "platform": {
+          "TimersStructure": "LinkedHeap",
+          "_compoundName": "Linux",
+          "adc": {
+            "_compoundName": "NoAdc"
+          },
+          "clock": {
+            "MaxTimers": 4,
+            "SubSecondBits": 20,
+            "_compoundName": "LinuxClock",
+            "avail_oc_units": [
+              {
+                "value": "0"
+              },
+              {
+                "value": "1"
+              },
+              {
+                "value": "2"
+              },
+              {
+                "value": "3"
+              },
+              {
+                "value": "4"
+              },
+              {
+                "value": "5"
+              },
+              {
+                "value": "6"
+              },
+              {
+                "value": "7"
+              },
+              {
+                "value": "8"
+              },
+              {
+                "value": "9"
+              },
+              {
+                "value": "10"
+              },
+              {
+                "value": "11"
+              },
+              {
+                "value": "12"
+              },
+              {
+                "value": "13"
+              },
+              {
+                "value": "14"
+              },
+              {
+                "value": "15"
+              }
+            ],
+            "primary_timer": ""
+          },
+          "pins": {
+            "_compoundName": "StubPins",
+            "input_mode_type": "StubPinInputMode"
+          },
+          "watchdog": {
+            "_compoundName": "NullWatchdog"
+          }
+        }
+      },
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "StubPin",
+            "PulseInterval": 0.1,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "3"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "SoftPwmTest",
+          "_compoundName": "pwm_output"
+        }
+      ],
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -4276,7 +4295,6 @@
   ],
   "configurations": [
     {
-      "board": "RADDS",
       "InactiveTime": 480,
       "Moves": {
         "Moves": [
@@ -4315,6 +4333,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "RADDS",
       "fans": [
         {
           "Name": "T0",
@@ -4773,7 +4792,6 @@
       }
     },
     {
-      "board": "RAMPS-FD",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -4786,6 +4804,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "RAMPS-FD",
       "fans": [
         {
           "Name": "T0",
@@ -5125,7 +5144,6 @@
       }
     },
     {
-      "board": "4pi",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -5138,6 +5156,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "4pi",
       "fans": [],
       "heaters": [
         {
@@ -5492,7 +5511,6 @@
       }
     },
     {
-      "board": "Teensy 3",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -5505,6 +5523,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "Teensy 3",
       "fans": [
         {
           "Name": "T",
@@ -5717,7 +5736,6 @@
       }
     },
     {
-      "board": "RAMPS 1.3",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -5730,6 +5748,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "RAMPS 1.3",
       "fans": [
         {
           "Name": "T",
@@ -5978,7 +5997,6 @@
       }
     },
     {
-      "board": "Melzi",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -5991,6 +6009,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "Melzi",
       "fans": [
         {
           "Name": "T",
@@ -6239,7 +6258,6 @@
       }
     },
     {
-      "board": "STM32F429I-Discovery",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -6252,6 +6270,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "STM32F429I-Discovery",
       "fans": [],
       "heaters": [
         {
@@ -6500,7 +6519,6 @@
       }
     },
     {
-      "board": "STM32F407-Discovery",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -6513,6 +6531,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "STM32F407-Discovery",
       "fans": [
         {
           "Name": "T",
@@ -6617,7 +6636,6 @@
       }
     },
     {
-      "board": "RADDS",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -6630,6 +6648,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "RADDS",
       "fans": [],
       "heaters": [],
       "lasers": [],
@@ -6834,7 +6853,6 @@
       }
     },
     {
-      "board": "Duet v0.6",
       "InactiveTime": 480,
       "Moves": {
         "Moves": [
@@ -6897,6 +6915,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "Duet v0.6",
       "fans": [],
       "heaters": [
         {
@@ -7308,7 +7327,6 @@
       }
     },
     {
-      "board": "Linux Test",
       "InactiveTime": 480,
       "Moves": {
         "_compoundName": "NoMoves"
@@ -7321,6 +7339,7 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
+      "board": "Linux Test",
       "fans": [
         {
           "Name": "T",
@@ -7375,7 +7394,6 @@
       }
     }
   ],
-  "_compoundName": "editor",
   "selected_config": "Fisher example",
   "version": 1
 }
