@@ -1,3 +1,6 @@
+#! /usr/bin/env nix-shell
+#! nix-shell -i "python2.7 -B" -p python27
+
 from __future__ import print_function
 import sys
 import os

@@ -1,3 +1,6 @@
+#! /usr/bin/env nix-shell
+#! nix-shell -i "python2.7 -B" -p python27
+
 #Name: DeTool
 #Info: Postprocessor for APrinter firmware
 #Depend: GCode
