@@ -34,22 +34,23 @@ import rich_template
 import aprinter_config_editor
 import resource_hashifier
 
-_HASHIFY_REF_SPECS = [
-    {
-        'file_globs': ['*.html', '*.htm', '*.css'],
-        'ref_regexps': [
-            r'(\[REF:([^\]]*)\])',
-        ],
-    },
-    {
-        'file_globs': ['*.css'],
-        'ref_regexps': [
-            r'url\((([^\?#\)]*))(?:[\?#][^\)]*)?\)',
-        ],
-    },
-]
-
-_HASHIFY_ROOT_FILES = ['index.html']
+_HASHIFY_CONFIG = {
+    'root_files': ['index.html'],
+    'ref_specs': [
+        {
+            'file_globs': ['*.html', '*.htm', '*.css'],
+            'ref_regexps': [
+                r'(\[REF:([^\]]*)\])',
+            ],
+        },
+        {
+            'file_globs': ['*.css'],
+            'ref_regexps': [
+                r'url\((([^\?#\)]*))(?:[\?#][^\)]*)?\)',
+            ],
+        },
+    ],
+}
 
 def main():
     parser = argparse.ArgumentParser()
@@ -59,7 +60,7 @@ def main():
     
     # Build editor schema.
     the_editor = aprinter_config_editor.editor()
-    editor_schema = the_editor._json_schema()
+    editor_schema = the_editor.json_schema()
     
     # Determine directories.
     src_dir = file_utils.file_dir(__file__)
@@ -106,7 +107,7 @@ def main():
     file_utils.write_file(os.path.join(temp_dir, 'init.js'), init_js)
 
     # Run hashify to produce the final contents.
-    resource_hashifier.hashify(temp_dir, _HASHIFY_REF_SPECS, _HASHIFY_ROOT_FILES, dist_dir)
+    resource_hashifier.hashify(temp_dir, _HASHIFY_CONFIG, dist_dir)
 
     # Remove the temp dir.
     shutil.rmtree(temp_dir)

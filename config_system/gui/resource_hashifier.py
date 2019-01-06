@@ -32,8 +32,9 @@ import file_utils
 
 _REF_REGEX = re.compile(r'\[REF:([^\[]*)\]')
 
-def hashify(root_dir_path, ref_specs, root_files, out_dir_path):
-    refmatcher_index = _RefMatcherIndex(ref_specs)
+def hashify(root_dir_path, config, out_dir_path):
+    root_files = config['root_files']
+    refmatcher_index = _RefMatcherIndex(config['ref_specs'])
 
     file_paths = _collect_files(root_dir_path)
 

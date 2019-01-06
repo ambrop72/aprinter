@@ -76,7 +76,7 @@ class ConfigBase (object):
         self.default = _kwarg_maybe('default', kwargs)
         self.kwargs = kwargs
     
-    def _json_schema (self):
+    def json_schema (self):
         return _merge_dicts(
             ({
                 'title': self.title
@@ -179,7 +179,7 @@ class Compound (ConfigBase):
                     [
                         {
                             param.kwargs['key']: _merge_dicts(
-                                param._json_schema(),
+                                param.json_schema(),
                                 {
                                     'propertyOrder' : i
                                 }
@@ -206,7 +206,7 @@ class Array (ConfigBase):
         return _merge_dicts(
             {
                 'type': 'array',
-                'items': self.elem._json_schema()
+                'items': self.elem.json_schema()
             },
             ({
                 'format': 'table'
@@ -223,7 +223,7 @@ class OneOf (ConfigBase):
     
     def _json_extra (self):
         return {
-            'oneOf': [choice._json_schema() for choice in self.choices],
+            'oneOf': [choice.json_schema() for choice in self.choices],
             'selectKey': '_compoundName',
         }
 
