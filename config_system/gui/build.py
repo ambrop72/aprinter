@@ -28,9 +28,11 @@ import argparse
 import shutil
 import json
 import subprocess
+
 import file_utils
 import rich_template
 import aprinter_config_editor
+import resource_hashifier
 
 def main():
     parser = argparse.ArgumentParser()
@@ -55,21 +57,29 @@ def main():
     if args.rm and os.path.isdir(dist_dir):
         shutil.rmtree(dist_dir)
     
-    # Create dist dir.
+    # The temp dir is where we will prepare contents before hashification.
+    temp_dir = os.path.join(dist_dir, 'TEMP')
+
+    # Create directories.
     os.mkdir(dist_dir)
+    os.mkdir(temp_dir)
     
     # Copy JS libraries.
-    shutil.copyfile(os.path.join(jsoneditor_dir, 'dist', 'jsoneditor.min.js'), os.path.join(dist_dir, 'jsoneditor.js'))
-    shutil.copyfile(os.path.join(libs_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.js'))
-    shutil.copyfile(os.path.join(libs_dir, 'jquery-1.11.2.min.js'), os.path.join(dist_dir, 'jquery.js'))
+    shutil.copyfile(os.path.join(jsoneditor_dir, 'dist', 'jsoneditor.min.js'), os.path.join(temp_dir, 'jsoneditor.js'))
+    shutil.copyfile(os.path.join(libs_dir, 'FileSaver.min.js'), os.path.join(temp_dir, 'FileSaver.js'))
+    shutil.copyfile(os.path.join(libs_dir, 'jquery-1.11.2.min.js'), os.path.join(temp_dir, 'jquery.js'))
     
     # Copy Bootstrap.
-    subprocess.call(['unzip', '-q', os.path.join(libs_dir, 'bootstrap-3.3.2-dist.zip'), '-d', dist_dir])
-    os.rename(os.path.join(dist_dir, 'bootstrap-3.3.2-dist'), os.path.join(dist_dir, 'bootstrap'))
+    subprocess.call(['unzip', '-q', os.path.join(libs_dir, 'bootstrap-3.3.2-dist.zip'), '-d', temp_dir])
+    os.rename(os.path.join(temp_dir, 'bootstrap-3.3.2-dist'), os.path.join(temp_dir, 'bootstrap'))
+
+    # Replace links to fonts in Bootstrap with [REF:...] recognized by hashify.
+    subprocess.call(['sed', '-E', '-i', r's/(url\()([^\?#\)]*)(([\?#][^\)]*)?\))/\1[REF:\2]\3/g',
+        os.path.join(temp_dir, 'bootstrap', 'css', 'bootstrap.min.css')])
     
     # Copy files.
     for filename in ['index.html', 'Ajax-loader.gif']:
-        shutil.copyfile(os.path.join(src_dir, filename), os.path.join(dist_dir, filename))
+        shutil.copyfile(os.path.join(src_dir, filename), os.path.join(temp_dir, filename))
     
     # Read default configuration.
     default_config = json.loads(file_utils.read_file(os.path.join(src_dir, 'default_config.json')))
@@ -80,6 +90,15 @@ def main():
         'SCHEMA': json.dumps(editor_schema, separators=(',',':'), sort_keys=True),
         'DEFAULT': json.dumps(default_config, separators=(',',':'), sort_keys=True)
     })
-    file_utils.write_file(os.path.join(dist_dir, 'init.js'), init_js)
+    file_utils.write_file(os.path.join(temp_dir, 'init.js'), init_js)
 
-main()
+    # Run hashify to produce the final contents.
+    ref_file_exts = ['.html', '.css']
+    root_files = ['index.html']
+    resource_hashifier.hashify(temp_dir, ref_file_exts, root_files, dist_dir)
+
+    # Remove the temp dir.
+    shutil.rmtree(temp_dir)
+
+if __name__ == '__main__':
+    main()
