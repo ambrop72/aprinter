@@ -34,6 +34,23 @@ import rich_template
 import aprinter_config_editor
 import resource_hashifier
 
+_HASHIFY_REF_SPECS = [
+    {
+        'file_globs': ['*.html', '*.htm', '*.css'],
+        'ref_regexps': [
+            r'(\[REF:([^\]]*)\])',
+        ],
+    },
+    {
+        'file_globs': ['*.css'],
+        'ref_regexps': [
+            r'url\((([^\?#\)]*))(?:[\?#][^\)]*)?\)',
+        ],
+    },
+]
+
+_HASHIFY_ROOT_FILES = ['index.html']
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--rm', action='store_true')
@@ -73,10 +90,6 @@ def main():
     subprocess.call(['unzip', '-q', os.path.join(libs_dir, 'bootstrap-3.3.2-dist.zip'), '-d', temp_dir])
     os.rename(os.path.join(temp_dir, 'bootstrap-3.3.2-dist'), os.path.join(temp_dir, 'bootstrap'))
 
-    # Replace links to fonts in Bootstrap with [REF:...] recognized by hashify.
-    subprocess.call(['sed', '-E', '-i', r's/(url\()([^\?#\)]*)(([\?#][^\)]*)?\))/\1[REF:\2]\3/g',
-        os.path.join(temp_dir, 'bootstrap', 'css', 'bootstrap.min.css')])
-    
     # Copy files.
     for filename in ['index.html', 'Ajax-loader.gif']:
         shutil.copyfile(os.path.join(src_dir, filename), os.path.join(temp_dir, filename))
@@ -93,9 +106,7 @@ def main():
     file_utils.write_file(os.path.join(temp_dir, 'init.js'), init_js)
 
     # Run hashify to produce the final contents.
-    ref_file_exts = ['.html', '.css']
-    root_files = ['index.html']
-    resource_hashifier.hashify(temp_dir, ref_file_exts, root_files, dist_dir)
+    resource_hashifier.hashify(temp_dir, _HASHIFY_REF_SPECS, _HASHIFY_ROOT_FILES, dist_dir)
 
     # Remove the temp dir.
     shutil.rmtree(temp_dir)
