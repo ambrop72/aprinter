@@ -2,7 +2,7 @@ aprinter
 ========
 
 APrinter is a portable firmware system for RepRap 3D printers and other desktop CNC devices.
-It supports many controller boards based on different microcontroller families: AVR, AT91SAM (e.g.. Arduino Due), STM32F4 and Freescale MK20 (Teensy 3). A [web-based configuration system](http://www.aprinter.eu/) is used to configure the high-level features for a particular machine, but also to define the low-level configuration for supporting different controller boards.
+It supports many controller boards based on different microcontroller families: AVR, AT91SAM (e.g.. Arduino Due), STM32F4 and Freescale MK20 (Teensy 3). A web-based configuration system is used to configure the high-level features for a particular machine, but also to define the low-level configuration for supporting different controller boards.
 
 Here is a list of the boards which are supported out of the box. This means that a predefined Board configuration is provided in the configuration editor. Note that for some of the supported microcontrollers (STM32F4, Teensy 3), there is no specific board supported. It is up to you to build a board and bring the code to life :)
 - Duet (based on AT91SAM3XE).
@@ -50,23 +50,17 @@ The following machines are supported out of the box (meaning that a functional C
 
 ## APrinter Web Service
 
-The easiest way to get started is using the public web service,
-available at [www.aprinter.eu](http://www.aprinter.eu/).
-The service allows you to configure the firmware, and will build it at your request.
-It should work with any modern web browser, and the only step that needs to be done
-locally is uploading the firmware to the board.
-If you want to, you can run the service locally, as described next.
-
-A prerequisite for running locally is the [Nix package manager](http://nixos.org/nix/) running on Linux.
-If you're not familiar with Nix, please use the installer, not distribution packages.
-
-After you perform the commands below, the service will be available at `http://127.0.0.1:4000/`.
+Build and run the configuration web interface locally using the following commands.
+A prerequisite is the [Nix package manager](http://nixos.org/nix/) running on Linux.
 
 ```
 nix-build -A aprinterService -o ~/aprinter-service
 mkdir ~/aprinter-service-temp
 ~/aprinter-service/bin/aprinter-service
 ```
+
+The web interface will then be available at `http://127.0.0.1:4000/`. It provides a
+graphical configuration editor, and can also build the firmware with the click of a button.
 
 Instructions for using the web service:
 - Define a "configuration" - either modify or copy an existing configuration.
