@@ -9,8 +9,8 @@ stdenv.mkDerivation {
         sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
     })
     (fetchurl {
-        url = "mirror://gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.bz2";
-        sha256 = "0p71bij6bfhzyrs8676a8jmpjsfz392s2rg862sdnsk30jpacb43";
+        url = "mirror://gcc/releases/gcc-7.4.0/gcc-7.4.0.tar.bz2";
+        sha256 = "eddde28d04f334aec1604456e536416549e9b1aa137fc69204e65eb0c009fe51";
     })
     (fetchurl {
         url = "http://download.savannah.gnu.org/releases/avr-libc/avr-libc-2.0.0.tar.bz2";

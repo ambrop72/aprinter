@@ -7,8 +7,8 @@
 }:
 let
     # Software versions and source hashes.
-    gcc_version = "8.2.0";
-    gcc_sha256 = "196c3c04ba2613f893283977e6011b2345d1cd1af9abeac58e916b1aab3e0080";
+    gcc_version = "8.3.0";
+    gcc_sha256 = "64baadfe6cc0f4947a84cb12d7f0dfaf45bb58b7e92461639596c21e02d97d2c";
     binutils_version = "2.31.1";
     binutils_sha256 = "ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0";
     newlib_version = "3.0.0.20180831";
