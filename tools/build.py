@@ -28,7 +28,7 @@ def main():
     
     print('Running: {}'.format(command_to_string(command)))
 
-    os.execvp(command[0], command[1:])
+    os.execvp(command[0], command)
 
 def command_to_string(command):
     return ' '.join(pipes.quote(elem) for elem in command)
