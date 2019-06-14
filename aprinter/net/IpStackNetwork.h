@@ -199,7 +199,7 @@ private:
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
     struct EthernetReceiveHandler;
-    using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, IpBufRef>;
+    using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler>;
     APRINTER_MAKE_INSTANCE(TheEthernet, (EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>))
     
     using TheEthIpIfaceService = AIpStack::EthIpIfaceService<
@@ -433,7 +433,7 @@ private:
         auto *o = Object::self(Context());
         AMBRO_ASSERT(o->activation_state == ACTIVATED)
         
-        return TheEthernet::sendFrame(Context(), &frame);
+        return TheEthernet::sendFrame(Context(), frame);
     }
     
     static EthIfaceState driverGetEthState ()

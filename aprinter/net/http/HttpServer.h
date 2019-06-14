@@ -48,8 +48,10 @@
 #include <aprinter/net/http/HttpStringTools.h>
 
 #include <aipstack/infra/Buf.h>
+#include <aipstack/infra/BufUtils.h>
 #include <aipstack/infra/Err.h>
 #include <aipstack/misc/MemRef.h>
+#include <aipstack/misc/TypedFunction.h>
 #include <aipstack/ip/IpAddr.h>
 #include <aipstack/ip/IpStack.h>
 #include <aipstack/tcp/TcpApi.h>
@@ -574,33 +576,49 @@ private:
             // Get the range of unprocessed received data, remember its original length.
             AIpStack::IpBufRef read_range = m_recv_ring_buf.getReadRange(*this);
             size_t orig_read_len = read_range.tot_len;
+
+            // This will be set to true once a newline is found.
+            bool newlineFound = false;
             
             // Process the received data by looking for a newline and copying bytes into
             // the line_buf.
-            bool end_of_line = read_range.processBytesInterruptible(size_t(-1),
-                [&](char *data, size_t &len) {
-                    // Look for a newline. If it is found, adjust len to indicate that
-                    // only data up to and including the newline has been processed.
-                    void *newline = memchr(data, '\n', len);
-                    if (newline != nullptr) {
-                        len = ((char *)newline - data) + 1;
-                    }
-                    
-                    // Copy the processed data (possibly including the newline) into the
-                    // line_buf, limited to the available space.
-                    size_t copy_len = MinValue(len, size_t(line_buf_size - m_line_length));
-                    memcpy(line_buf + m_line_length, data, copy_len);
-                    
-                    // Increment the line length by the amount of copied data and if there
-                    // was insufficient space remember that.
-                    m_line_length += copy_len;
-                    if (copy_len < len) {
-                        m_line_overflow = true;
-                    }
-                    
-                    // Indicate whether to stop processing (iff a newline was found).
-                    return newline != nullptr;
-                });
+            read_range = AIpStack::ipBufProcessBytes(read_range, read_range.tot_len,
+                AIpStack::TypedFunction(
+                [&](char *chunkData, size_t chunkLen) -> size_t
+            {
+                // If we already found a newline, do not process any more chunks.
+                if (newlineFound) {
+                    return 0;
+                }
+
+                // Look for a newline. If it is found, make sure that we later return
+                // the number of bytes up to including that newline, so that further
+                // data is not consumed.
+                size_t consumedLen;
+                void *newline = memchr(chunkData, '\n', chunkLen);
+                if (newline != nullptr) {
+                    newlineFound = true;
+                    consumedLen = ((char *)newline - chunkData) + 1;
+                } else {
+                    consumedLen = chunkLen;
+                }
+                
+                // Copy the processed data (possibly including the newline) into the
+                // line_buf, limited to the available space.
+                size_t copy_len =
+                    MinValue(consumedLen, size_t(line_buf_size - m_line_length));
+                memcpy(line_buf + m_line_length, chunkData, copy_len);
+                
+                // Increment the line length by the amount of copied data and if there
+                // was insufficient space remember that.
+                m_line_length += copy_len;
+                if (copy_len < consumedLen) {
+                    m_line_overflow = true;
+                }
+
+                // Return the number of processed bytes (up to and including any newline).
+                return consumedLen;
+            }));
             
             // Determine the number of bytes processed.
             size_t read_bytes = orig_read_len - read_range.tot_len;
@@ -615,7 +633,7 @@ private:
             m_rem_allowed_length -= read_bytes;
             
             // No newline yet?
-            if (!end_of_line) {
+            if (!newlineFound) {
                 // If no EOF either, wait for more data.
                 if (!TcpConnection::wasEndReceived()) {
                     return line_not_received_yet(c);
@@ -643,7 +661,7 @@ private:
             prepare_line_parsing(c);
             
             // Delegate the interpretation of the line to another function.
-            line_received(c, length, overflow, !end_of_line);
+            line_received(c, length, overflow, !newlineFound);
         }
         
         void line_allowed_length_exceeded (Context c)
@@ -1085,7 +1103,7 @@ private:
         void send_string (Context c, char const *str)
         {
             size_t len = strlen(str);
-            m_send_ring_buf.getWriteRange(*this).giveBytes({str, len});
+            AIpStack::ipBufGiveBytes(m_send_ring_buf.getWriteRange(*this), {str, len});
             m_send_ring_buf.provideData(*this, len);
         }
         
@@ -1094,7 +1112,7 @@ private:
         {
             static_assert(Size > 0, "");
             size_t len = Size - 1;
-            m_send_ring_buf.getWriteRange(*this).giveBytes({str, len});
+            AIpStack::ipBufGiveBytes(m_send_ring_buf.getWriteRange(*this), {str, len});
             m_send_ring_buf.provideData(*this, len);
         }
         
@@ -1386,7 +1404,7 @@ private:
             }
             
             // Return info about the available buffer space for data.
-            return write_range.subFromTo(
+            return AIpStack::ipBufSubFromTo(write_range,
                 TxChunkHeaderSize, write_range.tot_len - TxChunkOverhead);
         }
         
@@ -1416,9 +1434,11 @@ private:
             }
             
             // Write the chunk header and footer.
-            write_range.giveBytes({m_chunk_header, TxChunkHeaderSize});
-            write_range.skipBytes(length);
-            write_range.giveBytes({m_chunk_header + TxChunkHeaderDigits, TxChunkFooterSize});
+            write_range = AIpStack::ipBufGiveBytes(write_range,
+                {m_chunk_header, TxChunkHeaderSize});
+            write_range = AIpStack::ipBufSkipBytes(write_range, length);
+            write_range = AIpStack::ipBufGiveBytes(write_range,
+                {m_chunk_header + TxChunkHeaderDigits, TxChunkFooterSize});
             
             // Submit data to the connection and poke sending.
             m_send_ring_buf.provideData(*this, TxChunkOverhead + length);

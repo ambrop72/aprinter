@@ -30,14 +30,12 @@ namespace APrinter {
 template <
     typename TActivateHandler,
     typename TLinkHandler,
-    typename TReceiveHandler,
-    typename TSendBufferType
+    typename TReceiveHandler
 >
 struct EthernetClientParams {
     using ActivateHandler = TActivateHandler;
     using LinkHandler = TLinkHandler;
     using ReceiveHandler = TReceiveHandler;
-    using SendBufferType = TSendBufferType;
 };
 
 }

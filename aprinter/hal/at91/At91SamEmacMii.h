@@ -42,6 +42,9 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
+#include <aipstack/misc/TypedFunction.h>
+#include <aipstack/infra/Buf.h>
+#include <aipstack/infra/BufUtils.h>
 #include <aipstack/infra/Err.h>
 
 namespace APrinter {
@@ -60,7 +63,6 @@ public:
     
 private:
     using TimeType = typename Context::Clock::TimeType;
-    using SendBufferType = typename ClientParams::SendBufferType;
     
     enum class InitState : uint8_t {INACTIVE, WAIT_RST, RUNNING};
     enum class PhyMaintState : uint8_t {IDLE, BUSY};
@@ -125,12 +127,12 @@ public:
         o->poll_counter = 1;
     }
     
-    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, AIpStack::IpBufRef send_buffer)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
-        size_t total_length = send_buffer->getTotalLength();
+        size_t total_length = send_buffer.tot_len;
         
         void *dev_buffer;
         auto write_start_res = emac_dev_write_start(&o->emac_dev, total_length, &dev_buffer);
@@ -148,15 +150,17 @@ public:
             }
             return AIpStack::IpErr::HardwareError;
         }
-        
+
         size_t buf_pos = 0;
-        do {
-            size_t chunk_length = send_buffer->getChunkLength();
-            AMBRO_ASSERT(chunk_length <= total_length - buf_pos)
-            memcpy((char *)dev_buffer + buf_pos, send_buffer->getChunkPtr(), chunk_length);
-            buf_pos += chunk_length;
-        } while (send_buffer->nextChunk());
-        AMBRO_ASSERT(buf_pos == total_length)
+
+        AIpStack::ipBufProcessBytes(send_buffer, total_length, AIpStack::TypedFunction(
+            [&](char *dataPtr, size_t dataLen)
+        {
+            AMBRO_ASSERT(dataLen <= total_length - buf_pos)
+            memcpy((char *)dev_buffer + buf_pos, dataPtr, dataLen);
+            buf_pos += dataLen;
+            return dataLen;
+        }));
         
         emac_dev_write_end(&o->emac_dev, total_length);
         

@@ -50,6 +50,8 @@
 #include <aprinter/base/Preprocessor.h>
 
 #include <aipstack/infra/Err.h>
+#include <aipstack/infra/Buf.h>
+#include <aipstack/infra/BufUtils.h>
 #include <aipstack/eth/MacAddr.h>
 
 namespace APrinter {
@@ -60,7 +62,6 @@ class LinuxTapEthernet {
     APRINTER_USE_TYPE1(Arg, ParentObject)
     APRINTER_USE_TYPE1(Arg, ClientParams)
     
-    APRINTER_USE_TYPE1(ClientParams, SendBufferType)
     APRINTER_USE_TYPE1(ClientParams, ActivateHandler)
     APRINTER_USE_TYPE1(ClientParams, ReceiveHandler)
     
@@ -123,7 +124,7 @@ public:
         o->activate_event.prependNowNotAlready(c);
     }
     
-    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, AIpStack::IpBufRef send_buffer)
     {
         auto *o = Object::self(c);
         
@@ -131,12 +132,12 @@ public:
             return AIpStack::IpErr::LinkDown;
         }
         
-        size_t len = send_buffer->tot_len;
+        size_t len = send_buffer.tot_len;
         if (len > o->eth_mtu) {
             return AIpStack::IpErr::PacketTooLarge;
         }
         
-        send_buffer->takeBytes(len, o->write_buffer);
+        AIpStack::ipBufTakeBytes(send_buffer, len, o->write_buffer);
         
         ssize_t write_res = ::write(o->tap_fd, o->write_buffer, len);
         if (write_res < 0 || write_res != len) {

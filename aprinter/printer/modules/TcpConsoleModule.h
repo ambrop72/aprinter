@@ -41,6 +41,7 @@
 #include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aipstack/infra/Buf.h>
+#include <aipstack/infra/BufUtils.h>
 #include <aipstack/infra/Err.h>
 #include <aipstack/ip/IpAddr.h>
 #include <aipstack/tcp/TcpApi.h>
@@ -334,7 +335,7 @@ private:
                     m_command_stream.raiseSendOverrun(c);
                     return;
                 }
-                write_range.giveBytes({str, length});
+                AIpStack::ipBufGiveBytes(write_range, {str, length});
                 m_send_ring_buf.provideData(*this, length);
             }
         }

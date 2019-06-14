@@ -53,6 +53,7 @@
 #include <aprinter/printer/utils/ModuleUtils.h>
 
 #include <aipstack/misc/MemRef.h>
+#include <aipstack/infra/BufUtils.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
@@ -499,7 +500,7 @@ private:
                     size_t allowed_length = MinValue(GetSdChunkSize, resp_buf.tot_len);
                     if (allowed_length > m_cur_chunk_size) {
                         size_t avail_len = allowed_length - m_cur_chunk_size;
-                        resp_buf.skipBytes(m_cur_chunk_size);
+                        resp_buf = AIpStack::ipBufSkipBytes(resp_buf, m_cur_chunk_size);
                         m_buffered_file.startReadData(c, resp_buf.getChunkPtr(),
                             MinValue(resp_buf.getChunkLength(), avail_len));
                         m_state = State::READ_READ;
@@ -577,7 +578,7 @@ private:
                         if (resp_buf.tot_len < GetSdChunkSize) {
                             break;
                         }
-                        resp_buf.giveSameBytes('X', GetSdChunkSize);
+                        AIpStack::ipBufGiveSameBytes(resp_buf, 'X', GetSdChunkSize);
                         m_request->provideResponseBodyData(c, GetSdChunkSize);
                         m_request->controlResponseBodyTimeout(c, true);
                     }
@@ -692,7 +693,7 @@ private:
             }
             
             if (length > 0) {
-                resp_buf.giveBytes({o->json_buffer, length});
+                AIpStack::ipBufGiveBytes(resp_buf, {o->json_buffer, length});
                 m_request->provideResponseBodyData(c, length);
             }
             
@@ -940,7 +941,7 @@ private:
                 
                 size_t to_copy = MinValue(GcodeParseChunkSize, MinValue(
                     req_buf.tot_len, (size_t)(MaxGcodeCommandSize - m_buffer_pos)));
-                req_buf.takeBytes(to_copy, m_buffer + m_buffer_pos);
+                req_buf = AIpStack::ipBufTakeBytes(req_buf, to_copy, m_buffer + m_buffer_pos);
                 m_buffer_pos += to_copy;
                 m_client->m_request->acceptRequestBodyData(c, to_copy);
             }
@@ -987,8 +988,8 @@ private:
                 if (resp_buf.tot_len - m_output_pos < length) {
                     return m_command_stream.raiseSendOverrun(c);
                 }
-                resp_buf.skipBytes(m_output_pos);
-                resp_buf.giveBytes({str, length});
+                resp_buf = AIpStack::ipBufSkipBytes(resp_buf, m_output_pos);
+                resp_buf = AIpStack::ipBufGiveBytes(resp_buf, {str, length});
                 m_output_pos += length;
             }
         }

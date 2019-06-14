@@ -38,6 +38,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 
+#include <aipstack/infra/Buf.h>
 #include <aipstack/infra/Err.h>
 #include <aipstack/eth/MacAddr.h>
 
@@ -59,11 +60,9 @@ public:
     struct Object;
     
 private:
-    using SendBufferType = typename ClientParams::SendBufferType;
-    
     struct MiiActivateHandler;
     struct MiiPhyMaintHandler;
-    using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, SendBufferType, Params::PhyService::Rmii>;
+    using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, Params::PhyService::Rmii>;
     APRINTER_MAKE_INSTANCE(TheMii, (Params::MiiService::template Mii<Context, Object, TheMiiClientParams>))
     
     class PhyRequester;
@@ -111,7 +110,7 @@ public:
         TheMii::activate(c, o->mac_addr.dataPtr());
     }
     
-    static AIpStack::IpErr sendFrame (Context c, SendBufferType *send_buffer)
+    static AIpStack::IpErr sendFrame (Context c, AIpStack::IpBufRef send_buffer)
     {
         auto *o = Object::self(c);
         
