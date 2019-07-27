@@ -25,8 +25,8 @@
 { stdenv, fetchurl, unzip }:
 let
     source = fetchurl {
-        url = "http://ww1.microchip.com/downloads/en/DeviceDoc/asf-standalone-archive-3.33.0.50.zip";
-        sha256 = "d4593c9036686441f9e05b4a76c2dd23765d5b782260337fa67bf32e855995c1";
+        url = "http://ww1.microchip.com/downloads/en/DeviceDoc/asf-standalone-archive-3.46.0.94.zip";
+        sha256 = "ff6834a21888341f048b40cd959fede4eddc862b25afbf2c203d2055cbfbc1cd";
     };
 in
 stdenv.mkDerivation rec {
