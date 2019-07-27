@@ -2358,6 +2358,7 @@ def generate(config_root_data, cfg_name, main_template):
                 return TemplateExpr('AuxControlModuleHeaterParams', [
                     name_expr,
                     heater.get_int('SetMCommand'),
+                    heater.get_int('SetWaitMCommand'),
                     use_analog_input(gen, heater, 'ThermistorInput', '{}::GetHeaterAnalogInput<{}>'.format(aux_control_module_user, heater_index)),
                     conversion,
                     gen.add_float_config('{}HeaterMinSafeTemp'.format(name), heater.get_float('MinSafeTemp')),

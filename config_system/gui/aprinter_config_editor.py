@@ -627,6 +627,7 @@ def editor():
             ce.Array(key='heaters', title='Heaters', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsable=True, ident='id_configuration_heater', attrs=[
                 ce.String(key='Name', title='Name (capital letter optionally followed by a number; T=extruder, B=bed)'),
                 ce.Integer(key='SetMCommand', title='Set command M-number (optional; M104 can set any heater)', default=0),
+                ce.Integer(key='SetWaitMCommand', title='Set-and-wait command M-number (optional; M109 can set any heater)', default=0),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
                 ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),

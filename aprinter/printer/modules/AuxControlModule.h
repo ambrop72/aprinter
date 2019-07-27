@@ -86,8 +86,14 @@ private:
     using CWaitReportPeriodTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitReportPeriod::i()) * TimeConversion()));
     
     static int const SetHeaterCommand = 104;
+    static int const PrintHeatersCommand = 105;
     static int const SetFanCommand = 106;
     static int const OffFanCommand = 107;
+    static int const SetWaitHeaterCommand = 109;
+    static int const WaitHeatersCommand = 116;
+    static int const PrintAdcCommand = 921;
+    static int const ClearErrorCommand = 922;
+    static int const ColdExtrudeCommand = 302;
     
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
@@ -109,10 +115,14 @@ public:
     static bool check_command (Context c, TheCommand *cmd)
     {
         if (cmd->getCmdNumber(c) == SetHeaterCommand) {
-            handle_set_heater_command(c, cmd);
+            handle_set_heater_command(c, cmd, /*wait=*/false);
             return false;
         }
-        if (cmd->getCmdNumber(c) == 105) {
+        if (cmd->getCmdNumber(c) == SetWaitHeaterCommand) {
+            handle_set_heater_command(c, cmd, /*wait=*/true);
+            return false;
+        }
+        if (cmd->getCmdNumber(c) == PrintHeatersCommand) {
             handle_print_heaters_command(c, cmd);
             return false;
         }
@@ -120,19 +130,19 @@ public:
             handle_set_fan_command(c, cmd, cmd->getCmdNumber(c) == OffFanCommand);
             return false;
         }
-        if (cmd->getCmdNumber(c) == 116) {
+        if (cmd->getCmdNumber(c) == WaitHeatersCommand) {
             handle_wait_heaters_command(c, cmd);
             return false;
         }
-        if (cmd->getCmdNumber(c) == 921) {
+        if (cmd->getCmdNumber(c) == PrintAdcCommand) {
             handle_print_adc_command(c, cmd);
             return false;
         }
-        if (cmd->getCmdNumber(c) == 922) {
+        if (cmd->getCmdNumber(c) == ClearErrorCommand) {
             handle_clear_error_command(c, cmd);
             return false;
         }
-        if (cmd->getCmdNumber(c) == 302) {
+        if (cmd->getCmdNumber(c) == ColdExtrudeCommand) {
             handle_cold_extrude_command(c, cmd);
             return false;
         }
@@ -403,10 +413,14 @@ private:
             }
         }
         
-        static bool check_set_command (Context c, TheCommand *cmd, bool force, bool use_default)
+        static bool check_set_command (Context c, TheCommand *cmd, bool wait, bool force, bool use_default)
         {
-            if (!use_default ? match_name<typename HeaterSpec::Name>(c, cmd) : (HeaterSpec::SetMCommand != 0 && SetHeaterCommand == HeaterSpec::SetMCommand)) {
-                handle_set_command(c, cmd, force);
+            bool is_own_command = wait ?
+                (HeaterSpec::SetWaitMCommand == SetWaitHeaterCommand) :
+                (HeaterSpec::SetMCommand == SetHeaterCommand);
+            
+            if (!use_default ? match_name<typename HeaterSpec::Name>(c, cmd) : is_own_command) {
+                handle_set_command(c, cmd, wait, force);
                 return false;
             }
             return true;
@@ -417,23 +431,31 @@ private:
             if (HeaterSpec::SetMCommand != 0 && HeaterSpec::SetMCommand != SetHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
                 bool force = cmd->find_command_param(c, 'F', nullptr);
                 if (force || cmd->tryPlannedCommand(c)) {
-                    handle_set_command(c, cmd, force);
+                    handle_set_command(c, cmd, /*wait=*/false, force);
+                }
+                return false;
+            }
+            if (HeaterSpec::SetWaitMCommand != 0 && HeaterSpec::SetWaitMCommand != SetWaitHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetWaitMCommand) {
+                if (cmd->tryUnplannedCommand(c)) {
+                    handle_set_command(c, cmd, /*wait=*/true, /*force=*/false);
                 }
                 return false;
             }
             return true;
         }
         
-        static void handle_set_command (Context c, TheCommand *cmd, bool force)
+        static void handle_set_command (Context c, TheCommand *cmd, bool wait, bool force)
         {
             FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
             if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
                 target = NAN;
             }
-            
-            cmd->finishCommand(c);
-            
-            if (force) {
+
+            if (!wait) {
+                cmd->finishCommand(c);
+            }
+
+            if (force || wait) {
                 set_or_unset(c, target);
             } else {
                 auto *planner_cmd = ThePlanner<>::getBuffer(c);
@@ -442,6 +464,10 @@ private:
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
                 ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
                 ThePrinterMain::submitted_planner_command(c);
+            }
+
+            if (wait) {
+                do_wait_heaters(c, cmd, HeaterMask());
             }
         }
         
@@ -840,14 +866,14 @@ private:
     template <typename This=AuxControlModule>
     using PlannerChannelIndex = typename This::ThePrinterMain::template GetPlannerChannelIndex<PlannerChannelSpec>;
     
-    static void handle_set_heater_command (Context c, TheCommand *cmd)
+    static void handle_set_heater_command (Context c, TheCommand *cmd, bool wait)
     {
-        bool force = cmd->find_command_param(c, 'F', nullptr);
-        if (!force && !cmd->tryPlannedCommand(c)) {
+        bool force = !wait && cmd->find_command_param(c, 'F', nullptr);
+        if (wait ? !cmd->tryUnplannedCommand(c) : (!force && !cmd->tryPlannedCommand(c))) {
             return;
         }
-        if (ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, false))) &&
-            ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, force, true)))
+        if (ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, wait, force, false))) &&
+            ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, wait, force, true)))
         ) {
             if (NumHeaters > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
@@ -887,13 +913,18 @@ private:
     
     static void handle_wait_heaters_command (Context c, TheCommand *cmd)
     {
-        auto *o = Object::self(c);
         if (!cmd->tryUnplannedCommand(c)) {
             return;
         }
-        AMBRO_ASSERT(o->waiting_heaters == 0)
         HeatersMaskType heaters_mask = 0;
         ListFor<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
+        do_wait_heaters(c, cmd, heaters_mask);
+    }
+
+    static void do_wait_heaters (Context c, TheCommand *cmd, HeatersMaskType heaters_mask)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->waiting_heaters == 0)
         o->waiting_heaters = 0;
         o->inrange_heaters = 0;
         o->wait_started_time = Clock::getTime(c);
@@ -1042,6 +1073,7 @@ APRINTER_ALIAS_STRUCT_EXT(AuxControlColdExtrusionParams, (
 APRINTER_ALIAS_STRUCT(AuxControlModuleHeaterParams, (
     APRINTER_AS_TYPE(Name),
     APRINTER_AS_VALUE(int, SetMCommand),
+    APRINTER_AS_VALUE(int, SetWaitMCommand),
     APRINTER_AS_TYPE(AnalogInput),
     APRINTER_AS_TYPE(Formula),
     APRINTER_AS_TYPE(MinSafeTemp),

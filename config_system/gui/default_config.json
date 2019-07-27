@@ -4356,6 +4356,7 @@
           "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "T0",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -4396,6 +4397,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "T4",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -4432,6 +4434,7 @@
           "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
+          "SetWaitMCommand": 409,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -4827,6 +4830,7 @@
           "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -4867,6 +4871,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "T0",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -4903,6 +4908,7 @@
           "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
+          "SetWaitMCommand": 409,
           "ThermistorInput": "T2",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5164,6 +5170,7 @@
           "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5204,6 +5211,7 @@
           "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
+          "SetWaitMCommand": 409,
           "ThermistorInput": "T2",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5244,6 +5252,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "T0",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5539,6 +5548,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "T",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5764,6 +5774,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -5800,6 +5811,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "T0",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6025,6 +6037,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "etemp",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6065,6 +6078,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "btemp",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6278,6 +6292,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "PF6",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6314,6 +6329,7 @@
           "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
+          "SetWaitMCommand": 190,
           "ThermistorInput": "PC3",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6547,6 +6563,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "PA2",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
@@ -6923,6 +6940,7 @@
           "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
+          "SetWaitMCommand": 109,
           "ThermistorInput": "E0_THERMISTOR",
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
