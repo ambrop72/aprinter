@@ -398,19 +398,49 @@ For example, the position limits are degrees, speeds (accelerations) are degrees
 
 ### Bed probing and correction
 
-When bed height probing is enabled, a list of corrdinates of the probe points needs to be defined, along with other parameters such as starting height and speeds. The configuration editor should provide sufficient information for configuring bed probing. Bed probing is initiated using `G32`. The resulting height measurements will be printed to the console.
+The firmware supports bed probing based on a digital input (e.g. some sort of switch). Bed probing is configured in the configuration editor in the section Configuration -> Bed probing configuration. Note that the values of many parameters can be changed at runtime (see the Runtime Configuration section), in such cases the parameter name is indicated in this description.
 
-Automatic height correction is supported. However, due to design, a precondition is that the X, Y and Z axes are involved in the coordinate transformation. On delta machines, this is obviously satisfied, however, on Cartesian or CoreXY machines, special configuration is needed (see below).
+The following general settings must be defined:
+- the digital input (cannot be changed at runtime) and its intepretation (`ProbeInvert`),
+- the X and Y offset of the probe (`ProbeOffsetX`, `ProbeOffsetY`),
+- the starting Z coordinate before probing (`ProbeStartHeight`),
+- the minimum Z to move down (`ProbeLowHeight`),
+- the retraction distance (`ProbeRetractDist`),
+- the speed for moving to probe points (`ProbeMoveSpeed`),
+- the speed for quick probing moves (`ProbeFastSpeed`),
+- the speed for slow probing moves (`ProbeSlowSpeed`),
+- the speed for retracting after each probing move (`ProbeRetractSpeed`),
+- the general Z offset for all probe points (`ProbeGeneralZOffset`).
 
-Correction may be either linear or quadratic. If quadratic correction is enabled in the configuration editor, a runtime configuration parameter (ProbeQuadrCorrEnabled) switches between linear and quadratic. Note, a correction is always applied on top of the existing correction, and a linear correction on top of a quadratic correction is still a quadratic correction.
+The firmware is able to apply correction based on the results of probing using the least-squares method, based either on a linear or quadratic correction model. If you want correction (you probably do) then enable it in the configuration editor. Unless you are constrained by RAM or flash, also enable support for quadratic correction, as you can enable/disable its use at runtime (`ProbeQuadrCorrEnabled`). Note that due to the firmware design, enabling correction requires that the X, Y and Z axes are involved in the coordinate transformation. On delta machines, this is obviously satisfied, however, on Cartesian or CoreXY machines, special configuration is needed (see the sub-section below).
 
-In any case, the computation of corrections is done using the linear least-squares method, via QR decomposition by Householder reflections. Even though this code was highly optimized for memory use, it still uses a substantial chunk of RAM, so you should watch out for RAM usage. The RAM needs are proportional in the number of probing points.
+The list of probe points is also configured in the configuration editor. You can add, remove and reorder points. The parameters of each probe point are:
+- whether the point is enabled (`ProbeP<N>Enabled`),
+- the X and Y coordinates (`ProbeP<N>X`, `ProbeP<N>Y`),
+- the point-specific Z offset (`ProbeP<N>ZOffset`).
 
-An important setting for calibration is the "Z offset added to height measurements", and the associated `ProbeGeneralZOffset` runtime configuration option. When a point is probed:
-- If the probe is triggered a certain distance before the nozzle touches the bed (the nozzle does not reach the bed), this should be set to minus that distance.
-- If the nozzle needs to push down into the bed to trigger the probe, this should be set to this positive push distance.
+It is not possible to add additional probe points at runtime beyond the number defined in the configuration editor. If you think you might need more then you can define more but leave them disabled.
 
-It is possible to specify point-specific Z offsets; the general and point-specific offset are added to produce the effective Z offset. This allows compensating for the elasticity of the bed (in designs where this is needed).
+With linear correction, you need at least 3 probe points; with quadratic at least 6. However, be careful with the positioning of the points to avoid over-fitting the correction to these points while introducing errors at that are not close to any probe point. For example, if you have a number of points very close together, you should treat that as a single point for the purpose of the above requirement.
+
+Probing is initiated with the command `G32`. The machine will probe the enabled probe points in the order defined in the configuration. For each point, the machine will:
+- move to the starting position (defined by the X and Y coordinates of the point and the general starting Z height),
+- probe quickly,
+- retract,
+- probe slowly,
+- move back to the starting Z height.
+
+For each point, the measured bed height is printed (e.g. `//ProbeHeight@P6 -4.31501`). The measured bed height is the Z position when the sensor was triggered plus the general Z offset plus the point-specific Z offset. Therefore, it directly represents the assumed height error (positive -> the bed and the nozle are too close, negative -> they are too far apart). If you perform probing again after having applied corrections (see below), these numbers should be close to zero.
+
+If correction is enabled in the configuration editor, then `G32` will calculate, print and apply the correction after probing all enabled points. You can use the `D` parameter to only calculate and print but not apply the correction (`G32 D`).
+
+In any case, the computation of corrections is done using the linear least-squares method, via QR decomposition by Householder reflections. Even though this code was highly optimized for memory use, it still uses a substantial chunk of RAM on the stack, so you should watch out for RAM usage. The RAM needs are proportional to the number of points.
+
+The purpose of Z offsets (`ProbeGeneralZOffset` and `ProbeP<N>ZOffset`) is to allow calibrating the offset between the point when the sensor triggers and the point where the nozzle touches the bed:
+- If the probe is triggered a certain distance before the nozzle touches the bed (the nozzle does not touch the bed), this should be set to minus that distance.
+- If the probe is triggered a certain distance after the nozzle touches the bed (the nozzle pushes into the bed), this should be set to to plus the that distance.
+
+The firmware provides the capability to probe a specific point and retract for a specific distance, which can be used to manually calibrate the Z offsets. This is invoked using `G32 P<point_number> R<retraction>`. The machine will probe the specified point (which does not need to be enabled) as described above, with the exception that after probing slowly it will retract exactly for `<retraction>`. This allows you to try to insert an object of a uniform height (possibly a sheet of paper) between the bed and the nozzle; if you cannot insert it then retry with a greater retraction, and if you can insert it without any contact then retry with a smaller retraction (after removing the object). After a few iterations you should obtain a retraction value where you can insert the object such that it gently scratches the nozzle. Once this is performed for all probe points, set the point-specific Z offsets to the determined retraction distances, and set the general Z offset to minus the height of the object.
 
 #### Configuring probing for Cartesian machines
 
