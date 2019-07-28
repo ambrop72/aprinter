@@ -367,18 +367,31 @@ public:
                 return false;
             }
             AMBRO_ASSERT(o->m_current_point == -1)
-            o->m_current_point = 0;
-            skip_disabled_points_and_detect_end(c);
-            if (o->m_current_point == -1) {
-                cmd->reportError(c, AMBRO_PSTR("NoProbePointsEnabled"));
-                cmd->finishCommand(c);
+            uint32_t point_number;
+            if (cmd->find_command_param_uint32(c, 'P', &point_number)) {
+                if (!(point_number >= 1 && point_number <= NumPoints)) {
+                    cmd->reportError(c, AMBRO_PSTR("InvalidPointNumber"));
+                    cmd->finishCommand(c);
+                    return false;
+                }
+                o->m_single_point_retract_dist = cmd->get_command_param_fp(c, 'R', 0.0f);
+                o->m_current_point = point_number - 1;
+                o->m_single_point_mode = true;
             } else {
-                init_probe_planner(c, false);
-                o->m_point_state = 0;
-                o->m_command_sent = false;
-                o->m_move_error = false;
-                CorrectionFeature::probing_staring(c);
+                o->m_current_point = 0;
+                o->m_single_point_mode = false;
+                skip_disabled_points_and_detect_end(c);
+                if (o->m_current_point == -1) {
+                    cmd->reportError(c, AMBRO_PSTR("NoProbePointsEnabled"));
+                    cmd->finishCommand(c);
+                    return false;
+                }
             }
+            init_probe_planner(c, false);
+            o->m_point_state = 0;
+            o->m_command_sent = false;
+            o->m_move_error = false;
+            CorrectionFeature::probing_staring(c);
             return false;
         }
         return true;
@@ -559,7 +572,9 @@ private:
                     speed = APRINTER_CFG(Config, CProbeSlowSpeed, c);
                 } break;
                 case 4: {
-                    height = APRINTER_CFG(Config, CProbeStartHeight, c);
+                    height = o->m_single_point_mode ?
+                        get_height(c) + o->m_single_point_retract_dist :
+                        APRINTER_CFG(Config, CProbeStartHeight, c);
                     speed = APRINTER_CFG(Config, CProbeRetractSpeed, c);
                 } break;
             }
@@ -590,8 +605,12 @@ private:
             }
             
             if (o->m_point_state == 4) {
-                o->m_current_point++;
-                skip_disabled_points_and_detect_end(c);
+                if (o->m_single_point_mode) {
+                    o->m_current_point = -1;
+                } else {
+                    o->m_current_point++;
+                    skip_disabled_points_and_detect_end(c);
+                }
                 if (o->m_current_point == -1) {
                     return finish_probing(c, nullptr);
                 }
@@ -601,8 +620,10 @@ private:
             }
             
             if (o->m_point_state == 3) {
-                FpType height = get_height(c) + APRINTER_CFG(Config, CProbeGeneralZOffset, c) + get_point_z_offset(c, o->m_current_point);
-                report_height(c, ThePrinterMain::get_locked(c), o->m_current_point, height);
+                if (!o->m_single_point_mode) {
+                    FpType height = get_height(c) + APRINTER_CFG(Config, CProbeGeneralZOffset, c) + get_point_z_offset(c, o->m_current_point);
+                    report_height(c, ThePrinterMain::get_locked(c), o->m_current_point, height);
+                }
             }
             
             o->m_point_state++;
@@ -643,15 +664,16 @@ private:
     {
         auto *o = Object::self(c);
         
-        bool success = false;
+        bool run_hook = false;
         TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
             cmd->reportError(c, errstr);
-        } else {
-            success = CorrectionFeature::probing_completing(c, cmd);
+        }
+        else if (!o->m_single_point_mode) {
+            run_hook = CorrectionFeature::probing_completing(c, cmd);
         }
         
-        if (!success) {
+        if (!run_hook) {
             o->m_current_point = -1;
             return cmd->finishCommand(c);
         }
@@ -713,7 +735,9 @@ public:
         MakeTypeList<CorrectionFeature>
     >> {
         ProbePlannerClient planner_client;
+        FpType m_single_point_retract_dist;
         PointIndexType m_current_point;
+        bool m_single_point_mode;
         uint8_t m_point_state;
         bool m_command_sent;
         bool m_move_error;
