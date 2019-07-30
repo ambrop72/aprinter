@@ -40,14 +40,14 @@ public:
         return res;
     }
     
-    FpType norm () const
+    FpType squaredLength () const
     {
         return (m_v[0] * m_v[0]) + (m_v[1] * m_v[1]);
     }
     
     FpType length () const
     {
-        return FloatSqrt(norm());
+        return FloatSqrt(squaredLength());
     }
     
     Vector2 operator* (FpType s) const

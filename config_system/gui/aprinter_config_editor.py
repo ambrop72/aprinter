@@ -560,7 +560,11 @@ def editor():
                         {'axis_name': 'Z', 'homing_allowed': True},
                     ],
                     specific_params=[
+                        # TODO: Fix typo in DiagnalRod
                         ce.Float(key='DiagnalRod', title='Diagonal rod length [mm]', default=214),
+                        ce.Float(key='DiagonalRodCorr1', title='Diagonal rod length correction for Tower-1 [mm]', default=0),
+                        ce.Float(key='DiagonalRodCorr2', title='Diagonal rod length correction for Tower-2 [mm]', default=0),
+                        ce.Float(key='DiagonalRodCorr3', title='Diagonal rod length correction for Tower-3 [mm]', default=0),
                         ce.Float(key='SmoothRodOffset', title='Smooth rod offset [mm]', default=145),
                         ce.Float(key='EffectorOffset', title='Effector offset [mm]', default=19.9),
                         ce.Float(key='CarriageOffset', title='Carriage offset [mm]', default=19.5),

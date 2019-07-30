@@ -72,7 +72,7 @@ bool leftIntersectionOfCircles (
     Vector2<FpType> d = c2 - c1;
 
     // Calculate the squared length and length of d (distance between centers).
-    FpType dLenSq = d.norm();
+    FpType dLenSq = d.squaredLength();
     FpType dLen = FloatSqrt(dLenSq);
 
     // Calculate the distance (h) of the seeked center point (p) from

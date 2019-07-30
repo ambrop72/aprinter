@@ -41,14 +41,14 @@ public:
         return res;
     }
     
-    FpType norm () const
+    FpType squaredLength () const
     {
         return (m_v[0] * m_v[0]) + (m_v[1] * m_v[1]) + (m_v[2] * m_v[2]);
     }
     
     FpType length () const
     {
-        return FloatSqrt(norm());
+        return FloatSqrt(squaredLength());
     }
     
     FpType dot (Vector3 other) const
@@ -59,6 +59,11 @@ public:
     Vector3 operator* (FpType s) const
     {
         return Vector3::make(m_v[0] * s, m_v[1] * s, m_v[2] * s);
+    }
+
+    Vector3 operator/ (FpType s) const
+    {
+        return Vector3::make(m_v[0] / s, m_v[1] / s, m_v[2] / s);
     }
     
     Vector3 operator+ (Vector3 other) const

@@ -2448,6 +2448,9 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_aprinter_include('printer/transform/DeltaTransform.h')
                     return TemplateExpr('DeltaTransformService', [
                         gen.add_float_config('DeltaDiagonalRod', transform.get_float('DiagnalRod')),
+                        gen.add_float_config('DeltaDiagonalRodCorr1', transform.get_float('DiagonalRodCorr1')),
+                        gen.add_float_config('DeltaDiagonalRodCorr2', transform.get_float('DiagonalRodCorr2')),
+                        gen.add_float_config('DeltaDiagonalRodCorr3', transform.get_float('DiagonalRodCorr3')),
                         gen.add_float_config('DeltaSmoothRodOffset', transform.get_float('SmoothRodOffset')),
                         gen.add_float_config('DeltaEffectorOffset', transform.get_float('EffectorOffset')),
                         gen.add_float_config('DeltaCarriageOffset', transform.get_float('CarriageOffset')),
