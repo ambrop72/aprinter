@@ -2578,6 +2578,15 @@ private:
                     return cmd->finishCommand(c);
                 } break;
             } break;
+
+            // We do not support tool commands yet, but accept T0 as a stub to be
+            // compatible with single-extruder gcode that contains T0.
+            case 'T': {
+                if (cmd_number != 0) {
+                    goto unknown_command;
+                }
+                return cmd->finishCommand(c);
+            } break;
             
             unknown_command:
             default: {
