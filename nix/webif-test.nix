@@ -27,7 +27,7 @@
 , testPort ? 4012
 , staticHost ? "127.0.0.1"
 , staticPort ? 4003
-, aprinterHost ? "192.168.111.142"
+, aprinterHost ? "192.168.111.110"
 , aprinterPort ? 80
 }:
 let
