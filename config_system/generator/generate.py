@@ -1544,15 +1544,14 @@ def use_current_driver_channel(gen, config, key, name):
     
     return config.do_selection(key, current_driver_channel_sel)
 
-def get_letter_number_name(config, key):
-    name = config.get_string(key)
-    match = re.match('\\A([A-Z])([0-9]{0,2})\\Z', name)
-    if not match:
-        config.key_path(key).error('Incorrect name (expecting letter optionally followed by a number).')
-    letter = match.group(1)
-    number = int(match.group(2)) if match.group(2) != '' else 0
-    normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
-    return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
+def get_heater_fan_number(config, key, existing_numbers):
+    number = config.get_int(key)
+    if not 0 <= number <= 255:
+        config.key_path(key).error('Value out of range.')
+    if number in existing_numbers:
+        config.key_path(key).error('Conflicting heater or fan number.')
+    existing_numbers.add(number)
+    return number
 
 def get_ip_index(gen, config, key):
     index_name = config.get_string(key)
@@ -2141,7 +2140,6 @@ def generate(config_root_data, cfg_name, main_template):
                 current_config = board_data.get_config('current_config')
             
             gen.add_aprinter_include('printer/PrinterMain.h')
-            gen.add_float_constant('FanSpeedMultiply', 1.0 / 255.0)
             
             for advanced in config.enter_config('advanced'):
                 gen.add_float_constant('LedBlinkInterval', advanced.get_float('LedBlinkInterval'))
@@ -2276,32 +2274,44 @@ def generate(config_root_data, cfg_name, main_template):
             
             steppers_expr = config.do_list('steppers', stepper_cb, min_count=1, max_count=15)
             
+            heater_types = ['Extruder', 'Bed', 'Chamber']
+            heater_numbers = dict((heater_type, set()) for heater_type in heater_types)
+            
             def heater_cb(heater, heater_index):
-                name, name_expr = get_letter_number_name(heater, 'Name')
+                heater_type_sel = selection.Selection()
+
+                @heater_type_sel.options(heater_types)
+                def handle_heater_type(heater_type, heater_type_config):
+                    heater_number = get_heater_fan_number(heater_type_config, 'Number', heater_numbers[heater_type])
+                    return heater_type, heater_number
                 
+                heater_type, heater_number = heater.do_selection('Type', heater_type_sel)
+
+                heater_cfg_prefix = '{}Heater{}'.format(heater_type, heater_number)
+
                 conversion_sel = selection.Selection()
                 
                 @conversion_sel.option('conversion')
                 def option(conversion_config):
                     gen.add_aprinter_include('printer/thermistor/GenericThermistor.h')
                     return TemplateExpr('GenericThermistorService', [
-                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion_config.get_float('ResistorR')),
-                        gen.add_float_config('{}HeaterTempR0'.format(name), conversion_config.get_float('R0')),
-                        gen.add_float_config('{}HeaterTempBeta'.format(name), conversion_config.get_float('Beta')),
-                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion_config.get_float('MinTemp')),
-                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion_config.get_float('MaxTemp')),
+                        gen.add_float_config('{}TempResistorR'.format(heater_cfg_prefix), conversion_config.get_float('ResistorR')),
+                        gen.add_float_config('{}TempR0'.format(heater_cfg_prefix), conversion_config.get_float('R0')),
+                        gen.add_float_config('{}TempBeta'.format(heater_cfg_prefix), conversion_config.get_float('Beta')),
+                        gen.add_float_config('{}TempMinTemp'.format(heater_cfg_prefix), conversion_config.get_float('MinTemp')),
+                        gen.add_float_config('{}TempMaxTemp'.format(heater_cfg_prefix), conversion_config.get_float('MaxTemp')),
                     ])
                 
                 @conversion_sel.option('PtRtdFormula')
                 def option(conversion_config):
                     gen.add_aprinter_include('printer/thermistor/PtRtdFormula.h')
                     return TemplateExpr('PtRtdFormulaService', [
-                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion_config.get_float('ResistorR')),
-                        gen.add_float_config('{}HeaterTempPtR0'.format(name), conversion_config.get_float('PtR0')),
-                        gen.add_float_config('{}HeaterTempPtA'.format(name), conversion_config.get_float('PtA')),
-                        gen.add_float_config('{}HeaterTempPtB'.format(name), conversion_config.get_float('PtB')),
-                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion_config.get_float('MinTemp')),
-                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion_config.get_float('MaxTemp')),
+                        gen.add_float_config('{}TempResistorR'.format(heater_cfg_prefix), conversion_config.get_float('ResistorR')),
+                        gen.add_float_config('{}TempPtR0'.format(heater_cfg_prefix), conversion_config.get_float('PtR0')),
+                        gen.add_float_config('{}TempPtA'.format(heater_cfg_prefix), conversion_config.get_float('PtA')),
+                        gen.add_float_config('{}TempPtB'.format(heater_cfg_prefix), conversion_config.get_float('PtB')),
+                        gen.add_float_config('{}TempMinTemp'.format(heater_cfg_prefix), conversion_config.get_float('MinTemp')),
+                        gen.add_float_config('{}TempMaxTemp'.format(heater_cfg_prefix), conversion_config.get_float('MaxTemp')),
                     ])
                 
                 @conversion_sel.option('Max31855Formula')
@@ -2320,20 +2330,20 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_aprinter_include('printer/temp_control/PidControl.h')
                     control_interval = control.get_float('ControlInterval')
                     control_service = TemplateExpr('PidControlService', [
-                        gen.add_float_config('{}HeaterPidP'.format(name), control.get_float('PidP')),
-                        gen.add_float_config('{}HeaterPidI'.format(name), control.get_float('PidI')),
-                        gen.add_float_config('{}HeaterPidD'.format(name), control.get_float('PidD')),
-                        gen.add_float_config('{}HeaterPidIStateMin'.format(name), control.get_float('PidIStateMin')),
-                        gen.add_float_config('{}HeaterPidIStateMax'.format(name), control.get_float('PidIStateMax')),
-                        gen.add_float_config('{}HeaterPidDHistory'.format(name), control.get_float('PidDHistory')),
+                        gen.add_float_config('{}PidP'.format(heater_cfg_prefix), control.get_float('PidP')),
+                        gen.add_float_config('{}PidI'.format(heater_cfg_prefix), control.get_float('PidI')),
+                        gen.add_float_config('{}PidD'.format(heater_cfg_prefix), control.get_float('PidD')),
+                        gen.add_float_config('{}PidIStateMin'.format(heater_cfg_prefix), control.get_float('PidIStateMin')),
+                        gen.add_float_config('{}PidIStateMax'.format(heater_cfg_prefix), control.get_float('PidIStateMax')),
+                        gen.add_float_config('{}PidDHistory'.format(heater_cfg_prefix), control.get_float('PidDHistory')),
                     ])
                 
                 for observer in heater.enter_config('observer'):
                     gen.add_aprinter_include('printer/utils/TemperatureObserver.h')
                     observer_service = TemplateExpr('TemperatureObserverService', [
-                        gen.add_float_config('{}HeaterObserverInterval'.format(name), observer.get_float('ObserverInterval')),
-                        gen.add_float_config('{}HeaterObserverTolerance'.format(name), observer.get_float('ObserverTolerance')),
-                        gen.add_float_config('{}HeaterObserverMinTime'.format(name), observer.get_float('ObserverMinTime')),
+                        gen.add_float_config('{}ObserverInterval'.format(heater_cfg_prefix), observer.get_float('ObserverInterval')),
+                        gen.add_float_config('{}ObserverTolerance'.format(heater_cfg_prefix), observer.get_float('ObserverTolerance')),
+                        gen.add_float_config('{}ObserverMinTime'.format(heater_cfg_prefix), observer.get_float('ObserverMinTime')),
                     ])
                 
                 cold_extrusion_sel = selection.Selection()
@@ -2349,24 +2359,23 @@ def generate(config_root_data, cfg_name, main_template):
                         extruders_exprs.append(TemplateExpr('WrapInt', [TemplateChar(axis_name)]))
                     
                     return TemplateExpr('AuxControlColdExtrusionParams', [
-                        gen.add_float_config('{}HeaterMinExtrusionTemp'.format(name), cold_extrusion_config.get_float('MinExtrusionTemp')),
+                        gen.add_float_config('{}MinExtrusionTemp'.format(heater_cfg_prefix), cold_extrusion_config.get_float('MinExtrusionTemp')),
                         TemplateList(extruders_exprs),
                     ])
                 
                 cold_extrusion = heater.do_selection('cold_extrusion_prevention', cold_extrusion_sel)
                 
                 return TemplateExpr('AuxControlModuleHeaterParams', [
-                    name_expr,
-                    heater.get_int('SetMCommand'),
-                    heater.get_int('SetWaitMCommand'),
+                    'HeaterType::{}'.format(heater_type),
+                    heater_number,
                     use_analog_input(gen, heater, 'ThermistorInput', '{}::GetHeaterAnalogInput<{}>'.format(aux_control_module_user, heater_index)),
                     conversion,
-                    gen.add_float_config('{}HeaterMinSafeTemp'.format(name), heater.get_float('MinSafeTemp')),
-                    gen.add_float_config('{}HeaterMaxSafeTemp'.format(name), heater.get_float('MaxSafeTemp')),
-                    gen.add_float_config('{}HeaterControlInterval'.format(name), control_interval),
+                    gen.add_float_config('{}MinSafeTemp'.format(heater_cfg_prefix), heater.get_float('MinSafeTemp')),
+                    gen.add_float_config('{}MaxSafeTemp'.format(heater_cfg_prefix), heater.get_float('MaxSafeTemp')),
+                    gen.add_float_config('{}ControlInterval'.format(heater_cfg_prefix), control_interval),
                     control_service,
                     observer_service,
-                    use_pwm_output(gen, heater, 'pwm_output', '{}::GetHeaterPwm<{}>'.format(aux_control_module_user, heater_index), '{}Heater'.format(name)),
+                    use_pwm_output(gen, heater, 'pwm_output', '{}::GetHeaterPwm<{}>'.format(aux_control_module_user, heater_index), heater_cfg_prefix),
                     cold_extrusion,
                 ])
             
@@ -2662,15 +2671,14 @@ def generate(config_root_data, cfg_name, main_template):
             
             have_bed_probing = config.get_config('probe_config').do_selection('probe', probe_sel)
             
+            fan_numbers = set()
+
             def fan_cb(fan, fan_index):
-                name, name_expr = get_letter_number_name(fan, 'Name')
+                fan_number = get_heater_fan_number(fan, 'Number', fan_numbers)
                 
                 return TemplateExpr('AuxControlModuleFanParams', [
-                    name_expr,
-                    fan.get_int('SetMCommand'),
-                    fan.get_int('OffMCommand'),
-                    'FanSpeedMultiply',
-                    use_pwm_output(gen, fan, 'pwm_output', '{}::GetFanPwm<{}>'.format(aux_control_module_user, fan_index), '{}Fan'.format(name))
+                    fan_number,
+                    use_pwm_output(gen, fan, 'pwm_output', '{}::GetFanPwm<{}>'.format(aux_control_module_user, fan_index), 'Fan{}'.format(fan_number))
                 ])
             
             fans_expr = config.do_list('fans', fan_cb, max_count=15)

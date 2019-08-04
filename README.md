@@ -309,25 +309,29 @@ The standard gcodes for axis motion are implemented:
 
 ### Heaters
 
-Each heater is identified with a one-character name and a number. In the configuration editor, the number may be omitted, in which case it is assumed to be zero. On the other hand, the firmware will assume the number 0 if a heater is specified in a heater-related command with just a letter. Typical heater names are B (bed), T/T0 (first extruder) and T1 (second extruder).
+The firmware supports three types of heaters: extruder heaters, bed heaters and chamber heaters. These types are functionally equivalent, the only difference is that different M-commands are used. There may be any number of heaters of each type, and each heater has a number (>= 0) which identifies it within its type. The heater types and numbers are specified in the configuration editor. Note that heater numbers do not need to be assigned sequentially. Heaters are typically identified as `T<num>` (extruder heaters), `B<num>` (bed heaters) and `C<num>` (chamber heaters), e.g. in the output of `M105` (which prints the heater states) and in the parameters of `M116` (which waits for temperatures to be reached).
 
-To configure the setpoint for a heater and enable it, use `M104 <heater> S<temperature>`. For example: `M104 B S100`, `M104 T S220`, `M104 T1 S200`. To remove the setpoint (disabling the heater), set it to nan (or a value outside of the defined safe range): `M104 B Snan`.
+To configure the setpoint for a heater and enable it, use `M104/M140/M141 P<heater_number> S<temperature_degC>`. The M-command depends on the heater type (extruder, bed and chamber respectively). For extuder heaters, `T<heater_number>` is also accepted as an alternative to `P`, for compatibility. If the heater number is not specified, 0 is assumed as the default. The heater will be turned off if the `S` parameter is missing, has the value `nan`, or the value is outside of the heater's safe range.
 
-The command M116 can be used to wait for the set temperatures of heaters to be reached: `M116 <heater> ...`. For example: `M116 T0 T1 B`. Without any known heaters specified, the effect is as if all heaters with configured setpoints were specified. The command will fail immediately if a heater which is explicitcly specified does not have a setpoint configured.
+For example:
+- `M104 S200` or `M104 P0 S200` or `M104 T0 S200` to set the setpoint of extruder heater #0 to 200 degC.
+- `M104 Snan` to turn off extruder heater #0.
+- `M140 S100` to set the setpoint of bed heater #0 to 100 degC.
+- `M141 S60` to set the setpoint of chamber heater #0 to 60 degC.
 
-The firmware detects thermal runaways, when the temperature falls outside the defined safe range. Upon runaway, the specific heater is automatically disabled, and an error message is generated. The command `M922` can be used to re-enable heaters which had experienced a thermal runaway. Note, a heater being disabled due to a thermal runaway does not change its setpoint - this is implemented such to provide predictable semantics of M116.
+The above commands also support the parameter `F`, which causes the setpoint to be changed immediately instead of going through motion planning. This is useful when changing the temperature during a print running from SD card.
 
-Optionally, heater-specific M-codes can be defined in the configuration editor. For example is M123 is configured for the heater `T1`, the command `M123 S<temperature>` is equivalent to `M104 T1 S<temperature>`. Note, `M104` itself may be configured as a heater-specific M-code. In this case `M104` may still be used to configure any heater, but if no heater is specified, it configures that particular heater. It is useful to configure `M140` as the heater-specific code for the bed, and `M104` for an only extruder.
+The command M116 can be used to wait for the set temperatures of heaters to be reached: `M116 <heater_type><heater_number> ...`. For example, `M116 T0 T1 B C` waits for extruder heaters #0 and #1, bed heater #0 and chamber heater #0. Note that with only the heater type and no number (e.g. `B`), heater #0 is assumed. Without any (configured) heaters specified, the effect is as if all heaters with configured setpoints were specified. The command will fail immediately if a heater which is explicitcly specified does not have a setpoint configured.
 
-### Fans (or Spindles)
+The firmware detects thermal runaways, when the temperature falls outside the defined safe range. Upon runaway, the specific heater is automatically disabled, and an error message is generated. The command `M922` can be used to re-enable (all) heaters which had experienced a thermal runaway. Note, a heater being disabled due to a thermal runaway does not change its setpoint - this is implemented such to provide predictable semantics of M116.
 
-Fans are identified in much the same way as heaters, with a letter and a number. For fans attached to extruders, the names T/T0/T1 are also recommended.
+### Fans
 
-A fan is turned on using `M106 <fan> S<speed_0_to_255>`. Turning off is achieved either by setting the speed to 0 or using `M107 <fan>`.
+Fans are configured with a fan number (>=0). This is similar as for heaters (but there are no fan types).
 
-Much like heater-specific M-codes, one can have fan-specific M-codes for setting the speed of or turning off a fan. If there is only one fan, it is useful to use `M106` and `M107` themselves as heater-specific M-codes for the fan.
+A fan is controlled using `M106 P<fan_number> S<speed_0_to_255>`. If `P` is not specified, fan #0 is assumed. If `S` is not specified, full speed is assumed (`S255`). Setting the speed to zero (`S0`) turns off the fan. A fan can also be turned off using `M107 P<fan_number>` (the same applies about missing `P`).
 
-You can also use this feature for simple PWM-control of spindles or anything else; for spindles you may map the on- and off-commands to M3 and M5 respectively.
+Like for heaters, the `F` parameter can be used to perform the change immediately instead of going through motion planning.
 
 ### Extruders
 

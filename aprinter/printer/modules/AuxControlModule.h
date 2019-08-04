@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 #include <math.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/ListForEach.h>
@@ -56,15 +58,14 @@
 
 namespace APrinter {
 
+enum class HeaterType {Extruder, Bed, Chamber};
+
 template <typename ModuleArg>
 class AuxControlModule {
     APRINTER_UNPACK_MODULE_ARG(ModuleArg)
     
 public:
     struct Object;
-    
-public:
-    using ReservedHeaterFanNames = MakeTypeList<WrapInt<'F'>, WrapInt<'S'>>;
     
 private:
     using Clock = typename Context::Clock;
@@ -85,16 +86,26 @@ private:
     using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
     using CWaitReportPeriodTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitReportPeriod::i()) * TimeConversion()));
     
-    static int const SetHeaterCommand = 104;
-    static int const PrintHeatersCommand = 105;
-    static int const SetFanCommand = 106;
-    static int const OffFanCommand = 107;
-    static int const SetWaitHeaterCommand = 109;
-    static int const WaitHeatersCommand = 116;
-    static int const PrintAdcCommand = 921;
-    static int const ClearErrorCommand = 922;
-    static int const ColdExtrudeCommand = 302;
-    
+    enum class MCommand : uint16_t {
+        PrintHeaters = 105,
+        WaitHeaters = 116,
+        SetExtruderHeater = 104,
+        SetWaitExtruderHeater = 109,
+        SetBedHeater = 140,
+        SetWaitBedHeater = 190,
+        SetChamberHeater = 141,
+        SetWaitChamberHeater = 191,
+        SetFan = 106,
+        TurnOffFan = 107,
+        PrintAdc = 921,
+        ClearError = 922,
+        ColdExtrude = 302,
+    };
+
+    enum class WaitMode : bool {NoWait, Wait};
+
+    enum class FanCmdType : bool {TurnOff, Set};
+
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
 public:
@@ -114,40 +125,49 @@ public:
     
     static bool check_command (Context c, TheCommand *cmd)
     {
-        if (cmd->getCmdNumber(c) == SetHeaterCommand) {
-            handle_set_heater_command(c, cmd, /*wait=*/false);
-            return false;
+        switch (MCommand(cmd->getCmdNumber(c))) {
+            case MCommand::PrintHeaters:
+                handle_print_heaters_command(c, cmd);
+                return false;
+            case MCommand::WaitHeaters:
+                handle_wait_heaters_command(c, cmd);
+                return false;
+            case MCommand::SetExtruderHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Extruder, WaitMode::NoWait);
+                return false;
+            case MCommand::SetWaitExtruderHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Extruder, WaitMode::Wait);
+                return false;
+            case MCommand::SetBedHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Bed, WaitMode::NoWait);
+                return false;
+            case MCommand::SetWaitBedHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Bed, WaitMode::Wait);
+                return false;
+            case MCommand::SetChamberHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Chamber, WaitMode::NoWait);
+                return false;
+            case MCommand::SetWaitChamberHeater:
+                handle_set_heater_command(c, cmd, HeaterType::Chamber, WaitMode::Wait);
+                return false;
+            case MCommand::SetFan:
+                handle_set_fan_command(c, cmd, FanCmdType::Set);
+                return false;
+            case MCommand::TurnOffFan:
+                handle_set_fan_command(c, cmd, FanCmdType::TurnOff);
+                return false;
+            case MCommand::PrintAdc:
+                handle_print_adc_command(c, cmd);
+                return false;
+            case MCommand::ClearError:
+                handle_clear_error_command(c, cmd);
+                return false;
+            case MCommand::ColdExtrude:
+                handle_cold_extrude_command(c, cmd);
+                return false;
+            default:
+                return true;
         }
-        if (cmd->getCmdNumber(c) == SetWaitHeaterCommand) {
-            handle_set_heater_command(c, cmd, /*wait=*/true);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == PrintHeatersCommand) {
-            handle_print_heaters_command(c, cmd);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == SetFanCommand || cmd->getCmdNumber(c) == OffFanCommand) {
-            handle_set_fan_command(c, cmd, cmd->getCmdNumber(c) == OffFanCommand);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == WaitHeatersCommand) {
-            handle_wait_heaters_command(c, cmd);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == PrintAdcCommand) {
-            handle_print_adc_command(c, cmd);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == ClearErrorCommand) {
-            handle_clear_error_command(c, cmd);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == ColdExtrudeCommand) {
-            handle_cold_extrude_command(c, cmd);
-            return false;
-        }
-        return ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_command(c, cmd))) &&
-               ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_command(c, cmd)));
     }
     
     static void emergency ()
@@ -183,31 +203,18 @@ public:
     }
     
 private:
-    template <typename Name>
-    static void print_name (Context c, TheOutputStream *cmd)
+    static void print_ch_num (Context c, TheOutputStream *cmd, char ch, uint8_t num)
     {
-        cmd->reply_append_ch(c, Name::Letter);
-        if (Name::Number != 0) {
-            cmd->reply_append_uint32(c, Name::Number);
-        }
+        cmd->reply_append_ch(c, ch);
+        cmd->reply_append_uint32(c, num);
     }
     
-    template <typename Name, typename TheJsonBuilder>
-    static void print_json_name (Context c, TheJsonBuilder *json)
+    template <typename TheJsonBuilder>
+    static void print_json_ch_num (Context c, TheJsonBuilder *json, char ch, uint8_t num)
     {
-        if (Name::Number == 0) {
-            json->add(JsonSafeChar{Name::Letter});
-        } else {
-            char str[3] = {Name::Letter, '0' + Name::Number, '\0'};
-            json->add(JsonSafeString{str});
-        }
-    }
-    
-    template <typename Name>
-    static bool match_name (Context c, TheCommand *cmd)
-    {
-        typename TheCommand::PartRef part;
-        return cmd->find_command_param(c, Name::Letter, &part) && cmd->getPartUint32Value(c, part) == Name::Number;
+        char str[8];
+        sprintf(str, "%c%" PRIu8, ch, num);
+        json->add(JsonSafeString{str});
     }
     
     struct HeaterState {
@@ -223,7 +230,18 @@ private:
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        static_assert(NameCharIsValid<HeaterSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Heater name not allowed");
+
+        // The character representing the heater type, including in M105, M116 and M302.
+        // It is typically followed by the heater number, e.g. T0, T1, B0, C0.
+        inline static constexpr char HeaterTypeChar =
+            (HeaterSpec::Type == HeaterType::Extruder) ? 'T' :
+            (HeaterSpec::Type == HeaterType::Bed) ? 'B' :
+            (HeaterSpec::Type == HeaterType::Chamber) ? 'C' :
+            0; /*impossible*/
+        
+        // An optional alternative character accepted by M116.
+        inline static constexpr char AlternateHeaterTypeCharM116 =
+            (HeaterSpec::Type == HeaterType::Extruder) ? 'P' : 0;
         
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
         APRINTER_MAKE_INSTANCE(TheControl, (HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>))
@@ -338,7 +356,7 @@ private:
             HeaterState st = get_state(c);
             
             cmd->reply_append_ch(c, ' ');
-            print_name<typename HeaterSpec::Name>(c, cmd);
+            print_ch_num(c, cmd, HeaterTypeChar, HeaterSpec::Number);
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, st.current);
             cmd->reply_append_pstr(c, AMBRO_PSTR(" /"));
@@ -352,12 +370,12 @@ private:
         {
             AdcFixedType adc_value = get_adc(c);
             cmd->reply_append_ch(c, ' ');
-            print_name<typename HeaterSpec::Name>(c, cmd);
+            print_ch_num(c, cmd, HeaterTypeChar, HeaterSpec::Number);
             cmd->reply_append_pstr(c, AMBRO_PSTR("A:"));
             cmd->reply_append_fp(c, adc_value.template fpValue<FpType>());
         }
         
-        static void clear_error (Context c, TheCommand *cmd)
+        static void clear_error (Context c)
         {
             auto *o = Object::self(c);
             
@@ -413,49 +431,30 @@ private:
             }
         }
         
-        static bool check_set_command (Context c, TheCommand *cmd, bool wait, bool force, bool use_default)
+        static bool check_set_command (Context c, TheCommand *cmd, HeaterType heater_type,
+            WaitMode wait_mode, bool force, uint32_t heater_number, FpType cmd_value, bool *heaters_of_type_found)
         {
-            bool is_own_command = wait ?
-                (HeaterSpec::SetWaitMCommand == SetWaitHeaterCommand) :
-                (HeaterSpec::SetMCommand == SetHeaterCommand);
-            
-            if (!use_default ? match_name<typename HeaterSpec::Name>(c, cmd) : is_own_command) {
-                handle_set_command(c, cmd, wait, force);
-                return false;
+            if (heater_type == HeaterSpec::Type) {
+                *heaters_of_type_found = true;
             }
-            return true;
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            if (HeaterSpec::SetMCommand != 0 && HeaterSpec::SetMCommand != SetHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
-                bool force = cmd->find_command_param(c, 'F', nullptr);
-                if (force || cmd->tryPlannedCommand(c)) {
-                    handle_set_command(c, cmd, /*wait=*/false, force);
-                }
-                return false;
+
+            if (heater_type != HeaterSpec::Type || heater_number != HeaterSpec::Number) {
+                return true;
             }
-            if (HeaterSpec::SetWaitMCommand != 0 && HeaterSpec::SetWaitMCommand != SetWaitHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetWaitMCommand) {
-                if (cmd->tryUnplannedCommand(c)) {
-                    handle_set_command(c, cmd, /*wait=*/true, /*force=*/false);
-                }
-                return false;
-            }
-            return true;
-        }
-        
-        static void handle_set_command (Context c, TheCommand *cmd, bool wait, bool force)
-        {
-            FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
-            if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
+
+            FpType target;
+
+            if (cmd_value >= APRINTER_CFG(Config, CMinSafeTemp, c) && cmd_value <= APRINTER_CFG(Config, CMaxSafeTemp, c)) {
+                target = cmd_value;
+            } else {
                 target = NAN;
             }
 
-            if (!wait) {
+            if (wait_mode == WaitMode::NoWait) {
                 cmd->finishCommand(c);
             }
 
-            if (force || wait) {
+            if (wait_mode == WaitMode::Wait || force) {
                 set_or_unset(c, target);
             } else {
                 auto *planner_cmd = ThePlanner<>::getBuffer(c);
@@ -466,11 +465,13 @@ private:
                 ThePrinterMain::submitted_planner_command(c);
             }
 
-            if (wait) {
+            if (wait_mode == WaitMode::Wait) {
                 do_wait_heaters(c, cmd, HeaterMask());
             }
+            
+            return false;
         }
-        
+
         static void check_safety (Context c)
         {
             TheAnalogInput::check_safety(c);
@@ -568,7 +569,21 @@ private:
         template <typename TheHeatersMaskType>
         static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask)
         {
-            if (match_name<typename HeaterSpec::Name>(c, cmd)) {
+            uint32_t number;
+            bool found = cmd->find_command_param_uint32(c, HeaterTypeChar, &number);
+            if (!found && AlternateHeaterTypeCharM116 != 0) {
+                found = cmd->find_command_param_uint32(c, AlternateHeaterTypeCharM116, &number);
+            }
+            if (found && number == HeaterSpec::Number) {
+                *mask |= HeaterMask();
+            }
+        }
+
+        template <typename TheHeatersMaskType>
+        static void update_cold_extrude_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask)
+        {
+            uint32_t number;
+            if (cmd->find_command_param_uint32(c, HeaterTypeChar, &number) && number == HeaterSpec::Number) {
                 *mask |= HeaterMask();
             }
         }
@@ -609,7 +624,7 @@ private:
             cmd->reply_append_pstr(c, AMBRO_PSTR("Error:"));
             cmd->reply_append_pstr(c, errstr);
             cmd->reply_append_ch(c, ':');
-            print_name<typename HeaterSpec::Name>(c, cmd);
+            print_ch_num(c, cmd, HeaterTypeChar, HeaterSpec::Number);
             cmd->reply_append_ch(c, '\n');
         }
         
@@ -632,7 +647,7 @@ private:
         {
             HeaterState st = get_state(c);
             
-            print_json_name<typename HeaterSpec::Name>(c, json);
+            print_json_ch_num(c, json, HeaterTypeChar, HeaterSpec::Number);
             json->entryValue();
             json->startObject();
             json->addSafeKeyVal("current", JsonDouble{st.current});
@@ -674,7 +689,7 @@ private:
                     if (!(temp >= APRINTER_CFG(Config, CMinExtrusionTemp, c)) || isinf(temp)) {
                         err_output->reply_append_pstr(c, AMBRO_PSTR("Error:"));
                         err_output->reply_append_pstr(c, AMBRO_PSTR("ColdExtrusionPrevented:"));
-                        print_name<typename HeaterSpec::Name>(c, err_output);
+                        print_ch_num(c, err_output, HeaterTypeChar, HeaterSpec::Number);
                         err_output->reply_append_ch(c, '\n');
                         return false;
                     }
@@ -686,7 +701,7 @@ private:
             {
                 auto *o = Object::self(c);
                 output->reply_append_ch(c, ' ');
-                print_name<typename HeaterSpec::Name>(c, output);
+                print_ch_num(c, output, HeaterTypeChar, HeaterSpec::Number);
                 output->reply_append_ch(c, '=');
                 output->reply_append_ch(c, o->cold_extrusion_allowed ? '1' : '0');
             }
@@ -736,8 +751,7 @@ private:
         struct Object;
         
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
-        static_assert(NameCharIsValid<FanSpec::Name::Letter, ReservedHeaterFanNames>::Value, "Fan name not allowed");
-        
+
         APRINTER_MAKE_INSTANCE(ThePwm, (FanSpec::PwmService::template Pwm<Context, Object>))
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         
@@ -756,41 +770,27 @@ private:
             ThePwm::deinit(c);
         }
         
-        static bool check_set_command (Context c, TheCommand *cmd, bool force, bool is_turn_off, bool use_default)
+        static bool check_set_command (Context c, TheCommand *cmd,
+            FanCmdType cmd_type, bool force, uint32_t fan_number, FpType cmd_value)
         {
-            if (!use_default ? match_name<typename FanSpec::Name>(c, cmd) : (
-                !is_turn_off ?
-                (FanSpec::SetMCommand != 0 && SetFanCommand == FanSpec::SetMCommand) :
-                (FanSpec::OffMCommand != 0 && OffFanCommand == FanSpec::OffMCommand)
-            )) {
-                handle_set_command(c, cmd, force, is_turn_off);
-                return false;
+            if (fan_number != FanSpec::Number) {
+                return true;
             }
-            return true;
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            if ((FanSpec::SetMCommand != 0 && FanSpec::SetMCommand != SetFanCommand && cmd->getCmdNumber(c) == FanSpec::SetMCommand) ||
-                (FanSpec::OffMCommand != 0 && FanSpec::OffMCommand != OffFanCommand && cmd->getCmdNumber(c) == FanSpec::OffMCommand)
-            ) {
-                bool force = cmd->find_command_param(c, 'F', nullptr);
-                if (force || cmd->tryPlannedCommand(c)) {
-                    bool is_turn_off = (cmd->getCmdNumber(c) == FanSpec::OffMCommand);
-                    handle_set_command(c, cmd, force, is_turn_off);
-                }
-                return false;
-            }
-            return true;
-        }
-        
-        static void handle_set_command (Context c, TheCommand *cmd, bool force, bool is_turn_off)
-        {
-            FpType target = 0.0f;
-            if (!is_turn_off) {
-                target = 1.0f;
-                if (cmd->find_command_param_fp(c, 'S', &target)) {
-                    target *= (FpType)FanSpec::SpeedMultiply::value();
+
+            FpType target;
+
+            if (cmd_type == FanCmdType::TurnOff) {
+                // M107 turns off the fan.
+                target = 0.0f;
+            } else {
+                // M106 contsols the fan based on the S parameter (cmd_value).
+                if (FloatIsNan(cmd_value)) {
+                    // S not supplied (or has NAN value), turn on to 100%.
+                    target = 1.0f;
+                } else {
+                    // S supplied, turn on according to the S value, but we need to divide
+                    // it by 255 since the convention is that 0-255 corresponds to 0-100%.
+                    target = cmd_value / 255.0f;
                 }
             }
             
@@ -809,6 +809,8 @@ private:
                 ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
                 ThePrinterMain::submitted_planner_command(c);
             }
+
+            return false;
         }
         
         template <typename TheJsonBuilder>
@@ -816,7 +818,7 @@ private:
         {
             FpType target = ThePwm::template getCurrentDutyFp<FpType>(c);
             
-            print_json_name<typename FanSpec::Name>(c, json);
+            print_json_ch_num(c, json, 'F', FanSpec::Number);
             json->entryValue();
             json->startObject();
             json->addSafeKeyVal("target", JsonDouble{target});
@@ -842,7 +844,7 @@ private:
     
     using HeatersList = IndexElemList<ParamsHeatersList, Heater>;
     using FansList = IndexElemList<ParamsFansList, Fan>;
-    
+
     using HeatersChannelPayloadUnion = Union<MapTypeList<HeatersList, GetMemberType_ChannelPayload>>;
     using FansChannelPayloadUnion = Union<MapTypeList<FansList, GetMemberType_ChannelPayload>>;
     
@@ -866,16 +868,37 @@ private:
     template <typename This=AuxControlModule>
     using PlannerChannelIndex = typename This::ThePrinterMain::template GetPlannerChannelIndex<PlannerChannelSpec>;
     
-    static void handle_set_heater_command (Context c, TheCommand *cmd, bool wait)
+    static void handle_set_heater_command (Context c, TheCommand *cmd, HeaterType heater_type, WaitMode wait_mode)
     {
-        bool force = !wait && cmd->find_command_param(c, 'F', nullptr);
-        if (wait ? !cmd->tryUnplannedCommand(c) : (!force && !cmd->tryPlannedCommand(c))) {
+        bool force = (wait_mode == WaitMode::NoWait) && cmd->find_command_param(c, 'F', nullptr);
+
+        if ((wait_mode == WaitMode::Wait) ?
+            !cmd->tryUnplannedCommand(c) : (!force && !cmd->tryPlannedCommand(c)))
+        {
             return;
         }
-        if (ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, wait, force, false))) &&
-            ListForBreak<HeatersList>([&] APRINTER_TL(heater, return heater::check_set_command(c, cmd, wait, force, true)))
-        ) {
-            if (NumHeaters > 0) {
+
+        uint32_t heater_number = 0;
+        bool heater_specified = false;
+        if (heater_type == HeaterType::Extruder) {
+            heater_specified = cmd->find_command_param_uint32(c, 'T', &heater_number);
+        }
+        if (!heater_specified) {
+            heater_specified = cmd->find_command_param_uint32(c, 'P', &heater_number);
+        }
+
+        FpType cmd_value = cmd->get_command_param_fp(c, 'S', NAN);
+
+        bool heaters_of_type_found = false;
+
+        if (ListForBreak<HeatersList>([&] APRINTER_TL(heater,
+            return heater::check_set_command(c, cmd, heater_type, wait_mode,
+                force, heater_number, cmd_value, &heaters_of_type_found))))
+        {
+            // Do not report an error if no heater number was explicitly specified and we
+            // do not have any heaters of this type, for compatibility with slicers that
+            // emit these commands without respect to the presence of heaters.
+            if (heater_specified || heaters_of_type_found) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
             }
             cmd->finishCommand(c);
@@ -895,16 +918,27 @@ private:
         cmd->reply_append_ch(c, '\n');
     }
     
-    static void handle_set_fan_command (Context c, TheCommand *cmd, bool is_turn_off)
+    static void handle_set_fan_command (Context c, TheCommand *cmd, FanCmdType cmd_type)
     {
         bool force = cmd->find_command_param(c, 'F', nullptr);
+
         if (!force && !cmd->tryPlannedCommand(c)) {
             return;
         }
-        if (ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, false))) &&
-            ListForBreak<FansList>([&] APRINTER_TL(fan, return fan::check_set_command(c, cmd, force, is_turn_off, true)))
-        ) {
-            if (NumFans > 0) {
+
+        uint32_t fan_number = 0;
+        bool fan_specified = cmd->find_command_param_uint32(c, 'P', &fan_number);
+
+        FpType cmd_value =
+            (cmd_type == FanCmdType::Set) ? cmd->get_command_param_fp(c, 'S', NAN) : NAN;
+        
+        if (ListForBreak<FansList>([&] APRINTER_TL(fan,
+            return fan::check_set_command(c, cmd, cmd_type, force, fan_number, cmd_value))))
+        {
+            // Do not report an error if no fan number was explicitly specified and we do
+            // not have any fans, for compatibility with slicers that emit these commands
+            // without respect to the presence of fans.
+            if (fan_specified || NumFans > 0) {
                 cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
             }
             cmd->finishCommand(c);
@@ -953,7 +987,7 @@ private:
     
     static void handle_clear_error_command (Context c, TheCommand *cmd)
     {
-        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::clear_error(c, cmd)));
+        ListFor<HeatersList>([&] APRINTER_TL(heater, heater::clear_error(c)));
         cmd->finishCommand(c);
     }
     
@@ -966,7 +1000,7 @@ private:
         } else {
             bool allow = (cmd->get_command_param_uint32(c, 'P', 0) > 0);
             HeatersMaskType heaters_mask = 0;
-            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::update_wait_mask(c, cmd, &heaters_mask)));
+            ListFor<HeatersList>([&] APRINTER_TL(heater, heater::update_cold_extrude_mask(c, cmd, &heaters_mask)));
             if (heaters_mask == 0) {
                 heaters_mask = AllHeatersMask;
             }
@@ -1054,11 +1088,6 @@ public:
     };
 };
 
-APRINTER_ALIAS_STRUCT(AuxControlName, (
-    APRINTER_AS_VALUE(char, Letter),
-    APRINTER_AS_VALUE(uint8_t, Number)
-))
-
 struct AuxControlNoColdExtrusionParams {
     static bool const Enabled = false;
 };
@@ -1071,9 +1100,8 @@ APRINTER_ALIAS_STRUCT_EXT(AuxControlColdExtrusionParams, (
 ))
 
 APRINTER_ALIAS_STRUCT(AuxControlModuleHeaterParams, (
-    APRINTER_AS_TYPE(Name),
-    APRINTER_AS_VALUE(int, SetMCommand),
-    APRINTER_AS_VALUE(int, SetWaitMCommand),
+    APRINTER_AS_VALUE(HeaterType, Type),
+    APRINTER_AS_VALUE(uint8_t, Number),
     APRINTER_AS_TYPE(AnalogInput),
     APRINTER_AS_TYPE(Formula),
     APRINTER_AS_TYPE(MinSafeTemp),
@@ -1086,10 +1114,7 @@ APRINTER_ALIAS_STRUCT(AuxControlModuleHeaterParams, (
 ))
 
 APRINTER_ALIAS_STRUCT(AuxControlModuleFanParams, (
-    APRINTER_AS_TYPE(Name),
-    APRINTER_AS_VALUE(int, SetMCommand),
-    APRINTER_AS_VALUE(int, OffMCommand),
-    APRINTER_AS_TYPE(SpeedMultiply),
+    APRINTER_AS_VALUE(uint8_t, Number),
     APRINTER_AS_TYPE(PwmService)
 ))
 

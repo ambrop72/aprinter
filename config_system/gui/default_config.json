@@ -4336,16 +4336,12 @@
       "board": "RADDS",
       "fans": [
         {
-          "Name": "T0",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "FET3 (fan 1)"
         },
         {
-          "Name": "T1",
-          "OffMCommand": 407,
-          "SetMCommand": 406,
+          "Number": 1,
           "_compoundName": "fan",
           "pwm_output": "FET2 (fan 2)"
         }
@@ -4354,10 +4350,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T0",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "T0",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -4395,10 +4392,11 @@
         {
           "MaxSafeTemp": 120,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "T4",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -4432,10 +4430,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T1",
-          "SetMCommand": 404,
-          "SetWaitMCommand": 409,
           "ThermistorInput": "T1",
+          "Type": {
+            "Number": 1,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -4810,16 +4809,12 @@
       "board": "RAMPS-FD",
       "fans": [
         {
-          "Name": "T0",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "FET5 (fan 1)"
         },
         {
-          "Name": "T1",
-          "OffMCommand": 407,
-          "SetMCommand": 406,
+          "Number": 1,
           "_compoundName": "fan",
           "pwm_output": "FET6 (fan 2)"
         }
@@ -4828,10 +4823,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T0",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "T1",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -4869,10 +4865,11 @@
         {
           "MaxSafeTemp": 120,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "T0",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -4906,10 +4903,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T1",
-          "SetMCommand": 404,
-          "SetWaitMCommand": 409,
           "ThermistorInput": "T2",
+          "Type": {
+            "Number": 1,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -5168,10 +5166,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T0",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "T1",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -5209,10 +5208,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T1",
-          "SetMCommand": 404,
-          "SetWaitMCommand": 409,
           "ThermistorInput": "T2",
+          "Type": {
+            "Number": 1,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -5250,10 +5250,11 @@
         {
           "MaxSafeTemp": 120,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "T0",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -5535,9 +5536,7 @@
       "board": "Teensy 3",
       "fans": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "Fan"
         }
@@ -5546,10 +5545,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "T",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -5761,9 +5761,7 @@
       "board": "RAMPS 1.3",
       "fans": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "D4"
         }
@@ -5772,10 +5770,11 @@
         {
           "MaxSafeTemp": 120,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "T1",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -5809,10 +5808,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "T0",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -6024,9 +6024,7 @@
       "board": "Melzi",
       "fans": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "fan"
         }
@@ -6035,10 +6033,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "etemp",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -6076,10 +6075,11 @@
         {
           "MaxSafeTemp": 120,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "btemp",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -6290,10 +6290,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "PF6",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -6327,10 +6328,11 @@
         {
           "MaxSafeTemp": 130,
           "MinSafeTemp": 10,
-          "Name": "B",
-          "SetMCommand": 140,
-          "SetWaitMCommand": 190,
           "ThermistorInput": "PC3",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Bed"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -6550,9 +6552,7 @@
       "board": "STM32F407-Discovery",
       "fans": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "LedOrange"
         }
@@ -6561,10 +6561,11 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "PA2",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "_compoundName": "NoColdExtrusionPrevention"
@@ -6938,10 +6939,11 @@
         {
           "MaxSafeTemp": 260,
           "MinSafeTemp": 10,
-          "Name": "T",
-          "SetMCommand": 104,
-          "SetWaitMCommand": 109,
           "ThermistorInput": "E0_THERMISTOR",
+          "Type": {
+            "Number": 0,
+            "_compoundName": "Extruder"
+          },
           "_compoundName": "heater",
           "cold_extrusion_prevention": {
             "ExtruderAxes": [
@@ -7315,6 +7317,9 @@
           "_compoundName": "CartesianAxes"
         },
         "DiagnalRod": 160,
+        "DiagonalRodCorr1": 0,
+        "DiagonalRodCorr2": 0,
+        "DiagonalRodCorr3": 0,
         "DimensionCount": 3,
         "EffectorOffset": 0,
         "IdentityAxes": [],
@@ -7360,9 +7365,7 @@
       "board": "Linux Test",
       "fans": [
         {
-          "Name": "T",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
+          "Number": 0,
           "_compoundName": "fan",
           "pwm_output": "SoftPwmTest"
         }

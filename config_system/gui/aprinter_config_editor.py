@@ -628,10 +628,21 @@ def editor():
                     ]
                 ),
             ]),
-            ce.Array(key='heaters', title='Heaters', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsable=True, ident='id_configuration_heater', attrs=[
-                ce.String(key='Name', title='Name (capital letter optionally followed by a number; T=extruder, B=bed)'),
-                ce.Integer(key='SetMCommand', title='Set command M-number (optional; M104 can set any heater)', default=0),
-                ce.Integer(key='SetWaitMCommand', title='Set-and-wait command M-number (optional; M109 can set any heater)', default=0),
+            ce.Array(key='heaters', title='Heaters', elem=ce.Compound('heater',
+                    title='Heater', collapsable=True, ident='id_configuration_heater',
+                    title_expr='vars.self.Type._compoundName + " #" + vars.self.Type.Number',
+                    attrs=[
+                ce.OneOf(key='Type', title='Heater type', choices=[
+                    ce.Compound('Extruder', title='Extruder heater (controlled via M104/M109)', attrs=[
+                        ce.Integer(key='Number', title='Extruder (tool) number, as in M104 T<number>', default=0),
+                    ]),
+                    ce.Compound('Bed', title='Bed heater (controlled via M140/M190)', attrs=[
+                        ce.Integer(key='Number', title='Bed number, as in M140 P<number>', default=0),
+                    ]),
+                    ce.Compound('Chamber', title='Chamber heater (controlled via M141/M191)', attrs=[
+                        ce.Integer(key='Number', title='Chamber number, as in M141 P<number>', default=0),
+                    ]),
+                ]),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
                 ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),
@@ -677,11 +688,11 @@ def editor():
                     ]),
                 ]),
             ])),
-            ce.Array(key='fans', title='Fans', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('fan', title='Fan', title_key='Name', collapsable=True, ident='id_configuration_fan', attrs=[
-                ce.String(key='Name', title='Name (capital letter optionally followed by a number)'),
+            ce.Array(key='fans', title='Fans (controlled via M106/M107)', elem=ce.Compound('fan',
+                    title='Fan', collapsable=True, ident='id_configuration_fan',
+                    title_expr='"Fan #" + vars.self.Number', attrs=[
+                ce.Integer(key='Number', title='Fan number, as in M106 P<number>', default=0),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
-                ce.Integer(key='SetMCommand', title='Set-command M-number (optional; M106 can set any fan)'),
-                ce.Integer(key='OffMCommand', title='Off-command M-number (optional; M107 can off any fan)'),
             ])),
             ce.Compound('ProbeConfig', key='probe_config', title='Bed probing configuration', collapsable=True, attrs=[
                 ce.OneOf(key='probe', title='Bed probing', choices=[

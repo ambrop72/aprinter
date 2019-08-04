@@ -247,12 +247,34 @@ var HeatersTable = React.createClass({
     onInputEnter: function(heater_name) {
         this.heaterSet(heater_name);
     },
+    getHeaterControlCommand: function(heater_name) {
+        var heaterType = heater_name.substring(0, 1);
+        var heaterNumber = heater_name.substring(1);
+        var mCommand;
+        if (heaterType == 'T') {
+            mCommand = 'M104';
+        }
+        else if (heaterType == 'B') {
+            mCommand = 'M140';
+        }
+        else if (heaterType == 'C') {
+            mCommand = 'M141';
+        }
+        else {
+            return {err: 'Unsupported heater type for '+heater_name};
+        }
+        return {res: mCommand+' P'+heaterNumber};
+    },
     makeSetHeaterGcode: function(heater_name) {
+        var baseCommand = this.getHeaterControlCommand(heater_name);
+        if ($has(baseCommand, 'err')) {
+            return {err: baseCommand.err};
+        }
         var target = this.props.controller.getNumberValue(heater_name);
         if (isNaN(target)) {
             return {err: 'Target value for heater '+heater_name+' is incorrect'};
         }
-        return {res: 'M104 F '+heater_name+' S'+target.toString()};
+        return {res: baseCommand.res+' S'+target.toString()+' F'};
     },
     heaterSet: function(heater_name) {
         var action = 'Set heater setpoint';
@@ -264,7 +286,12 @@ var HeatersTable = React.createClass({
         this.props.controller.cancel(heater_name);
     },
     heaterOff: function(heater_name) {
-        sendGcode('Turn off heater', 'M104 F '+heater_name+' Snan');
+        var action = 'Turn off heater';
+        var baseCommand = this.getHeaterControlCommand(heater_name);
+        if ($has(baseCommand, 'err')) {
+            return showError(action, baseCommand.err, null);
+        }
+        sendGcode(action, baseCommand.res+' Snan F');
         this.props.controller.cancel(heater_name);
     },
     allHeatersSet: function() {
@@ -353,12 +380,22 @@ var FansTable = React.createClass({
     onInputEnter: function(fan_name) {
         this.fanSet(fan_name);
     },
+    getFanNumber: function(fan_name) {
+        if (fan_name.substring(0, 1) != 'F') {
+            return {err: 'Bad fan name for '+fan_name};
+        }
+        return {res: fan_name.substring(1)};
+    },
     makeSetFanGcode: function(fan_name) {
+        var fan_number = this.getFanNumber(fan_name);
+        if ($has(fan_number, 'err')) {
+            return {err: fan_number.err};
+        }
         var target = this.props.controller.getNumberValue(fan_name);
         if (isNaN(target)) {
             return {err: 'Target value for fan '+fan_name+' is incorrect'};
         }
-        return {res: 'M106 F '+fan_name+' S'+(target/100*255).toPrecision(fanPrecision+3)};
+        return {res: 'M106 P'+fan_number.res+' S'+(target/100*255).toPrecision(fanPrecision+3)+' F'};
     },
     fanSet: function(fan_name) {
         var action = 'Set fan target';
@@ -370,7 +407,12 @@ var FansTable = React.createClass({
         this.props.controller.cancel(fan_name);
     },
     fanOff: function(fan_name) {
-        sendGcode('Turn off fan', 'M106 F '+fan_name+' S0');
+        var action = 'Turn off fan';
+        var fan_number = this.getFanNumber(fan_name);
+        if ($has(fan_number, 'err')) {
+            return showError(action, fan_number.err, null);
+        }
+        sendGcode(action, 'M107 P'+fan_number.res+' F');
         this.props.controller.cancel(fan_name);
     },
     allFansSet: function() {

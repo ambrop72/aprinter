@@ -67,6 +67,7 @@ class ConfigBase (object):
     def __init__ (self, **kwargs):
         self.title = _kwarg_maybe('title', kwargs)
         self.title_key = _kwarg_maybe('title_key', kwargs)
+        self.title_expr = _kwarg_maybe('title_expr', kwargs)
         self.collapsable = _kwarg_maybe('collapsable', kwargs, False)
         self.collapsed_initially = _kwarg_maybe('collapsed_initially', kwargs, True)
         self.ident = _kwarg_maybe('ident', kwargs)
@@ -77,13 +78,20 @@ class ConfigBase (object):
         self.kwargs = kwargs
     
     def json_schema (self):
+        if self.title_key is not None:
+            headerTemplate = 'return vars.self[{}]'.format(json.dumps(self.title_key))
+        elif self.title_expr is not None:
+            headerTemplate = 'return ({})'.format(self.title_expr)
+        else:
+            headerTemplate = None
+        
         return _merge_dicts(
             ({
                 'title': self.title
             } if self.title is not None else {}),
             ({
-                'headerTemplate': 'return vars.self[{}];'.format(json.dumps(self.title_key))
-            } if self.title_key is not None else {}),
+                'headerTemplate': headerTemplate
+            } if headerTemplate is not None else {}),
             ({
                 'id': self.ident
             } if self.ident is not None else {}),
