@@ -3,8 +3,8 @@ stdenv.mkDerivation {
     name = "typescript";
     
     src = fetchurl {
-        url = https://github.com/Microsoft/TypeScript/archive/v2.1.5.tar.gz;
-        sha256 = "5a7cfc8e51cdc8c79597b255935225a86db251723546a481632dcd6200cc0dbb";
+        url = https://github.com/microsoft/TypeScript/releases/download/v3.5.3/typescript-3.5.3.tgz;
+        sha256 = "0xrbh1jyr2nzpd8h8820w1a1hl8szf5apzzdz2zzjw4qf9hn81ky";
     };
     
     propagatedBuildInputs = [nodejs];
