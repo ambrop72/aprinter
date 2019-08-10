@@ -143,16 +143,17 @@ public:
         write_command(c);
     }
     
-    static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
+    static void cmdWriteBuffer (Context c, uint8_t const *data, size_t length)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(!is_full(c))
+        AMBRO_ASSERT(length > 0)
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
         cmd->type = COMMAND_WRITE_BUFFER;
-        cmd->byte = first_byte;
-        cmd->u.write_buffer.cur = data;
+        cmd->byte = data[0];
+        cmd->u.write_buffer.cur = data + 1;
         cmd->u.write_buffer.end = data + length;
         write_command(c);
     }

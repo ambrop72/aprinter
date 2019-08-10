@@ -151,9 +151,10 @@ private:
         
         o->m_pending[dev_channel] = false;
         o->m_current_channel = dev_channel;
-        o->m_current_data = o->m_data[dev_channel];
+        o->m_command_data[0] = dev_channel;
+        o->m_command_data[1] = o->m_data[dev_channel];
         Context::Pins::template set<typename Params::SsPin>(c, false);
-        TheSpi::cmdWriteBuffer(c, dev_channel, &o->m_current_data, 1);
+        TheSpi::cmdWriteBuffer(c, o->m_command_data, 2);
     }
     
     struct SpiHandler : public AMBRO_WFUNC_TD(&Ad5206Current::spi_handler) {};
@@ -171,7 +172,7 @@ public:
         bool m_delaying;
         uint8_t m_data[NumDevChannels];
         bool m_pending[NumDevChannels];
-        uint8_t m_current_data;
+        uint8_t m_command_data[2];
     };
 };
 

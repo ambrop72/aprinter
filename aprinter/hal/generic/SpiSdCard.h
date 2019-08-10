@@ -67,6 +67,8 @@ private:
     static TimeType const IdleStateTimeoutTicks = 1.2 * TheClockUtils::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
     static TimeType const WriteBusyTimeoutTicks = 5.0 * TheClockUtils::time_freq;
+
+    static size_t const CommandBufSize = 7;
     
 public:
     using BlockIndexType = uint32_t;
@@ -219,16 +221,17 @@ private:
     {
         auto *o = Object::self(c);
         
-        request_buf[0] = cmd | 0x40;
-        request_buf[1] = param >> 24;
-        request_buf[2] = param >> 16;
-        request_buf[3] = param >> 8;
-        request_buf[4] = param;
-        request_buf[5] = 1;
+        request_buf[0] = 0xff;
+        request_buf[1] = cmd | 0x40;
+        request_buf[2] = param >> 24;
+        request_buf[3] = param >> 16;
+        request_buf[4] = param >> 8;
+        request_buf[5] = param >> 0;
+        request_buf[6] = 1;
         if (checksum) {
-            request_buf[5] |= crc7(request_buf, 5, 0) << 1;
+            request_buf[6] |= crc7(request_buf + 1, 5, 0) << 1;
         }
-        TheSpi::cmdWriteBuffer(c, 0xff, request_buf, 6);
+        TheSpi::cmdWriteBuffer(c, request_buf, 7);
         TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, response_buf);
     }
     
@@ -416,10 +419,11 @@ private:
                 if (o->m_io_buf[0] != 0) {
                     goto complete_request;
                 }
-                TheSpi::cmdWriteBuffer(c, 0xfe, o->m_request_buf, BlockSize);
+                TheSpi::cmdWriteByte(c, 0xfe, 0);
+                TheSpi::cmdWriteBuffer(c, o->m_request_buf, BlockSize);
                 uint16_t checksum = CrcItuTUpdate(CrcItuTInitial, (char const *)o->m_request_buf, BlockSize);
                 WriteBinaryInt<uint16_t, BinaryBigEndian>(checksum, (char *)o->m_io_buf);
-                TheSpi::cmdWriteBuffer(c, o->m_io_buf[0], o->m_io_buf + 1, 1);
+                TheSpi::cmdWriteBuffer(c, o->m_io_buf, 2);
                 o->m_io_state = IO_STATE_WRITING_DATA;
                 return;
             } break;
@@ -498,12 +502,12 @@ public:
         typename TheClockUtils::PollTimer m_poll_timer;
         union {
             struct {
-                uint8_t m_buf1[6];
-                uint8_t m_buf2[6];
+                uint8_t m_buf1[CommandBufSize];
+                uint8_t m_buf2[CommandBufSize];
             };
             struct {
                 uint32_t m_capacity_blocks;
-                uint8_t m_io_buf[6];
+                uint8_t m_io_buf[CommandBufSize];
                 DataWordType *m_request_buf;
             };
         };
