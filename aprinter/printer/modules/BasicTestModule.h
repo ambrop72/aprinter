@@ -84,6 +84,14 @@ public:
                 cmd->finishCommand(c);
             } break;
             
+#ifdef APRINTER_HAS_GET_HEAP_USAGE
+            case 919: { // get heap usage
+                cmd->reply_append_uint32(c, aprinter_get_heap_usage());
+                cmd->reply_append_ch(c, '\n');
+                cmd->finishCommand(c);
+            } break;
+#endif
+
             case 920: { // get underrun count
                 cmd->reply_append_uint32(c, o->underrun_count);
                 cmd->reply_append_ch(c, '\n');

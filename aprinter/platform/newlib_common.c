@@ -40,26 +40,30 @@ void _init (void)
 }
 
 #ifndef APRINTER_NO_SBRK
+
+__attribute__((used))
+__attribute__((aligned(sizeof(void *))))
+char aprinter_heap[HEAP_SIZE];
+
+char *aprinter_heap_end = aprinter_heap;
+
 __attribute__((used))
 void * _sbrk (ptrdiff_t incr)
 {
-    extern char _end;
-    static char *heap_end = 0;
-    char *prev_heap_end;
-
-    if (heap_end == 0) {
-        heap_end = &_end;
-    }
-    prev_heap_end = heap_end;
-
-    if ((heap_end + incr) > &_end + HEAP_SIZE) {
+    if (incr > aprinter_heap + HEAP_SIZE - aprinter_heap_end) {
         errno = ENOMEM;
         return (void *)-1;
     }
-    
-    heap_end += incr;
+    char *prev_heap_end = aprinter_heap_end;
+    aprinter_heap_end += incr;
     return prev_heap_end;
 }
+
+size_t aprinter_get_heap_usage()
+{
+    return aprinter_heap_end - aprinter_heap;
+}
+
 #endif
 
 __attribute__((used))

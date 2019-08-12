@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2019 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,31 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STM32F4_SUPPORT_H
-#define AMBROLIB_STM32F4_SUPPORT_H
+#ifndef APRINTER_NEWLIB_COMMON_H
+#define APRINTER_NEWLIB_COMMON_H
 
-#include <stdint.h>
+#include <cstddef>
 
-#include <stm32f4xx.h>
+#ifndef APRINTER_NO_SBRK
 
-#ifdef APRINTER_ENABLE_USB
-#include <usbd_def.h>
-#endif
+#define APRINTER_HAS_GET_HEAP_USAGE 1
 
-#include <aprinter/platform/arm_cortex_common.h>
-#include <aprinter/platform/newlib_common.h>
+extern "C" std::size_t aprinter_get_heap_usage();
 
-#define F_CPU (((double)HSE_VALUE * PLL_N_VALUE) / ((double)PLL_P_DIV_VALUE * PLL_M_VALUE))
-#define APB1_TIMERS_DIV (APB1_PRESC_DIV == 1 ? APB1_PRESC_DIV : (APB1_PRESC_DIV / 2))
-#define APB2_TIMERS_DIV (APB2_PRESC_DIV == 1 ? APB2_PRESC_DIV : (APB2_PRESC_DIV / 2))
-
-#define INTERRUPT_PRIORITY 4
-
-void platform_init (void);
-void platform_init_final (void);
-
-#ifdef APRINTER_ENABLE_USB
-extern USBD_HandleTypeDef USBD_Device;
 #endif
 
 #endif

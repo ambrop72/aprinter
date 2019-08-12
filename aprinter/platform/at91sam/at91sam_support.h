@@ -36,6 +36,7 @@
 #endif
 
 #include <aprinter/platform/arm_cortex_common.h>
+#include <aprinter/platform/newlib_common.h>
 
 #define F_SCLK CHIP_FREQ_SLCK_RC
 #define F_MCK CHIP_FREQ_CPU_MAX
