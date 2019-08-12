@@ -143,7 +143,7 @@
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
-        "LookaheadBufferSize": 48,
+        "LookaheadBufferSize": 64,
         "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
@@ -168,7 +168,7 @@
         },
         "platform": {
           "AsfBoardNum": 43,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -275,7 +275,7 @@
             "primary_timer": "TC8"
           },
           "millisecond_clock": {
-            "_compoundName": "NoMillisecondClock"
+            "_compoundName": "ArmSysTickMillisecondClock"
           },
           "pins": {
             "_compoundName": "At91SamPins",
@@ -424,7 +424,7 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "BufferBaseSize": 2048,
+          "BufferBaseSize": 1536,
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
@@ -435,16 +435,16 @@
               "_compoundName": "GcodeUpload"
             },
             "HaveAccessInterface": true,
-            "MaxFileNameSize": 256,
+            "MaxFileNameSize": 128,
             "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 16,
+            "MaxParts": 10,
             "_compoundName": "TextGcodeParser"
           },
-          "MaxCommandSize": 256,
+          "MaxCommandSize": 128,
           "SdCardService": {
             "SpiService": {
               "Device": "At91Sam3xSpiDevice",
@@ -459,7 +459,7 @@
       "serial_ports": [
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -469,7 +469,7 @@
         },
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -730,7 +730,7 @@
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
-        "LookaheadBufferSize": 48,
+        "LookaheadBufferSize": 64,
         "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
@@ -755,7 +755,7 @@
         },
         "platform": {
           "AsfBoardNum": 43,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -862,7 +862,7 @@
             "primary_timer": "TC8"
           },
           "millisecond_clock": {
-            "_compoundName": "NoMillisecondClock"
+            "_compoundName": "ArmSysTickMillisecondClock"
           },
           "pins": {
             "_compoundName": "At91SamPins",
@@ -979,7 +979,7 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "BufferBaseSize": 2048,
+          "BufferBaseSize": 1536,
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
@@ -990,16 +990,16 @@
               "_compoundName": "GcodeUpload"
             },
             "HaveAccessInterface": true,
-            "MaxFileNameSize": 256,
+            "MaxFileNameSize": 128,
             "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 16,
+            "MaxParts": 10,
             "_compoundName": "TextGcodeParser"
           },
-          "MaxCommandSize": 256,
+          "MaxCommandSize": 128,
           "SdCardService": {
             "SpiService": {
               "Device": "At91Sam3xSpiDevice",
@@ -1014,7 +1014,7 @@
       "serial_ports": [
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -1024,7 +1024,7 @@
         },
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -1288,7 +1288,7 @@
       },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 36,
+        "EventChannelBufferSize": 18,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
@@ -1316,7 +1316,7 @@
         },
         "platform": {
           "AsfBoardNum": 33,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "StackSize": 4096,
           "_compoundName": "At91Sam3u4e",
           "adc": {
@@ -1427,7 +1427,7 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "BufferBaseSize": 2048,
+          "BufferBaseSize": 1536,
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
@@ -1438,16 +1438,16 @@
               "_compoundName": "GcodeUpload"
             },
             "HaveAccessInterface": true,
-            "MaxFileNameSize": 256,
+            "MaxFileNameSize": 128,
             "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 16,
+            "MaxParts": 10,
             "_compoundName": "TextGcodeParser"
           },
-          "MaxCommandSize": 256,
+          "MaxCommandSize": 128,
           "SdCardService": {
             "SdioService": {
               "IsWideMode": true,
@@ -1463,7 +1463,7 @@
       "serial_ports": [
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -2884,7 +2884,7 @@
           "APB1_PRESC_DIV": 4,
           "APB2_PRESC_DIV": 2,
           "HSE_VALUE": 8000000,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "PLL_M_VALUE": 8,
           "PLL_N_VALUE": 336,
           "PLL_P_DIV_VALUE": 2,
@@ -3247,7 +3247,7 @@
           "APB1_PRESC_DIV": 4,
           "APB2_PRESC_DIV": 2,
           "HSE_VALUE": 8000000,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "PLL_M_VALUE": 8,
           "PLL_N_VALUE": 336,
           "PLL_P_DIV_VALUE": 2,
@@ -3532,7 +3532,7 @@
         "NetworkTestModule": {
           "_compoundName": "Disabled"
         },
-        "VerboseBuild": true,
+        "VerboseBuild": false,
         "WatchdogDebugMode": false,
         "_compoundName": "development"
       },
@@ -3579,8 +3579,8 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "ArpProtectCount": 8,
-          "ArpTableTimersStructureService": "LinkedHeap",
+          "ArpProtectCount": 5,
+          "ArpTableTimersStructureService": "SortedList",
           "DhcpEnabled": true,
           "EthernetDriver": {
             "MiiDriver": {
@@ -3600,16 +3600,16 @@
           "IpNetmask": "255.255.255.0",
           "LinkWithArrayIndices": true,
           "MacAddress": "BE:EF:DE:AD:FE:ED",
-          "MaxReassHoles": 10,
+          "MaxReassHoles": 4,
           "MaxReassPackets": 1,
           "MaxReassSize": 1480,
           "MaxReassTimeSeconds": 60,
           "MtuIndexService": "MruListIndex",
           "MtuTimeoutMinutes": 10,
           "NetEnabled": true,
-          "NumArpEntries": 16,
+          "NumArpEntries": 10,
           "NumOosSegs": 2,
-          "NumTcpPcbs": 25,
+          "NumTcpPcbs": 20,
           "PcbIndexService": "MruListIndex",
           "TcpWndUpdThrDiv": 5,
           "_compoundName": "Network",
@@ -3648,18 +3648,18 @@
       },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 24,
+        "EventChannelBufferSize": 25,
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
-        "LookaheadBufferSize": 32,
-        "LookaheadCommitCount": 8,
+        "LookaheadBufferSize": 36,
+        "LookaheadCommitCount": 9,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
         "OptimizeLibcForSize": false,
-        "StepperSegmentBufferSize": 48,
+        "StepperSegmentBufferSize": 50,
         "_compoundName": "performance"
       },
       "platform_config": {
@@ -3676,7 +3676,7 @@
         },
         "platform": {
           "AsfBoardNum": 43,
-          "HeapSize": 16384,
+          "HeapSize": 4096,
           "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
@@ -3864,10 +3864,10 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "BufferBaseSize": 2048,
+          "BufferBaseSize": 1536,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": true,
+            "EnableFsTest": false,
             "EnableReadHinting": true,
             "FsWritable": true,
             "GcodeUpload": {
@@ -3875,20 +3875,20 @@
               "_compoundName": "GcodeUpload"
             },
             "HaveAccessInterface": true,
-            "MaxFileNameSize": 256,
-            "MaxIoBlocks": 24,
-            "NumCacheEntries": 24,
+            "MaxFileNameSize": 128,
+            "MaxIoBlocks": 20,
+            "NumCacheEntries": 20,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 16,
+            "MaxParts": 10,
             "_compoundName": "TextGcodeParser"
           },
-          "MaxCommandSize": 256,
+          "MaxCommandSize": 128,
           "SdCardService": {
             "SdioService": {
               "IsWideMode": true,
-              "MaxIoDescriptors": 24,
+              "MaxIoDescriptors": 20,
               "Slot": 0,
               "_compoundName": "At91SamSdio"
             },
@@ -3900,7 +3900,7 @@
       "serial_ports": [
         {
           "BaudRate": 115200,
-          "GcodeMaxParts": 16,
+          "GcodeMaxParts": 11,
           "RecvBufferSizeExp": 8,
           "SendBufferSizeExp": 10,
           "Service": {
@@ -7415,6 +7415,6 @@
       }
     }
   ],
-  "selected_config": "Fisher example",
+  "selected_config": "RADDS example",
   "version": 1
 }
