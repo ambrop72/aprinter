@@ -40,6 +40,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/avr/AvrPins.h>
 
 namespace APrinter {
@@ -52,6 +53,10 @@ class AvrSpi {
     static int const CommandBufferBits = Arg::CommandBufferBits;
     using Params                       = typename Arg::Params;
     
+    using Clock = typename Context::Clock;
+    using TimeType = typename Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
+
     template <bool TSpi2x, bool TSpr1, bool TSpr0>
     struct SpiSpeed {
         static bool const Spi2x = TSpi2x;
@@ -91,7 +96,7 @@ class AvrSpi {
             struct {
                 uint8_t *data;
                 uint8_t target_byte;
-                uint8_t remain;
+                TimeType timeout;
             } read_until_different;
             struct {
                 uint8_t const *cur;
@@ -163,7 +168,7 @@ public:
         write_command(c);
     }
     
-    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
+    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t send_byte, TimeType rel_timeout, uint8_t *data)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -174,7 +179,7 @@ public:
         cmd->byte = send_byte;
         cmd->u.read_until_different.data = data;
         cmd->u.read_until_different.target_byte = target_byte;
-        cmd->u.read_until_different.remain = max_extra_length;
+        cmd->u.read_until_different.timeout = rel_timeout;
         write_command(c);
     }
     
@@ -260,8 +265,9 @@ public:
             case COMMAND_READ_UNTIL_DIFFERENT: {
                 uint8_t byte = SPDR;
                 *cmd->u.read_until_different.data = byte;
-                if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte && cmd->u.read_until_different.remain != 0)) {
-                    cmd->u.read_until_different.remain--;
+                if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte &&
+                    !TheClockUtils::timeGreaterOrEqual(Clock::getTime(c), cmd->u.read_until_different.timeout)))
+                {
                     SPDR = cmd->byte;
                     return;
                 }
@@ -287,6 +293,7 @@ public:
         o->m_start = BoundedModuloInc(o->m_start);
         if (AMBRO_LIKELY(o->m_start != o->m_end)) {
             o->m_current = &o->m_buffer[o->m_start.value()];
+            start_command_common(c);
             SPDR = o->m_current->byte;
         }
     }
@@ -350,8 +357,20 @@ private:
         }
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
+            start_command_common(c);
             memory_barrier();
             SPDR = o->m_current->byte;
+        }
+    }
+
+    template <typename ThisContext>
+    static void start_command_common (ThisContext c)
+    {
+        auto *o = Object::self(c);
+        Command *cmd = o->m_current;
+
+        if (cmd->type == COMMAND_READ_UNTIL_DIFFERENT) {
+            cmd->u.read_until_different.timeout = Clock::getTime(c) + cmd->u.read_until_different.timeout;
         }
     }
     

@@ -64,6 +64,7 @@ private:
     using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename TheClockUtils::TimeType;
     
+    static TimeType const ResponseTimeoutTicks = 1.0 * TheClockUtils::time_freq;
     static TimeType const IdleStateTimeoutTicks = 1.2 * TheClockUtils::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
     static TimeType const WriteBusyTimeoutTicks = 5.0 * TheClockUtils::time_freq;
@@ -154,7 +155,7 @@ public:
         uint32_t addr = o->m_sdhc ? block : (block * 512);
         sd_command(c, (is_write ? CMD_WRITE_BLOCK : CMD_READ_SINGLE_BLOCK), addr, true, o->m_io_buf, o->m_io_buf);
         if (!is_write) {
-            TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_io_buf + 1);
+            TheSpi::cmdReadUntilDifferent(c, 0xff, 0xff, ResponseTimeoutTicks, o->m_io_buf + 1);
         }
         o->m_io_state = is_write ? IO_STATE_WRITING_CMD : IO_STATE_READING_CMD;
     }
@@ -232,14 +233,14 @@ private:
             request_buf[6] |= crc7(request_buf + 1, 5, 0) << 1;
         }
         TheSpi::cmdWriteBuffer(c, request_buf, 7);
-        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, response_buf);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 0xff, ResponseTimeoutTicks, response_buf);
     }
     
     static void sd_send_csd (Context c)
     {
         auto *o = Object::self(c);
         sd_command(c, CMD_SEND_CSD, 0, true, o->m_buf1, o->m_buf1);
-        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_buf1 + 1);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 0xff, ResponseTimeoutTicks, o->m_buf1 + 1);
     }
     
     static void sd_receive_csd (Context c)
@@ -439,19 +440,14 @@ private:
                 if ((data_response & 0x1F) != 5) {
                     goto complete_request;
                 }
-                TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
+                TheSpi::cmdReadUntilDifferent(c, 0x00, 0xff, WriteBusyTimeoutTicks, o->m_io_buf);
                 o->m_io_state = IO_STATE_WRITING_BUSY;
-                o->m_poll_timer.setAfter(c, WriteBusyTimeoutTicks);
                 return;
             } break;
             
             case IO_STATE_WRITING_BUSY: {
                 if (o->m_io_buf[0] == 0x00) {
-                    if (o->m_poll_timer.isExpired(c)) {
-                        goto complete_request;
-                    }
-                    TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
-                    return;
+                    goto complete_request;
                 }
                 sd_command(c, CMD_SEND_STATUS, 0, true, o->m_io_buf, o->m_io_buf);
                 TheSpi::cmdReadBuffer(c, o->m_io_buf + 1, 1, 0xff);
