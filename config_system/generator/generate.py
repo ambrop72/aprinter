@@ -1218,39 +1218,50 @@ def use_pwm_output (gen, config, key, user, username, hard=False):
     
     return pwm_output.do_selection('Backend', backend_sel)
 
-def use_spi (gen, config, key, user):
-    spi_sel = selection.Selection()
+def use_sw_spi_ll (gen, config, key, user):
+    sel = selection.Selection()
     
-    @spi_sel.option('At91SamSpi')
-    def option(spi_config):
-        gen.add_aprinter_include('hal/at91/At91SamSpi.h')
-        devices = {
-            'At91Sam3xSpiDevice':'AMBRO_AT91SAM3X_SPI_GLOBAL',
-            'At91Sam3uSpiDevice':'AMBRO_AT91SAM3U_SPI_GLOBAL'
-        }
-        dev = spi_config.get_identifier('Device')
+    @sel.option('At91SamSpiSwSpiLL')
+    def option(config):
+        gen.add_aprinter_include('hal/at91/At91SamSpiSwSpiLL.h')
+        devices = ['SPI0', 'SPI']
+        dev = config.get_identifier('Device')
         if dev not in devices:
-            spi_config.path().error('Incorrect SPI device.')
-        gen.add_isr('{}({}, Context())'.format(devices[dev], user))
-        return TemplateExpr('At91SamSpiService', [dev])
-    
-    @spi_sel.option('At91SamUsartSpi')
-    def option(spi_config):
-        gen.add_aprinter_include('hal/at91/At91SamUsartSpi.h')
-        dev_index = spi_config.get_int('DeviceIndex')
-        gen.add_isr('APRINTER_AT91SAM_USART_SPI_GLOBAL({}, {}, Context())'.format(dev_index, user))
-        return TemplateExpr('At91SamUsartSpiService', [
-            'At91SamUsartSpiDevice{}'.format(dev_index),
-            spi_config.get_int('ClockDivider'),
+            config.key_path('Device').error('Incorrect SPI device.')
+        gen.add_isr('APRINTER_AT91SAM_SPI_SW_SPI_LL_GLOBAL({}, {}, Context())'.format(dev, user))
+        return TemplateExpr('At91SamSpiSwSpiLL', [
+            'At91SamSpiSwSpiLLDevice{}'.format(dev)
         ])
     
-    @spi_sel.option('AvrSpi')
-    def option(spi_config):
+    @sel.option('At91SamUsartSwSpiLL')
+    def option(config):
+        gen.add_aprinter_include('hal/at91/At91SamUsartSwSpiLL.h')
+        dev_index = config.get_int('DeviceIndex')
+        gen.add_isr('APRINTER_AT91SAM_USART_SW_SPI_LL_GLOBAL({}, {}, Context())'.format(dev_index, user))
+        return TemplateExpr('At91SamUsartSwSpiLL', [
+            'At91SamUsartSwSpiLLDeviceUSART{}'.format(dev_index),
+            config.get_int('ClockDivider'),
+        ])
+    
+    return config.do_selection(key, sel)
+
+def use_spi (gen, config, key, user):
+    sel = selection.Selection()
+    
+    @sel.option('SoftwareSpi')
+    def option(config):
+        gen.add_aprinter_include('hal/generic/SoftwareSpi.h')
+        return TemplateExpr('SoftwareSpi', [
+            use_sw_spi_ll(gen, config, 'LLDriver', '{}::GetLLDriver'.format(user)),
+        ])
+    
+    @sel.option('AvrSpi')
+    def option(config):
         gen.add_aprinter_include('hal/avr/AvrSpi.h')
         gen.add_isr('AMBRO_AVR_SPI_ISRS({}, Context())'.format(user))
-        return TemplateExpr('AvrSpiService', [spi_config.get_int('SpeedDiv')])
+        return TemplateExpr('AvrSpiService', [config.get_int('SpeedDiv')])
     
-    return config.do_selection(key, spi_sel)
+    return config.do_selection(key, sel)
 
 def use_sdio (gen, config, key, user):
     sdio_sel = selection.Selection()

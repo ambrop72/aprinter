@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_SIMPLE_SPI_H
-#define APRINTER_SIMPLE_SPI_H
+#ifndef APRINTER_SOFTWARE_SPI_H
+#define APRINTER_SOFTWARE_SPI_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -43,7 +43,7 @@
 namespace APrinter {
 
 template <typename Arg>
-class SimpleSpi {
+class SoftwareSpiImpl {
     using Context                      = typename Arg::Context;
     using ParentObject                 = typename Arg::ParentObject;
     using Handler                      = typename Arg::Handler;
@@ -54,10 +54,10 @@ public:
     struct Object;
     
 private:
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<SimpleSpi>;
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<SoftwareSpiImpl>;
     using TheDebugObject = DebugObject<Context, Object>;
-    struct DriverTransferCompleteHandler;
-    using TheDriver = typename Params::Driver::template SimpleSpiDriver<Context, Object, DriverTransferCompleteHandler>;
+    struct LLDriverTransferCompleteHandler;
+    using TheLLDriver = typename Params::LLDriver::template SwSpiLL<Context, Object, LLDriverTransferCompleteHandler>;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
@@ -99,11 +99,11 @@ public:
     {
         auto *o = Object::self(c);
         
-        Context::EventLoop::template initFastEvent<FastEvent>(c, SimpleSpi::event_handler);
+        Context::EventLoop::template initFastEvent<FastEvent>(c, SoftwareSpiImpl::event_handler);
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
-        TheDriver::init(c);
+        TheLLDriver::init(c);
         
         TheDebugObject::init(c);
     }
@@ -112,7 +112,7 @@ public:
     {
         TheDebugObject::deinit(c);
         
-        TheDriver::deinit(c);
+        TheLLDriver::deinit(c);
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
@@ -209,7 +209,7 @@ public:
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
-    using GetDriver = TheDriver;
+    using GetLLDriver = TheLLDriver;
     
 private:
     static void driver_transfer_complete_handler (InterruptContext<Context> c, uint8_t byte)
@@ -225,7 +225,7 @@ private:
                 cur++;
                 if (AMBRO_UNLIKELY(cur != cmd->u.read_buffer.end)) {
                     cmd->u.read_buffer.cur = cur;
-                    TheDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::nextByte(c, cmd->byte);
                     return;
                 }
             } break;
@@ -234,7 +234,7 @@ private:
                 if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte &&
                     !TheClockUtils::timeGreaterOrEqual(Clock::getTime(c), cmd->u.read_until_different.timeout)))
                 {
-                    TheDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::nextByte(c, cmd->byte);
                     return;
                 }
             } break;
@@ -242,7 +242,7 @@ private:
                 if (AMBRO_UNLIKELY(cmd->u.write_buffer.cur != cmd->u.write_buffer.end)) {
                     uint8_t out = *cmd->u.write_buffer.cur;
                     cmd->u.write_buffer.cur++;
-                    TheDriver::nextByte(c, out);
+                    TheLLDriver::nextByte(c, out);
                     return;
                 }
             } break;
@@ -250,7 +250,7 @@ private:
             case COMMAND_WRITE_BYTE: {
                 if (AMBRO_UNLIKELY(cmd->u.write_byte.count != 0)) {
                     cmd->u.write_byte.count--;
-                    TheDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::nextByte(c, cmd->byte);
                     return;
                 }
             } break;
@@ -260,12 +260,12 @@ private:
         if (AMBRO_LIKELY(o->m_start != o->m_end)) {
             o->m_current = &o->m_buffer[o->m_start.value()];
             start_command_common(c);
-            TheDriver::nextByte(c, o->m_current->byte);
+            TheLLDriver::nextByte(c, o->m_current->byte);
         } else {
-            TheDriver::noNextByte(c);
+            TheLLDriver::noNextByte(c);
         }
     }
-    struct DriverTransferCompleteHandler : public AMBRO_WFUNC_TD(&SimpleSpi::driver_transfer_complete_handler) {};
+    struct LLDriverTransferCompleteHandler : public AMBRO_WFUNC_TD(&SoftwareSpiImpl::driver_transfer_complete_handler) {};
     
     using EventLoopFastEvents = MakeTypeList<FastEvent>;
     
@@ -308,7 +308,7 @@ private:
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
             start_command_common(c);
-            TheDriver::startTransfer(c, o->m_current->byte);
+            TheLLDriver::startTransfer(c, o->m_current->byte);
         }
     }
 
@@ -324,9 +324,9 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<SimpleSpi, ParentObject, MakeTypeList<
+    struct Object : public ObjBase<SoftwareSpiImpl, ParentObject, MakeTypeList<
         TheDebugObject,
-        TheDriver
+        TheLLDriver
     >> {
         CommandSizeType m_start;
         CommandSizeType m_end;
@@ -335,11 +335,9 @@ public:
     };
 };
 
-template <
-    typename TDriver
->
-struct SimpleSpiService {
-    using Driver = TDriver;
+template <typename LLDriver_>
+struct SoftwareSpi {
+    using LLDriver = LLDriver_;
     
     APRINTER_ALIAS_STRUCT_EXT(Spi, (
         APRINTER_AS_TYPE(Context),
@@ -347,8 +345,8 @@ struct SimpleSpiService {
         APRINTER_AS_TYPE(Handler),
         APRINTER_AS_VALUE(int, CommandBufferBits)
     ), (
-        using Params = SimpleSpiService;
-        APRINTER_DEF_INSTANCE(Spi, SimpleSpi)
+        using Params = SoftwareSpi;
+        APRINTER_DEF_INSTANCE(Spi, SoftwareSpiImpl)
     ))
 };
 

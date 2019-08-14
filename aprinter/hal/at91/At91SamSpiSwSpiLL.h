@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AT91SAM_SPI_H
-#define AMBROLIB_AT91SAM_SPI_H
+#ifndef APRINTER_AT91SAM_SPI_SW_SPI_LL_H
+#define APRINTER_AT91SAM_SPI_SW_SPI_LL_H
 
 #include <stdint.h>
 
@@ -31,7 +31,6 @@
 
 #include <aprinter/base/Assert.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/hal/generic/SimpleSpi.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
 namespace APrinter {
@@ -44,7 +43,7 @@ template <
     typename TMosiPin,
     typename TMisoPin
 >
-struct At91SamSpiDevice {
+struct At91SamSpiSwSpiLLDevice {
     static Spi * spi () { return (Spi *)TSpiAddr; }
     static int const SpiId = TSpiId;
     static enum IRQn const SpiIrq = TSpiIrq;
@@ -54,7 +53,7 @@ struct At91SamSpiDevice {
 };
 
 template <typename Context, typename ParentObject, typename TransferCompleteHandler, typename Device>
-class At91SamSimpleSpi {
+class At91SamSpiSwSpiLLImpl {
 public:
     static void init (Context c)
     {
@@ -118,57 +117,42 @@ public:
 };
 
 template <typename Device>
-struct At91SamSimpleSpiService {
+struct At91SamSpiSwSpiLL {
     template <typename Context, typename ParentObject, typename TransferCompleteHandler>
-    using SimpleSpiDriver = At91SamSimpleSpi<Context, ParentObject, TransferCompleteHandler, Device>;
+    using SwSpiLL = At91SamSpiSwSpiLLImpl<Context, ParentObject, TransferCompleteHandler, Device>;
 };
 
+#define APRINTER_AT91SAM_SPI_SW_SPI_LL_GLOBAL(spi_name, TheSwSpiLL, context) \
+extern "C" \
+__attribute__((used)) \
+void spi_name##_Handler (void) \
+{ \
+    TheSwSpiLL::spi_irq(MakeInterruptContext(context)); \
+}
 
-template <typename Device>
-using At91SamSpiService = SimpleSpiService<At91SamSimpleSpiService<Device>>;
+#define APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(spi_name, SckPin, MosiPin, MisoPin) \
+struct At91SamSpiSwSpiLLDevice##spi_name : public At91SamSpiSwSpiLLDevice< \
+    GET_PERIPHERAL_ADDR(spi_name), ID_##spi_name, spi_name##_IRQn, \
+    SckPin, MosiPin, MisoPin> {};
 
 #if defined(__SAM3X8E__)
 
-struct At91Sam3xSpiDevice : public At91SamSpiDevice<
-    GET_PERIPHERAL_ADDR(SPI0),
-    ID_SPI0,
-    SPI0_IRQn, 
-    At91SamPin<At91SamPioA, 27>,
-    At91SamPin<At91SamPioA, 26>,
-    At91SamPin<At91SamPioA, 25>
-> {};
-
-#define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
-extern "C" \
-__attribute__((used)) \
-void SPI0_Handler (void) \
-{ \
-    thespi::GetDriver::spi_irq(MakeInterruptContext(context)); \
-}
+APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(SPI0, \
+    decltype(At91SamPin<At91SamPioA, 27>()), \
+    decltype(At91SamPin<At91SamPioA, 26>()), \
+    decltype(At91SamPin<At91SamPioA, 25>()) \
+)
 
 #elif defined(__SAM3U4E__)
 
-struct At91Sam3uSpiDevice : public At91SamSpiDevice<
-    GET_PERIPHERAL_ADDR(SPI),
-    ID_SPI,
-    SPI_IRQn, 
-    At91SamPin<At91SamPioA, 15>,
-    At91SamPin<At91SamPioA, 14>,
-    At91SamPin<At91SamPioA, 13>
-> {};
-
-#define AMBRO_AT91SAM3U_SPI_GLOBAL(thespi, context) \
-extern "C" \
-__attribute__((used)) \
-void SPI_Handler (void) \
-{ \
-    thespi::GetDriver::spi_irq(MakeInterruptContext(context)); \
-}
+APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(SPI, \
+    decltype(At91SamPin<At91SamPioA, 15>()), \
+    decltype(At91SamPin<At91SamPioA, 14>()), \
+    decltype(At91SamPin<At91SamPioA, 13>()) \
+)
 
 #else
-
 #error "Unsupported device"
-
 #endif
 
 }

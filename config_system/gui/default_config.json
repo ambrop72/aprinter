@@ -447,8 +447,11 @@
           "MaxCommandSize": 128,
           "SdCardService": {
             "SpiService": {
-              "Device": "At91Sam3xSpiDevice",
-              "_compoundName": "At91SamSpi"
+              "LLDriver": {
+                "Device": "SPI0",
+                "_compoundName": "At91SamSpiSwSpiLL"
+              },
+              "_compoundName": "SoftwareSpi"
             },
             "SsPin": "DuePin4",
             "_compoundName": "SpiSdCard"
@@ -1002,8 +1005,11 @@
           "MaxCommandSize": 128,
           "SdCardService": {
             "SpiService": {
-              "Device": "At91Sam3xSpiDevice",
-              "_compoundName": "At91SamSpi"
+              "LLDriver": {
+                "Device": "SPI0",
+                "_compoundName": "At91SamSpiSwSpiLL"
+              },
+              "_compoundName": "SoftwareSpi"
             },
             "SsPin": "DuePin4",
             "_compoundName": "SpiSdCard"
@@ -1198,8 +1204,11 @@
           "_compoundName": "Current",
           "current_driver": {
             "SpiService": {
-              "Device": "At91Sam3uSpiDevice",
-              "_compoundName": "At91SamSpi"
+              "LLDriver": {
+                "Device": "SPI",
+                "_compoundName": "At91SamSpiSwSpiLL"
+              },
+              "_compoundName": "SoftwareSpi"
             },
             "SsPin": "At91SamPin<At91SamPioA,16>",
             "_compoundName": "Ad5206Current"

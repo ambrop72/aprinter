@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AT91SAM_USART_SPI_H
-#define AMBROLIB_AT91SAM_USART_SPI_H
+#ifndef AMBROLIB_AT91SAM_USART_SPI_SW_SPI_LL_H
+#define AMBROLIB_AT91SAM_USART_SPI_SW_SPI_LL_H
 
 #include <stdint.h>
 
@@ -31,36 +31,35 @@
 
 #include <aprinter/base/Assert.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/hal/generic/SimpleSpi.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
 namespace APrinter {
 
-#define APRINTER_AT91SAM_USART_SPI_DEFINE_DEVICE(Index, TheSckPin, TheSckPeriph, TheMosiPin, TheMosiPeriph, TheMisoPin, TheMisoPeriph) \
-struct At91SamUsartSpiDevice##Index { \
-    static Usart * usart () { return USART##Index; } \
-    static int const DeviceId = ID_USART##Index; \
-    static enum IRQn const IrqNum = USART##Index##_IRQn; \
-    using SckPin = TheSckPin; \
-    using SckPeriph = TheSckPeriph; \
-    using MosiPin = TheMosiPin; \
-    using MosiPeriph = TheMosiPeriph; \
-    using MisoPin = TheMisoPin; \
-    using MisoPeriph = TheMisoPeriph; \
+template <
+    uint32_t Address,
+    int DeviceId_,
+    enum IRQn IrqNum_,
+    typename SckPin_,
+    typename SckPeriph_,
+    typename MosiPin_,
+    typename MosiPeriph_,
+    typename MisoPin_,
+    typename MisoPeriph_
+>
+struct At91SamUsartSwSpiLLDevice {
+    static Usart * usart () { return (Usart *)Address; }
+    static int const DeviceId = DeviceId_;
+    static enum IRQn const IrqNum = IrqNum_;
+    using SckPin = SckPin_;
+    using SckPeriph = SckPeriph_;
+    using MosiPin = MosiPin_;
+    using MosiPeriph = MosiPeriph_;
+    using MisoPin = MisoPin_;
+    using MisoPeriph = MisoPeriph_;
 };
 
-#if defined(__SAM3X8E__)
-APRINTER_AT91SAM_USART_SPI_DEFINE_DEVICE(0,
-    decltype(At91SamPin<At91SamPioA,17>()), At91SamPeriphB,
-    decltype(At91SamPin<At91SamPioA,11>()), At91SamPeriphA,
-    decltype(At91SamPin<At91SamPioA,10>()), At91SamPeriphA
-)
-#else
-#error "Unsupported device"
-#endif
-
 template <typename Context, typename ParentObject, typename TransferCompleteHandler, typename Params>
-class At91SamUsartSimpleSpi {
+class At91SamUsartSwSpiLLImpl {
     using Device = typename Params::Device;
     
 public:
@@ -130,28 +129,41 @@ public:
 };
 
 template <
-    typename TDevice,
-    uint16_t TClockDivider
+    typename Device_,
+    uint16_t ClockDivider_
 >
-struct At91SamUsartSimpleSpiService {
-    using Device = TDevice;
-    static uint16_t const ClockDivider = TClockDivider;
+struct At91SamUsartSwSpiLL {
+    using Device = Device_;
+    static uint16_t const ClockDivider = ClockDivider_;
     
     template <typename Context, typename ParentObject, typename TransferCompleteHandler>
-    using SimpleSpiDriver = At91SamUsartSimpleSpi<Context, ParentObject, TransferCompleteHandler, At91SamUsartSimpleSpiService>;
+    using SwSpiLL = At91SamUsartSwSpiLLImpl<Context, ParentObject, TransferCompleteHandler, At91SamUsartSwSpiLL>;
 };
 
-
-template <typename Device, uint16_t ClockDivider>
-using At91SamUsartSpiService = SimpleSpiService<At91SamUsartSimpleSpiService<Device, ClockDivider>>;
-
-#define APRINTER_AT91SAM_USART_SPI_GLOBAL(UsartIndex, thespi, context) \
+#define APRINTER_AT91SAM_USART_SW_SPI_LL_GLOBAL(usart_index, TheSwSpiLL, context) \
 extern "C" \
 __attribute__((used)) \
-void USART##UsartIndex##_Handler (void) \
+void USART##usart_index##_Handler (void) \
 { \
-    thespi::GetDriver::usart_irq(MakeInterruptContext(context)); \
+    TheSwSpiLL::usart_irq(MakeInterruptContext(context)); \
 }
+
+#define APRINTER_DEFINE_AT91SAM_USART_SW_SPI_LL_DEVICE(usart_index, SckPin, SckPeriph, MosiPin, MosiPeriph, MisoPin, MisoPeriph) \
+struct At91SamUsartSwSpiLLDeviceUSART##usart_index : public At91SamUsartSwSpiLLDevice< \
+    GET_PERIPHERAL_ADDR(USART##usart_index), ID_USART##usart_index, USART##usart_index##_IRQn, \
+    SckPin, SckPeriph, MosiPin, MosiPeriph, MisoPin, MisoPeriph \
+> {};
+
+#if defined(__SAM3X8E__)
+
+APRINTER_DEFINE_AT91SAM_USART_SW_SPI_LL_DEVICE(0,
+    decltype(At91SamPin<At91SamPioA,17>()), At91SamPeriphB,
+    decltype(At91SamPin<At91SamPioA,11>()), At91SamPeriphA,
+    decltype(At91SamPin<At91SamPioA,10>()), At91SamPeriphA)
+
+#else
+#error "Unsupported device"
+#endif
 
 }
 

@@ -68,14 +68,21 @@ def i2c_choice(**kwargs):
         ])
     ], **kwargs)
 
-def spi_choice(**kwargs):
+def sw_spi_ll_choice(**kwargs):
     return ce.OneOf(choices=[
-        ce.Compound('At91SamSpi', attrs=[
+        ce.Compound('At91SamSpiSwSpiLL', attrs=[
             ce.String(key='Device')
         ]),
-        ce.Compound('At91SamUsartSpi', attrs=[
+        ce.Compound('At91SamUsartSwSpiLL', attrs=[
             ce.Integer(key='DeviceIndex', default=0),
             ce.Integer(key='ClockDivider', default=420),
+        ]),
+    ], **kwargs)
+
+def spi_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('SoftwareSpi', attrs=[
+            sw_spi_ll_choice(key='LLDriver', title='Low-level driver'),
         ]),
         ce.Compound('AvrSpi', attrs=[
             ce.Integer(key='SpeedDiv')
