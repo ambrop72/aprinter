@@ -1218,28 +1218,28 @@ def use_pwm_output (gen, config, key, user, username, hard=False):
     
     return pwm_output.do_selection('Backend', backend_sel)
 
-def use_sw_spi_ll (gen, config, key, user):
+def use_spi_ll (gen, config, key, user):
     sel = selection.Selection()
     
-    @sel.option('At91SamSpiSwSpiLL')
+    @sel.option('At91SamSpiSpiLL')
     def option(config):
-        gen.add_aprinter_include('hal/at91/At91SamSpiSwSpiLL.h')
+        gen.add_aprinter_include('hal/at91/At91SamSpiSpiLL.h')
         devices = ['SPI0', 'SPI']
         dev = config.get_identifier('Device')
         if dev not in devices:
             config.key_path('Device').error('Incorrect SPI device.')
-        gen.add_isr('APRINTER_AT91SAM_SPI_SW_SPI_LL_GLOBAL({}, {}, Context())'.format(dev, user))
-        return TemplateExpr('At91SamSpiSwSpiLL', [
-            'At91SamSpiSwSpiLLDevice{}'.format(dev)
+        gen.add_isr('APRINTER_AT91SAM_SPI_SPI_LL_GLOBAL({}, {}, Context())'.format(dev, user))
+        return TemplateExpr('At91SamSpiSpiLL', [
+            'At91SamSpiSpiLLDevice{}'.format(dev)
         ])
     
-    @sel.option('At91SamUsartSwSpiLL')
+    @sel.option('At91SamUsartSpiLL')
     def option(config):
-        gen.add_aprinter_include('hal/at91/At91SamUsartSwSpiLL.h')
+        gen.add_aprinter_include('hal/at91/At91SamUsartSpiLL.h')
         dev_index = config.get_int('DeviceIndex')
-        gen.add_isr('APRINTER_AT91SAM_USART_SW_SPI_LL_GLOBAL({}, {}, Context())'.format(dev_index, user))
-        return TemplateExpr('At91SamUsartSwSpiLL', [
-            'At91SamUsartSwSpiLLDeviceUSART{}'.format(dev_index),
+        gen.add_isr('APRINTER_AT91SAM_USART_SPI_LL_GLOBAL({}, {}, Context())'.format(dev_index, user))
+        return TemplateExpr('At91SamUsartSpiLL', [
+            'At91SamUsartSpiLLDeviceUSART{}'.format(dev_index),
             config.get_int('ClockDivider'),
         ])
     
@@ -1248,11 +1248,11 @@ def use_sw_spi_ll (gen, config, key, user):
 def use_spi (gen, config, key, user):
     sel = selection.Selection()
     
-    @sel.option('SoftwareSpi')
+    @sel.option('GenericSpi')
     def option(config):
-        gen.add_aprinter_include('hal/generic/SoftwareSpi.h')
-        return TemplateExpr('SoftwareSpi', [
-            use_sw_spi_ll(gen, config, 'LLDriver', '{}::GetLLDriver'.format(user)),
+        gen.add_aprinter_include('hal/generic/GenericSpi.h')
+        return TemplateExpr('GenericSpi', [
+            use_spi_ll(gen, config, 'LLDriver', '{}::GetLLDriver'.format(user)),
         ])
     
     @sel.option('AvrSpi')

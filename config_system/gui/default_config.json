@@ -449,9 +449,9 @@
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI0",
-                "_compoundName": "At91SamSpiSwSpiLL"
+                "_compoundName": "At91SamSpiSpiLL"
               },
-              "_compoundName": "SoftwareSpi"
+              "_compoundName": "GenericSpi"
             },
             "SsPin": "DuePin4",
             "_compoundName": "SpiSdCard"
@@ -1007,9 +1007,9 @@
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI0",
-                "_compoundName": "At91SamSpiSwSpiLL"
+                "_compoundName": "At91SamSpiSpiLL"
               },
-              "_compoundName": "SoftwareSpi"
+              "_compoundName": "GenericSpi"
             },
             "SsPin": "DuePin4",
             "_compoundName": "SpiSdCard"
@@ -1206,9 +1206,9 @@
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI",
-                "_compoundName": "At91SamSpiSwSpiLL"
+                "_compoundName": "At91SamSpiSpiLL"
               },
-              "_compoundName": "SoftwareSpi"
+              "_compoundName": "GenericSpi"
             },
             "SsPin": "At91SamPin<At91SamPioA,16>",
             "_compoundName": "Ad5206Current"

@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_SOFTWARE_SPI_H
-#define APRINTER_SOFTWARE_SPI_H
+#ifndef APRINTER_GENERIC_SPI_H
+#define APRINTER_GENERIC_SPI_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -43,7 +43,7 @@
 namespace APrinter {
 
 template <typename Arg>
-class SoftwareSpiImpl {
+class GenericSpiImpl {
     using Context                      = typename Arg::Context;
     using ParentObject                 = typename Arg::ParentObject;
     using Handler                      = typename Arg::Handler;
@@ -61,9 +61,9 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
 
     struct InterruptHandler;
-    using TheLLDriver = typename Params::LLDriver::template SwSpiLL<Context, Object, InterruptHandler>;
+    using TheLLDriver = typename Params::LLDriver::template SpiLL<Context, Object, InterruptHandler>;
     
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<SoftwareSpiImpl>;
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<GenericSpiImpl>;
 
     enum {
         COMMAND_READ_BUFFER,
@@ -102,7 +102,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        Context::EventLoop::template initFastEvent<FastEvent>(c, SoftwareSpiImpl::event_handler);
+        Context::EventLoop::template initFastEvent<FastEvent>(c, GenericSpiImpl::event_handler);
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
@@ -279,7 +279,7 @@ private:
 
         Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
-    struct InterruptHandler : public AMBRO_WFUNC_TD(&SoftwareSpiImpl::interrupt_handler) {};
+    struct InterruptHandler : public AMBRO_WFUNC_TD(&GenericSpiImpl::interrupt_handler) {};
     
     using EventLoopFastEvents = MakeTypeList<FastEvent>;
     
@@ -343,7 +343,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<SoftwareSpiImpl, ParentObject, MakeTypeList<
+    struct Object : public ObjBase<GenericSpiImpl, ParentObject, MakeTypeList<
         TheDebugObject,
         TheLLDriver
     >> {
@@ -355,7 +355,7 @@ public:
 };
 
 template <typename LLDriver_>
-struct SoftwareSpi {
+struct GenericSpi {
     using LLDriver = LLDriver_;
     
     APRINTER_ALIAS_STRUCT_EXT(Spi, (
@@ -364,8 +364,8 @@ struct SoftwareSpi {
         APRINTER_AS_TYPE(Handler),
         APRINTER_AS_VALUE(int, CommandBufferBits)
     ), (
-        using Params = SoftwareSpi;
-        APRINTER_DEF_INSTANCE(Spi, SoftwareSpiImpl)
+        using Params = GenericSpi;
+        APRINTER_DEF_INSTANCE(Spi, GenericSpiImpl)
     ))
 };
 
