@@ -58,7 +58,7 @@ struct At91SamUsartSwSpiLLDevice {
     using MisoPeriph = MisoPeriph_;
 };
 
-template <typename Context, typename ParentObject, typename TransferCompleteHandler, typename Params>
+template <typename Context, typename ParentObject, typename InterruptHandler, typename Params>
 class At91SamUsartSwSpiLLImpl {
     using Device = typename Params::Device;
     
@@ -69,59 +69,77 @@ public:
         Context::Pins::template setPeripheral<typename Device::MosiPin>(c, typename Device::MosiPeriph());
         Context::Pins::template setPeripheral<typename Device::MisoPin>(c, typename Device::MisoPeriph());
         
-        memory_barrier();
-        
         pmc_enable_periph_clk(Device::DeviceId);
+
         Device::usart()->US_CR = US_CR_RSTRX | US_CR_RSTTX;
         Device::usart()->US_MR = US_MR_USART_MODE_SPI_MASTER | US_MR_USCLKS_MCK | US_MR_CHRL_8_BIT | US_MR_PAR_NO | US_MR_MSBF | US_MR_CLKO | US_MR_INACK;
         Device::usart()->US_BRGR = US_BRGR_CD((uint32_t)Params::ClockDivider);
         Device::usart()->US_IDR = UINT32_MAX;
+        (void)Device::usart()->US_RHR;
+        Device::usart()->US_CR = US_CR_RXEN | US_CR_TXEN;
+
         NVIC_ClearPendingIRQ(Device::IrqNum);
         NVIC_SetPriority(Device::IrqNum, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Device::IrqNum);
-        Device::usart()->US_CR = US_CR_RXEN | US_CR_TXEN;
     }
     
     static void deinit (Context c)
     {
         NVIC_DisableIRQ(Device::IrqNum);
+
         Device::usart()->US_CR = US_CR_RXDIS | US_CR_TXDIS;
         Device::usart()->US_IDR = UINT32_MAX;
         (void)Device::usart()->US_RHR;
+
         NVIC_ClearPendingIRQ(Device::IrqNum);
         pmc_disable_periph_clk(Device::DeviceId);
-        
-        memory_barrier();
         
         Context::Pins::template setInput<typename Device::SckPin>(c);
         Context::Pins::template setInput<typename Device::MosiPin>(c);
         Context::Pins::template setInput<typename Device::MisoPin>(c);
     }
-    
-    static void startTransfer (Context c, uint8_t byte)
+
+    static bool canSendByte ()
     {
-        memory_barrier();
-        
-        Device::usart()->US_THR = byte;
-        Device::usart()->US_IER = US_IER_RXRDY;
+        return (Device::usart()->US_CSR & US_CSR_TXRDY);
     }
-    
-    static void nextByte (InterruptContext<Context> c, uint8_t byte)
+
+    static bool canRecvByte ()
+    {
+        return (Device::usart()->US_CSR & US_CSR_RXRDY);
+    }
+
+    static void sendByte (uint8_t byte)
     {
         Device::usart()->US_THR = byte;
     }
-    
-    static void noNextByte (InterruptContext<Context> c)
+
+    static uint8_t recvByte ()
     {
-        Device::usart()->US_IDR = US_IDR_RXRDY;
+        return Device::usart()->US_RHR;
+    }
+
+    static void enableCanSendByteInterrupt (bool enable)
+    {
+        if (enable) {
+            Device::usart()->US_IER = US_IER_TXRDY;
+        } else {
+            Device::usart()->US_IDR = US_IDR_TXRDY;
+        }
+    }
+
+    static void enableCanRecvByteInterrupt (bool enable)
+    {
+        if (enable) {
+            Device::usart()->US_IER = US_IER_RXRDY;
+        } else {
+            Device::usart()->US_IDR = US_IDR_RXRDY;
+        }
     }
     
     static void usart_irq (InterruptContext<Context> c)
     {
-        AMBRO_ASSERT(Device::usart()->US_CSR & US_CSR_RXRDY)
-        
-        uint8_t byte = Device::usart()->US_RHR;
-        TransferCompleteHandler::call(c, byte);
+        InterruptHandler::call(c);
     }
     
 public:
@@ -136,8 +154,8 @@ struct At91SamUsartSwSpiLL {
     using Device = Device_;
     static uint16_t const ClockDivider = ClockDivider_;
     
-    template <typename Context, typename ParentObject, typename TransferCompleteHandler>
-    using SwSpiLL = At91SamUsartSwSpiLLImpl<Context, ParentObject, TransferCompleteHandler, At91SamUsartSwSpiLL>;
+    template <typename Context, typename ParentObject, typename InterruptHandler>
+    using SwSpiLL = At91SamUsartSwSpiLLImpl<Context, ParentObject, InterruptHandler, At91SamUsartSwSpiLL>;
 };
 
 #define APRINTER_AT91SAM_USART_SW_SPI_LL_GLOBAL(usart_index, TheSwSpiLL, context) \

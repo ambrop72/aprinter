@@ -36,80 +36,107 @@
 namespace APrinter {
 
 template <
-    uint32_t TSpiAddr,
-    int TSpiId,
-    enum IRQn TSpiIrq,
-    typename TSckPin,
-    typename TMosiPin,
-    typename TMisoPin
+    uint32_t Address,
+    int SpiId_,
+    enum IRQn SpiIrq_,
+    typename SckPin_,
+    typename SckPeriph_,
+    typename MosiPin_,
+    typename MosiPeriph_,
+    typename MisoPin_,
+    typename MisoPeriph_
 >
 struct At91SamSpiSwSpiLLDevice {
-    static Spi * spi () { return (Spi *)TSpiAddr; }
-    static int const SpiId = TSpiId;
-    static enum IRQn const SpiIrq = TSpiIrq;
-    using SckPin = TSckPin;
-    using MosiPin = TMosiPin;
-    using MisoPin = TMisoPin;
+    static Spi * spi () { return (Spi *)Address; }
+    static int const SpiId = SpiId_;
+    static enum IRQn const SpiIrq = SpiIrq_;
+    using SckPin = SckPin_;
+    using SckPeriph = SckPeriph_;
+    using MosiPin = MosiPin_;
+    using MosiPeriph = MosiPeriph_;
+    using MisoPin = MisoPin_;
+    using MisoPeriph = MisoPeriph_;
 };
 
-template <typename Context, typename ParentObject, typename TransferCompleteHandler, typename Device>
+template <typename Context, typename ParentObject, typename InterruptHandler, typename Device>
 class At91SamSpiSwSpiLLImpl {
 public:
     static void init (Context c)
     {
-        Context::Pins::template setPeripheral<typename Device::SckPin>(c, At91SamPeriphA());
-        Context::Pins::template setPeripheral<typename Device::MosiPin>(c, At91SamPeriphA());
-        Context::Pins::template setInput<typename Device::MisoPin>(c);
-        
-        memory_barrier();
+        Context::Pins::template setPeripheral<typename Device::SckPin>(c, typename Device::SckPeriph());
+        Context::Pins::template setPeripheral<typename Device::MosiPin>(c, typename Device::MosiPeriph());
+        Context::Pins::template setPeripheral<typename Device::MisoPin>(c, typename Device::MisoPeriph());
         
         pmc_enable_periph_clk(Device::SpiId);
-        Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PCS(0);
+
+        Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PCS(0) | SPI_MR_WDRBT;
         Device::spi()->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(255);
         Device::spi()->SPI_IDR = UINT32_MAX;
+        Device::spi()->SPI_CR = SPI_CR_SPIEN;
+        (void)Device::spi()->SPI_RDR;
+
         NVIC_ClearPendingIRQ(Device::SpiIrq);
         NVIC_SetPriority(Device::SpiIrq, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Device::SpiIrq);
-        Device::spi()->SPI_CR = SPI_CR_SPIEN;
     }
     
     static void deinit (Context c)
     {
         NVIC_DisableIRQ(Device::SpiIrq);
+
         Device::spi()->SPI_CR = SPI_CR_SPIDIS;
+        Device::spi()->SPI_IDR = UINT32_MAX;
         (void)Device::spi()->SPI_RDR;
+
         NVIC_ClearPendingIRQ(Device::SpiIrq);
         pmc_disable_periph_clk(Device::SpiId);
         
-        memory_barrier();
-        
-        Context::Pins::template setInput<typename Device::MosiPin>(c);
         Context::Pins::template setInput<typename Device::SckPin>(c);
+        Context::Pins::template setInput<typename Device::MosiPin>(c);
+        Context::Pins::template setInput<typename Device::MisoPin>(c);
     }
-    
-    static void startTransfer (Context c, uint8_t byte)
+
+    static bool canSendByte ()
     {
-        memory_barrier();
+        return (Device::spi()->SPI_SR & SPI_SR_TDRE);
+    }
+
+    static bool canRecvByte ()
+    {
+        return (Device::spi()->SPI_SR & SPI_SR_RDRF);
+    }
+
+    static void sendByte (uint8_t byte)
+    {
         Device::spi()->SPI_TDR = byte;
-        Device::spi()->SPI_IER = SPI_IER_RDRF;
     }
-    
-    static void nextByte (InterruptContext<Context> c, uint8_t byte)
+
+    static uint8_t recvByte ()
     {
-        Device::spi()->SPI_TDR = byte;
+        return Device::spi()->SPI_RDR;
     }
-    
-    static void noNextByte (InterruptContext<Context> c)
+
+    static void enableCanSendByteInterrupt (bool enable)
     {
-        Device::spi()->SPI_IDR = SPI_IDR_RDRF;
+        if (enable) {
+            Device::spi()->SPI_IER = SPI_IER_TDRE;
+        } else {
+            Device::spi()->SPI_IDR = SPI_IDR_TDRE;
+        }
+    }
+
+    static void enableCanRecvByteInterrupt (bool enable)
+    {
+        if (enable) {
+            Device::spi()->SPI_IER = SPI_IER_RDRF;
+        } else {
+            Device::spi()->SPI_IDR = SPI_IDR_RDRF;
+        }
     }
     
     static void spi_irq (InterruptContext<Context> c)
     {
-        AMBRO_ASSERT(Device::spi()->SPI_SR & SPI_SR_RDRF)
-        
-        uint8_t byte = Device::spi()->SPI_RDR;
-        TransferCompleteHandler::call(c, byte);
+        InterruptHandler::call(c);
     }
     
 public:
@@ -118,8 +145,8 @@ public:
 
 template <typename Device>
 struct At91SamSpiSwSpiLL {
-    template <typename Context, typename ParentObject, typename TransferCompleteHandler>
-    using SwSpiLL = At91SamSpiSwSpiLLImpl<Context, ParentObject, TransferCompleteHandler, Device>;
+    template <typename Context, typename ParentObject, typename InterruptHandler>
+    using SwSpiLL = At91SamSpiSwSpiLLImpl<Context, ParentObject, InterruptHandler, Device>;
 };
 
 #define APRINTER_AT91SAM_SPI_SW_SPI_LL_GLOBAL(spi_name, TheSwSpiLL, context) \
@@ -130,26 +157,24 @@ void spi_name##_Handler (void) \
     TheSwSpiLL::spi_irq(MakeInterruptContext(context)); \
 }
 
-#define APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(spi_name, SckPin, MosiPin, MisoPin) \
+#define APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(spi_name, SckPin, SckPeriph, MosiPin, MosiPeriph, MisoPin, MisoPeriph) \
 struct At91SamSpiSwSpiLLDevice##spi_name : public At91SamSpiSwSpiLLDevice< \
     GET_PERIPHERAL_ADDR(spi_name), ID_##spi_name, spi_name##_IRQn, \
-    SckPin, MosiPin, MisoPin> {};
+    SckPin, SckPeriph, MosiPin, MosiPeriph, MisoPin, MisoPeriph> {};
 
 #if defined(__SAM3X8E__)
 
 APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(SPI0, \
-    decltype(At91SamPin<At91SamPioA, 27>()), \
-    decltype(At91SamPin<At91SamPioA, 26>()), \
-    decltype(At91SamPin<At91SamPioA, 25>()) \
-)
+    decltype(At91SamPin<At91SamPioA, 27>()), At91SamPeriphA, \
+    decltype(At91SamPin<At91SamPioA, 26>()), At91SamPeriphA, \
+    decltype(At91SamPin<At91SamPioA, 25>()), At91SamPeriphA)
 
 #elif defined(__SAM3U4E__)
 
 APRINTER_DEFINE_AT91SAM_SPI_SW_SPI_LL_DEVICE(SPI, \
-    decltype(At91SamPin<At91SamPioA, 15>()), \
-    decltype(At91SamPin<At91SamPioA, 14>()), \
-    decltype(At91SamPin<At91SamPioA, 13>()) \
-)
+    decltype(At91SamPin<At91SamPioA, 15>()), At91SamPeriphA, \
+    decltype(At91SamPin<At91SamPioA, 14>()), At91SamPeriphA, \
+    decltype(At91SamPin<At91SamPioA, 13>()), At91SamPeriphA)
 
 #else
 #error "Unsupported device"

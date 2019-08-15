@@ -54,14 +54,17 @@ public:
     struct Object;
     
 private:
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<SoftwareSpiImpl>;
-    using TheDebugObject = DebugObject<Context, Object>;
-    struct LLDriverTransferCompleteHandler;
-    using TheLLDriver = typename Params::LLDriver::template SwSpiLL<Context, Object, LLDriverTransferCompleteHandler>;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
+
+    using TheDebugObject = DebugObject<Context, Object>;
+
+    struct InterruptHandler;
+    using TheLLDriver = typename Params::LLDriver::template SwSpiLL<Context, Object, InterruptHandler>;
     
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<SoftwareSpiImpl>;
+
     enum {
         COMMAND_READ_BUFFER,
         COMMAND_READ_UNTIL_DIFFERENT,
@@ -212,12 +215,19 @@ public:
     using GetLLDriver = TheLLDriver;
     
 private:
-    static void driver_transfer_complete_handler (InterruptContext<Context> c, uint8_t byte)
+    static void interrupt_handler (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_start != o->m_end)
+
+        if (!TheLLDriver::canRecvByte()) {
+            return;
+        }
+
+        uint8_t byte = TheLLDriver::recvByte();
         
         Command *cmd = o->m_current;
+
         switch (cmd->type) {
             case COMMAND_READ_BUFFER: {
                 uint8_t * __restrict__ cur = cmd->u.read_buffer.cur;
@@ -225,7 +235,7 @@ private:
                 cur++;
                 if (AMBRO_UNLIKELY(cur != cmd->u.read_buffer.end)) {
                     cmd->u.read_buffer.cur = cur;
-                    TheLLDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::sendByte(cmd->byte);
                     return;
                 }
             } break;
@@ -234,7 +244,7 @@ private:
                 if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte &&
                     !TheClockUtils::timeGreaterOrEqual(Clock::getTime(c), cmd->u.read_until_different.timeout)))
                 {
-                    TheLLDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::sendByte(cmd->byte);
                     return;
                 }
             } break;
@@ -242,7 +252,7 @@ private:
                 if (AMBRO_UNLIKELY(cmd->u.write_buffer.cur != cmd->u.write_buffer.end)) {
                     uint8_t out = *cmd->u.write_buffer.cur;
                     cmd->u.write_buffer.cur++;
-                    TheLLDriver::nextByte(c, out);
+                    TheLLDriver::sendByte(out);
                     return;
                 }
             } break;
@@ -250,22 +260,26 @@ private:
             case COMMAND_WRITE_BYTE: {
                 if (AMBRO_UNLIKELY(cmd->u.write_byte.count != 0)) {
                     cmd->u.write_byte.count--;
-                    TheLLDriver::nextByte(c, cmd->byte);
+                    TheLLDriver::sendByte(cmd->byte);
                     return;
                 }
             } break;
         }
-        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+
         o->m_start = BoundedModuloInc(o->m_start);
+
         if (AMBRO_LIKELY(o->m_start != o->m_end)) {
             o->m_current = &o->m_buffer[o->m_start.value()];
             start_command_common(c);
-            TheLLDriver::nextByte(c, o->m_current->byte);
+
+            TheLLDriver::sendByte(o->m_current->byte);
         } else {
-            TheLLDriver::noNextByte(c);
+            TheLLDriver::enableCanRecvByteInterrupt(false);
         }
+
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
-    struct LLDriverTransferCompleteHandler : public AMBRO_WFUNC_TD(&SoftwareSpiImpl::driver_transfer_complete_handler) {};
+    struct InterruptHandler : public AMBRO_WFUNC_TD(&SoftwareSpiImpl::interrupt_handler) {};
     
     using EventLoopFastEvents = MakeTypeList<FastEvent>;
     
@@ -305,10 +319,15 @@ private:
             was_idle = (o->m_start == o->m_end);
             o->m_end = BoundedModuloInc(o->m_end);
         }
+
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
             start_command_common(c);
-            TheLLDriver::startTransfer(c, o->m_current->byte);
+
+            memory_barrier();
+
+            TheLLDriver::enableCanRecvByteInterrupt(true);
+            TheLLDriver::sendByte(o->m_current->byte);
         }
     }
 
