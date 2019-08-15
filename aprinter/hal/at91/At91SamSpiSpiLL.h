@@ -69,11 +69,11 @@ public:
         
         pmc_enable_periph_clk(Device::SpiId);
 
-        Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PCS(0) | SPI_MR_WDRBT;
+        Device::spi()->SPI_CR = SPI_CR_SWRST;
+        Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_WDRBT | SPI_MR_PCS(0);
         Device::spi()->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(255);
         Device::spi()->SPI_IDR = UINT32_MAX;
         Device::spi()->SPI_CR = SPI_CR_SPIEN;
-        (void)Device::spi()->SPI_RDR;
 
         NVIC_ClearPendingIRQ(Device::SpiIrq);
         NVIC_SetPriority(Device::SpiIrq, INTERRUPT_PRIORITY);

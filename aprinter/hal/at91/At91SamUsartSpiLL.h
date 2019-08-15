@@ -71,11 +71,10 @@ public:
         
         pmc_enable_periph_clk(Device::DeviceId);
 
-        Device::usart()->US_CR = US_CR_RSTRX | US_CR_RSTTX;
+        Device::usart()->US_CR = US_CR_RSTRX | US_CR_RSTTX | US_CR_RSTSTA | US_CR_RSTIT | US_CR_RSTNACK;
         Device::usart()->US_MR = US_MR_USART_MODE_SPI_MASTER | US_MR_USCLKS_MCK | US_MR_CHRL_8_BIT | US_MR_PAR_NO | US_MR_MSBF | US_MR_CLKO | US_MR_INACK;
         Device::usart()->US_BRGR = US_BRGR_CD((uint32_t)Params::ClockDivider);
         Device::usart()->US_IDR = UINT32_MAX;
-        (void)Device::usart()->US_RHR;
         Device::usart()->US_CR = US_CR_RXEN | US_CR_TXEN;
 
         NVIC_ClearPendingIRQ(Device::IrqNum);
