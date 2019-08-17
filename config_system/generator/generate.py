@@ -1150,6 +1150,7 @@ def use_analog_input (gen, config, key, user):
     def option(analog_input):
         gen.add_aprinter_include('printer/analog_input/Max31855AnalogInput.h')
         return TemplateExpr('Max31855AnalogInputService', [
+            analog_input.get_int('Speed_Hz'),
             get_pin(gen, analog_input, 'SsPin'),
             use_spi(gen, analog_input, 'SpiService', '{}::GetSpi'.format(user)),
         ])
@@ -1240,7 +1241,6 @@ def use_spi_ll (gen, config, key, user):
         gen.add_isr('APRINTER_AT91SAM_USART_SPI_LL_GLOBAL({}, {}, Context())'.format(dev_index, user))
         return TemplateExpr('At91SamUsartSpiLL', [
             'At91SamUsartSpiLLDeviceUSART{}'.format(dev_index),
-            config.get_int('ClockDivider'),
         ])
     
     return config.do_selection(key, sel)
@@ -1259,7 +1259,7 @@ def use_spi (gen, config, key, user):
     def option(config):
         gen.add_aprinter_include('hal/avr/AvrSpi.h')
         gen.add_isr('AMBRO_AVR_SPI_ISRS({}, Context())'.format(user))
-        return TemplateExpr('AvrSpiService', [config.get_int('SpeedDiv')])
+        return 'AvrSpiService'
     
     return config.do_selection(key, sel)
 
@@ -1446,6 +1446,7 @@ def use_sdcard(gen, config, key, user):
     def option(spi_sd):
         gen.add_aprinter_include('hal/generic/SpiSdCard.h')
         return TemplateExpr('SpiSdCardService', [
+            spi_sd.get_int('Speed_Hz'),
             get_pin(gen, spi_sd, 'SsPin'),
             use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
         ])
@@ -1537,6 +1538,7 @@ def use_current_driver(gen, config, key, user):
         gen.add_aprinter_include('printer/current/Ad5206Current.h')
         
         return TemplateExpr('Ad5206CurrentService', [
+            current_driver.get_int('Speed_Hz'),
             get_pin(gen, current_driver, 'SsPin'),
             use_spi(gen, current_driver, 'SpiService', '{}::GetSpi'.format(user)),
         ])

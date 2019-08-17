@@ -106,7 +106,7 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_INACTIVE)
         
-        TheSpi::init(c);
+        TheSpi::init(c, Params::Speed_Hz);
         TheSpi::cmdWriteByte(c, 0xff, 128 - 1);
         o->m_state = STATE_INIT1;
     }
@@ -510,9 +510,8 @@ public:
     };
 };
 
-
-
 APRINTER_ALIAS_STRUCT_EXT(SpiSdCardService, (
+    APRINTER_AS_VALUE(uint32_t, Speed_Hz),
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (

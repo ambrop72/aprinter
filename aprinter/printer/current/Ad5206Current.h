@@ -81,7 +81,7 @@ public:
         
         Context::Pins::template set<typename Params::SsPin>(c, true);
         Context::Pins::template setOutput<typename Params::SsPin>(c);
-        TheSpi::init(c);
+        TheSpi::init(c, Params::Speed_Hz);
         o->m_current_channel = 0xFF;
         o->m_delaying = false;
         for (uint8_t i = 0; i < NumDevChannels; i++) {
@@ -177,6 +177,7 @@ public:
 };
 
 APRINTER_ALIAS_STRUCT_EXT(Ad5206CurrentService, (
+    APRINTER_AS_VALUE(uint32_t, Speed_Hz),
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (

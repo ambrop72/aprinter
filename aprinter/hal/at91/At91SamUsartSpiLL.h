@@ -26,6 +26,7 @@
 #define APRINTER_AT91SAM_USART_SPI_LL_H
 
 #include <stdint.h>
+#include <math.h>
 
 #include <sam/drivers/pmc/pmc.h>
 
@@ -63,7 +64,7 @@ class At91SamUsartSpiLLImpl {
     using Device = typename Params::Device;
     
 public:
-    static void init (Context c)
+    static void init (Context c, uint32_t speed_Hz)
     {
         Context::Pins::template setPeripheral<typename Device::SckPin>(c, typename Device::SckPeriph());
         Context::Pins::template setPeripheral<typename Device::MosiPin>(c, typename Device::MosiPeriph());
@@ -73,12 +74,14 @@ public:
 
         Device::usart()->US_CR = US_CR_RSTRX | US_CR_RSTTX | US_CR_RSTSTA | US_CR_RSTIT | US_CR_RSTNACK;
         Device::usart()->US_MR = US_MR_USART_MODE_SPI_MASTER | US_MR_USCLKS_MCK | US_MR_CHRL_8_BIT | US_MR_PAR_NO | US_MR_MSBF | US_MR_CLKO | US_MR_INACK;
-        Device::usart()->US_BRGR = US_BRGR_CD((uint32_t)Params::ClockDivider);
+        Device::usart()->US_BRGR = US_BRGR_CD(calculateClockDiv(speed_Hz));
         Device::usart()->US_IDR = UINT32_MAX;
         Device::usart()->US_CR = US_CR_RXEN | US_CR_TXEN;
 
         NVIC_ClearPendingIRQ(Device::IrqNum);
-        NVIC_SetPriority(Device::IrqNum, INTERRUPT_PRIORITY);
+        // Use lower priority than the default due to the possible high interrupt
+        // frequency and no hard real-time requirements.
+        NVIC_SetPriority(Device::IrqNum, INTERRUPT_PRIORITY+1);
         NVIC_EnableIRQ(Device::IrqNum);
     }
     
@@ -140,18 +143,20 @@ public:
     {
         InterruptHandler::call(c);
     }
+
+private:
+    static uint16_t calculateClockDiv (uint32_t speed_Hz)
+    {
+        return fmax(6.0f, fmin(65535.0f, ceilf(float(F_MCK) / speed_Hz)));
+    }
     
 public:
     struct Object {};
 };
 
-template <
-    typename Device_,
-    uint16_t ClockDivider_
->
+template <typename Device_>
 struct At91SamUsartSpiLL {
     using Device = Device_;
-    static uint16_t const ClockDivider = ClockDivider_;
     
     template <typename Context, typename ParentObject, typename InterruptHandler>
     using SpiLL = At91SamUsartSpiLLImpl<Context, ParentObject, InterruptHandler, At91SamUsartSpiLL>;

@@ -77,7 +77,7 @@ public:
         Context::Pins::template set<typename Params::SsPin>(c, true);
         Context::Pins::template setOutput<typename Params::SsPin>(c);
         
-        TheSpi::init(c);
+        TheSpi::init(c, Params::Speed_Hz);
         o->m_timer.init(c, APRINTER_CB_STATFUNC_T(&Max31855AnalogInput::timer_handler));
         o->m_value = FixedType::importBits(0);
         o->m_timer.appendAt(c, Context::Clock::getTime(c));
@@ -172,6 +172,7 @@ public:
 };
 
 APRINTER_ALIAS_STRUCT_EXT(Max31855AnalogInputService, (
+    APRINTER_AS_VALUE(uint32_t, Speed_Hz),
     APRINTER_AS_TYPE(SsPin),
     APRINTER_AS_TYPE(SpiService)
 ), (

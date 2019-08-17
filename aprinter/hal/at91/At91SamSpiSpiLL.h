@@ -26,6 +26,7 @@
 #define APRINTER_AT91SAM_SPI_SPI_LL_H
 
 #include <stdint.h>
+#include <math.h>
 
 #include <sam/drivers/pmc/pmc.h>
 
@@ -61,7 +62,7 @@ struct At91SamSpiSpiLLDevice {
 template <typename Context, typename ParentObject, typename InterruptHandler, typename Device>
 class At91SamSpiSpiLLImpl {
 public:
-    static void init (Context c)
+    static void init (Context c, uint32_t speed_Hz)
     {
         Context::Pins::template setPeripheral<typename Device::SckPin>(c, typename Device::SckPeriph());
         Context::Pins::template setPeripheral<typename Device::MosiPin>(c, typename Device::MosiPeriph());
@@ -71,12 +72,14 @@ public:
 
         Device::spi()->SPI_CR = SPI_CR_SWRST;
         Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_WDRBT | SPI_MR_PCS(0);
-        Device::spi()->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(255);
+        Device::spi()->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(calculateClockDiv(speed_Hz));
         Device::spi()->SPI_IDR = UINT32_MAX;
         Device::spi()->SPI_CR = SPI_CR_SPIEN;
 
         NVIC_ClearPendingIRQ(Device::SpiIrq);
-        NVIC_SetPriority(Device::SpiIrq, INTERRUPT_PRIORITY);
+        // Use lower priority than the default due to the possible high interrupt
+        // frequency and no hard real-time requirements.
+        NVIC_SetPriority(Device::SpiIrq, INTERRUPT_PRIORITY+1);
         NVIC_EnableIRQ(Device::SpiIrq);
     }
     
@@ -137,6 +140,12 @@ public:
     static void spi_irq (InterruptContext<Context> c)
     {
         InterruptHandler::call(c);
+    }
+
+private:
+    static uint8_t calculateClockDiv(uint32_t speed_Hz)
+    {
+        return fmax(1.0f, fmin(255.0f, ceilf(float(F_MCK) / speed_Hz)));
     }
     
 public:

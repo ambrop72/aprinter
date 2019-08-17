@@ -98,7 +98,7 @@ private:
 public:
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
-    static void init (Context c)
+    static void init (Context c, uint32_t speed_Hz)
     {
         auto *o = Object::self(c);
         
@@ -106,7 +106,7 @@ public:
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
-        TheLLDriver::init(c);
+        TheLLDriver::init(c, speed_Hz);
         
         TheDebugObject::init(c);
     }
@@ -211,7 +211,7 @@ public:
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
-    
+
     using GetLLDriver = TheLLDriver;
     
 private:

@@ -446,6 +446,7 @@
           },
           "MaxCommandSize": 128,
           "SdCardService": {
+            "Speed_Hz": 500000,
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI0",
@@ -1004,6 +1005,7 @@
           },
           "MaxCommandSize": 128,
           "SdCardService": {
+            "Speed_Hz": 500000,
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI0",
@@ -1203,6 +1205,7 @@
         "current": {
           "_compoundName": "Current",
           "current_driver": {
+            "Speed_Hz": 300000,
             "SpiService": {
               "LLDriver": {
                 "Device": "SPI",
@@ -2288,8 +2291,8 @@
           },
           "MaxCommandSize": 64,
           "SdCardService": {
+            "Speed_Hz": 500000,
             "SpiService": {
-              "SpeedDiv": 32,
               "_compoundName": "AvrSpi"
             },
             "SsPin": "AvrPin<AvrPortB,0>",
@@ -2656,8 +2659,8 @@
           },
           "MaxCommandSize": 100,
           "SdCardService": {
+            "Speed_Hz": 500000,
             "SpiService": {
-              "SpeedDiv": 32,
               "_compoundName": "AvrSpi"
             },
             "SsPin": "AvrPin<AvrPortA,0>",

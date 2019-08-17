@@ -57,25 +57,6 @@ class AvrSpi {
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
 
-    template <bool TSpi2x, bool TSpr1, bool TSpr0>
-    struct SpiSpeed {
-        static bool const Spi2x = TSpi2x;
-        static bool const Spr1 = TSpr1;
-        static bool const Spr0 = TSpr0;
-    };
-    
-    using TheSpeed =
-        If<(Params::SpiSpeedDiv == 128), SpiSpeed<false, true, true>,
-        If<(Params::SpiSpeedDiv == 64), SpiSpeed<false, true, false>,
-        If<(Params::SpiSpeedDiv == 32), SpiSpeed<true, true, false>,
-        If<(Params::SpiSpeedDiv == 16), SpiSpeed<false, false, true>,
-        If<(Params::SpiSpeedDiv == 4), SpiSpeed<false, false, false>,
-        If<(Params::SpiSpeedDiv == 8), SpiSpeed<true, false, true>,
-        If<(Params::SpiSpeedDiv == 2), SpiSpeed<true, false, false>,
-        void>>>>>>>;
-    
-    static_assert(!TypesAreEqual<TheSpeed, void>::Value, "Unsupported SpiSpeedDiv.");
-    
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
     
     enum {
@@ -117,7 +98,7 @@ private:
 public:
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
-    static void init (Context c)
+    static void init (Context c, uint32_t speed_Hz)
     {
         auto *o = Object::self(c);
         
@@ -133,9 +114,11 @@ public:
         Context::Pins::template setInput<MisoPin>(c);
         
         memory_barrier();
+
+        SpeedBits sb = selectSpeed(speed_Hz);
         
-        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (TheSpeed::Spr1 << SPR1) | (TheSpeed::Spr0 << SPR0);
-        SPSR = (TheSpeed::Spi2x << SPI2X);
+        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (sb.spr1 << SPR1) | (sb.spr0 << SPR0);
+        SPSR = (sb.spi2x << SPI2X);
         
         TheDebugObject::init(c);
     }
@@ -373,6 +356,37 @@ private:
             cmd->u.read_until_different.timeout = Clock::getTime(c) + cmd->u.read_until_different.timeout;
         }
     }
+
+    struct SpeedBits {
+        bool spi2x;
+        bool spr1;
+        bool spr0;
+    };
+
+    static SpeedBits selectSpeed (uint32_t speed_Hz)
+    {
+        if (speed_Hz >= F_CPU / 2) {
+            return {1, 0, 0};
+        }
+        else if (speed_Hz >= F_CPU / 4) {
+            return {0, 0, 0};
+        }
+        else if (speed_Hz >= F_CPU / 8) {
+            return {1, 0, 1};
+        }
+        else if (speed_Hz >= F_CPU / 16) {
+            return {0, 0, 1};
+        }
+        else if (speed_Hz >= F_CPU / 32) {
+            return {1, 1, 0};
+        }
+        else if (speed_Hz >= F_CPU / 64) {
+            return {0, 1, 0};
+        }
+        else {
+            return {0, 1, 1};
+        }
+    }
     
 public:
     struct Object : public ObjBase<AvrSpi, ParentObject, MakeTypeList<TheDebugObject>> {
@@ -383,12 +397,7 @@ public:
     };
 };
 
-template <
-    uint16_t TSpiSpeedDiv
->
 struct AvrSpiService {
-    static uint16_t const SpiSpeedDiv = TSpiSpeedDiv;
-    
     APRINTER_ALIAS_STRUCT_EXT(Spi, (
         APRINTER_AS_TYPE(Context),
         APRINTER_AS_TYPE(ParentObject),

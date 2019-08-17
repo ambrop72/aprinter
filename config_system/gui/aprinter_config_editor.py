@@ -75,7 +75,6 @@ def spi_ll_choice(**kwargs):
         ]),
         ce.Compound('At91SamUsartSpiLL', attrs=[
             ce.Integer(key='DeviceIndex', default=0),
-            ce.Integer(key='ClockDivider', default=420),
         ]),
     ], **kwargs)
 
@@ -85,7 +84,6 @@ def spi_choice(**kwargs):
             spi_ll_choice(key='LLDriver', title='Low-level driver'),
         ]),
         ce.Compound('AvrSpi', attrs=[
-            ce.Integer(key='SpeedDiv')
         ]),
     ], **kwargs)
 
@@ -465,6 +463,7 @@ def microstep_choice(**kwargs):
 def current_driver_choice(**kwargs):
     return ce.OneOf(choices=[
         ce.Compound('Ad5206Current', title='AD5206', attrs=[
+            ce.Integer(key='Speed_Hz', title='Clock speed [Hz]', default=300000),
             pin_choice(key='SsPin', title='SS pin'),
             spi_choice(key='SpiService', title='SPI driver'),
         ]),
@@ -874,6 +873,7 @@ def editor():
                         ]),
                         ce.OneOf(key='SdCardService', title='Driver', choices=[
                             ce.Compound('SpiSdCard', title='SPI', attrs=[
+                                ce.Integer(key='Speed_Hz', title='Clock speed [Hz]', default=330000),
                                 pin_choice(key='SsPin', title='SS pin'),
                                 spi_choice(key='SpiService', title='SPI driver')
                             ]),
@@ -1035,6 +1035,7 @@ def editor():
                         pin_choice(key='Pin', title='Pin'),
                     ]),
                     ce.Compound('Max31855AnalogInput', title='Thermocouple via MAX31855', attrs=[
+                        ce.Integer(key='Speed_Hz', title='Clock speed [Hz]', default=300000),
                         pin_choice(key='SsPin', title='SS pin'),
                         spi_choice(key='SpiService', title='SPI driver'),
                     ]),
