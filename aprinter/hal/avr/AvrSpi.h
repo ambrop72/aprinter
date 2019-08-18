@@ -40,7 +40,6 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Hints.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/avr/AvrPins.h>
 
 namespace APrinter {
@@ -53,10 +52,6 @@ class AvrSpi {
     static int const CommandBufferBits = Arg::CommandBufferBits;
     using Params                       = typename Arg::Params;
     
-    using Clock = typename Context::Clock;
-    using TimeType = typename Clock::TimeType;
-    using TheClockUtils = ClockUtils<Context>;
-
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
     
     enum {
@@ -77,7 +72,7 @@ class AvrSpi {
             struct {
                 uint8_t *data;
                 uint8_t target_byte;
-                TimeType timeout;
+                __uint24 remaining_tries;
             } read_until_different;
             struct {
                 uint8_t const *cur;
@@ -115,11 +110,15 @@ public:
         
         memory_barrier();
 
-        SpeedBits sb = selectSpeed(speed_Hz);
+        SpeedResult sr = selectSpeed(speed_Hz);
         
-        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (sb.spr1 << SPR1) | (sb.spr0 << SPR0);
-        SPSR = (sb.spi2x << SPI2X);
+        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (sr.spr1 << SPR1) | (sr.spr0 << SPR0);
+        SPSR = (sr.spi2x << SPI2X);
         
+        // Estimated transaction rate, in units of (1000.0 / 256.0) / s. This is used to
+        // calculate the number of attempts for cmdReadUntilDifferent.
+        o->m_transactionRate = __uint24(sr.actualSpeed_Hz * float(256.0 / 1000.0 / 8.0));
+
         TheDebugObject::init(c);
     }
     
@@ -151,7 +150,7 @@ public:
         write_command(c);
     }
     
-    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t send_byte, TimeType rel_timeout, uint8_t *data)
+    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t send_byte, uint16_t timeout_ms, uint8_t *data)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -162,7 +161,7 @@ public:
         cmd->byte = send_byte;
         cmd->u.read_until_different.data = data;
         cmd->u.read_until_different.target_byte = target_byte;
-        cmd->u.read_until_different.timeout = rel_timeout;
+        cmd->u.read_until_different.remaining_tries = uint32_t(timeout_ms) * o->m_transactionRate / 256u;
         write_command(c);
     }
     
@@ -249,8 +248,9 @@ public:
                 uint8_t byte = SPDR;
                 *cmd->u.read_until_different.data = byte;
                 if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte &&
-                    !TheClockUtils::timeGreaterOrEqual(Clock::getTime(c), cmd->u.read_until_different.timeout)))
+                    cmd->u.read_until_different.remaining_tries > 0))
                 {
+                    cmd->u.read_until_different.remaining_tries--;
                     SPDR = cmd->byte;
                     return;
                 }
@@ -276,7 +276,6 @@ public:
         o->m_start = BoundedModuloInc(o->m_start);
         if (AMBRO_LIKELY(o->m_start != o->m_end)) {
             o->m_current = &o->m_buffer[o->m_start.value()];
-            start_command_common(c);
             SPDR = o->m_current->byte;
         }
     }
@@ -340,51 +339,40 @@ private:
         }
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
-            start_command_common(c);
             memory_barrier();
             SPDR = o->m_current->byte;
         }
     }
 
-    template <typename ThisContext>
-    static void start_command_common (ThisContext c)
-    {
-        auto *o = Object::self(c);
-        Command *cmd = o->m_current;
-
-        if (cmd->type == COMMAND_READ_UNTIL_DIFFERENT) {
-            cmd->u.read_until_different.timeout = Clock::getTime(c) + cmd->u.read_until_different.timeout;
-        }
-    }
-
-    struct SpeedBits {
+    struct SpeedResult {
         bool spi2x;
         bool spr1;
         bool spr0;
+        uint32_t actualSpeed_Hz;
     };
 
-    static SpeedBits selectSpeed (uint32_t speed_Hz)
+    static SpeedResult selectSpeed (uint32_t speed_Hz)
     {
         if (speed_Hz >= F_CPU / 2) {
-            return {1, 0, 0};
+            return {1, 0, 0, F_CPU / 2};
         }
         else if (speed_Hz >= F_CPU / 4) {
-            return {0, 0, 0};
+            return {0, 0, 0, F_CPU / 4};
         }
         else if (speed_Hz >= F_CPU / 8) {
-            return {1, 0, 1};
+            return {1, 0, 1, F_CPU / 8};
         }
         else if (speed_Hz >= F_CPU / 16) {
-            return {0, 0, 1};
+            return {0, 0, 1, F_CPU / 16};
         }
         else if (speed_Hz >= F_CPU / 32) {
-            return {1, 1, 0};
+            return {1, 1, 0, F_CPU / 32};
         }
         else if (speed_Hz >= F_CPU / 64) {
-            return {0, 1, 0};
+            return {0, 1, 0, F_CPU / 64};
         }
         else {
-            return {0, 1, 1};
+            return {0, 1, 1, F_CPU / 128};
         }
     }
     
@@ -394,6 +382,7 @@ public:
         CommandSizeType m_end;
         Command *m_current;
         Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
+        __uint24 m_transactionRate;
     };
 };
 
